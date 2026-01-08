@@ -1,0 +1,100 @@
+{
+  "project_info": {
+    "project_number": "760969043040",
+    "project_id": "trailshare-5334b",
+    "storage_bucket": "trailshare-5334b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:760969043040:android:5a5dac92738c770876f705",
+        "android_client_info": {
+          "package_name": "com.trailshare.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "760969043040-1ngorkl23ebkn42l7qqnqkke89vc2i7i.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.trailshare.app",
+            "certificate_hash": "3795f3fb0a36079f80cea586b7ce768b52baf255"
+          }
+        },
+        {
+          "client_id": "760969043040-7i5iodmuoumksbhskbco1p1csvoebtnd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.trailshare.app",
+            "certificate_hash": "f08bc978472ca790cdec9712cf63332f18afd980"
+          }
+        },
+        {
+          "client_id": "760969043040-bdmflpgnsppgvie49gdqsrgr5bsfo20l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClfCz4n9NPVVopvf0_tx9JCj8bHcZQ87w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "760969043040-bdmflpgnsppgvie49gdqsrgr5bsfo20l.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "760969043040-lmk5n7t2v8o3j788jubdu87bqcll2jdl.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.trailshare.app",
+                "app_store_id": "6751456265"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:760969043040:android:c8beb2f286e9b85476f705",
+        "android_client_info": {
+          "package_name": "com.trailshare.trailshare_flutter"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "760969043040-bdmflpgnsppgvie49gdqsrgr5bsfo20l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClfCz4n9NPVVopvf0_tx9JCj8bHcZQ87w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "760969043040-bdmflpgnsppgvie49gdqsrgr5bsfo20l.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "760969043040-lmk5n7t2v8o3j788jubdu87bqcll2jdl.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.trailshare.app",
+                "app_store_id": "6751456265"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
