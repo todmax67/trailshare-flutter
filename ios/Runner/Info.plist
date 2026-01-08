@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>TrailShare ha bisogno della tua posizione per mostrare dove ti trovi sulla mappa.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>TrailShare ha bisogno della tua posizione per registrare le tue escursioni.</string>
 </dict>
 </plist>
