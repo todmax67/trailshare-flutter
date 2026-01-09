@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/gpx_service.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/track_repository.dart';
+import '../../../presentation/widgets/charts/elevation_chart.dart';
 
 class TrackDetailPage extends StatefulWidget {
   final Track track;
@@ -16,8 +19,9 @@ class TrackDetailPage extends StatefulWidget {
 
 class _TrackDetailPageState extends State<TrackDetailPage> {
   final TrackRepository _repository = TrackRepository();
+  final GpxService _gpxService = GpxService();
   late Track _track;
-  final MapController _mapController = MapController();
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -32,7 +36,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         slivers: [
           // App bar con mappa
           SliverAppBar(
-            expandedHeight: 300,
+            expandedHeight: 250,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
@@ -59,22 +63,20 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Info traccia
                   _buildInfoCard(),
-                  
                   const SizedBox(height: 16),
-                  
-                  // Stats principali
                   _buildMainStats(),
-                  
                   const SizedBox(height: 16),
-                  
-                  // Stats secondarie
+                  if (_hasElevationData())
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: ElevationChart(points: _track.points),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
                   _buildSecondaryStats(),
-
                   const SizedBox(height: 24),
-
-                  // Pulsanti azione
                   _buildActionButtons(),
                 ],
               ),
@@ -85,6 +87,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     );
   }
 
+  bool _hasElevationData() {
+    return _track.points.any((p) => p.elevation != null);
+  }
+
   Widget _buildMap() {
     if (_track.points.isEmpty) {
       return Container(
@@ -93,18 +99,52 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       );
     }
 
-    // Calcola bounds
-    final points = _track.points.map((p) => LatLng(p.latitude, p.longitude)).toList();
-    final bounds = LatLngBounds.fromPoints(points);
+    // Filtra punti validi
+    final validPoints = _track.points
+        .where((p) => p.latitude != 0 && p.longitude != 0)
+        .map((p) => LatLng(p.latitude, p.longitude))
+        .toList();
+
+    if (validPoints.isEmpty) {
+      return Container(
+        color: AppColors.background,
+        child: const Center(child: Text('Nessun punto GPS valido')),
+      );
+    }
+
+    // Calcola centro manualmente
+    double minLat = validPoints.first.latitude;
+    double maxLat = validPoints.first.latitude;
+    double minLng = validPoints.first.longitude;
+    double maxLng = validPoints.first.longitude;
+
+    for (final p in validPoints) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+
+    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    
+    // Calcola zoom appropriato
+    final latDiff = maxLat - minLat;
+    final lngDiff = maxLng - minLng;
+    final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
+    
+    double zoom = 14.0;
+    if (maxDiff > 0.5) zoom = 10;
+    else if (maxDiff > 0.2) zoom = 11;
+    else if (maxDiff > 0.1) zoom = 12;
+    else if (maxDiff > 0.05) zoom = 13;
+    else if (maxDiff > 0.02) zoom = 14;
+    else zoom = 15;
 
     return FlutterMap(
-      mapController: _mapController,
       options: MapOptions(
-        initialCenter: bounds.center,
-        initialZoom: 14,
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.none, // Disabilita interazione in app bar
-        ),
+        initialCenter: center,
+        initialZoom: zoom,
+        interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
       ),
       children: [
         TileLayer(
@@ -114,7 +154,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         PolylineLayer(
           polylines: [
             Polyline(
-              points: points,
+              points: validPoints,
               strokeWidth: 4,
               color: AppColors.primary,
             ),
@@ -122,32 +162,44 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         ),
         MarkerLayer(
           markers: [
-            // Start
+            // Start marker
             Marker(
-              point: points.first,
-              width: 24,
-              height: 24,
+              point: validPoints.first,
+              width: 28,
+              height: 28,
               child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.success,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 4,
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.flag, color: Colors.white, size: 12),
+                child: const Icon(Icons.play_arrow, color: Colors.white, size: 16),
               ),
             ),
-            // End
+            // End marker
             Marker(
-              point: points.last,
-              width: 24,
-              height: 24,
+              point: validPoints.last,
+              width: 28,
+              height: 28,
               child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.danger,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 4,
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.flag, color: Colors.white, size: 12),
+                child: const Icon(Icons.flag, color: Colors.white, size: 14),
               ),
             ),
           ],
@@ -168,10 +220,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 color: AppColors.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                _track.activityType.icon,
-                style: const TextStyle(fontSize: 28),
-              ),
+              child: Text(_track.activityType.icon, style: const TextStyle(fontSize: 28)),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -180,10 +229,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 children: [
                   Text(
                     _track.activityType.displayName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -192,10 +238,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   ),
                   if (_track.description != null && _track.description!.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      _track.description!,
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
+                    Text(_track.description!, style: const TextStyle(color: AppColors.textSecondary)),
                   ],
                 ],
               ),
@@ -249,15 +292,15 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Statistiche',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
+            const Text('Statistiche', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 16),
             _buildStatRow('Dislivello -', '-${_track.stats.elevationLoss.toStringAsFixed(0)} m'),
-            _buildStatRow('Velocità media', '${_track.stats.avgSpeedKmh.toStringAsFixed(1)} km/h'),
-            _buildStatRow('Velocità max', '${(_track.stats.maxSpeed * 3.6).toStringAsFixed(1)} km/h'),
-            _buildStatRow('Passo medio', _track.stats.avgPace),
+            if (_track.stats.avgSpeed > 0)
+              _buildStatRow('Velocità media', '${_track.stats.avgSpeedKmh.toStringAsFixed(1)} km/h'),
+            if (_track.stats.maxSpeed > 0)
+              _buildStatRow('Velocità max', '${(_track.stats.maxSpeed * 3.6).toStringAsFixed(1)} km/h'),
+            if (_track.stats.avgSpeed > 0)
+              _buildStatRow('Passo medio', _track.stats.avgPace),
             _buildStatRow('Punti GPS', '${_track.points.length}'),
           ],
         ),
@@ -284,14 +327,15 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () {
-              // TODO: Esporta GPX
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Export GPX - Coming soon!')),
-              );
-            },
-            icon: const Icon(Icons.download),
-            label: const Text('Esporta GPX'),
+            onPressed: _isExporting ? null : _exportGpx,
+            icon: _isExporting 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.download),
+            label: Text(_isExporting ? 'Esportazione...' : 'Esporta GPX'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.info,
               foregroundColor: Colors.white,
@@ -316,6 +360,51 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     );
   }
 
+  Future<void> _exportGpx() async {
+    if (_track.points.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nessun punto GPS da esportare')),
+      );
+      return;
+    }
+
+    setState(() => _isExporting = true);
+
+    try {
+      // Genera e salva il file GPX
+      final filePath = await _gpxService.saveGpxToFile(_track);
+      
+      // Condividi il file
+      await Share.shareXFiles(
+        [XFile(filePath)],
+        subject: _track.name,
+        text: 'Traccia GPX: ${_track.name}',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ GPX esportato con successo!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Errore export: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+
   void _showEditDialog() {
     final nameController = TextEditingController(text: _track.name);
     final descController = TextEditingController(text: _track.description ?? '');
@@ -329,27 +418,18 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nome',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Nome', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: descController,
-              decoration: const InputDecoration(
-                labelText: 'Descrizione',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Descrizione', border: OutlineInputBorder()),
               maxLines: 3,
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
@@ -366,26 +446,16 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     if (_track.id == null) return;
 
     try {
-      await _repository.updateTrack(
-        _track.id!,
-        name: name,
-        description: description,
-      );
-      
+      await _repository.updateTrack(_track.id!, name: name, description: description);
       setState(() {
         _track = _track.copyWith(name: name, description: description);
       });
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Traccia aggiornata')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Traccia aggiornata')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore: $e')));
       }
     }
   }
@@ -397,10 +467,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         title: const Text('Eliminare traccia?'),
         content: const Text('Questa azione non può essere annullata.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla')),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
@@ -420,15 +487,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       await _repository.deleteTrack(_track.id!);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Traccia eliminata')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Traccia eliminata')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore: $e')));
       }
     }
   }
@@ -470,30 +533,17 @@ class _StatCard extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: value,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
                   ),
                   TextSpan(
                     text: ' $unit',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: color.withOpacity(0.7),
-                    ),
+                    style: TextStyle(fontSize: 12, color: color.withOpacity(0.7)),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textMuted,
-              ),
-            ),
+            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
           ],
         ),
       ),
