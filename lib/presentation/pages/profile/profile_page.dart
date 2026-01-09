@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../data/models/track.dart';
-import '../../../data/repositories/track_repository.dart';
+import '../dashboard/dashboard_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -12,185 +12,300 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final TrackRepository _repository = TrackRepository();
-  final user = FirebaseAuth.instance.currentUser;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
+  // Profile data
+  String? _username;
+  String? _bio;
+  String? _avatarUrl;
+  int _level = 1;
+  int _currentXp = 0;
+  int _xpForNextLevel = 1000;
+  
+  // Stats
+  int _totalTracks = 0;
+  double _totalDistance = 0;
+  double _totalElevation = 0;
+  int _followersCount = 0;
+  int _followingCount = 0;
+  
+  // UI state
   bool _isLoading = true;
-  ProfileStats _stats = const ProfileStats();
+  bool _isEditingUsername = false;
+  bool _isEditingBio = false;
+  
+  final _usernameController = TextEditingController();
+  final _bioController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadStats();
+    _loadProfile();
   }
 
-  Future<void> _loadStats() async {
-    setState(() => _isLoading = true);
-    
-    try {
-      final tracks = await _repository.getMyTracks();
-      final stats = ProfileStats.fromTracks(tracks);
-      
-      setState(() {
-        _stats = stats;
-        _isLoading = false;
-      });
-    } catch (e) {
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _bioController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
       setState(() => _isLoading = false);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Carica profilo utente
+      final profileDoc = await _firestore
+          .collection('user_profiles')
+          .doc(user.uid)
+          .get();
+
+      if (profileDoc.exists) {
+        final data = profileDoc.data()!;
+        _username = data['username'] as String?;
+        _bio = data['bio'] as String?;
+        _avatarUrl = data['avatarUrl'] as String?;
+        _level = (data['level'] as num?)?.toInt() ?? 1;
+        _currentXp = (data['xp'] as num?)?.toInt() ?? 0;
+        _followersCount = (data['followersCount'] as num?)?.toInt() ?? 0;
+        _followingCount = (data['followingCount'] as num?)?.toInt() ?? 0;
+      }
+
+      // Calcola XP per prossimo livello
+      _xpForNextLevel = _calculateXpForLevel(_level + 1);
+
+      // Carica stats dalle tracce
+      final tracksSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('tracks')
+          .get();
+
+      _totalTracks = tracksSnapshot.docs.length;
+      _totalDistance = 0;
+      _totalElevation = 0;
+
+      for (final doc in tracksSnapshot.docs) {
+        final data = doc.data();
+        _totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
+        _totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
+      }
+
+      // Fallback username
+      _username ??= user.displayName ?? user.email?.split('@').first ?? 'Utente';
+      _avatarUrl ??= user.photoURL;
+      
+      _usernameController.text = _username ?? '';
+      _bioController.text = _bio ?? '';
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      print('[ProfilePage] Errore caricamento: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  int _calculateXpForLevel(int level) {
+    // Formula: 1000 * level^1.5
+    return (1000 * (level * 1.5)).toInt();
+  }
+
+  Future<void> _saveUsername() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final newUsername = _usernameController.text.trim();
+    if (newUsername.isEmpty) return;
+
+    try {
+      await _firestore.collection('user_profiles').doc(user.uid).set({
+        'username': newUsername,
+      }, SetOptions(merge: true));
+
+      setState(() {
+        _username = newUsername;
+        _isEditingUsername = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Username aggiornato!'), backgroundColor: AppColors.success),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveBio() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final newBio = _bioController.text.trim();
+
+    try {
+      await _firestore.collection('user_profiles').doc(user.uid).set({
+        'bio': newBio,
+      }, SetOptions(merge: true));
+
+      setState(() {
+        _bio = newBio.isEmpty ? null : newBio;
+        _isEditingBio = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bio aggiornata!'), backgroundColor: AppColors.success),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
+
+  Future<void> _signOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Esci'),
+        content: const Text('Vuoi uscire dal tuo account?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Esci'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await FirebaseAuth.instance.signOut();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profilo'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: AppColors.textPrimary,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadStats,
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _confirmLogout,
-          ),
+          if (user != null)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () {
+                // TODO: Settings page
+              },
+            ),
+          if (user != null)
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: _signOut,
+            ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadStats,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Header utente
-              _buildUserHeader(),
-              
-              const SizedBox(height: 24),
-              
-              // Stats principali
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator(),
-                )
-              else ...[
-                _buildMainStats(),
-                
-                const SizedBox(height: 16),
-                
-                // Stats dettagliate
-                _buildDetailedStats(),
-                
-                const SizedBox(height: 16),
-                
-                // Statistiche per attività
-                if (_stats.tracksByActivity.isNotEmpty)
-                  _buildActivityBreakdown(),
-              ],
-              
-              const SizedBox(height: 24),
-              
-              // Info app
-              _buildAppInfo(),
-            ],
-          ),
-        ),
-      ),
+      body: user == null
+          ? _buildLoginPrompt()
+          : _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: _loadProfile,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        // Avatar
+                        _buildAvatar(),
+                        const SizedBox(height: 16),
+
+                        // Username
+                        _buildUsernameSection(),
+                        const SizedBox(height: 4),
+
+                        // Email
+                        Text(
+                          user.email ?? '',
+                          style: const TextStyle(color: AppColors.textMuted),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Bio
+                        _buildBioSection(),
+                        const SizedBox(height: 24),
+
+                        // XP Bar
+                        _buildXpSection(),
+                        const SizedBox(height: 24),
+
+                        // Stats Grid
+                        _buildStatsGrid(),
+                        const SizedBox(height: 24),
+
+                        // Dashboard Button
+                        _buildDashboardButton(),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
+                  ),
+                ),
     );
   }
 
-  Widget _buildUserHeader() {
-    final email = user?.email ?? 'Utente';
-    final initial = email.isNotEmpty ? email[0].toUpperCase() : 'U';
-    
-    return Card(
+  Widget _buildLoginPrompt() {
+    return Center(
       child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Avatar
-            Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryDark],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  initial,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+            Icon(Icons.person_outline, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 24),
+            const Text(
+              'Accedi per vedere il tuo profilo',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
             ),
-            
-            const SizedBox(width: 16),
-            
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    email,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        user?.emailVerified == true 
-                            ? Icons.verified 
-                            : Icons.warning_amber,
-                        size: 14,
-                        color: user?.emailVerified == true 
-                            ? AppColors.success 
-                            : AppColors.warning,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        user?.emailVerified == true 
-                            ? 'Email verificata' 
-                            : 'Email non verificata',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: user?.emailVerified == true 
-                              ? AppColors.success 
-                              : AppColors.warning,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Membro dal ${_formatMemberDate()}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textMuted,
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 8),
+            Text(
+              'Registra tracce, partecipa alle sfide e scala la classifica!',
+              style: TextStyle(color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                // TODO: Navigate to login
+              },
+              icon: const Icon(Icons.login),
+              label: const Text('Accedi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
             ),
           ],
@@ -199,356 +314,321 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildMainStats() {
-    return Row(
+  Widget _buildAvatar() {
+    return GestureDetector(
+      onTap: () {
+        // TODO: Change avatar
+      },
+      child: Stack(
+        children: [
+          CircleAvatar(
+            radius: 56,
+            backgroundColor: AppColors.primary.withOpacity(0.1),
+            backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
+            child: _avatarUrl == null
+                ? Text(
+                    (_username ?? 'U')[0].toUpperCase(),
+                    style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  )
+                : null,
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUsernameSection() {
+    if (_isEditingUsername) {
+      return Column(
+        children: [
+          TextField(
+            controller: _usernameController,
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(
+              hintText: 'Nuovo nickname',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => setState(() => _isEditingUsername = false),
+                child: const Text('Annulla'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _saveUsername,
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                child: const Text('Salva'),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return Column(
       children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.route,
-            value: '${_stats.totalTracks}',
-            label: 'Tracce',
-            color: AppColors.primary,
-          ),
+        Text(
+          _username ?? 'Utente',
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.straighten,
-            value: '${_stats.totalDistanceKm.toStringAsFixed(0)}',
-            label: 'km totali',
-            color: AppColors.info,
-          ),
+        TextButton(
+          onPressed: () => setState(() => _isEditingUsername = true),
+          child: const Text('Modifica nickname', style: TextStyle(fontSize: 12)),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.terrain,
-            value: '${(_stats.totalElevationGain / 1000).toStringAsFixed(1)}k',
-            label: 'm D+',
-            color: AppColors.success,
+      ],
+    );
+  }
+
+  Widget _buildBioSection() {
+    if (_isEditingBio) {
+      return Column(
+        children: [
+          TextField(
+            controller: _bioController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Racconta qualcosa di te...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => setState(() => _isEditingBio = false),
+                child: const Text('Annulla'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _saveBio,
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                child: const Text('Salva'),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        if (_bio != null && _bio!.isNotEmpty)
+          Text(
+            _bio!,
+            style: const TextStyle(fontStyle: FontStyle.italic, color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        TextButton(
+          onPressed: () => setState(() => _isEditingBio = true),
+          child: Text(
+            _bio == null || _bio!.isEmpty ? 'Aggiungi una bio' : 'Modifica bio',
+            style: const TextStyle(fontSize: 12),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildDetailedStats() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.analytics, size: 20, color: AppColors.primary),
-                SizedBox(width: 8),
-                Text(
-                  'Statistiche Totali',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            _buildStatRow(Icons.straighten, 'Distanza totale', '${_stats.totalDistanceKm.toStringAsFixed(2)} km'),
-            _buildStatRow(Icons.trending_up, 'Dislivello positivo', '+${_stats.totalElevationGain.toStringAsFixed(0)} m'),
-            _buildStatRow(Icons.trending_down, 'Dislivello negativo', '-${_stats.totalElevationLoss.toStringAsFixed(0)} m'),
-            _buildStatRow(Icons.timer, 'Tempo totale', _formatTotalDuration(_stats.totalDuration)),
-            _buildStatRow(Icons.speed, 'Velocità media', '${_stats.avgSpeed.toStringAsFixed(1)} km/h'),
-            _buildStatRow(Icons.star, 'Traccia più lunga', '${_stats.longestTrackKm.toStringAsFixed(2)} km'),
-            _buildStatRow(Icons.landscape, 'Quota max raggiunta', '${_stats.maxElevation.toStringAsFixed(0)} m'),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildXpSection() {
+    final progress = _currentXp / _xpForNextLevel;
 
-  Widget _buildActivityBreakdown() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.pie_chart, size: 20, color: AppColors.primary),
-                SizedBox(width: 8),
-                Text(
-                  'Per Attività',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            ..._stats.tracksByActivity.entries.map((entry) {
-              final activity = entry.key;
-              final count = entry.value;
-              final percentage = (_stats.totalTracks > 0) 
-                  ? (count / _stats.totalTracks * 100) 
-                  : 0.0;
-              
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    Text(activity.icon, style: const TextStyle(fontSize: 20)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            activity.displayName,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 4),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: percentage / 100,
-                              backgroundColor: AppColors.border,
-                              valueColor: AlwaysStoppedAnimation(AppColors.primary),
-                              minHeight: 6,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      '$count',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
-    );
-  }
-
-  Widget _buildStatRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
+      child: Column(
         children: [
-          Icon(icon, size: 18, color: AppColors.textMuted),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.star, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Livello $_level',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  ),
+                ],
+              ),
+              Text(
+                '$_currentXp / $_xpForNextLevel XP',
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+              ),
+            ],
           ),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: Colors.grey[200],
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAppInfo() {
-    return Card(
-      color: AppColors.background,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.terrain, color: AppColors.primary),
-                const SizedBox(width: 8),
-                const Text(
-                  'TrailShare',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: AppColors.primary,
+  Widget _buildStatsGrid() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        border: Border.symmetric(
+          horizontal: BorderSide(color: Colors.grey[200]!),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Prima riga: Tracce, Distanza, Dislivello
+          Row(
+            children: [
+              Expanded(
+                child: _StatItem(
+                  label: 'Tracce',
+                  value: '$_totalTracks',
+                ),
+              ),
+              Expanded(
+                child: _StatItem(
+                  label: 'Distanza',
+                  value: '${(_totalDistance / 1000).toStringAsFixed(1)} km',
+                ),
+              ),
+              Expanded(
+                child: _StatItem(
+                  label: 'Dislivello',
+                  value: '${_totalElevation.toStringAsFixed(0)} m',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Seconda riga: Follower, Following
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    // TODO: Show followers
+                  },
+                  child: _StatItem(
+                    label: 'Follower',
+                    value: '$_followersCount',
+                    isClickable: true,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Versione Flutter 1.0.0',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Traccia le tue avventure',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-            ),
-          ],
-        ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    // TODO: Show following
+                  },
+                  child: _StatItem(
+                    label: 'Following',
+                    value: '$_followingCount',
+                    isClickable: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  String _formatMemberDate() {
-    final creationTime = user?.metadata.creationTime;
-    if (creationTime == null) return 'N/A';
-    
-    final months = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
-                    'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
-    return '${months[creationTime.month - 1]} ${creationTime.year}';
-  }
-
-  String _formatTotalDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-    
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
-  }
-
-  void _confirmLogout() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Vuoi uscire dall\'account?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+  Widget _buildDashboardButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DashboardPage()),
+          );
+        },
+        icon: const Icon(Icons.bar_chart),
+        label: const Text('Vedi Dashboard'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await FirebaseAuth.instance.signOut();
-            },
-            child: const Text('Esci', style: TextStyle(color: AppColors.danger)),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Widget per stat card
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
+class _StatItem extends StatelessWidget {
   final String label;
-  final Color color;
+  final String value;
+  final bool isClickable;
 
-  const _StatCard({
-    required this.icon,
-    required this.value,
+  const _StatItem({
     required this.label,
-    required this.color,
+    required this.value,
+    this.isClickable = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textMuted,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: isClickable
+          ? BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.transparent,
+            )
+          : null,
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+        ],
       ),
-    );
-  }
-}
-
-
-/// Statistiche profilo calcolate dalle tracce
-class ProfileStats {
-  final int totalTracks;
-  final double totalDistance;
-  final double totalElevationGain;
-  final double totalElevationLoss;
-  final Duration totalDuration;
-  final double longestTrack;
-  final double maxElevation;
-  final Map<ActivityType, int> tracksByActivity;
-
-  const ProfileStats({
-    this.totalTracks = 0,
-    this.totalDistance = 0,
-    this.totalElevationGain = 0,
-    this.totalElevationLoss = 0,
-    this.totalDuration = Duration.zero,
-    this.longestTrack = 0,
-    this.maxElevation = 0,
-    this.tracksByActivity = const {},
-  });
-
-  double get totalDistanceKm => totalDistance / 1000;
-  double get longestTrackKm => longestTrack / 1000;
-  
-  double get avgSpeed {
-    if (totalDuration.inSeconds == 0) return 0;
-    return (totalDistance / totalDuration.inSeconds) * 3.6; // km/h
-  }
-
-  factory ProfileStats.fromTracks(List<Track> tracks) {
-    if (tracks.isEmpty) return const ProfileStats();
-
-    double totalDistance = 0;
-    double totalElevationGain = 0;
-    double totalElevationLoss = 0;
-    Duration totalDuration = Duration.zero;
-    double longestTrack = 0;
-    double maxElevation = 0;
-    final tracksByActivity = <ActivityType, int>{};
-
-    for (final track in tracks) {
-      totalDistance += track.stats.distance;
-      totalElevationGain += track.stats.elevationGain;
-      totalElevationLoss += track.stats.elevationLoss;
-      totalDuration += track.stats.duration;
-      
-      if (track.stats.distance > longestTrack) {
-        longestTrack = track.stats.distance;
-      }
-      
-      if (track.stats.maxElevation > maxElevation) {
-        maxElevation = track.stats.maxElevation;
-      }
-      
-      tracksByActivity[track.activityType] = 
-          (tracksByActivity[track.activityType] ?? 0) + 1;
-    }
-
-    return ProfileStats(
-      totalTracks: tracks.length,
-      totalDistance: totalDistance,
-      totalElevationGain: totalElevationGain,
-      totalElevationLoss: totalElevationLoss,
-      totalDuration: totalDuration,
-      longestTrack: longestTrack,
-      maxElevation: maxElevation,
-      tracksByActivity: tracksByActivity,
     );
   }
 }

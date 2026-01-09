@@ -126,7 +126,7 @@ class _ElevationChartState extends State<ElevationChart> {
                 enabled: true,
                 touchTooltipData: LineTouchTooltipData(
                   getTooltipColor: (spot) => AppColors.textPrimary.withOpacity(0.9),
-                  tooltipRoundedRadius: 8,
+                  tooltipBorderRadius: BorderRadius.circular(8),
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((spot) {
                       return LineTooltipItem(

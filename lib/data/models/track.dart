@@ -226,6 +226,7 @@ class Track {
   final DateTime createdAt;
   final String? userId;
   final bool isPublic;
+  final bool isPlanned; // ← NUOVO: indica se è una traccia pianificata
   final TrackStats stats;
 
   const Track({
@@ -238,6 +239,7 @@ class Track {
     required this.createdAt,
     this.userId,
     this.isPublic = false,
+    this.isPlanned = false, // ← Default: non pianificata (registrata)
     this.stats = const TrackStats(),
   });
 
@@ -251,6 +253,7 @@ class Track {
       'createdAt': createdAt.toIso8601String(),
       'userId': userId,
       'isPublic': isPublic,
+      'isPlanned': isPlanned, // ← Salva su Firestore
       'distance': stats.distance,
       'elevationGain': stats.elevationGain,
       'elevationLoss': stats.elevationLoss,
@@ -269,6 +272,7 @@ class Track {
     DateTime? createdAt,
     String? userId,
     bool? isPublic,
+    bool? isPlanned,
     TrackStats? stats,
   }) {
     return Track(
@@ -281,6 +285,7 @@ class Track {
       createdAt: createdAt ?? this.createdAt,
       userId: userId ?? this.userId,
       isPublic: isPublic ?? this.isPublic,
+      isPlanned: isPlanned ?? this.isPlanned,
       stats: stats ?? this.stats,
     );
   }
