@@ -37,6 +37,11 @@ dependencies:
   share_plus: ^10.1.4
   path_provider: ^2.1.5
 
+  # Social Auth
+  google_sign_in: ^6.2.2
+  sign_in_with_apple: ^6.1.4
+  crypto: ^3.0.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

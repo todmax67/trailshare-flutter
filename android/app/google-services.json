@@ -67,6 +67,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "760969043040-csk9j9r7pp1sam8obn4u1a52m7u44pmd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.trailshare.trailshare_flutter",
+            "certificate_hash": "f08bc978472ca790cdec9712cf63332f18afd980"
+          }
+        },
+        {
           "client_id": "760969043040-bdmflpgnsppgvie49gdqsrgr5bsfo20l.apps.googleusercontent.com",
           "client_type": 3
         }

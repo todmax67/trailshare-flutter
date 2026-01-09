@@ -2,19 +2,19 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/auth_service.dart';
-import 'register_page.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
   
   bool _isLoading = false;
@@ -41,10 +41,11 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _login() async {
+  Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -52,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
       _errorMessage = null;
     });
 
-    final result = await _authService.signInWithEmail(
+    final result = await _authService.registerWithEmail(
       _emailController.text,
       _passwordController.text,
     );
@@ -60,7 +61,16 @@ class _LoginPageState extends State<LoginPage> {
     if (mounted) {
       setState(() => _isLoading = false);
       
-      if (!result.success) {
+      if (result.success) {
+        // Registrazione riuscita, torna indietro
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Account creato con successo!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else {
         setState(() => _errorMessage = result.errorMessage);
       }
     }
@@ -77,7 +87,9 @@ class _LoginPageState extends State<LoginPage> {
     if (mounted) {
       setState(() => _isGoogleLoading = false);
       
-      if (!result.success && result.errorMessage != 'Accesso annullato') {
+      if (result.success) {
+        Navigator.pop(context);
+      } else if (result.errorMessage != 'Accesso annullato') {
         setState(() => _errorMessage = result.errorMessage);
       }
     }
@@ -94,61 +106,12 @@ class _LoginPageState extends State<LoginPage> {
     if (mounted) {
       setState(() => _isAppleLoading = false);
       
-      if (!result.success && result.errorMessage != 'Accesso annullato') {
+      if (result.success) {
+        Navigator.pop(context);
+      } else if (result.errorMessage != 'Accesso annullato') {
         setState(() => _errorMessage = result.errorMessage);
       }
     }
-  }
-
-  void _showResetPasswordDialog() {
-    final emailController = TextEditingController(text: _emailController.text);
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Recupera password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Inserisci la tua email per ricevere il link di reset.'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final result = await _authService.resetPassword(emailController.text);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      result.success 
-                          ? 'Email di reset inviata!' 
-                          : result.errorMessage ?? 'Errore',
-                    ),
-                    backgroundColor: result.success ? AppColors.success : AppColors.danger,
-                  ),
-                );
-              }
-            },
-            child: const Text('Invia'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -156,6 +119,9 @@ class _LoginPageState extends State<LoginPage> {
     final bool anyLoading = _isLoading || _isGoogleLoading || _isAppleLoading;
     
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Crea account'),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -164,27 +130,23 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 40),
-                
-                // Logo e titolo
-                Icon(Icons.terrain, size: 80, color: AppColors.primary),
-                const SizedBox(height: 16),
-                Text(
-                  'TrailShare',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                // Header
+                const Text(
+                  'Unisciti a TrailShare',
+                  style: TextStyle(
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Traccia le tue avventure',
+                  'Crea un account per salvare le tue tracce',
                   style: TextStyle(color: AppColors.textSecondary),
                   textAlign: TextAlign.center,
                 ),
                 
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
 
                 // Bottoni Social
                 if (_appleSignInAvailable) ...[
@@ -203,7 +165,11 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: anyLoading ? null : _signInWithGoogle,
                   isLoading: _isGoogleLoading,
                   icon: null,
-                  customIcon: _buildGoogleIcon(),
+                  customIcon: const Text('G', style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  )),
                   label: 'Continua con Google',
                   backgroundColor: Colors.white,
                   textColor: AppColors.textPrimary,
@@ -219,8 +185,8 @@ class _LoginPageState extends State<LoginPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
-                        'oppure',
-                        style: TextStyle(color: AppColors.textMuted),
+                        'oppure registrati con email',
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                       ),
                     ),
                     const Expanded(child: Divider()),
@@ -244,7 +210,7 @@ class _LoginPageState extends State<LoginPage> {
                     if (value == null || value.isEmpty) {
                       return 'Inserisci la tua email';
                     }
-                    if (!value.contains('@')) {
+                    if (!value.contains('@') || !value.contains('.')) {
                       return 'Email non valida';
                     }
                     return null;
@@ -257,13 +223,13 @@ class _LoginPageState extends State<LoginPage> {
                 TextFormField(
                   controller: _passwordController,
                   obscureText: !_isPasswordVisible,
-                  textInputAction: TextInputAction.done,
+                  textInputAction: TextInputAction.next,
                   enabled: !anyLoading,
-                  onFieldSubmitted: (_) => _login(),
                   decoration: InputDecoration(
                     labelText: 'Password',
                     prefixIcon: const Icon(Icons.lock_outlined),
                     border: const OutlineInputBorder(),
+                    helperText: 'Minimo 6 caratteri',
                     suffixIcon: IconButton(
                       icon: Icon(
                         _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
@@ -275,26 +241,43 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Inserisci la password';
+                      return 'Inserisci una password';
+                    }
+                    if (value.length < 6) {
+                      return 'La password deve avere almeno 6 caratteri';
                     }
                     return null;
                   },
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
 
-                // Link recupero password
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: anyLoading ? null : _showResetPasswordDialog,
-                    child: const Text('Password dimenticata?'),
+                // Conferma Password
+                TextFormField(
+                  controller: _confirmPasswordController,
+                  obscureText: !_isPasswordVisible,
+                  textInputAction: TextInputAction.done,
+                  enabled: !anyLoading,
+                  onFieldSubmitted: (_) => _register(),
+                  decoration: const InputDecoration(
+                    labelText: 'Conferma password',
+                    prefixIcon: Icon(Icons.lock_outlined),
+                    border: OutlineInputBorder(),
                   ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Conferma la password';
+                    }
+                    if (value != _passwordController.text) {
+                      return 'Le password non coincidono';
+                    }
+                    return null;
+                  },
                 ),
 
                 // Messaggio errore
                 if (_errorMessage != null) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -318,9 +301,9 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 24),
 
-                // Bottone Login
+                // Bottone Registrazione
                 ElevatedButton(
-                  onPressed: anyLoading ? null : _login,
+                  onPressed: anyLoading ? null : _register,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -338,26 +321,31 @@ class _LoginPageState extends State<LoginPage> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Accedi', style: TextStyle(fontSize: 16)),
+                      : const Text('Crea account', style: TextStyle(fontSize: 16)),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Info privacy
+                Text(
+                  'Creando un account accetti i nostri Termini di servizio e la Privacy Policy',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
 
                 const SizedBox(height: 24),
 
-                // Link registrazione
+                // Link login
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Non hai un account?'),
+                    const Text('Hai già un account?'),
                     TextButton(
-                      onPressed: anyLoading 
-                          ? null 
-                          : () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const RegisterPage()),
-                              );
-                            },
-                      child: const Text('Registrati'),
+                      onPressed: anyLoading ? null : () => Navigator.pop(context),
+                      child: const Text('Accedi'),
                     ),
                   ],
                 ),
@@ -366,25 +354,6 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildGoogleIcon() {
-    return Container(
-      width: 20,
-      height: 20,
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: NetworkImage(
-            'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-          ),
-        ),
-      ),
-      child: const Text('G', style: TextStyle(
-        color: Colors.red,
-        fontWeight: FontWeight.bold,
-        fontSize: 16,
-      )),
     );
   }
 }
