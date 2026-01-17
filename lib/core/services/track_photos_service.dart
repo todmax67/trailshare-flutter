@@ -7,26 +7,53 @@ import 'package:path/path.dart' as path;
 
 /// Servizio per gestire foto delle tracce
 /// Upload su Firebase Storage e gestione metadata
+/// 
+/// FIX: Ridotta qualità e dimensioni per prevenire crash di memoria
 class TrackPhotosService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final ImagePicker _picker = ImagePicker();
 
+  // ⚠️ FIX: Dimensioni ridotte per prevenire OutOfMemory
+  static const int _maxWidth = 1280;  // Era 1920
+  static const int _maxHeight = 720;  // Era 1080
+  static const int _imageQuality = 70; // Era 85
+
   /// Scatta una foto con la camera
+  /// FIX: Aggiunto try-catch più robusto e dimensioni ridotte
   Future<TrackPhoto?> takePhoto({
     required double latitude,
     required double longitude,
     double? elevation,
   }) async {
     try {
+      debugPrint('[TrackPhotos] Apertura camera...');
+      
       final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+        maxWidth: _maxWidth.toDouble(),
+        maxHeight: _maxHeight.toDouble(),
+        imageQuality: _imageQuality,
+        // FIX: Preferisci la camera posteriore (meno memoria)
+        preferredCameraDevice: CameraDevice.rear,
       );
 
-      if (photo == null) return null;
+      if (photo == null) {
+        debugPrint('[TrackPhotos] Foto annullata dall\'utente');
+        return null;
+      }
+
+      debugPrint('[TrackPhotos] Foto scattata: ${photo.path}');
+      
+      // FIX: Verifica che il file esista e sia accessibile
+      final file = File(photo.path);
+      if (!await file.exists()) {
+        debugPrint('[TrackPhotos] ERRORE: File foto non trovato!');
+        return null;
+      }
+
+      final fileSize = await file.length();
+      debugPrint('[TrackPhotos] Dimensione foto: ${(fileSize / 1024).toStringAsFixed(1)} KB');
 
       return TrackPhoto(
         localPath: photo.path,
@@ -35,36 +62,57 @@ class TrackPhotosService {
         elevation: elevation,
         timestamp: DateTime.now(),
       );
-    } catch (e) {
-      debugPrint('[TrackPhotos] Errore scatto foto: $e');
+    } catch (e, stackTrace) {
+      debugPrint('[TrackPhotos] ERRORE scatto foto: $e');
+      debugPrint('[TrackPhotos] StackTrace: $stackTrace');
       return null;
     }
   }
 
   /// Seleziona foto dalla galleria
+  /// FIX: Limitato numero massimo di foto selezionabili
   Future<List<TrackPhoto>> pickFromGallery({
     double? latitude,
     double? longitude,
     double? elevation,
+    int maxImages = 5, // FIX: Limita selezione multipla
   }) async {
     try {
+      debugPrint('[TrackPhotos] Apertura galleria...');
+      
       final List<XFile> images = await _picker.pickMultiImage(
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+        maxWidth: _maxWidth.toDouble(),
+        maxHeight: _maxHeight.toDouble(),
+        imageQuality: _imageQuality,
+        limit: maxImages, // FIX: Limita numero immagini
       );
 
-      if (images.isEmpty) return [];
+      if (images.isEmpty) {
+        debugPrint('[TrackPhotos] Nessuna foto selezionata');
+        return [];
+      }
 
-      return images.map((img) => TrackPhoto(
-        localPath: img.path,
-        latitude: latitude,
-        longitude: longitude,
-        elevation: elevation,
-        timestamp: DateTime.now(),
-      )).toList();
-    } catch (e) {
-      debugPrint('[TrackPhotos] Errore selezione foto: $e');
+      debugPrint('[TrackPhotos] Selezionate ${images.length} foto');
+
+      final photos = <TrackPhoto>[];
+      for (final img in images) {
+        // FIX: Verifica ogni file
+        final file = File(img.path);
+        if (await file.exists()) {
+          photos.add(TrackPhoto(
+            localPath: img.path,
+            latitude: latitude,
+            longitude: longitude,
+            elevation: elevation,
+            timestamp: DateTime.now(),
+          ));
+        }
+      }
+
+      return photos;
+    } catch (e, stackTrace) {
+      debugPrint('[TrackPhotos] ERRORE selezione foto: $e');
+      debugPrint('[TrackPhotos] StackTrace: $stackTrace');
       return [];
     }
   }
@@ -178,18 +226,6 @@ class TrackPhotosService {
       await deletePhoto(url);
     }
   }
-
-  /// Comprimi immagine (opzionale, per risparmiare storage)
-  Future<File?> compressImage(File file, {int quality = 85}) async {
-    try {
-      // Qui potresti usare flutter_image_compress se necessario
-      // Per ora ritorniamo il file originale
-      return file;
-    } catch (e) {
-      debugPrint('[TrackPhotos] Errore compressione: $e');
-      return null;
-    }
-  }
 }
 
 /// Modello per foto durante la registrazione (ancora da uplodare)
@@ -199,99 +235,65 @@ class TrackPhoto {
   final double? longitude;
   final double? elevation;
   final DateTime timestamp;
-  final String? caption;
 
-  const TrackPhoto({
+  TrackPhoto({
     required this.localPath,
     this.latitude,
     this.longitude,
     this.elevation,
     required this.timestamp,
-    this.caption,
   });
 
-  TrackPhoto copyWith({
-    String? localPath,
-    double? latitude,
-    double? longitude,
-    double? elevation,
-    DateTime? timestamp,
-    String? caption,
-  }) {
-    return TrackPhoto(
-      localPath: localPath ?? this.localPath,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
-      elevation: elevation ?? this.elevation,
-      timestamp: timestamp ?? this.timestamp,
-      caption: caption ?? this.caption,
-    );
-  }
+  Map<String, dynamic> toJson() => {
+    'localPath': localPath,
+    'latitude': latitude,
+    'longitude': longitude,
+    'elevation': elevation,
+    'timestamp': timestamp.toIso8601String(),
+  };
 
-  Map<String, dynamic> toMap() {
-    return {
-      'localPath': localPath,
-      'latitude': latitude,
-      'longitude': longitude,
-      'elevation': elevation,
-      'timestamp': timestamp.toIso8601String(),
-      'caption': caption,
-    };
+  factory TrackPhoto.fromJson(Map<String, dynamic> json) {
+    return TrackPhoto(
+      localPath: json['localPath'] as String,
+      latitude: json['latitude'] as double?,
+      longitude: json['longitude'] as double?,
+      elevation: json['elevation'] as double?,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+    );
   }
 }
 
-/// Modello per foto già uploadata
+/// Modello per foto già caricate su Firebase
 class UploadedPhoto {
   final String url;
   final double? latitude;
   final double? longitude;
   final double? elevation;
   final DateTime timestamp;
-  final String? caption;
 
-  const UploadedPhoto({
+  UploadedPhoto({
     required this.url,
     this.latitude,
     this.longitude,
     this.elevation,
     required this.timestamp,
-    this.caption,
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      'url': url,
-      'latitude': latitude,
-      'longitude': longitude,
-      'elevation': elevation,
-      'timestamp': timestamp.toIso8601String(),
-      'caption': caption,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'url': url,
+    'latitude': latitude,
+    'longitude': longitude,
+    'elevation': elevation,
+    'timestamp': timestamp.toIso8601String(),
+  };
 
-  factory UploadedPhoto.fromMap(Map<String, dynamic> map) {
+  factory UploadedPhoto.fromJson(Map<String, dynamic> json) {
     return UploadedPhoto(
-      url: map['url'] as String,
-      latitude: map['latitude'] as double?,
-      longitude: map['longitude'] as double?,
-      elevation: map['elevation'] as double?,
-      timestamp: DateTime.parse(map['timestamp'] as String),
-      caption: map['caption'] as String?,
+      url: json['url'] as String,
+      latitude: json['latitude'] as double?,
+      longitude: json['longitude'] as double?,
+      elevation: json['elevation'] as double?,
+      timestamp: DateTime.parse(json['timestamp'] as String),
     );
   }
-}
-
-/// Risultato upload batch
-class BatchUploadResult {
-  final List<UploadedPhoto> successful;
-  final List<TrackPhoto> failed;
-
-  const BatchUploadResult({
-    required this.successful,
-    required this.failed,
-  });
-
-  int get successCount => successful.length;
-  int get failedCount => failed.length;
-  bool get hasFailures => failed.isNotEmpty;
 }

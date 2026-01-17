@@ -20,9 +20,9 @@ class TracksRepository {
     return _tracksCollection(userId);
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
   // CREAZIONE E SALVATAGGIO
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
 
   /// Salva una nuova traccia e restituisce l'ID
   Future<String> saveTrack(Track track) async {
@@ -41,15 +41,16 @@ class TracksRepository {
     }
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
   // LETTURA TRACCE
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
 
   /// Ottiene tutte le tracce dell'utente specificato
   Future<List<Track>> getUserTracks(String userId) async {
     try {
       final snapshot = await _tracksCollection(userId)
           .orderBy('createdAt', descending: true)
+          .limit(50)
           .get();
 
       print('[TracksRepository] Trovate ${snapshot.docs.length} tracce per utente $userId');
@@ -75,6 +76,7 @@ class TracksRepository {
   Stream<List<Track>> watchMyTracks() {
     return _myTracksCollection
         .orderBy('createdAt', descending: true)
+        .limit(50)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => _trackFromFirestore(doc.id, doc.data()))
@@ -96,9 +98,9 @@ class TracksRepository {
     }
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
   // AGGIORNAMENTO
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
 
   /// Aggiorna una traccia esistente
   Future<void> updateTrack(String trackId, {
@@ -119,7 +121,7 @@ class TracksRepository {
     }
   }
 
-  /// ðŸ“¸ Aggiorna le foto di una traccia
+  /// 📸 Aggiorna le foto di una traccia
   Future<void> updateTrackPhotos(String trackId, List<TrackPhotoMetadata> photos) async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) throw Exception('Utente non autenticato');
@@ -130,9 +132,9 @@ class TracksRepository {
     print('[TracksRepository] ${photos.length} foto aggiornate per traccia $trackId');
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
   // ELIMINAZIONE
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
 
   /// Elimina una traccia
   Future<void> deleteTrack(String trackId) async {
@@ -148,9 +150,9 @@ class TracksRepository {
     }
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
   // CONVERSIONI DATI
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
 
   /// Converte Track in Map per Firestore (formato compatibile con app JS)
   Map<String, dynamic> _trackToFirestore(Track track, String userId) {
@@ -158,7 +160,7 @@ class TracksRepository {
       'name': track.name,
       'description': track.description,
       // Salva punti nel formato dell'app JS esistente
-      'points': track.points.map((p) => {
+      'points': _downsamplePoints(track.points).map((p) => {
         'longitude': p.longitude,
         'latitude': p.latitude,
         'altitude': p.elevation ?? 0,
@@ -182,9 +184,27 @@ class TracksRepository {
       'avgSpeed': track.stats.avgSpeed,
       'maxAltitude': track.stats.maxElevation,
       'minAltitude': track.stats.minElevation,
-      // ðŸ“¸ Foto
+      // 📸 Foto
       'photos': track.photos.map((p) => p.toMap()).toList(),
     };
+  }
+
+  /// Riduce il numero di punti per ottimizzare storage e performance
+  List<TrackPoint> _downsamplePoints(List<TrackPoint> points, {int maxPoints = 1000}) {
+    if (points.length <= maxPoints) return points;
+    
+    final result = <TrackPoint>[points.first];
+    final step = points.length / (maxPoints - 2);
+    
+    for (int i = 1; i < maxPoints - 1; i++) {
+      final index = (i * step).round();
+      if (index < points.length - 1) {
+        result.add(points[index]);
+      }
+    }
+    
+    result.add(points.last);
+    return result;
   }
 
   /// Converte dati Firestore in Track
@@ -242,7 +262,7 @@ class TracksRepository {
       }
     }
 
-    // ðŸ“¸ Parse foto
+    // 📸 Parse foto
     List<TrackPhotoMetadata> photos = [];
     final photosData = data['photos'];
     if (photosData != null && photosData is List) {
@@ -311,13 +331,13 @@ class TracksRepository {
       isPublic: data['isPublic'] == true,
       isPlanned: data['isPlanned'] == true,
       stats: stats,
-      photos: photos, // ðŸ“¸ Foto
+      photos: photos, // 📸 Foto
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
   // HELPER
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
 
   /// Helper per convertire in double
   double? _toDouble(dynamic value) {

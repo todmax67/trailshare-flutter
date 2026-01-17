@@ -195,6 +195,107 @@ class TrackingBloc extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// FIX: Ripristina lo stato da un backup
+  /// Chiamato quando l'app si riavvia dopo un crash
+  Future<void> restoreFromBackup({
+    required List<TrackPoint> points,
+    required DateTime startTime,
+    required Duration pausedDuration,
+    required ActivityType activityType,
+  }) async {
+    if (_state.isRecording) {
+      debugPrint('[TrackingBloc] Già in registrazione, ignoro restore');
+      return;
+    }
+
+    debugPrint('[TrackingBloc] Ripristino da backup: ${points.length} punti');
+
+    // Calcola le statistiche dai punti esistenti
+    final stats = _calculateStatsFromPoints(points);
+
+    // Ripristina lo stato in pausa (l'utente deve decidere se continuare)
+    _state = TrackingState(
+      status: TrackingStatus.paused,
+      points: List.from(points),
+      stats: stats,
+      startTime: startTime,
+      pausedDuration: pausedDuration,
+      activityType: activityType,
+    );
+
+    _pauseStartTime = DateTime.now();
+    notifyListeners();
+
+    debugPrint('[TrackingBloc] Stato ripristinato in pausa');
+  }
+
+  /// Calcola le statistiche da una lista di punti esistenti
+  TrackStats _calculateStatsFromPoints(List<TrackPoint> points) {
+    if (points.isEmpty) return const TrackStats();
+
+    double totalDistance = 0;
+    double elevationGain = 0;
+    double elevationLoss = 0;
+    double maxSpeed = 0;
+    double? minElevation;
+    double? maxElevation;
+
+    for (int i = 1; i < points.length; i++) {
+      final prev = points[i - 1];
+      final curr = points[i];
+
+      // Distanza
+      totalDistance += prev.distanceTo(curr);
+
+      // Velocità massima
+      if (curr.speed != null && curr.speed! > maxSpeed) {
+        maxSpeed = curr.speed!;
+      }
+
+      // Elevazione
+      if (prev.elevation != null && curr.elevation != null) {
+        final elevDiff = curr.elevation! - prev.elevation!;
+        if (elevDiff > 0) {
+          elevationGain += elevDiff;
+        } else {
+          elevationLoss += elevDiff.abs();
+        }
+      }
+
+      if (curr.elevation != null) {
+        minElevation = minElevation == null 
+            ? curr.elevation 
+            : (curr.elevation! < minElevation ? curr.elevation : minElevation);
+        maxElevation = maxElevation == null 
+            ? curr.elevation 
+            : (curr.elevation! > maxElevation ? curr.elevation : maxElevation);
+      }
+    }
+
+    // Durata basata sui timestamp
+    Duration duration = Duration.zero;
+    if (points.length >= 2) {
+      final firstTime = points.first.timestamp;
+      final lastTime = points.last.timestamp;
+      if (firstTime != null && lastTime != null) {
+        duration = lastTime.difference(firstTime);
+      }
+    }
+
+    return TrackStats(
+      distance: totalDistance,
+      elevationGain: elevationGain,
+      elevationLoss: elevationLoss,
+      duration: duration,
+      maxSpeed: maxSpeed,
+      avgSpeed: duration.inSeconds > 0 
+          ? totalDistance / duration.inSeconds 
+          : 0,
+      minElevation: minElevation ?? 0,
+      maxElevation: maxElevation ?? 0,
+    );
+  }
+
   /// Cambia tipo attività
   void setActivityType(ActivityType type) {
     _state = _state.copyWith(activityType: type);

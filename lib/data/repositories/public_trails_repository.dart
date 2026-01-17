@@ -51,7 +51,7 @@ class PublicTrailsRepository {
       // e usare query con range su quel campo
       
       final snapshot = await _trailsCollection
-          .limit(500) // Carichiamo di più per avere abbastanza scelta
+          .limit(200) // Carichiamo di più per avere abbastanza scelta
           .get();
       
       final trails = <PublicTrail>[];
@@ -99,7 +99,7 @@ class PublicTrailsRepository {
     try {
       // Firestore non supporta query su due campi con range diversi
       // Quindi carichiamo e filtriamo lato client
-      final snapshot = await _trailsCollection.limit(500).get();
+      final snapshot = await _trailsCollection.limit(200).get();
       
       final trails = <PublicTrail>[];
       for (final doc in snapshot.docs) {
