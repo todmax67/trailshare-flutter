@@ -2,7 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../data/repositories/follow_repository.dart';
 import '../dashboard/dashboard_page.dart';
+import '../wishlist/wishlist_page.dart';
+import '../follow/follow_list_page.dart';
+import '../leaderboard/leaderboard_page.dart';
+import '../settings/settings_page.dart';
+import '../badges/badges_page.dart';
+import '../challenges/challenges_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,6 +20,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FollowRepository _followRepo = FollowRepository();
   
   // Profile data
   String? _username;
@@ -73,8 +81,12 @@ class _ProfilePageState extends State<ProfilePage> {
         _avatarUrl = data['avatarUrl'] as String?;
         _level = (data['level'] as num?)?.toInt() ?? 1;
         _currentXp = (data['xp'] as num?)?.toInt() ?? 0;
-        _followersCount = (data['followersCount'] as num?)?.toInt() ?? 0;
-        _followingCount = (data['followingCount'] as num?)?.toInt() ?? 0;
+        
+        // Conta followers e following dagli array
+        final followers = data['followers'] as List?;
+        final following = data['following'] as List?;
+        _followersCount = followers?.length ?? 0;
+        _followingCount = following?.length ?? 0;
       }
 
       // Calcola XP per prossimo livello
@@ -202,6 +214,38 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  void _openFollowersList() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FollowListPage(
+          userId: user.uid,
+          username: _username ?? 'Utente',
+          listType: FollowListType.followers,
+        ),
+      ),
+    );
+  }
+
+  void _openFollowingList() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FollowListPage(
+          userId: user.uid,
+          username: _username ?? 'Utente',
+          listType: FollowListType.following,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -217,9 +261,12 @@ class _ProfilePageState extends State<ProfilePage> {
             IconButton(
               icon: const Icon(Icons.settings_outlined),
               onPressed: () {
-                // TODO: Settings page
-              },
-            ),
+                Navigator.push(
+                  context,
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              );
+            },
+          ),
           if (user != null)
             IconButton(
               icon: const Icon(Icons.logout),
@@ -267,6 +314,22 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         // Dashboard Button
                         _buildDashboardButton(),
+                        const SizedBox(height: 12),
+
+                        // Wishlist Button
+                        _buildWishlistButton(),
+                        const SizedBox(height: 32),
+
+                        // Leaderboard Button
+                        _buildLeaderboardButton(),
+                        const SizedBox(height: 32),
+
+                        // Badges Button
+                        _buildBadgesButton(),
+                        const SizedBox(height: 32),
+
+                        // Challenges Button  <-- AGGIUNGI QUESTO
+                        _buildChallengesButton(),
                         const SizedBox(height: 32),
                       ],
                     ),
@@ -291,22 +354,9 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Registra tracce, partecipa alle sfide e scala la classifica!',
+              'Salva le tue tracce, segui altri escursionisti e molto altro.',
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                // TODO: Navigate to login
-              },
-              icon: const Icon(Icons.login),
-              label: const Text('Accedi'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              ),
             ),
           ],
         ),
@@ -315,38 +365,44 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildAvatar() {
-    return GestureDetector(
-      onTap: () {
-        // TODO: Change avatar
-      },
-      child: Stack(
-        children: [
-          CircleAvatar(
-            radius: 56,
-            backgroundColor: AppColors.primary.withOpacity(0.1),
-            backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
-            child: _avatarUrl == null
-                ? Text(
-                    (_username ?? 'U')[0].toUpperCase(),
-                    style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: AppColors.primary),
-                  )
-                : null,
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: 50,
+          backgroundColor: AppColors.primary.withOpacity(0.1),
+          backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
+          child: _avatarUrl == null
+              ? Text(
+                  _username?.isNotEmpty == true ? _username![0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                )
+              : null,
+        ),
+        Positioned(
+          bottom: 0,
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: AppColors.warning,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: Text(
+              '$_level',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
               ),
-              child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -358,7 +414,7 @@ class _ProfilePageState extends State<ProfilePage> {
             controller: _usernameController,
             textAlign: TextAlign.center,
             decoration: const InputDecoration(
-              hintText: 'Nuovo nickname',
+              hintText: 'Username',
               border: OutlineInputBorder(),
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
@@ -535,15 +591,13 @@ class _ProfilePageState extends State<ProfilePage> {
             ],
           ),
           const SizedBox(height: 16),
-          // Seconda riga: Follower, Following
+          // Seconda riga: Follower, Following (cliccabili)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: () {
-                    // TODO: Show followers
-                  },
+                  onTap: _openFollowersList,
                   child: _StatItem(
                     label: 'Follower',
                     value: '$_followersCount',
@@ -553,9 +607,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               Expanded(
                 child: GestureDetector(
-                  onTap: () {
-                    // TODO: Show following
-                  },
+                  onTap: _openFollowingList,
                   child: _StatItem(
                     label: 'Following',
                     value: '$_followingCount',
@@ -593,6 +645,101 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
+
+  Widget _buildWishlistButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const WishlistPage()),
+          );
+        },
+        icon: const Icon(Icons.bookmark_outline),
+        label: const Text('Percorsi Salvati'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          side: const BorderSide(color: AppColors.primary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLeaderboardButton() {
+    return SizedBox(
+    width: double.infinity,
+    child: OutlinedButton.icon(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => LeaderboardPage()),
+        );
+      },
+      icon: const Icon(Icons.leaderboard),
+      label: const Text('Classifica Settimanale'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.warning,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+          side: const BorderSide(color: AppColors.warning),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadgesButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const BadgesPage()),
+          );
+        },
+        icon: const Icon(Icons.emoji_events_outlined),
+        label: const Text('I Miei Badge'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.success,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          side: const BorderSide(color: AppColors.success),
+        ),
+      ),
+    );
+  }
+  Widget _buildChallengesButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ChallengesPage()),
+          );
+        },
+        icon: const Icon(Icons.emoji_events),
+        label: const Text('Sfide'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.danger,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          side: const BorderSide(color: AppColors.danger),
+        ),
+      ),
+    );
+  }
 }
 
 class _StatItem extends StatelessWidget {
@@ -623,9 +770,18 @@ class _StatItem extends StatelessWidget {
             style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              if (isClickable) ...[
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right, size: 18, color: Colors.grey[400]),
+              ],
+            ],
           ),
         ],
       ),

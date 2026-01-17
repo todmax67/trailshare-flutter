@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import 'trail_detail_page.dart';
 import 'community_track_detail_page.dart';
+import '../../../presentation/widgets/community_track_card.dart';
 
 class DiscoverPage extends StatefulWidget {
   const DiscoverPage({super.key});
@@ -17,6 +19,14 @@ class DiscoverPage extends StatefulWidget {
 class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final MapController _mapController = MapController();
+  
+  // Posizione utente
+  LatLng? _userPosition;
+  bool _isLoadingLocation = true;
+  String? _locationError;
+  
+  // Raggio di ricerca in km
+  double _searchRadiusKm = 30;
   
   // Sentieri OSM
   final PublicTrailsRepository _trailsRepository = PublicTrailsRepository();
@@ -46,7 +56,9 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
         _selectedCommunityTrack = null;
       });
     });
-    _loadTrails();
+    
+    // Prima ottieni la posizione, poi carica i sentieri
+    _initializeLocation();
     _loadCommunityTracks();
   }
 
@@ -57,13 +69,143 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     super.dispose();
   }
 
-  Future<void> _loadTrails() async {
+  /// Inizializza la geolocalizzazione
+  Future<void> _initializeLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+      _locationError = null;
+    });
+
+    try {
+      // Verifica se il servizio GPS è attivo
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() {
+          _locationError = 'GPS disattivato';
+          _isLoadingLocation = false;
+        });
+        // Carica comunque i sentieri di default
+        _loadTrailsWithoutLocation();
+        return;
+      }
+
+      // Verifica permessi
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() {
+            _locationError = 'Permesso posizione negato';
+            _isLoadingLocation = false;
+          });
+          _loadTrailsWithoutLocation();
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          _locationError = 'Permesso posizione negato permanentemente';
+          _isLoadingLocation = false;
+        });
+        _loadTrailsWithoutLocation();
+        return;
+      }
+
+      // Ottieni posizione
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      setState(() {
+        _userPosition = LatLng(position.latitude, position.longitude);
+        _isLoadingLocation = false;
+      });
+
+      print('[DiscoverPage] Posizione utente: ${_userPosition!.latitude}, ${_userPosition!.longitude}');
+
+      // Carica sentieri vicini
+      _loadTrailsNearby();
+      
+    } catch (e) {
+      print('[DiscoverPage] Errore geolocalizzazione: $e');
+      setState(() {
+        _locationError = 'Impossibile ottenere la posizione';
+        _isLoadingLocation = false;
+      });
+      _loadTrailsWithoutLocation();
+    }
+  }
+
+  /// Carica sentieri vicini alla posizione utente
+  Future<void> _loadTrailsNearby() async {
+    if (_userPosition == null) {
+      _loadTrailsWithoutLocation();
+      return;
+    }
+
     setState(() => _isLoadingTrails = true);
+    
+    try {
+      final trails = await _trailsRepository.getTrailsNearby(
+        center: _userPosition!,
+        radiusKm: _searchRadiusKm,
+        limit: 100,
+      );
+      
+      setState(() {
+        _trails = trails;
+        _isLoadingTrails = false;
+      });
+      
+      // Centra mappa sulla posizione utente se non ci sono sentieri selezionati
+      if (_selectedTrail == null && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_mapController.camera.center.latitude == 45.95) {
+            // Solo se è ancora al valore di default
+            _mapController.move(_userPosition!, 12);
+          }
+        });
+      }
+    } catch (e) {
+      print('[DiscoverPage] Errore caricamento sentieri: $e');
+      setState(() => _isLoadingTrails = false);
+    }
+  }
+
+  /// Carica sentieri senza posizione (fallback)
+  Future<void> _loadTrailsWithoutLocation() async {
+    setState(() => _isLoadingTrails = true);
+    
     final trails = await _trailsRepository.getTrails(limit: 100);
+    
     setState(() {
       _trails = trails;
       _isLoadingTrails = false;
     });
+  }
+
+  /// Refresh manuale della posizione e sentieri
+  Future<void> _refreshLocation() async {
+    await _initializeLocation();
+  }
+
+  /// Cambia il raggio di ricerca
+  void _showRadiusSelector() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => _RadiusSelectorSheet(
+        currentRadius: _searchRadiusKm,
+        onRadiusChanged: (radius) {
+          setState(() => _searchRadiusKm = radius);
+          Navigator.pop(context);
+          _loadTrailsNearby();
+        },
+      ),
+    );
   }
 
   Future<void> _loadCommunityTracks() async {
@@ -139,6 +281,14 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     return LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
   }
 
+  void _centerOnUser() {
+    if (_userPosition != null) {
+      _mapController.move(_userPosition!, 13);
+    } else {
+      _refreshLocation();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -171,7 +321,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              _loadTrails();
+              _refreshLocation();
               _loadCommunityTracks();
             },
           ),
@@ -179,31 +329,42 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       ),
       body: Column(
         children: [
-          // Barra di ricerca
+          // Barra di ricerca + info posizione
           Padding(
             padding: const EdgeInsets.all(12),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Cerca...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _onSearchChanged('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            child: Column(
+              children: [
+                // Barra di ricerca
+                TextField(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Cerca...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearchChanged('');
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: AppColors.background,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
                 ),
-                filled: true,
-                fillColor: AppColors.background,
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-              ),
+                
+                // Info posizione (solo per tab Sentieri)
+                if (_tabController.index == 0) ...[
+                  const SizedBox(height: 8),
+                  _buildLocationInfo(),
+                ],
+              ],
             ),
           ),
 
@@ -222,13 +383,92 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     );
   }
 
+  /// Widget che mostra info sulla posizione e raggio di ricerca
+  Widget _buildLocationInfo() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _userPosition != null 
+            ? AppColors.success.withOpacity(0.1)
+            : AppColors.warning.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: _userPosition != null 
+              ? AppColors.success.withOpacity(0.3)
+              : AppColors.warning.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _isLoadingLocation 
+                ? Icons.hourglass_empty
+                : _userPosition != null 
+                    ? Icons.location_on 
+                    : Icons.location_off,
+            size: 18,
+            color: _userPosition != null ? AppColors.success : AppColors.warning,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _isLoadingLocation
+                  ? 'Ricerca posizione...'
+                  : _userPosition != null
+                      ? 'Sentieri entro ${_searchRadiusKm.toInt()} km dalla tua posizione'
+                      : _locationError ?? 'Posizione non disponibile',
+              style: TextStyle(
+                fontSize: 12,
+                color: _userPosition != null ? AppColors.success : AppColors.warning,
+              ),
+            ),
+          ),
+          if (_userPosition != null)
+            TextButton(
+              onPressed: _showRadiusSelector,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Cambia', style: TextStyle(fontSize: 12)),
+            ),
+          if (_userPosition == null && !_isLoadingLocation)
+            TextButton(
+              onPressed: _refreshLocation,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Riprova', style: TextStyle(fontSize: 12)),
+            ),
+        ],
+      ),
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // TAB SENTIERI OSM
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildTrailsTab() {
-    if (_isLoadingTrails) {
-      return const Center(child: CircularProgressIndicator());
+    if (_isLoadingTrails || _isLoadingLocation) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              _isLoadingLocation 
+                  ? 'Ricerca posizione...' 
+                  : 'Caricamento sentieri...',
+              style: const TextStyle(color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      );
     }
 
     final trails = _filteredTrails;
@@ -237,8 +477,11 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       return _buildEmptyState(
         icon: Icons.hiking,
         message: _searchQuery.isEmpty 
-            ? 'Nessun sentiero disponibile' 
+            ? _userPosition != null
+                ? 'Nessun sentiero trovato entro ${_searchRadiusKm.toInt()} km'
+                : 'Nessun sentiero disponibile' 
             : 'Nessun risultato per "$_searchQuery"',
+        showExpandRadius: _userPosition != null && _searchQuery.isEmpty,
       );
     }
 
@@ -246,17 +489,16 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   }
 
   Widget _buildTrailsMapView(List<PublicTrail> trails) {
-    const defaultCenter = LatLng(45.95, 9.75);
+    // Centro di default: posizione utente o Bergamo
+    final defaultCenter = _userPosition ?? const LatLng(45.95, 9.75);
 
     return Stack(
       children: [
         FlutterMap(
           mapController: _mapController,
           options: MapOptions(
-            initialCenter: trails.isNotEmpty && trails.first.points.isNotEmpty
-                ? _calculateCenter(trails.first.points)
-                : defaultCenter,
-            initialZoom: 11,
+            initialCenter: defaultCenter,
+            initialZoom: _userPosition != null ? 12 : 11,
             minZoom: 8,
             maxZoom: 18,
             onTap: (_, __) => setState(() => _selectedTrail = null),
@@ -267,6 +509,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
               userAgentPackageName: 'com.trailshare.app',
             ),
             
+            // Polylines dei sentieri
             PolylineLayer(
               polylines: trails.map((trail) {
                 final isSelected = trail.id == _selectedTrail?.id;
@@ -278,6 +521,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
               }).toList(),
             ),
 
+            // Markers dei sentieri
             MarkerLayer(
               markers: trails.map((trail) {
                 if (trail.points.isEmpty) return null;
@@ -315,9 +559,41 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
                 );
               }).whereType<Marker>().toList(),
             ),
+
+            // Marker posizione utente
+            if (_userPosition != null)
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _userPosition!,
+                    width: 44,
+                    height: 44,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.4),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
 
+        // Card info sentiero selezionato
         if (_selectedTrail != null)
           Positioned(
             bottom: 0,
@@ -330,18 +606,32 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
             ),
           ),
 
+        // Badge contatore
         Positioned(
           top: 8,
           left: 8,
           child: _CounterBadge(count: trails.length, label: 'sentieri'),
         ),
+
+        // Pulsante centra su utente
+        if (_userPosition != null)
+          Positioned(
+            bottom: _selectedTrail != null ? 180 : 16,
+            right: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'center_user_trails',
+              onPressed: _centerOnUser,
+              backgroundColor: Colors.white,
+              child: const Icon(Icons.my_location, color: AppColors.primary),
+            ),
+          ),
       ],
     );
   }
 
   Widget _buildTrailsList(List<PublicTrail> trails) {
     return RefreshIndicator(
-      onRefresh: _loadTrails,
+      onRefresh: _loadTrailsNearby,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         itemCount: trails.length,
@@ -349,6 +639,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
           final trail = trails[index];
           return _TrailCard(
             trail: trail,
+            showDistance: _userPosition != null,
             onTap: () => _openTrailDetail(trail),
           );
         },
@@ -387,7 +678,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   }
 
   Widget _buildCommunityMapView(List<CommunityTrack> tracks) {
-    const defaultCenter = LatLng(45.95, 9.75);
+    final defaultCenter = _userPosition ?? const LatLng(45.95, 9.75);
 
     return Stack(
       children: [
@@ -453,6 +744,37 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
                 );
               }).whereType<Marker>().toList(),
             ),
+
+            // Marker posizione utente
+            if (_userPosition != null)
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _userPosition!,
+                    width: 44,
+                    height: 44,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.4),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
 
@@ -474,6 +796,19 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
           left: 8,
           child: _CounterBadge(count: tracks.length, label: 'tracce'),
         ),
+
+        // Pulsante centra su utente
+        if (_userPosition != null)
+          Positioned(
+            bottom: _selectedCommunityTrack != null ? 180 : 16,
+            right: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'center_user_community',
+              onPressed: _centerOnUser,
+              backgroundColor: Colors.white,
+              child: const Icon(Icons.my_location, color: AppColors.primary),
+            ),
+          ),
       ],
     );
   }
@@ -482,12 +817,23 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     return RefreshIndicator(
       onRefresh: _loadCommunityTracks,
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.all(12),
         itemCount: tracks.length,
         itemBuilder: (context, index) {
           final track = tracks[index];
-          return _CommunityTrackCard(
-            track: track,
+          return CommunityTrackCard(
+            trackId: track.id,
+            name: track.name,
+            ownerUsername: track.ownerUsername,
+            activityIcon: track.activityIcon,
+            distanceKm: track.distanceKm,
+            elevationGain: track.elevationGain,
+            durationFormatted: track.durationFormatted,
+            cheerCount: track.cheerCount,
+            sharedAt: track.sharedAt,
+            difficulty: track.difficulty,
+            photoUrls: track.photoUrls,
+            points: track.points,
             onTap: () => _openCommunityTrackDetail(track),
           );
         },
@@ -506,7 +852,11 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   // WIDGETS COMUNI
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildEmptyState({required IconData icon, required String message}) {
+  Widget _buildEmptyState({
+    required IconData icon, 
+    required String message,
+    bool showExpandRadius = false,
+  }) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -528,6 +878,21 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
               child: const Text('Cancella ricerca'),
             ),
           ],
+          if (showExpandRadius) ...[
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() => _searchRadiusKm = _searchRadiusKm + 20);
+                _loadTrailsNearby();
+              },
+              icon: const Icon(Icons.expand),
+              label: Text('Espandi a ${(_searchRadiusKm + 20).toInt()} km'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -535,8 +900,48 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WIDGETS
+// WIDGETS AUSILIARI
 // ═══════════════════════════════════════════════════════════════════════════
+
+/// Bottom sheet per selezionare il raggio di ricerca
+class _RadiusSelectorSheet extends StatelessWidget {
+  final double currentRadius;
+  final ValueChanged<double> onRadiusChanged;
+
+  const _RadiusSelectorSheet({
+    required this.currentRadius,
+    required this.onRadiusChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final options = [10.0, 20.0, 30.0, 50.0, 100.0];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Raggio di ricerca',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          ...options.map((radius) => ListTile(
+            leading: Icon(
+              radius == currentRadius ? Icons.check_circle : Icons.circle_outlined,
+              color: radius == currentRadius ? AppColors.primary : AppColors.textMuted,
+            ),
+            title: Text('${radius.toInt()} km'),
+            onTap: () => onRadiusChanged(radius),
+          )),
+          SizedBox(height: MediaQuery.of(context).padding.bottom),
+        ],
+      ),
+    );
+  }
+}
 
 class _CounterBadge extends StatelessWidget {
   final int count;
@@ -602,6 +1007,12 @@ class _TrailInfoCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
+                          if (trail.distanceFromUser != null) ...[
+                            Icon(Icons.near_me, size: 14, color: AppColors.primary),
+                            const SizedBox(width: 4),
+                            Text(trail.distanceFromUserFormatted, style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 12),
+                          ],
                           if (trail.length != null) ...[
                             Icon(Icons.straighten, size: 14, color: AppColors.textMuted),
                             const SizedBox(width: 4),
@@ -711,9 +1122,14 @@ class _CommunityTrackInfoCard extends StatelessWidget {
 
 class _TrailCard extends StatelessWidget {
   final PublicTrail trail;
+  final bool showDistance;
   final VoidCallback onTap;
 
-  const _TrailCard({required this.trail, required this.onTap});
+  const _TrailCard({
+    required this.trail, 
+    required this.onTap,
+    this.showDistance = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -760,76 +1176,29 @@ class _TrailCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (trail.length != null) Text('${trail.lengthKm.toStringAsFixed(1)} km', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-                  if (trail.elevationGain != null) Text('+${trail.elevationGain!.toStringAsFixed(0)} m', style: const TextStyle(color: AppColors.success, fontSize: 12)),
-                ],
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, color: AppColors.textMuted),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CommunityTrackCard extends StatelessWidget {
-  final CommunityTrack track;
-  final VoidCallback onTap;
-
-  const _CommunityTrackCard({required this.track, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                child: Center(child: Text(track.activityIcon, style: const TextStyle(fontSize: 24))),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(track.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
+                  // Mostra distanza dall'utente se disponibile
+                  if (showDistance && trail.distanceFromUser != null) ...[
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.person, size: 14, color: AppColors.textMuted),
+                        const Icon(Icons.near_me, size: 12, color: AppColors.primary),
                         const SizedBox(width: 4),
-                        Flexible(child: Text(track.ownerUsername, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                        if (track.cheerCount > 0) ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.favorite, size: 14, color: AppColors.danger),
-                          const SizedBox(width: 2),
-                          Text('${track.cheerCount}', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
-                        ],
+                        Text(
+                          trail.distanceFromUserFormatted, 
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold, 
+                            color: AppColors.primary,
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
-                    if (track.sharedAt != null) ...[
-                      const SizedBox(height: 2),
-                      Text(_formatDate(track.sharedAt!), style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                    ],
+                    const SizedBox(height: 2),
                   ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('${track.distanceKm.toStringAsFixed(1)} km', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-                  if (track.elevationGain > 0) Text('+${track.elevationGain.toStringAsFixed(0)} m', style: const TextStyle(color: AppColors.success, fontSize: 12)),
-                  Text(track.durationFormatted, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                  if (trail.length != null) 
+                    Text('${trail.lengthKm.toStringAsFixed(1)} km', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.info)),
+                  if (trail.elevationGain != null) 
+                    Text('+${trail.elevationGain!.toStringAsFixed(0)} m', style: const TextStyle(color: AppColors.success, fontSize: 12)),
                 ],
               ),
               const SizedBox(width: 8),
@@ -839,18 +1208,5 @@ class _CommunityTrackCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
-    if (diff.inDays == 0) return 'Oggi';
-    if (diff.inDays == 1) return 'Ieri';
-    if (diff.inDays < 7) return '${diff.inDays} giorni fa';
-    if (diff.inDays < 30) {
-      final weeks = (diff.inDays / 7).floor();
-      return weeks == 1 ? '1 settimana fa' : '$weeks settimane fa';
-    }
-    return '${date.day}/${date.month}/${date.year}';
   }
 }

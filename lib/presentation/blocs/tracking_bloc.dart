@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../data/models/track.dart';
 import '../../core/services/location_service.dart';
+import '../../core/services/live_track_service.dart';
+import '../../core/services/gamification_service.dart';
+import '../widgets/level_up_dialog.dart';
 
 /// Stati possibili del tracking
 enum TrackingStatus {
@@ -229,6 +232,8 @@ class TrackingBloc extends ChangeNotifier {
     // Aggiungi punto e ricalcola stats
     final newPoints = [..._state.points, point];
     final newStats = _calculateStats(newPoints, point);
+
+    LiveTrackService().updatePosition(point.latitude, point.longitude);
 
     _state = _state.copyWith(
       points: newPoints,

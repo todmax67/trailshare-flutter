@@ -2,18 +2,53 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/track.dart';
 
-/// Repository per gestire le tracce utente su Firestore
+/// Repository unificato per gestire le tracce su Firestore
 /// Compatibile con la struttura dati esistente dall'app JavaScript
 class TracksRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// Ottiene le tracce dell'utente corrente
+  /// Helper: ottiene la collection delle tracce per un dato userId
+  CollectionReference<Map<String, dynamic>> _tracksCollection(String userId) {
+    return _firestore.collection('users').doc(userId).collection('tracks');
+  }
+
+  /// Helper: ottiene la collection delle tracce per l'utente corrente
+  CollectionReference<Map<String, dynamic>> get _myTracksCollection {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Utente non autenticato');
+    return _tracksCollection(userId);
+  }
+
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // CREAZIONE E SALVATAGGIO
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+  /// Salva una nuova traccia e restituisce l'ID
+  Future<String> saveTrack(Track track) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utente non autenticato');
+
+    try {
+      final data = _trackToFirestore(track, user.uid);
+      final docRef = await _tracksCollection(user.uid).add(data);
+
+      print('[TracksRepository] Traccia salvata con ID: ${docRef.id}');
+      return docRef.id;
+    } catch (e) {
+      print('[TracksRepository] Errore saveTrack: $e');
+      rethrow;
+    }
+  }
+
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // LETTURA TRACCE
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+  /// Ottiene tutte le tracce dell'utente specificato
   Future<List<Track>> getUserTracks(String userId) async {
     try {
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('tracks')
+      final snapshot = await _tracksCollection(userId)
           .orderBy('createdAt', descending: true)
           .get();
 
@@ -29,47 +64,93 @@ class TracksRepository {
     }
   }
 
-  /// Salva una nuova traccia
-  Future<Track> saveTrack(Track track) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw Exception('Utente non autenticato');
-    }
+  /// Ottiene tutte le tracce dell'utente corrente
+  Future<List<Track>> getMyTracks() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return [];
+    return getUserTracks(userId);
+  }
+
+  /// Stream delle tracce dell'utente corrente (real-time)
+  Stream<List<Track>> watchMyTracks() {
+    return _myTracksCollection
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => _trackFromFirestore(doc.id, doc.data()))
+            .toList());
+  }
+
+  /// Ottiene una traccia specifica per ID
+  Future<Track?> getTrackById(String trackId) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return null;
 
     try {
-      final data = _trackToFirestore(track, user.uid);
-      final docRef = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('tracks')
-          .add(data);
-
-      print('[TracksRepository] Traccia salvata con ID: ${docRef.id}');
-      return track.copyWith(id: docRef.id);
+      final doc = await _tracksCollection(userId).doc(trackId).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return _trackFromFirestore(doc.id, doc.data()!);
     } catch (e) {
-      print('[TracksRepository] Errore saveTrack: $e');
-      rethrow;
+      print('[TracksRepository] Errore getTrackById: $e');
+      return null;
     }
   }
 
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // AGGIORNAMENTO
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+  /// Aggiorna una traccia esistente
+  Future<void> updateTrack(String trackId, {
+    String? name,
+    String? description,
+    ActivityType? activityType,
+  }) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    final updates = <String, dynamic>{};
+    if (name != null) updates['name'] = name;
+    if (description != null) updates['description'] = description;
+    if (activityType != null) updates['activityType'] = activityType.name;
+
+    if (updates.isNotEmpty) {
+      await _tracksCollection(userId).doc(trackId).update(updates);
+    }
+  }
+
+  /// ðŸ“¸ Aggiorna le foto di una traccia
+  Future<void> updateTrackPhotos(String trackId, List<TrackPhotoMetadata> photos) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Utente non autenticato');
+
+    await _tracksCollection(userId).doc(trackId).update({
+      'photos': photos.map((p) => p.toMap()).toList(),
+    });
+    print('[TracksRepository] ${photos.length} foto aggiornate per traccia $trackId');
+  }
+
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ELIMINAZIONE
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
   /// Elimina una traccia
   Future<void> deleteTrack(String trackId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
 
     try {
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('tracks')
-          .doc(trackId)
-          .delete();
+      await _tracksCollection(userId).doc(trackId).delete();
       print('[TracksRepository] Traccia eliminata: $trackId');
     } catch (e) {
       print('[TracksRepository] Errore deleteTrack: $e');
       rethrow;
     }
   }
+
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // CONVERSIONI DATI
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   /// Converte Track in Map per Firestore (formato compatibile con app JS)
   Map<String, dynamic> _trackToFirestore(Track track, String userId) {
@@ -90,14 +171,19 @@ class TracksRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'userId': userId,
       'isPublic': track.isPublic,
-      'isPlanned': track.isPlanned, // ← Flag traccia pianificata
+      'isPlanned': track.isPlanned,
       // Stats pre-calcolate
       'distance': track.stats.distance,
       'elevationGain': track.stats.elevationGain,
       'elevationLoss': track.stats.elevationLoss,
       'duration': track.stats.duration.inSeconds,
+      'movingTime': track.stats.movingTime.inSeconds,
+      'maxSpeed': track.stats.maxSpeed,
+      'avgSpeed': track.stats.avgSpeed,
       'maxAltitude': track.stats.maxElevation,
       'minAltitude': track.stats.minElevation,
+      // ðŸ“¸ Foto
+      'photos': track.photos.map((p) => p.toMap()).toList(),
     };
   }
 
@@ -156,6 +242,21 @@ class TracksRepository {
       }
     }
 
+    // ðŸ“¸ Parse foto
+    List<TrackPhotoMetadata> photos = [];
+    final photosData = data['photos'];
+    if (photosData != null && photosData is List) {
+      for (var p in photosData) {
+        try {
+          if (p is Map) {
+            photos.add(TrackPhotoMetadata.fromMap(Map<String, dynamic>.from(p)));
+          }
+        } catch (e) {
+          print('[TracksRepository] Errore parsing foto: $e');
+        }
+      }
+    }
+
     // Activity type
     ActivityType activityType = ActivityType.trekking;
     final activityStr = data['activityType'] as String?;
@@ -191,6 +292,9 @@ class TracksRepository {
       elevationGain: _toDouble(data['elevationGain']) ?? 0,
       elevationLoss: _toDouble(data['elevationLoss']) ?? 0,
       duration: Duration(seconds: _toInt(data['duration']) ?? 0),
+      movingTime: Duration(seconds: _toInt(data['movingTime'] ?? data['duration']) ?? 0),
+      maxSpeed: _toDouble(data['maxSpeed']) ?? 0,
+      avgSpeed: _toDouble(data['avgSpeed']) ?? 0,
       minElevation: _toDouble(data['minAltitude'] ?? data['minElevation']) ?? 0,
       maxElevation: _toDouble(data['maxAltitude'] ?? data['maxElevation']) ?? 0,
     );
@@ -205,10 +309,15 @@ class TracksRepository {
       createdAt: createdAt,
       userId: data['userId']?.toString(),
       isPublic: data['isPublic'] == true,
-      isPlanned: data['isPlanned'] == true, // ← Legge flag pianificata
+      isPlanned: data['isPlanned'] == true,
       stats: stats,
+      photos: photos, // ðŸ“¸ Foto
     );
   }
+
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // HELPER
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   /// Helper per convertire in double
   double? _toDouble(dynamic value) {

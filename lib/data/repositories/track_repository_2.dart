@@ -13,6 +13,7 @@ class TrackRepository {
     return _firestore.collection('users').doc(userId).collection('tracks');
   }
 
+  /// Salva una nuova traccia e restituisce l'ID
   Future<String> saveTrack(Track track) async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) throw Exception('Utente non autenticato');
@@ -26,6 +27,7 @@ class TrackRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'userId': userId,
       'isPublic': track.isPublic,
+      'isPlanned': track.isPlanned,
       'distance': track.stats.distance,
       'elevationGain': track.stats.elevationGain,
       'elevationLoss': track.stats.elevationLoss,
@@ -33,12 +35,14 @@ class TrackRepository {
       'movingTime': track.stats.movingTime.inSeconds,
       'maxSpeed': track.stats.maxSpeed,
       'avgSpeed': track.stats.avgSpeed,
+      'photos': track.photos.map((p) => p.toMap()).toList(), // 📸 Foto iniziali
     };
 
     final docRef = await _tracksCollection.add(trackData);
     return docRef.id;
   }
 
+  /// Ottiene tutte le tracce dell'utente corrente
   Future<List<Track>> getMyTracks() async {
     final snapshot = await _tracksCollection
         .orderBy('createdAt', descending: true)
@@ -51,6 +55,7 @@ class TrackRepository {
         .toList();
   }
 
+  /// Stream delle tracce dell'utente corrente
   Stream<List<Track>> watchMyTracks() {
     return _tracksCollection
         .orderBy('createdAt', descending: true)
@@ -62,12 +67,14 @@ class TrackRepository {
             .toList());
   }
 
+  /// Ottiene una traccia specifica per ID
   Future<Track?> getTrackById(String trackId) async {
     final doc = await _tracksCollection.doc(trackId).get();
     if (!doc.exists) return null;
     return _docToTrack(doc);
   }
 
+  /// Aggiorna una traccia esistente
   Future<void> updateTrack(String trackId, {String? name, String? description, ActivityType? activityType}) async {
     final updates = <String, dynamic>{};
     if (name != null) updates['name'] = name;
@@ -79,8 +86,16 @@ class TrackRepository {
     }
   }
 
+  /// Elimina una traccia
   Future<void> deleteTrack(String trackId) async {
     await _tracksCollection.doc(trackId).delete();
+  }
+
+  /// 📸 Aggiorna le foto di una traccia
+  Future<void> updateTrackPhotos(String trackId, List<TrackPhotoMetadata> photos) async {
+    await _tracksCollection.doc(trackId).update({
+      'photos': photos.map((p) => p.toMap()).toList(),
+    });
   }
 
   /// Converte documento Firestore in Track - ROBUSTO per dati da app JS
@@ -99,8 +114,24 @@ class TrackRepository {
               points.add(TrackPoint.fromMap(Map<String, dynamic>.from(p)));
             }
           } catch (e) {
-            print('Errore parsing punto: $e');
+            print('[TrackRepository] Errore parsing punto: $e');
             // Continua con gli altri punti
+          }
+        }
+      }
+
+      // 📸 Parse foto
+      List<TrackPhotoMetadata> photos = [];
+      final photosData = data['photos'];
+      if (photosData != null && photosData is List) {
+        for (var p in photosData) {
+          try {
+            if (p is Map) {
+              photos.add(TrackPhotoMetadata.fromMap(Map<String, dynamic>.from(p)));
+            }
+          } catch (e) {
+            print('[TrackRepository] Errore parsing foto: $e');
+            // Continua con le altre foto
           }
         }
       }
@@ -158,10 +189,12 @@ class TrackRepository {
         createdAt: createdAt,
         userId: data['userId']?.toString(),
         isPublic: data['isPublic'] == true,
+        isPlanned: data['isPlanned'] == true,
         stats: stats,
+        photos: photos, // 📸 Foto
       );
     } catch (e) {
-      print('Errore conversione traccia ${doc.id}: $e');
+      print('[TrackRepository] Errore conversione traccia ${doc.id}: $e');
       return null;
     }
   }

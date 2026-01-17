@@ -66,5 +66,25 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Per registrare i percorsi anche con schermo bloccato</string>
+	<key>UIBackgroundModes</key>
+	<array>
+ 	   <string>location</string>
+	   <string>fetch</string>
+	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>TrailShare usa il Bluetooth per connettersi alla fascia cardio</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>TrailShare usa il Bluetooth per connettersi alla fascia cardio</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>TrailShare ha bisogno della fotocamera per scattare foto durante le escursioni</string>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TrailShare ha bisogno di accedere alle foto per aggiungere immagini alle tracce</string>
 </dict>
 </plist>

@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/track.dart';
 
-/// Repository per i sentieri pubblici
+/// Repository per i sentieri pubblici con supporto geolocalizzazione
 class PublicTrailsRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -10,6 +12,7 @@ class PublicTrailsRepository {
     return _firestore.collection('public_trails');
   }
 
+  /// Carica sentieri generici (fallback)
   Future<List<PublicTrail>> getTrails({int limit = 50}) async {
     try {
       final snapshot = await _trailsCollection.limit(limit).get();
@@ -26,6 +29,96 @@ class PublicTrailsRepository {
       return trails;
     } catch (e) {
       print('[PublicTrails] Errore: $e');
+      return [];
+    }
+  }
+
+  /// Carica sentieri vicini alla posizione specificata
+  /// 
+  /// [center] - Posizione centrale (es. posizione utente)
+  /// [radiusKm] - Raggio di ricerca in km
+  /// [limit] - Numero massimo di sentieri da caricare
+  Future<List<PublicTrail>> getTrailsNearby({
+    required LatLng center,
+    double radiusKm = 30,
+    int limit = 100,
+  }) async {
+    try {
+      // Firestore non supporta query geospaziali native senza GeoHash
+      // Quindi carichiamo più sentieri e filtriamo lato client
+      // 
+      // Per ottimizzare in futuro: aggiungere campo 'geohash' ai documenti
+      // e usare query con range su quel campo
+      
+      final snapshot = await _trailsCollection
+          .limit(500) // Carichiamo di più per avere abbastanza scelta
+          .get();
+      
+      final trails = <PublicTrail>[];
+      for (final doc in snapshot.docs) {
+        final trail = _docToTrail(doc);
+        if (trail != null) {
+          // Calcola distanza dal centro al punto di partenza del sentiero
+          final distance = _calculateDistance(
+            center,
+            LatLng(trail.startLat, trail.startLng),
+          );
+          
+          // Filtra per raggio
+          if (distance <= radiusKm) {
+            trails.add(trail.copyWith(distanceFromUser: distance));
+          }
+        }
+      }
+
+      // Ordina per distanza
+      trails.sort((a, b) => 
+        (a.distanceFromUser ?? double.infinity)
+            .compareTo(b.distanceFromUser ?? double.infinity)
+      );
+
+      // Limita risultati
+      final result = trails.take(limit).toList();
+      
+      print('[PublicTrails] Trovati ${result.length} sentieri entro ${radiusKm}km');
+      return result;
+    } catch (e) {
+      print('[PublicTrails] Errore getTrailsNearby: $e');
+      return [];
+    }
+  }
+
+  /// Carica sentieri in un bounding box
+  Future<List<PublicTrail>> getTrailsInBounds({
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    int limit = 100,
+  }) async {
+    try {
+      // Firestore non supporta query su due campi con range diversi
+      // Quindi carichiamo e filtriamo lato client
+      final snapshot = await _trailsCollection.limit(500).get();
+      
+      final trails = <PublicTrail>[];
+      for (final doc in snapshot.docs) {
+        final trail = _docToTrail(doc);
+        if (trail != null) {
+          // Verifica se il punto di partenza è nel bounding box
+          if (trail.startLat >= minLat && 
+              trail.startLat <= maxLat &&
+              trail.startLng >= minLng && 
+              trail.startLng <= maxLng) {
+            trails.add(trail);
+          }
+        }
+      }
+
+      print('[PublicTrails] Trovati ${trails.length} sentieri nel bounding box');
+      return trails.take(limit).toList();
+    } catch (e) {
+      print('[PublicTrails] Errore getTrailsInBounds: $e');
       return [];
     }
   }
@@ -76,6 +169,25 @@ class PublicTrailsRepository {
     }
   }
 
+  /// Calcola distanza tra due punti in km usando formula Haversine
+  double _calculateDistance(LatLng p1, LatLng p2) {
+    const earthRadius = 6371.0; // km
+    
+    final dLat = _toRadians(p2.latitude - p1.latitude);
+    final dLng = _toRadians(p2.longitude - p1.longitude);
+    
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRadians(p1.latitude)) * 
+        math.cos(_toRadians(p2.latitude)) *
+        math.sin(dLng / 2) * math.sin(dLng / 2);
+    
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    
+    return earthRadius * c;
+  }
+
+  double _toRadians(double degrees) => degrees * math.pi / 180;
+
   PublicTrail? _docToTrail(DocumentSnapshot<Map<String, dynamic>> doc) {
     try {
       final data = doc.data();
@@ -122,6 +234,25 @@ class PublicTrailsRepository {
       if (name.isEmpty && ref != null) name = 'Sentiero $ref';
       if (name.isEmpty) name = 'Sentiero';
 
+      // Estrai startPoint se presente, altrimenti usa il primo punto
+      double? startLat;
+      double? startLng;
+      
+      if (data['startPoint'] != null) {
+        final sp = data['startPoint'];
+        if (sp is GeoPoint) {
+          startLat = sp.latitude;
+          startLng = sp.longitude;
+        } else if (sp is Map) {
+          startLat = (sp['lat'] ?? sp['latitude'] as num?)?.toDouble();
+          startLng = (sp['lng'] ?? sp['lon'] ?? sp['longitude'] as num?)?.toDouble();
+        }
+      }
+      
+      // Fallback al primo punto
+      startLat ??= points.first.latitude;
+      startLng ??= points.first.longitude;
+
       return PublicTrail(
         id: doc.id,
         name: name,
@@ -136,6 +267,8 @@ class PublicTrailsRepository {
         isCircular: data['isCircular'] == true,
         quality: data['quality']?.toString(),
         duration: (data['duration'] as num?)?.toInt(),
+        startLat: startLat,
+        startLng: startLng,
       );
     } catch (e) {
       print('[PublicTrails] Errore parsing ${doc.id}: $e');
@@ -159,6 +292,9 @@ class PublicTrail {
   final bool isCircular;
   final String? quality;
   final int? duration;
+  final double startLat;
+  final double startLng;
+  final double? distanceFromUser; // Distanza dalla posizione utente in km
 
   const PublicTrail({
     required this.id,
@@ -174,10 +310,61 @@ class PublicTrail {
     this.isCircular = false,
     this.quality,
     this.duration,
+    this.startLat = 0,
+    this.startLng = 0,
+    this.distanceFromUser,
   });
+
+  /// Crea una copia con valori modificati
+  PublicTrail copyWith({
+    String? id,
+    String? name,
+    String? ref,
+    String? network,
+    String? operator,
+    String? difficulty,
+    List<TrackPoint>? points,
+    double? length,
+    double? elevationGain,
+    String? region,
+    bool? isCircular,
+    String? quality,
+    int? duration,
+    double? startLat,
+    double? startLng,
+    double? distanceFromUser,
+  }) {
+    return PublicTrail(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      ref: ref ?? this.ref,
+      network: network ?? this.network,
+      operator: operator ?? this.operator,
+      difficulty: difficulty ?? this.difficulty,
+      points: points ?? this.points,
+      length: length ?? this.length,
+      elevationGain: elevationGain ?? this.elevationGain,
+      region: region ?? this.region,
+      isCircular: isCircular ?? this.isCircular,
+      quality: quality ?? this.quality,
+      duration: duration ?? this.duration,
+      startLat: startLat ?? this.startLat,
+      startLng: startLng ?? this.startLng,
+      distanceFromUser: distanceFromUser ?? this.distanceFromUser,
+    );
+  }
 
   String get displayName => ref != null && ref!.isNotEmpty ? '$name ($ref)' : name;
   double get lengthKm => (length ?? 0) / 1000;
+
+  /// Distanza formattata dall'utente
+  String get distanceFromUserFormatted {
+    if (distanceFromUser == null) return '';
+    if (distanceFromUser! < 1) {
+      return '${(distanceFromUser! * 1000).toStringAsFixed(0)} m';
+    }
+    return '${distanceFromUser!.toStringAsFixed(1)} km';
+  }
 
   String get difficultyIcon {
     switch (difficulty?.toLowerCase()) {

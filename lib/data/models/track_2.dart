@@ -165,14 +165,26 @@ class TrackStats {
     this.maxSpeed = 0,
   });
 
+  String get avgPace {
+    if (avgSpeed <= 0) return '--:--';
+    final paceSeconds = 1000 / avgSpeed;
+    final minutes = (paceSeconds / 60).floor();
+    final seconds = (paceSeconds % 60).floor();
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  double get avgSpeedKmh => avgSpeed * 3.6;
+  double get currentSpeedKmh => currentSpeed * 3.6;
   double get distanceKm => distance / 1000;
+
   String get durationFormatted {
-    final h = duration.inHours;
-    final m = duration.inMinutes % 60;
-    final s = duration.inSeconds % 60;
-    if (h > 0) return '${h}h ${m}m';
-    if (m > 0) return '${m}m ${s}s';
-    return '${s}s';
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    final seconds = duration.inSeconds % 60;
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
   TrackStats copyWith({
@@ -203,49 +215,7 @@ class TrackStats {
 }
 
 
-/// 📸 NUOVO: Metadata foto traccia
-class TrackPhotoMetadata {
-  final String url;
-  final double? latitude;
-  final double? longitude;
-  final double? elevation;
-  final DateTime timestamp;
-  final String? caption;
-
-  const TrackPhotoMetadata({
-    required this.url,
-    this.latitude,
-    this.longitude,
-    this.elevation,
-    required this.timestamp,
-    this.caption,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'url': url,
-      'latitude': latitude,
-      'longitude': longitude,
-      'elevation': elevation,
-      'timestamp': timestamp.toIso8601String(),
-      'caption': caption,
-    };
-  }
-
-  factory TrackPhotoMetadata.fromMap(Map<String, dynamic> map) {
-    return TrackPhotoMetadata(
-      url: map['url'] as String,
-      latitude: map['latitude'] as double?,
-      longitude: map['longitude'] as double?,
-      elevation: map['elevation'] as double?,
-      timestamp: DateTime.parse(map['timestamp'] as String),
-      caption: map['caption'] as String?,
-    );
-  }
-}
-
-
-/// Traccia completa (CON FOTO)
+/// Traccia completa
 class Track {
   final String? id;
   final String name;
@@ -256,11 +226,8 @@ class Track {
   final DateTime createdAt;
   final String? userId;
   final bool isPublic;
-  final bool isPlanned;
+  final bool isPlanned; // ← NUOVO: indica se è una traccia pianificata
   final TrackStats stats;
-  
-  // 📸 NUOVO: Lista foto
-  final List<TrackPhotoMetadata> photos;
 
   const Track({
     this.id,
@@ -272,9 +239,8 @@ class Track {
     required this.createdAt,
     this.userId,
     this.isPublic = false,
-    this.isPlanned = false,
+    this.isPlanned = false, // ← Default: non pianificata (registrata)
     this.stats = const TrackStats(),
-    this.photos = const [], // 📸 Default: nessuna foto
   });
 
   Map<String, dynamic> toMap() {
@@ -287,14 +253,12 @@ class Track {
       'createdAt': createdAt.toIso8601String(),
       'userId': userId,
       'isPublic': isPublic,
-      'isPlanned': isPlanned,
+      'isPlanned': isPlanned, // ← Salva su Firestore
       'distance': stats.distance,
       'elevationGain': stats.elevationGain,
       'elevationLoss': stats.elevationLoss,
       'duration': stats.duration.inSeconds,
       'movingTime': stats.movingTime.inSeconds,
-      // 📸 NUOVO
-      'photos': photos.map((p) => p.toMap()).toList(),
     };
   }
 
@@ -310,7 +274,6 @@ class Track {
     bool? isPublic,
     bool? isPlanned,
     TrackStats? stats,
-    List<TrackPhotoMetadata>? photos, // 📸 NUOVO
   }) {
     return Track(
       id: id ?? this.id,
@@ -324,7 +287,6 @@ class Track {
       isPublic: isPublic ?? this.isPublic,
       isPlanned: isPlanned ?? this.isPlanned,
       stats: stats ?? this.stats,
-      photos: photos ?? this.photos, // 📸 NUOVO
     );
   }
 }

@@ -5,7 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/location_service.dart';
 import '../../../presentation/blocs/tracking_bloc.dart';
 import '../../../data/models/track.dart';
-import '../../../data/repositories/tracks_repository.dart';
+import '../../../data/repositories/track_repository.dart';
 import '../../widgets/live_track_button.dart';
 import '../../widgets/heart_rate_widget.dart';
 import '../../../core/services/feature_tips.dart';
@@ -21,12 +21,10 @@ class RecordPage extends StatefulWidget {
 
 class _RecordPageState extends State<RecordPage> {
   late final TrackingBloc _trackingBloc;
-  final TracksRepository _repository = TracksRepository();
+  final TrackRepository _repository = TrackRepository();
   final MapController _mapController = MapController();
   bool _followUser = true;
   bool _isSaving = false;
-  
-  // 📸 Foto
   final TrackPhotosService _photosService = TrackPhotosService();
   final List<TrackPhoto> _photos = [];
 
@@ -66,24 +64,8 @@ class _RecordPageState extends State<RecordPage> {
       body: Stack(
         children: [
           _buildMap(state),
-          
-          // 📸 GALLERIA FOTO
-          if (_photos.isNotEmpty || !state.isIdle)
-            Positioned(
-              bottom: 180, // Sopra i controlli
-              left: 0,
-              right: 0,
-              child: PhotoGalleryWidget(
-                photos: _photos,
-                isRecording: !state.isIdle,
-                onAddPhoto: state.isIdle ? null : _showPhotoOptions,
-                onDeletePhoto: _deletePhoto,
-              ),
-            ),
-          
           if (!state.isIdle) _buildStatsHeader(state),
           _buildControls(state),
-          
           if (state.errorMessage != null)
             Positioned(
               top: MediaQuery.of(context).padding.top + 100,
@@ -91,37 +73,22 @@ class _RecordPageState extends State<RecordPage> {
               right: 16,
               child: _buildErrorBanner(state.errorMessage!),
             ),
-          
           if (_isSaving)
             Container(
               color: Colors.black54,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(color: Colors.white),
-                  const SizedBox(height: 16),
-                  const Text('Salvataggio traccia...', style: TextStyle(color: Colors.white)),
-                  if (_photos.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Upload di ${_photos.length} foto...',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text('Salvataggio...', style: TextStyle(color: Colors.white)),
                   ],
-                ],
+                ),
               ),
             ),
         ],
       ),
-      
-      // 📸 FAB FOTO
-      floatingActionButton: !_trackingBloc.state.isIdle && 
-                            _trackingBloc.state.isRecording
-          ? AddPhotoButton(
-              onTakePhoto: _takePhoto,
-              onPickFromGallery: _pickPhotos,
-            )
-          : null,
     );
   }
 
@@ -214,33 +181,37 @@ class _RecordPageState extends State<RecordPage> {
           color: state.isRecording 
               ? AppColors.trackRecording.withOpacity(0.95)
               : AppColors.warning.withOpacity(0.95),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
         ),
         child: Column(
           children: [
+            // Riga stato + Heart Rate
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(
-                  state.isRecording ? Icons.fiber_manual_record : Icons.pause,
-                  color: Colors.white,
-                  size: 12,
+                const SizedBox(width: 60), // Spacer per centrare il testo
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      state.isRecording ? Icons.fiber_manual_record : Icons.pause,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      state.isRecording ? 'REGISTRAZIONE' : 'IN PAUSA',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  state.isRecording ? 'REGISTRAZIONE' : 'IN PAUSA',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                ),
+                // Heart Rate Widget
+                const HeartRateWidget(),
               ],
             ),
-            // Heart Rate Widget
-            const HeartRateWidget(),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -254,9 +225,9 @@ class _RecordPageState extends State<RecordPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStat('Vel.', '${(state.stats.currentSpeed * 3.6).toStringAsFixed(1)} km/h', small: true),
-                _buildStat('Media', '${(state.stats.avgSpeed * 3.6).toStringAsFixed(1)} km/h', small: true),
-                _buildStat('Passo', _formatPace(state.stats.avgSpeed), small: true),
+                _buildStat('Vel.', '${state.stats.currentSpeedKmh.toStringAsFixed(1)} km/h', small: true),
+                _buildStat('Media', '${state.stats.avgSpeedKmh.toStringAsFixed(1)} km/h', small: true),
+                _buildStat('Passo', state.stats.avgPace, small: true),
               ],
             ),
           ],
@@ -278,15 +249,6 @@ class _RecordPageState extends State<RecordPage> {
         ),
       ],
     );
-  }
-
-  /// Helper per formattare il passo (min/km)
-  String _formatPace(double avgSpeed) {
-    if (avgSpeed <= 0) return '--:--';
-    final paceSeconds = 1000 / avgSpeed;
-    final minutes = (paceSeconds / 60).floor();
-    final seconds = (paceSeconds % 60).floor();
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
   Widget _buildControls(TrackingState state) {
@@ -346,57 +308,118 @@ class _RecordPageState extends State<RecordPage> {
   }
 
   Widget _buildRecordingControls(TrackingState state) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // LiveTrack button
-        const Padding(
-          padding: EdgeInsets.only(bottom: 12),
-          child: LiveTrackButton(),
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      // LiveTrack button
+      Padding(
+        padding: EdgeInsets.only(bottom: 12),
+        child: LiveTrackButton(),
+      ),
+      
+      // Controlli registrazione esistenti
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)],
         ),
-        
-        // Controlli registrazione
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildControlButton(
-                icon: Icons.close,
-                label: 'Annulla',
-                color: AppColors.textMuted,
-                onTap: _showCancelDialog,
-              ),
-              _buildControlButton(
-                icon: state.isRecording ? Icons.pause : Icons.play_arrow,
-                label: state.isRecording ? 'Pausa' : 'Riprendi',
-                color: AppColors.warning,
-                onTap: () {
-                  if (state.isRecording) {
-                    _trackingBloc.pauseRecording();
-                  } else {
-                    _trackingBloc.resumeRecording();
-                  }
-                },
-                large: true,
-              ),
-              _buildControlButton(
-                icon: Icons.stop,
-                label: 'Salva',
-                color: AppColors.danger,
-                onTap: _showSaveDialog,
-              ),
-            ],
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildControlButton(
+              icon: Icons.close,
+              label: 'Annulla',
+              color: AppColors.textMuted,
+              onTap: _showCancelDialog,
+            ),
+            _buildControlButton(
+              icon: state.isRecording ? Icons.pause : Icons.play_arrow,
+              label: state.isRecording ? 'Pausa' : 'Riprendi',
+              color: AppColors.warning,
+              onTap: () {
+                if (state.isRecording) {
+                  _trackingBloc.pauseRecording();
+                } else {
+                  _trackingBloc.resumeRecording();
+                }
+              },
+              large: true,
+            ),
+            _buildControlButton(
+              icon: Icons.stop,
+              label: 'Salva',
+              color: AppColors.danger,
+              onTap: _showSaveDialog,
+            ),
+          ],
         ),
-      ],
+      ),
+    ],
+  );
+
+  /// 📸 Scatta foto con GPS corrente
+  Future<void> _takePhoto() async {
+    final state = _trackingBloc.state;
+    
+    if (state.points.isEmpty) {
+      _showSnackBar('GPS non disponibile', isError: true);
+      return;
+    }
+
+    final lastPoint = state.points.last;
+    final photo = await _photosService.takePhoto(
+      latitude: lastPoint.latitude,
+      longitude: lastPoint.longitude,
+      elevation: lastPoint.elevation,
+    );
+
+    if (photo != null) {
+      setState(() => _photos.add(photo));
+      _showSnackBar('📸 Foto aggiunta!');
+    }
+  }
+
+  /// 📸 Seleziona foto da galleria
+  Future<void> _pickPhotos() async {
+    final state = _trackingBloc.state;
+    TrackPoint? lastPoint;
+    
+    if (state.points.isNotEmpty) {
+      lastPoint = state.points.last;
+    }
+
+    final photos = await _photosService.pickFromGallery(
+      latitude: lastPoint?.latitude,
+      longitude: lastPoint?.longitude,
+      elevation: lastPoint?.elevation,
+    );
+
+    if (photos.isNotEmpty) {
+      setState(() => _photos.addAll(photos));
+      _showSnackBar('📸 ${photos.length} foto aggiunte!');
+    }
+  }
+
+  /// 📸 Elimina foto
+  void _deletePhoto(int index) {
+    setState(() => _photos.removeAt(index));
+    _showSnackBar('Foto eliminata');
+  }
+
+  /// Helper per snackbar
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppColors.danger : AppColors.success,
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
+}
 
   Widget _buildControlButton({
     required IconData icon,
@@ -438,120 +461,17 @@ class _RecordPageState extends State<RecordPage> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 📸 METODI FOTO
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Scatta foto con GPS corrente
-  Future<void> _takePhoto() async {
-    final state = _trackingBloc.state;
-    
-    if (state.points.isEmpty) {
-      _showSnackBar('GPS non disponibile', isError: true);
-      return;
-    }
-
-    final lastPoint = state.points.last;
-    final photo = await _photosService.takePhoto(
-      latitude: lastPoint.latitude,
-      longitude: lastPoint.longitude,
-      elevation: lastPoint.elevation,
-    );
-
-    if (photo != null) {
-      setState(() => _photos.add(photo));
-      _showSnackBar('📸 Foto aggiunta!');
-    }
-  }
-
-  /// Seleziona foto da galleria
-  Future<void> _pickPhotos() async {
-    final state = _trackingBloc.state;
-    TrackPoint? lastPoint;
-    
-    if (state.points.isNotEmpty) {
-      lastPoint = state.points.last;
-    }
-
-    final photos = await _photosService.pickFromGallery(
-      latitude: lastPoint?.latitude,
-      longitude: lastPoint?.longitude,
-      elevation: lastPoint?.elevation,
-    );
-
-    if (photos.isNotEmpty) {
-      setState(() => _photos.addAll(photos));
-      _showSnackBar('📸 ${photos.length} foto aggiunte!');
-    }
-  }
-
-  /// Elimina foto
-  void _deletePhoto(int index) {
-    setState(() => _photos.removeAt(index));
-    _showSnackBar('Foto eliminata');
-  }
-
-  /// Mostra opzioni foto (camera vs galleria)
-  void _showPhotoOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: AppColors.primary),
-              title: const Text('Scatta foto'),
-              onTap: () {
-                Navigator.pop(context);
-                _takePhoto();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: AppColors.info),
-              title: const Text('Scegli dalla galleria'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickPhotos();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Helper per snackbar
-  void _showSnackBar(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? AppColors.danger : AppColors.success,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // DIALOG
-  // ═══════════════════════════════════════════════════════════════════════════
-
   void _showCancelDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Annullare registrazione?'),
-        content: Text(
-          _photos.isEmpty 
-            ? 'I dati della traccia corrente verranno persi.'
-            : 'I dati della traccia e le ${_photos.length} foto verranno persi.'
-        ),
+        content: const Text('I dati della traccia corrente verranno persi.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Continua')),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              setState(() => _photos.clear()); // Reset foto
               _trackingBloc.cancelRecording();
             },
             child: const Text('Annulla', style: TextStyle(color: AppColors.danger)),
@@ -600,9 +520,6 @@ class _RecordPageState extends State<RecordPage> {
             _buildSummaryRow('Dislivello', '+${track.stats.elevationGain.toStringAsFixed(0)} m'),
             _buildSummaryRow('Durata', track.stats.durationFormatted),
             _buildSummaryRow('Punti GPS', '${track.points.length}'),
-            // 📸 Mostra conteggio foto
-            if (_photos.isNotEmpty)
-              _buildSummaryRow('Foto', '${_photos.length}'),
           ],
         ),
         actions: [
@@ -629,53 +546,17 @@ class _RecordPageState extends State<RecordPage> {
     
     try {
       final trackToSave = track.copyWith(name: nameController.text.trim());
-      final trackId = await _repository.saveTrack(trackToSave);
-      
-      // 📸 Upload foto se presenti
-      if (_photos.isNotEmpty) {
-        debugPrint('[RecordPage] Upload di ${_photos.length} foto...');
-        
-        final uploadedPhotos = await _photosService.uploadPhotos(
-          photos: _photos,
-          trackId: trackId,
-          onProgress: (current, total) {
-            debugPrint('[RecordPage] Upload foto $current/$total');
-          },
-        );
-        
-        // Aggiorna traccia con metadata foto
-        if (uploadedPhotos.isNotEmpty) {
-          final photoMetadata = uploadedPhotos.map((p) => TrackPhotoMetadata(
-            url: p.url,
-            latitude: p.latitude,
-            longitude: p.longitude,
-            elevation: p.elevation,
-            timestamp: p.timestamp,
-            caption: p.caption,
-          )).toList();
-          
-          await _repository.updateTrackPhotos(trackId, photoMetadata);
-          debugPrint('[RecordPage] ${uploadedPhotos.length} foto salvate su Firestore');
-        }
-      }
+      await _repository.saveTrack(trackToSave);
       
       if (mounted) {
-        // Reset foto
-        setState(() => _photos.clear());
-        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _photos.isEmpty 
-                ? '✅ Traccia salvata!' 
-                : '✅ Traccia salvata con ${_photos.length} foto!'
-            ),
+          const SnackBar(
+            content: Text('✅ Traccia salvata!'),
             backgroundColor: AppColors.success,
           ),
         );
       }
     } catch (e) {
-      debugPrint('[RecordPage] Errore salvataggio: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),

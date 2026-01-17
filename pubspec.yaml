@@ -26,7 +26,7 @@ dependencies:
   latlong2: ^0.9.1
   
   # Location
-  geolocator: ^13.0.2
+  geolocator: ^14.0.2
   permission_handler: ^11.3.1
 
   # State management
@@ -44,7 +44,19 @@ dependencies:
   crypto: ^3.0.6
   xml: ^6.6.1
   file_picker: ^10.3.8
-  share_plus: ^7.2.2
+  share_plus: ^12.0.1
+  flutter_foreground_task: ^9.2.0
+  battery_plus: ^7.0.0
+  url_launcher: ^6.3.2
+  package_info_plus: ^9.0.0
+
+  #supporto BLE
+  flutter_blue_plus: ^1.16.0
+  
+  # Camera & Photos
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:
