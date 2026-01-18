@@ -2,6 +2,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/track.dart';
 
+/// Risultato paginato per le tracce
+class PaginatedTracksResult {
+  final List<Track> tracks;
+  final DocumentSnapshot? lastDocument;
+  final bool hasMore;
+
+  PaginatedTracksResult({
+    required this.tracks,
+    this.lastDocument,
+    required this.hasMore,
+  });
+}
+
 /// Repository unificato per gestire le tracce su Firestore
 /// Compatibile con la struttura dati esistente dall'app JavaScript
 class TracksRepository {
@@ -42,15 +55,52 @@ class TracksRepository {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // LETTURA TRACCE
+  // LETTURA TRACCE - PAGINATA
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Ottiene tutte le tracce dell'utente specificato
+  /// ⭐ NUOVO: Ottiene le tracce con paginazione
+  /// [limit] - Numero di tracce per pagina (default 10)
+  /// [lastDocument] - Ultimo documento della pagina precedente per paginazione
+  Future<PaginatedTracksResult> getUserTracksPaginated(
+    String userId, {
+    int limit = 10,
+    DocumentSnapshot? lastDocument,
+  }) async {
+    try {
+      Query<Map<String, dynamic>> query = _tracksCollection(userId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
+
+      // Se abbiamo un documento di partenza, inizia da lì
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+
+      final snapshot = await query.get();
+
+      print('[TracksRepository] Paginazione: ${snapshot.docs.length} tracce caricate');
+
+      final tracks = snapshot.docs.map((doc) {
+        return _trackFromFirestore(doc.id, doc.data());
+      }).toList();
+
+      return PaginatedTracksResult(
+        tracks: tracks,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+        hasMore: snapshot.docs.length == limit,
+      );
+    } catch (e) {
+      print('[TracksRepository] Errore getUserTracksPaginated: $e');
+      return PaginatedTracksResult(tracks: [], hasMore: false);
+    }
+  }
+
+  /// Ottiene tutte le tracce dell'utente specificato (con limit di sicurezza)
   Future<List<Track>> getUserTracks(String userId) async {
     try {
       final snapshot = await _tracksCollection(userId)
           .orderBy('createdAt', descending: true)
-          .limit(50)
+          .limit(20) // ⚠️ LIMITE per evitare OutOfMemory
           .get();
 
       print('[TracksRepository] Trovate ${snapshot.docs.length} tracce per utente $userId');
@@ -72,11 +122,23 @@ class TracksRepository {
     return getUserTracks(userId);
   }
 
-  /// Stream delle tracce dell'utente corrente (real-time)
+  /// ⭐ NUOVO: Ottiene le mie tracce con paginazione
+  Future<PaginatedTracksResult> getMyTracksPaginated({
+    int limit = 10,
+    DocumentSnapshot? lastDocument,
+  }) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) {
+      return PaginatedTracksResult(tracks: [], hasMore: false);
+    }
+    return getUserTracksPaginated(userId, limit: limit, lastDocument: lastDocument);
+  }
+
+  /// Stream delle tracce dell'utente corrente (real-time) - CON LIMITE
   Stream<List<Track>> watchMyTracks() {
     return _myTracksCollection
         .orderBy('createdAt', descending: true)
-        .limit(50)
+        .limit(20) // ⚠️ LIMITE per evitare OutOfMemory
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => _trackFromFirestore(doc.id, doc.data()))

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/config/app_config.dart';
 import '../../../data/models/track.dart';
@@ -20,7 +21,13 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
   late TabController _tabController;
   final TracksRepository _repository = TracksRepository();
   
+  // ⭐ PAGINAZIONE
   List<Track>? _tracks;
+  DocumentSnapshot? _lastDocument;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+  final ScrollController _scrollController = ScrollController();
+  
   bool _isLoading = true;
   String? _error;
 
@@ -28,13 +35,51 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _scrollController.addListener(_onScroll); // ⭐ Listener per lazy load
     _loadTracks();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose(); // ⭐ Dispose del controller
     super.dispose();
+  }
+
+  /// Helper per ottenere il colore dell'attività
+  Color _getActivityColor(ActivityType type) {
+    switch (type) {
+      case ActivityType.trekking:
+        return AppColors.success;
+      case ActivityType.trailRunning:
+        return AppColors.warning;
+      case ActivityType.cycling:
+        return AppColors.info;
+      case ActivityType.walking:
+        return AppColors.primary;
+    }
+  }
+
+  /// Helper per ottenere l'icona dell'attività
+  IconData _getActivityIconData(ActivityType type) {
+    switch (type) {
+      case ActivityType.trekking:
+        return Icons.hiking;
+      case ActivityType.trailRunning:
+        return Icons.directions_run;
+      case ActivityType.cycling:
+        return Icons.directions_bike;
+      case ActivityType.walking:
+        return Icons.directions_walk;
+    }
+  }
+
+  /// ⭐ Listener per caricare più tracce quando si raggiunge il fondo
+  void _onScroll() {
+    if (_scrollController.position.pixels >= 
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreTracks();
+    }
   }
 
   Future<void> _loadTracks() async {
@@ -50,12 +95,22 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     setState(() {
       _isLoading = true;
       _error = null;
+      _tracks = null;
+      _lastDocument = null; // ⭐ Reset paginazione
+      _hasMore = true;
     });
 
     try {
-      final tracks = await _repository.getUserTracks(user.uid);
+      // ⭐ Usa il metodo paginato
+      final result = await _repository.getUserTracksPaginated(
+        user.uid,
+        limit: 10, // Carica solo 10 alla volta
+      );
+      
       setState(() {
-        _tracks = tracks;
+        _tracks = result.tracks;
+        _lastDocument = result.lastDocument;
+        _hasMore = result.hasMore;
         _isLoading = false;
       });
     } catch (e) {
@@ -63,6 +118,37 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
         _error = 'Errore caricamento: $e';
         _isLoading = false;
       });
+    }
+  }
+
+  /// ⭐ Carica altre tracce (paginazione)
+  Future<void> _loadMoreTracks() async {
+    // Non caricare se già in corso, non ci sono più dati, o non c'è un cursore
+    if (_isLoadingMore || !_hasMore || _lastDocument == null) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final result = await _repository.getUserTracksPaginated(
+        user.uid,
+        limit: 10,
+        lastDocument: _lastDocument,
+      );
+
+      setState(() {
+        _tracks = [...?_tracks, ...result.tracks];
+        _lastDocument = result.lastDocument;
+        _hasMore = result.hasMore;
+        _isLoadingMore = false;
+      });
+      
+      print('[TracksPage] Caricate altre ${result.tracks.length} tracce. Totale: ${_tracks?.length}');
+    } catch (e) {
+      print('[TracksPage] Errore caricamento altre tracce: $e');
+      setState(() => _isLoadingMore = false);
     }
   }
 
@@ -182,6 +268,12 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     );
   }
 
+  Widget _buildLoginRequired() {
+    return const Center(
+      child: Text('Accedi per pianificare tracce'),
+    );
+  }
+
   Widget _buildTracksListTab() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -192,14 +284,13 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.lock_outline, size: 64, color: AppColors.textMuted),
+            Icon(Icons.error_outline, size: 64, color: AppColors.danger.withOpacity(0.5)),
             const SizedBox(height: 16),
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            Text(_error!, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
+            ElevatedButton(
               onPressed: _loadTracks,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Riprova'),
+              child: const Text('Riprova'),
             ),
           ],
         ),
@@ -207,39 +298,28 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     }
 
     if (_tracks == null || _tracks!.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      return RefreshIndicator(
+        onRefresh: _loadTracks,
+        child: ListView(
           children: [
-            const Icon(Icons.route, size: 64, color: AppColors.textMuted),
-            const SizedBox(height: 16),
-            const Text('Nessuna traccia salvata', style: TextStyle(fontSize: 18)),
-            const SizedBox(height: 8),
-            const Text(
-              'Registra un\'escursione, importa un GPX\no pianifica un nuovo percorso',
-              style: TextStyle(color: AppColors.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _openImportPage,
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text('Importa'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
+            const SizedBox(height: 100),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.hiking, size: 80, color: AppColors.primary.withOpacity(0.3)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Nessuna traccia salvata',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
                   ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _tabController.animateTo(1),
-                  icon: const Icon(Icons.edit_location_alt),
-                  label: const Text('Pianifica'),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Inizia a registrare le tue avventure!',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -249,56 +329,80 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     return RefreshIndicator(
       onRefresh: _loadTracks,
       child: ListView.builder(
+        controller: _scrollController, // ⭐ Controller per scroll
         padding: const EdgeInsets.all(16),
-        itemCount: _tracks!.length,
+        itemCount: _tracks!.length + (_hasMore ? 1 : 0), // ⭐ +1 per il loader
         itemBuilder: (context, index) {
+          // ⭐ Se siamo all'ultimo item e ci sono altre pagine, mostra loader
+          if (index >= _tracks!.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          
           final track = _tracks![index];
           return _TrackCard(
             track: track,
             onTap: () => _openTrackDetail(track),
-            onOpenMap: () => _openTrackOnMap(track),
+            onMapTap: () => _openTrackOnMap(track),
             onDelete: () => _deleteTrack(track),
           );
         },
       ),
     );
   }
-
-  Widget _buildLoginRequired() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.lock_outline, size: 64, color: AppColors.textMuted),
-          SizedBox(height: 16),
-          Text('Effettua il login per pianificare percorsi'),
-        ],
-      ),
-    );
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TRACK CARD
+// TRACK CARD WIDGET
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _TrackCard extends StatelessWidget {
   final Track track;
   final VoidCallback onTap;
-  final VoidCallback onOpenMap;
+  final VoidCallback onMapTap;
   final VoidCallback onDelete;
 
   const _TrackCard({
     required this.track,
     required this.onTap,
-    required this.onOpenMap,
+    required this.onMapTap,
     required this.onDelete,
   });
 
+  Color _getActivityColor(ActivityType type) {
+    switch (type) {
+      case ActivityType.trekking:
+        return AppColors.success;
+      case ActivityType.trailRunning:
+        return AppColors.warning;
+      case ActivityType.cycling:
+        return AppColors.info;
+      case ActivityType.walking:
+        return AppColors.primary;
+    }
+  }
+
+  IconData _getActivityIconData(ActivityType type) {
+    switch (type) {
+      case ActivityType.trekking:
+        return Icons.hiking;
+      case ActivityType.trailRunning:
+        return Icons.directions_run;
+      case ActivityType.cycling:
+        return Icons.directions_bike;
+      case ActivityType.walking:
+        return Icons.directions_walk;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final stats = track.stats;
-    final isPlanned = track.isPlanned;
+    final color = _getActivityColor(track.activityType);
+    final iconData = _getActivityIconData(track.activityType);
     
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -307,122 +411,136 @@ class _TrackCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Icona attività
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: isPlanned 
-                      ? AppColors.info.withOpacity(0.1)
-                      : AppColors.primary.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: isPlanned
-                      ? const Icon(Icons.edit_location_alt, color: AppColors.info)
-                      : Text(track.activityType.icon, style: const TextStyle(fontSize: 22)),
-                ),
-              ),
-              const SizedBox(width: 16),
-              
-              // Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            track.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isPlanned)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.info.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'PIANIFICATA',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.info,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_formatDate(track.createdAt)} • ${track.activityType.displayName}',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _StatChip(Icons.straighten, '${(stats.distance / 1000).toStringAsFixed(1)} km'),
-                        const SizedBox(width: 12),
-                        _StatChip(Icons.trending_up, '+${stats.elevationGain.toStringAsFixed(0)} m'),
-                        if (stats.duration.inMinutes > 0) ...[
-                          const SizedBox(width: 12),
-                          _StatChip(Icons.schedule, _formatDuration(stats.duration)),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Azioni
-              Column(
-                mainAxisSize: MainAxisSize.min,
+              // Header
+              Row(
                 children: [
-                  // Apri in mappa
-                  IconButton(
-                    icon: const Icon(Icons.map_outlined),
-                    onPressed: onOpenMap,
-                    tooltip: 'Apri in mappa',
-                    color: AppColors.primary,
-                    iconSize: 22,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      iconData,
+                      color: color,
+                      size: 24,
+                    ),
                   ),
-                  // Menu
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.more_vert, color: AppColors.textMuted, size: 20),
-                    padding: EdgeInsets.zero,
-                    onSelected: (value) {
-                      if (value == 'delete') onDelete();
-                      if (value == 'map') onOpenMap();
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                        value: 'map',
-                        child: Row(
-                          children: [
-                            Icon(Icons.map, color: AppColors.primary, size: 20),
-                            SizedBox(width: 8),
-                            Text('Apri in mappa'),
-                          ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          track.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, color: AppColors.danger, size: 20),
-                            SizedBox(width: 8),
-                            Text('Elimina'),
-                          ],
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatDate(track.createdAt),
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
+                  // Badge foto
+                  if (track.photos.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.info.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.photo_camera, size: 14, color: AppColors.info),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${track.photos.length}',
+                            style: TextStyle(fontSize: 12, color: AppColors.info),
+                          ),
+                        ],
+                      ),
+                    ),
+                  // Badge pianificata
+                  if (track.isPlanned)
+                    Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'PIANIFICATA',
+                        style: TextStyle(fontSize: 10, color: AppColors.warning, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                ],
+              ),
+              
+              const SizedBox(height: 12),
+              
+              // Stats
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _StatChip(
+                    icon: Icons.straighten,
+                    value: '${track.stats.distanceKm.toStringAsFixed(1)} km',
+                  ),
+                  _StatChip(
+                    icon: Icons.trending_up,
+                    value: '+${track.stats.elevationGain.toStringAsFixed(0)} m',
+                    color: AppColors.success,
+                  ),
+                  if (track.stats.duration.inMinutes > 0)
+                    _StatChip(
+                      icon: Icons.schedule,
+                      value: track.stats.durationFormatted,
+                    ),
+                  _StatChip(
+                    icon: Icons.location_on,
+                    value: '${track.points.length} pt',
+                    color: AppColors.textMuted,
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 12),
+              
+              // Actions
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    icon: const Icon(Icons.map, size: 18),
+                    label: const Text('Mappa'),
+                    onPressed: onMapTap,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('Elimina'),
+                    onPressed: onDelete,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                    ),
                   ),
                 ],
               ),
@@ -433,30 +551,48 @@ class _TrackCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
-  
-  String _formatDuration(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes % 60;
-    if (h > 0) return '${h}h ${m}m';
-    return '${m}m';
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    
+    if (diff.inDays == 0) {
+      return 'Oggi ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (diff.inDays == 1) {
+      return 'Ieri';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays} giorni fa';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 }
 
 class _StatChip extends StatelessWidget {
   final IconData icon;
-  final String text;
+  final String value;
+  final Color? color;
 
-  const _StatChip(this.icon, this.text);
+  const _StatChip({
+    required this.icon,
+    required this.value,
+    this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: AppColors.textMuted),
+        Icon(icon, size: 16, color: color ?? AppColors.textSecondary),
         const SizedBox(width: 4),
-        Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            color: color ?? AppColors.textPrimary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -20,18 +21,14 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   late TabController _tabController;
   final MapController _mapController = MapController();
   
-  // Posizione utente
+  // Posizione utente (solo per centrare mappa inizialmente e mostrare marker)
   LatLng? _userPosition;
   bool _isLoadingLocation = true;
-  String? _locationError;
   
-  // Raggio di ricerca in km
-  double _searchRadiusKm = 30;
-  
-  // Sentieri OSM
+  // Sentieri OSM - caricati in base al viewport della mappa
   final PublicTrailsRepository _trailsRepository = PublicTrailsRepository();
   List<PublicTrail> _trails = [];
-  bool _isLoadingTrails = true;
+  bool _isLoadingTrails = false; // Cambiato: false inizialmente, carica su viewport
   PublicTrail? _selectedTrail;
 
   // Community
@@ -44,6 +41,10 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   bool _showMap = true;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  // ⭐ VIEWPORT-BASED LOADING per sentieri
+  Timer? _viewportDebounce;
+  LatLngBounds? _lastLoadedBounds;
 
   @override
   void initState() {
@@ -66,26 +67,21 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    _viewportDebounce?.cancel(); // ⭐ Cancella timer viewport
     super.dispose();
   }
 
-  /// Inizializza la geolocalizzazione
+  /// Inizializza la geolocalizzazione (solo per centrare la mappa)
   Future<void> _initializeLocation() async {
     setState(() {
       _isLoadingLocation = true;
-      _locationError = null;
     });
 
     try {
       // Verifica se il servizio GPS è attivo
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        setState(() {
-          _locationError = 'GPS disattivato';
-          _isLoadingLocation = false;
-        });
-        // Carica comunque i sentieri di default
-        _loadTrailsWithoutLocation();
+        setState(() => _isLoadingLocation = false);
         return;
       }
 
@@ -94,21 +90,13 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          setState(() {
-            _locationError = 'Permesso posizione negato';
-            _isLoadingLocation = false;
-          });
-          _loadTrailsWithoutLocation();
+          setState(() => _isLoadingLocation = false);
           return;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        setState(() {
-          _locationError = 'Permesso posizione negato permanentemente';
-          _isLoadingLocation = false;
-        });
-        _loadTrailsWithoutLocation();
+        setState(() => _isLoadingLocation = false);
         return;
       }
 
@@ -127,90 +115,32 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
 
       print('[DiscoverPage] Posizione utente: ${_userPosition!.latitude}, ${_userPosition!.longitude}');
 
-      // Carica sentieri vicini
-      _loadTrailsNearby();
+      // Centra mappa sulla posizione utente
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _mapController.move(_userPosition!, 11);
+          // Carica sentieri per il viewport iniziale
+          _loadTrailsForViewport();
+        });
+      }
       
     } catch (e) {
       print('[DiscoverPage] Errore geolocalizzazione: $e');
-      setState(() {
-        _locationError = 'Impossibile ottenere la posizione';
-        _isLoadingLocation = false;
-      });
-      _loadTrailsWithoutLocation();
+      setState(() => _isLoadingLocation = false);
+      // Carica comunque i sentieri per il viewport di default
+      _loadTrailsForViewport();
     }
   }
 
-  /// Carica sentieri vicini alla posizione utente
-  Future<void> _loadTrailsNearby() async {
-    if (_userPosition == null) {
-      _loadTrailsWithoutLocation();
-      return;
-    }
-
-    setState(() => _isLoadingTrails = true);
-    
-    try {
-      final trails = await _trailsRepository.getTrailsNearby(
-        center: _userPosition!,
-        radiusKm: _searchRadiusKm,
-        limit: 100,
-      );
-      
-      setState(() {
-        _trails = trails;
-        _isLoadingTrails = false;
-      });
-      
-      // Centra mappa sulla posizione utente se non ci sono sentieri selezionati
-      if (_selectedTrail == null && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_mapController.camera.center.latitude == 45.95) {
-            // Solo se è ancora al valore di default
-            _mapController.move(_userPosition!, 12);
-          }
-        });
-      }
-    } catch (e) {
-      print('[DiscoverPage] Errore caricamento sentieri: $e');
-      setState(() => _isLoadingTrails = false);
-    }
-  }
-
-  /// Carica sentieri senza posizione (fallback)
-  Future<void> _loadTrailsWithoutLocation() async {
-    setState(() => _isLoadingTrails = true);
-    
-    final trails = await _trailsRepository.getTrails(limit: 100);
-    
-    setState(() {
-      _trails = trails;
-      _isLoadingTrails = false;
-    });
-  }
-
-  /// Refresh manuale della posizione e sentieri
-  Future<void> _refreshLocation() async {
-    await _initializeLocation();
-  }
-
-  /// Cambia il raggio di ricerca
-  void _showRadiusSelector() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => _RadiusSelectorSheet(
-        currentRadius: _searchRadiusKm,
-        onRadiusChanged: (radius) {
-          setState(() => _searchRadiusKm = radius);
-          Navigator.pop(context);
-          _loadTrailsNearby();
-        },
-      ),
-    );
+  /// Refresh manuale - ricarica sentieri per viewport corrente
+  Future<void> _refreshTrails() async {
+    _lastLoadedBounds = null; // Reset per forzare ricaricamento
+    await _loadTrailsForViewport();
   }
 
   Future<void> _loadCommunityTracks() async {
     setState(() => _isLoadingCommunity = true);
-    final tracks = await _communityRepository.getRecentTracks(limit: 50);
+    final tracks = await _communityRepository.getRecentTracks(limit: 30); // ⭐ Ridotto da 50
     setState(() {
       _communityTracks = tracks;
       _isLoadingCommunity = false;
@@ -284,9 +214,77 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   void _centerOnUser() {
     if (_userPosition != null) {
       _mapController.move(_userPosition!, 13);
+      // Ricarica sentieri per il nuovo viewport
+      _loadTrailsForViewport();
     } else {
-      _refreshLocation();
+      _initializeLocation();
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⭐ VIEWPORT-BASED LOADING (solo per sentieri)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Handler per eventi mappa (zoom, pan) - carica sentieri nel viewport
+  void _onMapEvent(MapEvent event) {
+    // Solo per tab sentieri e quando l'utente finisce di muovere la mappa
+    if (_tabController.index != 0) return;
+    
+    if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd) {
+      // Debounce per evitare troppe chiamate
+      _viewportDebounce?.cancel();
+      _viewportDebounce = Timer(const Duration(milliseconds: 300), () {
+        _loadTrailsForViewport();
+      });
+    }
+  }
+
+  /// Carica sentieri basati sul viewport corrente della mappa
+  Future<void> _loadTrailsForViewport() async {
+    if (_isLoadingTrails) return;
+    
+    try {
+      final bounds = _mapController.camera.visibleBounds;
+      
+      // Evita di ricaricare se i bounds sono molto simili
+      if (_lastLoadedBounds != null && _areBoundsSimilar(bounds, _lastLoadedBounds!)) {
+        return;
+      }
+      
+      setState(() => _isLoadingTrails = true);
+      
+      final trails = await _trailsRepository.getTrailsInBounds(
+        minLat: bounds.south,
+        maxLat: bounds.north,
+        minLng: bounds.west,
+        maxLng: bounds.east,
+        limit: 50,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _trails = trails;
+          _lastLoadedBounds = bounds;
+          _isLoadingTrails = false;
+        });
+      }
+      
+      print('[DiscoverPage] ⭐ Caricati ${trails.length} sentieri per viewport');
+    } catch (e) {
+      print('[DiscoverPage] Errore caricamento viewport: $e');
+      if (mounted) {
+        setState(() => _isLoadingTrails = false);
+      }
+    }
+  }
+
+  /// Verifica se due bounding box sono simili (per evitare ricaricamenti inutili)
+  bool _areBoundsSimilar(LatLngBounds a, LatLngBounds b) {
+    const threshold = 0.005; // ~500m - più sensibile per esplorazione
+    return (a.north - b.north).abs() < threshold &&
+           (a.south - b.south).abs() < threshold &&
+           (a.east - b.east).abs() < threshold &&
+           (a.west - b.west).abs() < threshold;
   }
 
   @override
@@ -321,7 +319,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              _refreshLocation();
+              _refreshTrails();
               _loadCommunityTracks();
             },
           ),
@@ -383,65 +381,47 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     );
   }
 
-  /// Widget che mostra info sulla posizione e raggio di ricerca
+  /// Widget che mostra info sulla mappa (viewport-based)
   Widget _buildLocationInfo() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: _userPosition != null 
-            ? AppColors.success.withOpacity(0.1)
-            : AppColors.warning.withOpacity(0.1),
+        color: AppColors.info.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: _userPosition != null 
-              ? AppColors.success.withOpacity(0.3)
-              : AppColors.warning.withOpacity(0.3),
+          color: AppColors.info.withOpacity(0.3),
         ),
       ),
       child: Row(
         children: [
           Icon(
-            _isLoadingLocation 
-                ? Icons.hourglass_empty
-                : _userPosition != null 
-                    ? Icons.location_on 
-                    : Icons.location_off,
+            _isLoadingTrails ? Icons.hourglass_empty : Icons.explore,
             size: 18,
-            color: _userPosition != null ? AppColors.success : AppColors.warning,
+            color: AppColors.info,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _isLoadingLocation
-                  ? 'Ricerca posizione...'
-                  : _userPosition != null
-                      ? 'Sentieri entro ${_searchRadiusKm.toInt()} km dalla tua posizione'
-                      : _locationError ?? 'Posizione non disponibile',
-              style: TextStyle(
+              _isLoadingTrails
+                  ? 'Caricamento sentieri...'
+                  : _trails.isEmpty
+                      ? 'Sposta la mappa per esplorare i sentieri'
+                      : '${_trails.length} sentieri in questa zona',
+              style: const TextStyle(
                 fontSize: 12,
-                color: _userPosition != null ? AppColors.success : AppColors.warning,
+                color: AppColors.info,
               ),
             ),
           ),
           if (_userPosition != null)
             TextButton(
-              onPressed: _showRadiusSelector,
+              onPressed: _centerOnUser,
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text('Cambia', style: TextStyle(fontSize: 12)),
-            ),
-          if (_userPosition == null && !_isLoadingLocation)
-            TextButton(
-              onPressed: _refreshLocation,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text('Riprova', style: TextStyle(fontSize: 12)),
+              child: const Text('📍 Posizione', style: TextStyle(fontSize: 12)),
             ),
         ],
       ),
@@ -453,35 +433,16 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildTrailsTab() {
-    if (_isLoadingTrails || _isLoadingLocation) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(
-              _isLoadingLocation 
-                  ? 'Ricerca posizione...' 
-                  : 'Caricamento sentieri...',
-              style: const TextStyle(color: AppColors.textMuted),
-            ),
-          ],
-        ),
-      );
-    }
-
+    // Mostra sempre la mappa/lista, il loading è indicato nel badge
     final trails = _filteredTrails;
 
-    if (trails.isEmpty) {
+    if (trails.isEmpty && !_isLoadingTrails) {
       return _buildEmptyState(
         icon: Icons.hiking,
         message: _searchQuery.isEmpty 
-            ? _userPosition != null
-                ? 'Nessun sentiero trovato entro ${_searchRadiusKm.toInt()} km'
-                : 'Nessun sentiero disponibile' 
+            ? 'Sposta la mappa per esplorare i sentieri'
             : 'Nessun risultato per "$_searchQuery"',
-        showExpandRadius: _userPosition != null && _searchQuery.isEmpty,
+        showExpandRadius: false,
       );
     }
 
@@ -502,6 +463,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
             minZoom: 8,
             maxZoom: 18,
             onTap: (_, __) => setState(() => _selectedTrail = null),
+            onMapEvent: _onMapEvent, // ⭐ Handler per viewport loading
           ),
           children: [
             TileLayer(
@@ -613,6 +575,41 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
           child: _CounterBadge(count: trails.length, label: 'sentieri'),
         ),
 
+        // ⭐ Indicatore caricamento viewport
+        if (_isLoadingTrails)
+          Positioned(
+            top: 8,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 8),
+                    Text('Caricamento...', style: TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
         // Pulsante centra su utente
         if (_userPosition != null)
           Positioned(
@@ -631,7 +628,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
 
   Widget _buildTrailsList(List<PublicTrail> trails) {
     return RefreshIndicator(
-      onRefresh: _loadTrailsNearby,
+      onRefresh: _refreshTrails,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         itemCount: trails.length,
@@ -639,7 +636,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
           final trail = trails[index];
           return _TrailCard(
             trail: trail,
-            showDistance: _userPosition != null,
+            showDistance: false, // Non mostriamo più la distanza dall'utente
             onTap: () => _openTrailDetail(trail),
           );
         },
@@ -855,7 +852,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   Widget _buildEmptyState({
     required IconData icon, 
     required String message,
-    bool showExpandRadius = false,
+    bool showExpandRadius = false, // Parametro mantenuto per compatibilità ma ignorato
   }) {
     return Center(
       child: Column(
@@ -878,21 +875,6 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
               child: const Text('Cancella ricerca'),
             ),
           ],
-          if (showExpandRadius) ...[
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                setState(() => _searchRadiusKm = _searchRadiusKm + 20);
-                _loadTrailsNearby();
-              },
-              icon: const Icon(Icons.expand),
-              label: Text('Espandi a ${(_searchRadiusKm + 20).toInt()} km'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -902,46 +884,6 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
 // ═══════════════════════════════════════════════════════════════════════════
 // WIDGETS AUSILIARI
 // ═══════════════════════════════════════════════════════════════════════════
-
-/// Bottom sheet per selezionare il raggio di ricerca
-class _RadiusSelectorSheet extends StatelessWidget {
-  final double currentRadius;
-  final ValueChanged<double> onRadiusChanged;
-
-  const _RadiusSelectorSheet({
-    required this.currentRadius,
-    required this.onRadiusChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final options = [10.0, 20.0, 30.0, 50.0, 100.0];
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Raggio di ricerca',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          ...options.map((radius) => ListTile(
-            leading: Icon(
-              radius == currentRadius ? Icons.check_circle : Icons.circle_outlined,
-              color: radius == currentRadius ? AppColors.primary : AppColors.textMuted,
-            ),
-            title: Text('${radius.toInt()} km'),
-            onTap: () => onRadiusChanged(radius),
-          )),
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
-        ],
-      ),
-    );
-  }
-}
 
 class _CounterBadge extends StatelessWidget {
   final int count;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,15 +6,21 @@ import 'package:latlong2/latlong.dart';
 import '../models/track.dart';
 
 /// Repository per i sentieri pubblici con supporto geolocalizzazione
+/// ⭐ OTTIMIZZATO: Caricamento basato su viewport e caching
 class PublicTrailsRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // ⭐ CACHE per evitare richieste duplicate
+  final Map<String, List<PublicTrail>> _boundsCache = {};
+  static const int _cacheMaxSize = 10;
+  DateTime? _lastCacheClean;
 
   CollectionReference<Map<String, dynamic>> get _trailsCollection {
     return _firestore.collection('public_trails');
   }
 
-  /// Carica sentieri generici (fallback)
-  Future<List<PublicTrail>> getTrails({int limit = 50}) async {
+  /// Carica sentieri generici (fallback) - CON LIMITE
+  Future<List<PublicTrail>> getTrails({int limit = 30}) async {
     try {
       final snapshot = await _trailsCollection.limit(limit).get();
       
@@ -41,89 +48,122 @@ class PublicTrailsRepository {
   Future<List<PublicTrail>> getTrailsNearby({
     required LatLng center,
     double radiusKm = 30,
-    int limit = 100,
+    int limit = 50, // ⭐ Ridotto da 100
   }) async {
     try {
-      // Firestore non supporta query geospaziali native senza GeoHash
-      // Quindi carichiamo più sentieri e filtriamo lato client
-      // 
-      // Per ottimizzare in futuro: aggiungere campo 'geohash' ai documenti
-      // e usare query con range su quel campo
+      // ⭐ Calcola bounding box dal centro + raggio
+      final bounds = _calculateBoundsFromRadius(center, radiusKm);
       
-      final snapshot = await _trailsCollection
-          .limit(200) // Carichiamo di più per avere abbastanza scelta
-          .get();
-      
-      final trails = <PublicTrail>[];
-      for (final doc in snapshot.docs) {
-        final trail = _docToTrail(doc);
-        if (trail != null) {
-          // Calcola distanza dal centro al punto di partenza del sentiero
-          final distance = _calculateDistance(
-            center,
-            LatLng(trail.startLat, trail.startLng),
-          );
-          
-          // Filtra per raggio
-          if (distance <= radiusKm) {
-            trails.add(trail.copyWith(distanceFromUser: distance));
-          }
-        }
-      }
-
-      // Ordina per distanza
-      trails.sort((a, b) => 
-        (a.distanceFromUser ?? double.infinity)
-            .compareTo(b.distanceFromUser ?? double.infinity)
+      // ⭐ Usa il metodo ottimizzato per bounding box
+      return getTrailsInBounds(
+        minLat: bounds['minLat']!,
+        maxLat: bounds['maxLat']!,
+        minLng: bounds['minLng']!,
+        maxLng: bounds['maxLng']!,
+        limit: limit,
+        userPosition: center, // Per calcolare distanza
       );
-
-      // Limita risultati
-      final result = trails.take(limit).toList();
-      
-      print('[PublicTrails] Trovati ${result.length} sentieri entro ${radiusKm}km');
-      return result;
     } catch (e) {
       print('[PublicTrails] Errore getTrailsNearby: $e');
       return [];
     }
   }
 
-  /// Carica sentieri in un bounding box
+  /// ⭐ OTTIMIZZATO: Carica sentieri in un bounding box (viewport della mappa)
+  /// Usa cache per evitare richieste duplicate
   Future<List<PublicTrail>> getTrailsInBounds({
     required double minLat,
     required double maxLat,
     required double minLng,
     required double maxLng,
-    int limit = 100,
+    int limit = 50,
+    LatLng? userPosition, // Per calcolare distanza dall'utente
   }) async {
+    // ⭐ Genera chiave cache
+    final cacheKey = _generateCacheKey(minLat, maxLat, minLng, maxLng);
+    
+    // ⭐ Controlla cache
+    if (_boundsCache.containsKey(cacheKey)) {
+      print('[PublicTrails] Cache hit per bounds');
+      return _boundsCache[cacheKey]!;
+    }
+    
     try {
-      // Firestore non supporta query su due campi con range diversi
-      // Quindi carichiamo e filtriamo lato client
-      final snapshot = await _trailsCollection.limit(200).get();
+      // ⭐ Pulizia cache periodica
+      _cleanCacheIfNeeded();
+      
+      // Query Firestore con limite ragionevole
+      // NOTA: Firestore non supporta query geospaziali native
+      // Per ottimizzare in futuro: aggiungere campo 'geohash' ai documenti
+      final snapshot = await _trailsCollection
+          .limit(200) // ⭐ Limite di sicurezza
+          .get();
       
       final trails = <PublicTrail>[];
       for (final doc in snapshot.docs) {
         final trail = _docToTrail(doc);
         if (trail != null) {
-          // Verifica se il punto di partenza è nel bounding box
+          // ⭐ Filtra per bounding box
           if (trail.startLat >= minLat && 
               trail.startLat <= maxLat &&
               trail.startLng >= minLng && 
               trail.startLng <= maxLng) {
-            trails.add(trail);
+            
+            // Calcola distanza dall'utente se posizione fornita
+            if (userPosition != null) {
+              final distance = _calculateDistance(
+                userPosition,
+                LatLng(trail.startLat, trail.startLng),
+              );
+              trails.add(trail.copyWith(distanceFromUser: distance));
+            } else {
+              trails.add(trail);
+            }
           }
         }
       }
 
-      print('[PublicTrails] Trovati ${trails.length} sentieri nel bounding box');
-      return trails.take(limit).toList();
+      // ⭐ Ordina per distanza se disponibile
+      if (userPosition != null) {
+        trails.sort((a, b) => 
+          (a.distanceFromUser ?? double.infinity)
+              .compareTo(b.distanceFromUser ?? double.infinity)
+        );
+      }
+
+      // Limita risultati
+      final result = trails.take(limit).toList();
+      
+      // ⭐ Salva in cache
+      _boundsCache[cacheKey] = result;
+      
+      print('[PublicTrails] Trovati ${result.length} sentieri nel bounding box');
+      return result;
     } catch (e) {
       print('[PublicTrails] Errore getTrailsInBounds: $e');
       return [];
     }
   }
 
-  Future<List<PublicTrail>> getTrailsByRegion(String region, {int limit = 50}) async {
+  /// ⭐ NUOVO: Carica sentieri per il viewport corrente della mappa
+  /// Usa debounce per evitare troppe chiamate durante lo zoom/pan
+  Future<List<PublicTrail>> getTrailsForViewport({
+    required LatLng northEast,
+    required LatLng southWest,
+    LatLng? userPosition,
+    int limit = 30,
+  }) async {
+    return getTrailsInBounds(
+      minLat: southWest.latitude,
+      maxLat: northEast.latitude,
+      minLng: southWest.longitude,
+      maxLng: northEast.longitude,
+      limit: limit,
+      userPosition: userPosition,
+    );
+  }
+
+  Future<List<PublicTrail>> getTrailsByRegion(String region, {int limit = 30}) async {
     try {
       final snapshot = await _trailsCollection
           .where('region', isEqualTo: region)
@@ -142,7 +182,7 @@ class PublicTrailsRepository {
 
   Future<List<PublicTrail>> searchTrails(String query, {int limit = 20}) async {
     try {
-      final snapshot = await _trailsCollection.limit(200).get();
+      final snapshot = await _trailsCollection.limit(100).get(); // ⭐ Ridotto da 200
       final queryLower = query.toLowerCase();
       
       return snapshot.docs
@@ -166,6 +206,59 @@ class PublicTrailsRepository {
       return _docToTrail(doc);
     } catch (e) {
       return null;
+    }
+  }
+
+  /// ⭐ Svuota la cache
+  void clearCache() {
+    _boundsCache.clear();
+    print('[PublicTrails] Cache svuotata');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HELPER METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Calcola bounding box da centro + raggio
+  Map<String, double> _calculateBoundsFromRadius(LatLng center, double radiusKm) {
+    // Approssimazione: 1 grado lat ≈ 111 km, 1 grado lng ≈ 111 * cos(lat) km
+    final latDelta = radiusKm / 111.0;
+    final lngDelta = radiusKm / (111.0 * math.cos(center.latitude * math.pi / 180));
+    
+    return {
+      'minLat': center.latitude - latDelta,
+      'maxLat': center.latitude + latDelta,
+      'minLng': center.longitude - lngDelta,
+      'maxLng': center.longitude + lngDelta,
+    };
+  }
+
+  /// Genera chiave cache basata sui bounds (arrotondata)
+  String _generateCacheKey(double minLat, double maxLat, double minLng, double maxLng) {
+    // Arrotonda a 2 decimali per avere cache hit più frequenti
+    final roundedMinLat = (minLat * 100).round() / 100;
+    final roundedMaxLat = (maxLat * 100).round() / 100;
+    final roundedMinLng = (minLng * 100).round() / 100;
+    final roundedMaxLng = (maxLng * 100).round() / 100;
+    return '$roundedMinLat,$roundedMaxLat,$roundedMinLng,$roundedMaxLng';
+  }
+
+  /// Pulizia periodica della cache
+  void _cleanCacheIfNeeded() {
+    final now = DateTime.now();
+    if (_lastCacheClean == null || 
+        now.difference(_lastCacheClean!).inMinutes > 5) {
+      // Rimuovi elementi più vecchi se cache troppo grande
+      if (_boundsCache.length > _cacheMaxSize) {
+        final keysToRemove = _boundsCache.keys
+            .take(_boundsCache.length - _cacheMaxSize ~/ 2)
+            .toList();
+        for (final key in keysToRemove) {
+          _boundsCache.remove(key);
+        }
+        print('[PublicTrails] Cache pulita: rimossi ${keysToRemove.length} elementi');
+      }
+      _lastCacheClean = now;
     }
   }
 
