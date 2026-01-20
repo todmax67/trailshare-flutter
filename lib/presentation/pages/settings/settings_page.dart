@@ -8,6 +8,7 @@ import 'privacy_policy_page.dart';
 import '../../../core/services/delete_account_service.dart';
 import 'offline_maps_page.dart';
 import 'faq_page.dart';
+import '../admin/geohash_migration_page.dart';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -36,6 +37,17 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       setState(() => _appVersion = '1.0.0');
     }
+  }
+
+  bool _isAdmin(User? user) {
+    if (user == null) return false;
+    
+    const adminEmails = [
+      'admin@trailshare.app',
+      'todde.massimiliano@gmail.com',  // ← Metti la tua email!
+    ];
+    
+    return adminEmails.contains(user.email?.toLowerCase());
   }
 
   @override
@@ -145,6 +157,35 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: 'Cosa c\'è di nuovo',
             onTap: () => _showChangelog(context),
           ),
+
+          // Sezione Admin (solo per admin/sviluppatori)
+          // TODO: In produzione, controllare se l'utente è admin
+          if (_isAdmin(user)) ...[
+            const Divider(height: 32),
+            _buildSectionHeader('Amministrazione', danger: false),
+            _buildListTile(
+              icon: Icons.location_on,
+              title: 'Migrazione GeoHash',
+              subtitle: 'Gestisci indici geospaziali per i sentieri',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const GeohashMigrationPage()),
+                );
+              },
+            ),
+            _buildListTile(
+              icon: Icons.analytics_outlined,
+              title: 'Statistiche Database',
+              subtitle: 'Visualizza metriche e utilizzo',
+              onTap: () {
+                // TODO: Implementare pagina statistiche
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Coming soon!')),
+                );
+              },
+            ),
+          ],
 
           // Zona pericolosa (solo se loggato)
           if (user != null) ...[

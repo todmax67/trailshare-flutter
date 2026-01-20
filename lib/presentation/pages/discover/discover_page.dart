@@ -258,7 +258,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
         maxLat: bounds.north,
         minLng: bounds.west,
         maxLng: bounds.east,
-        limit: 50,
+        limit: 200, // ⭐ Aumentato da 50 a 200 con GeoHash
       );
       
       if (mounted) {
@@ -436,6 +436,13 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     // Mostra sempre la mappa/lista, il loading è indicato nel badge
     final trails = _filteredTrails;
 
+    // ⭐ Se modalità mappa, mostra SEMPRE la mappa (anche se vuota)
+    // così l'utente può spostarsi per cercare sentieri
+    if (_showMap) {
+      return _buildTrailsMapView(trails);
+    }
+
+    // Modalità lista: mostra empty state se vuoto
     if (trails.isEmpty && !_isLoadingTrails) {
       return _buildEmptyState(
         icon: Icons.hiking,
@@ -446,7 +453,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       );
     }
 
-    return _showMap ? _buildTrailsMapView(trails) : _buildTrailsList(trails);
+    return _buildTrailsList(trails);
   }
 
   Widget _buildTrailsMapView(List<PublicTrail> trails) {
@@ -606,6 +613,50 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
                     Text('Caricamento...', style: TextStyle(fontSize: 12)),
                   ],
                 ),
+              ),
+            ),
+          ),
+
+        // ⭐ Messaggio quando non ci sono sentieri (ma non sta caricando)
+        if (trails.isEmpty && !_isLoadingTrails)
+          Positioned(
+            top: 60,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.explore, color: AppColors.info, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Nessun sentiero in questa zona',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Sposta o zooma la mappa per esplorare altre aree',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
