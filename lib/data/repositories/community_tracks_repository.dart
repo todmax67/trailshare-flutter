@@ -39,8 +39,29 @@ class CommunityTrack {
 
   String get durationFormatted {
     if (duration == 0) return '--';
-    final hours = duration ~/ 3600;
-    final mins = (duration % 3600) ~/ 60;
+    
+    // Normalizza la durata: potrebbe essere in millisecondi (vecchie tracce JS)
+    int durationSeconds = duration;
+    
+    // Se la durata > 24 ore E abbiamo la distanza, verifica con velocità implicita
+    if (duration > 86400 && distance > 0) {
+      // Velocità implicita se interpretiamo come secondi
+      final speedAsSeconds = (distance / 1000) / (duration / 3600);
+      
+      // Se velocità < 1 km/h, probabilmente è in millisecondi
+      if (speedAsSeconds < 1) {
+        final durationFromMs = (duration / 1000).round();
+        final speedAsMs = (distance / 1000) / (durationFromMs / 3600);
+        
+        // Se velocità come ms è ragionevole (1-25 km/h), usa quella
+        if (speedAsMs >= 1 && speedAsMs <= 25) {
+          durationSeconds = durationFromMs;
+        }
+      }
+    }
+    
+    final hours = durationSeconds ~/ 3600;
+    final mins = (durationSeconds % 3600) ~/ 60;
     if (hours > 0) return '${hours}h ${mins}m';
     return '${mins}m';
   }
@@ -234,27 +255,33 @@ class CommunityTracksRepository {
       if (pointsData != null && pointsData is List) {
         for (var p in pointsData) {
           try {
-            double? lat, lon, ele;
+            double? lat, lon, ele, speed;
             DateTime? timestamp;
 
             if (p is Map) {
-              // Formato oggetto {x/lon, y/lat, ele, timestamp}
+              // Formato oggetto {x/lon, y/lat, ele, timestamp, speed}
               lat = (p['y'] ?? p['lat'] ?? p['latitude'] as num?)?.toDouble();
               lon = (p['x'] ?? p['lon'] ?? p['lng'] ?? p['longitude'] as num?)?.toDouble();
               ele = (p['ele'] ?? p['elevation'] ?? p['altitude'] ?? p['z'] as num?)?.toDouble();
               
-              // Timestamp
+              // ⭐ NUOVO: Parse speed
+              speed = (p['speed'] as num?)?.toDouble();
+              
+              // Timestamp - gestisce vari formati
               final ts = p['timestamp'] ?? p['time'];
               if (ts is Timestamp) {
                 timestamp = ts.toDate();
               } else if (ts is int) {
                 timestamp = DateTime.fromMillisecondsSinceEpoch(ts);
+              } else if (ts is String) {
+                timestamp = DateTime.tryParse(ts);
               }
             } else if (p is List && p.length >= 2) {
-              // Formato array [lon, lat, ele?]
+              // Formato array [lon, lat, ele?, speed?]
               lon = (p[0] as num).toDouble();
               lat = (p[1] as num).toDouble();
               ele = p.length > 2 ? (p[2] as num?)?.toDouble() : null;
+              speed = p.length > 3 ? (p[3] as num?)?.toDouble() : null;
             }
 
             if (lat != null && lon != null && lat != 0 && lon != 0) {
@@ -264,6 +291,7 @@ class CommunityTracksRepository {
                   longitude: lon,
                   elevation: ele,
                   timestamp: timestamp ?? DateTime.now(),
+                  speed: speed,  // ⭐ NUOVO: Aggiungi speed
                 ));
               }
             }

@@ -1062,6 +1062,7 @@ class _CommunityTrackInfoCard extends StatelessWidget {
   }
 }
 
+/// ⭐ Card migliorata per sentieri OSM con anteprima mappa
 class _TrailCard extends StatelessWidget {
   final PublicTrail trail;
   final bool showDistance;
@@ -1076,79 +1077,329 @@ class _TrailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      elevation: 3,
+      shadowColor: Colors.black.withOpacity(0.15),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(color: AppColors.info.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                child: Center(
-                  child: trail.ref != null
-                      ? Text(trail.ref!, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.info, fontSize: 14), textAlign: TextAlign.center)
-                      : const Icon(Icons.hiking, color: AppColors.info),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(trail.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(trail.difficultyIcon, style: const TextStyle(fontSize: 12)),
-                        const SizedBox(width: 4),
-                        Text(trail.difficultyName, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                        if (trail.operator != null) ...[
-                          const Text(' • ', style: TextStyle(color: AppColors.textMuted)),
-                          Flexible(child: Text(trail.operator!, style: const TextStyle(color: AppColors.textMuted, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ⭐ Anteprima mappa
+            _buildMapPreview(),
+            
+            // Contenuto
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Mostra distanza dall'utente se disponibile
-                  if (showDistance && trail.distanceFromUser != null) ...[
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.near_me, size: 12, color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        Text(
-                          trail.distanceFromUserFormatted, 
+                  // Titolo e badge ref
+                  Row(
+                    children: [
+                      if (trail.ref != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.info.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            trail.ref!,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.info,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: Text(
+                          trail.name,
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold, 
-                            color: AppColors.primary,
-                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 8),
+                  
+                  // Operatore se presente
+                  if (trail.operator != null) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.business, size: 14, color: AppColors.textMuted),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            trail.operator!,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 8),
                   ],
-                  if (trail.length != null) 
-                    Text('${trail.lengthKm.toStringAsFixed(1)} km', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.info)),
-                  if (trail.elevationGain != null) 
-                    Text('+${trail.elevationGain!.toStringAsFixed(0)} m', style: const TextStyle(color: AppColors.success, fontSize: 12)),
+                  
+                  // Statistiche
+                  Row(
+                    children: [
+                      // Difficoltà
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getDifficultyColor().withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(trail.difficultyIcon, style: const TextStyle(fontSize: 12)),
+                            const SizedBox(width: 4),
+                            Text(
+                              trail.difficultyName,
+                              style: TextStyle(
+                                color: _getDifficultyColor(),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const Spacer(),
+                      
+                      // Distanza
+                      if (trail.length != null) ...[
+                        const Icon(Icons.straighten, size: 14, color: AppColors.info),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${trail.lengthKm.toStringAsFixed(1)} km',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.info,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                      
+                      // Dislivello
+                      if (trail.elevationGain != null) ...[
+                        const SizedBox(width: 12),
+                        const Icon(Icons.trending_up, size: 14, color: AppColors.success),
+                        const SizedBox(width: 4),
+                        Text(
+                          '+${trail.elevationGain!.toStringAsFixed(0)} m',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.success,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, color: AppColors.textMuted),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  /// Anteprima mappa del sentiero
+  Widget _buildMapPreview() {
+    if (trail.points.isEmpty) {
+      return Container(
+        height: 120,
+        color: AppColors.background,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hiking, size: 32, color: AppColors.textMuted),
+              const SizedBox(height: 4),
+              Text(
+                trail.ref ?? 'Sentiero',
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Calcola bounding box
+    double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    final latLngPoints = <LatLng>[];
+    
+    for (final p in trail.points) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+      latLngPoints.add(LatLng(p.latitude, p.longitude));
+    }
+    
+    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    
+    // Calcola zoom appropriato
+    final latDiff = maxLat - minLat;
+    final lngDiff = maxLng - minLng;
+    final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
+    
+    double zoom = 14.0;
+    if (maxDiff > 0.5) zoom = 10;
+    else if (maxDiff > 0.2) zoom = 11;
+    else if (maxDiff > 0.1) zoom = 12;
+    else if (maxDiff > 0.05) zoom = 13;
+
+    return SizedBox(
+      height: 120,
+      child: Stack(
+        children: [
+          // Mappa
+          IgnorePointer(
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: center,
+                initialZoom: zoom,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.none,
+                ),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.trailshare.app',
+                ),
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: latLngPoints,
+                      strokeWidth: 3,
+                      color: AppColors.info,
+                    ),
+                  ],
+                ),
+                // Marker inizio/fine
+                if (latLngPoints.length > 1)
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: latLngPoints.first,
+                        width: 14,
+                        height: 14,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.success,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                        ),
+                      ),
+                      Marker(
+                        point: latLngPoints.last,
+                        width: 14,
+                        height: 14,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.danger,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          
+          // Badge circolare se presente
+          if (trail.isCircular)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.loop, size: 14, color: AppColors.info),
+                    SizedBox(width: 4),
+                    Text(
+                      'Circolare',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          
+          // Freccia dettagli
+          Positioned(
+            bottom: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getDifficultyColor() {
+    switch (trail.difficulty?.toLowerCase()) {
+      case 't':
+      case 'turistico':
+      case 'facile':
+      case 'easy':
+        return AppColors.success;
+      case 'e':
+      case 'escursionistico':
+      case 'medio':
+      case 'medium':
+        return AppColors.info;
+      case 'ee':
+      case 'escursionisti esperti':
+      case 'difficile':
+      case 'hard':
+        return AppColors.warning;
+      case 'eea':
+      case 'alpinistico':
+      case 'molto difficile':
+        return AppColors.danger;
+      default:
+        return AppColors.textMuted;
+    }
   }
 }

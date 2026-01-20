@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/track.dart';
+import 'cheer_button.dart'; // ⭐ AGGIUNTO: Import CheerButton
 
 /// Card per visualizzare una traccia della community
 /// 
@@ -96,30 +97,18 @@ class CommunityTrackCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      // Cheers
-                      if (cheerCount > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.favorite,
-                                color: AppColors.danger,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '$cheerCount',
-                                style: const TextStyle(
-                                  color: AppColors.danger,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
+                      // ⭐ MODIFICATO: CheerButton interattivo invece di display statico
+                      // GestureDetector con behavior opaque per bloccare propagazione tap
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {}, // Blocca propagazione al parent InkWell
+                        child: CheerButton(
+                          trackId: trackId,
+                          initialCount: cheerCount,
+                          initialHasCheered: false, // Verrà aggiornato dal repository
+                          size: 24,
                         ),
+                      ),
                     ],
                   ),
                   
@@ -239,39 +228,46 @@ class CommunityTrackCard extends StatelessWidget {
             left: 0,
             right: 0,
             child: Container(
-              height: 60,
+              height: 80,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.5),
+                    Colors.black.withOpacity(0.6),
                   ],
                 ),
               ),
             ),
           ),
           
-          // Icona attività in alto a sinistra
+          // Badge attività in alto a sinistra
           Positioned(
             top: 12,
             left: 12,
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 4,
-                  ),
-                ],
+                borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(
-                activityIcon,
-                style: const TextStyle(fontSize: 20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(activityIcon, style: const TextStyle(fontSize: 16)),
+                  if (difficulty != null) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _getDifficultyColor(),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -279,20 +275,19 @@ class CommunityTrackCard extends StatelessWidget {
           // Data in basso a destra (se disponibile)
           if (sharedAt != null)
             Positioned(
-              bottom: 8,
+              bottom: 12,
               right: 12,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(6),
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   _formatDate(sharedAt!),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -302,40 +297,45 @@ class CommunityTrackCard extends StatelessWidget {
     );
   }
 
-  /// Mappa statica come fallback
+  /// Costruisce la preview della mappa
   Widget _buildMapPreview() {
     if (points.isEmpty) {
       return Container(
         color: AppColors.background,
-        child: const Center(
-          child: Icon(
-            Icons.map_outlined,
-            size: 48,
-            color: AppColors.textMuted,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(activityIcon, style: const TextStyle(fontSize: 48)),
+              const SizedBox(height: 8),
+              Text(
+                'Anteprima non disponibile',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    // Calcola bounding box
+    // Calcola i bounds della traccia
     double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    final latLngPoints = <LatLng>[];
-    
-    for (final p in points) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
-      latLngPoints.add(LatLng(p.latitude, p.longitude));
+    for (final point in points) {
+      if (point.latitude < minLat) minLat = point.latitude;
+      if (point.latitude > maxLat) maxLat = point.latitude;
+      if (point.longitude < minLng) minLng = point.longitude;
+      if (point.longitude > maxLng) maxLng = point.longitude;
     }
-    
-    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-    
+
+    final center = LatLng(
+      (minLat + maxLat) / 2,
+      (minLng + maxLng) / 2,
+    );
+
     // Calcola zoom appropriato
     final latDiff = maxLat - minLat;
     final lngDiff = maxLng - minLng;
     final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
-    
     double zoom = 14.0;
     if (maxDiff > 0.5) zoom = 10;
     else if (maxDiff > 0.2) zoom = 11;
@@ -359,20 +359,20 @@ class CommunityTrackCard extends StatelessWidget {
           PolylineLayer(
             polylines: [
               Polyline(
-                points: latLngPoints,
-                strokeWidth: 4,
+                points: points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
+                strokeWidth: 3,
                 color: AppColors.primary,
               ),
             ],
           ),
-          // Marker inizio/fine
-          if (latLngPoints.length > 1)
-            MarkerLayer(
-              markers: [
+          // Marker partenza/arrivo
+          MarkerLayer(
+            markers: [
+              if (points.isNotEmpty) ...[
                 Marker(
-                  point: latLngPoints.first,
-                  width: 20,
-                  height: 20,
+                  point: LatLng(points.first.latitude, points.first.longitude),
+                  width: 16,
+                  height: 16,
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.success,
@@ -382,9 +382,9 @@ class CommunityTrackCard extends StatelessWidget {
                   ),
                 ),
                 Marker(
-                  point: latLngPoints.last,
-                  width: 20,
-                  height: 20,
+                  point: LatLng(points.last.latitude, points.last.longitude),
+                  width: 16,
+                  height: 16,
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.danger,
@@ -394,7 +394,8 @@ class CommunityTrackCard extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
+            ],
+          ),
         ],
       ),
     );
@@ -563,15 +564,19 @@ class CommunityTrackCardCompact extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (cheerCount > 0) ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.favorite, size: 14, color: AppColors.danger),
-                          const SizedBox(width: 2),
-                          Text(
-                            '$cheerCount',
-                            style: const TextStyle(color: AppColors.danger, fontSize: 12),
+                        // ⭐ MODIFICATO: CheerButton compatto interattivo
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {}, // Blocca propagazione
+                          child: CheerButton(
+                            trackId: trackId,
+                            initialCount: cheerCount,
+                            initialHasCheered: false,
+                            size: 16,
+                            showCount: true,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                     if (sharedAt != null) ...[

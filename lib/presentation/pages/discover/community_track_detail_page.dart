@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/gpx_service.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../presentation/widgets/charts/elevation_chart.dart';
+import '../../../presentation/widgets/interactive_track_map.dart';
+import '../../../presentation/widgets/track_charts_widget.dart';
+import '../../../presentation/widgets/lap_splits_widget.dart';
 import 'package:share_plus/share_plus.dart';
 
 class CommunityTrackDetailPage extends StatefulWidget {
@@ -19,6 +21,69 @@ class CommunityTrackDetailPage extends StatefulWidget {
 class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
   final GpxService _gpxService = GpxService();
   bool _isExporting = false;
+  
+  /// Indice del punto attualmente selezionato (sincronizzazione mappa-grafico)
+  int? _selectedPointIndex;
+
+  /// Costruisce la mappa dei marker foto (url -> posizione)
+  /// Per ora le foto community non hanno posizione GPS, quindi ritorna null
+  Map<String, LatLng>? _buildPhotoMarkers() {
+    // Le foto community sono solo URL, non hanno coordinate
+    // In futuro si potrebbe estendere CommunityTrack per includere coordinate foto
+    return null;
+  }
+
+  /// Normalizza la durata gestendo vari formati di salvataggio
+  /// - Vecchie tracce JS potrebbero avere duration in millisecondi
+  /// - Alcune tracce potrebbero avere valori corrotti
+  /// - Fallback: stima dalla distanza con velocità tipica
+  Duration _normalizeDuration(int rawDuration, double distanceMeters) {
+    // Se duration è 0 o negativo, stima dalla distanza
+    if (rawDuration <= 0) {
+      return _estimateDurationFromDistance(distanceMeters);
+    }
+    
+    // Converti in secondi per valutazione
+    int durationSeconds = rawDuration;
+    
+    // Calcola velocità implicita per verificare se il valore ha senso
+    // Velocità in km/h = (distanza in km) / (tempo in ore)
+    double impliedSpeedKmh = (distanceMeters / 1000) / (durationSeconds / 3600);
+    
+    debugPrint('[Duration] Raw: $rawDuration, Distanza: ${distanceMeters.toStringAsFixed(0)}m');
+    debugPrint('[Duration] Velocità implicita (come secondi): ${impliedSpeedKmh.toStringAsFixed(2)} km/h');
+    
+    // Se la velocità implicita è ragionevole (1-25 km/h per escursionismo), usa il valore
+    if (impliedSpeedKmh >= 1 && impliedSpeedKmh <= 25) {
+      debugPrint('[Duration] ✓ Usando valore raw come secondi: ${durationSeconds}s');
+      return Duration(seconds: durationSeconds);
+    }
+    
+    // Prova a interpretare come millisecondi
+    int durationFromMs = (rawDuration / 1000).round();
+    double impliedSpeedFromMs = (distanceMeters / 1000) / (durationFromMs / 3600);
+    debugPrint('[Duration] Velocità implicita (come ms): ${impliedSpeedFromMs.toStringAsFixed(2)} km/h');
+    
+    if (impliedSpeedFromMs >= 1 && impliedSpeedFromMs <= 25) {
+      debugPrint('[Duration] ✓ Usando valore raw come millisecondi: ${durationFromMs}s');
+      return Duration(seconds: durationFromMs);
+    }
+    
+    // Se nessuna interpretazione ha senso, stima dalla distanza
+    debugPrint('[Duration] ✗ Valori non validi, stimo dalla distanza');
+    return _estimateDurationFromDistance(distanceMeters);
+  }
+  
+  /// Stima la durata basandosi sulla distanza e una velocità tipica
+  Duration _estimateDurationFromDistance(double distanceMeters) {
+    // Velocità media tipica per escursionismo: 4 km/h
+    // Con dislivello significativo potrebbe essere più lento
+    const avgSpeedKmh = 4.0;
+    final hours = (distanceMeters / 1000) / avgSpeedKmh;
+    final seconds = (hours * 3600).round();
+    debugPrint('[Duration] Stimato da distanza: ${seconds}s (${(seconds/60).toStringAsFixed(0)} min)');
+    return Duration(seconds: seconds);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,9 +92,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // App bar con mappa
+          // App bar con mappa interattiva
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: 300,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
@@ -39,7 +104,21 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                   shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
                 ),
               ),
-              background: _buildMap(),
+              background: Padding(
+                padding: const EdgeInsets.only(bottom: 48), // Spazio per il titolo
+                child: InteractiveTrackMap(
+                  points: track.points,
+                  height: 300,
+                  photoMarkers: _buildPhotoMarkers(),
+                  title: track.name,
+                  showUserLocation: true,
+                  highlightedPointIndex: _selectedPointIndex,
+                  onPointTap: (index) {
+                    setState(() => _selectedPointIndex = index);
+                  },
+                  communityTrack: track, // ⭐ Per fullscreen con TrackMapPage
+                ),
+              ),
             ),
           ),
 
@@ -60,20 +139,42 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
 
                   const SizedBox(height: 16),
 
+                  // ⭐ STEP 1: Galleria foto
+                  if (track.photoUrls.isNotEmpty) ...[
+                    _buildPhotoGallery(),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Descrizione
                   if (track.description != null && track.description!.isNotEmpty)
                     _buildDescription(),
 
-                  // Grafico elevazione
-                  if (_hasElevationData())
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: ElevationChart(points: track.points),
-                      ),
+                  // ⭐ Grafici (elevazione, velocità)
+                  if (track.points.length > 1) ...[
+                    TrackChartsWidget(
+                      points: track.points,
+                      height: 180,
+                      totalDuration: _normalizeDuration(track.duration, track.distance),
+                      onPointTap: (index, distance) {
+                        setState(() => _selectedPointIndex = index);
+                        debugPrint('[CommunityTrackDetail] Grafico tap punto $index a ${(distance/1000).toStringAsFixed(2)} km');
+                      },
                     ),
-
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
+                  ],
+                  
+                  // ⭐ Statistiche per Km (Lap Splits)
+                  if (track.points.length > 1 && track.distance > 500) ...[
+                    LapSplitsWidget(
+                      points: track.points,
+                      totalDuration: _normalizeDuration(track.duration, track.distance),
+                      onLapTap: (startIndex, endIndex) {
+                        setState(() => _selectedPointIndex = startIndex);
+                        debugPrint('[CommunityTrackDetail] Lap tap: $startIndex - $endIndex');
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Dettagli
                   _buildDetails(),
@@ -88,96 +189,6 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           ),
         ],
       ),
-    );
-  }
-
-  bool _hasElevationData() {
-    return widget.track.points.any((p) => p.elevation != null);
-  }
-
-  Widget _buildMap() {
-    final track = widget.track;
-
-    if (track.points.isEmpty) {
-      return Container(
-        color: AppColors.background,
-        child: const Center(child: Text('Nessun dato GPS')),
-      );
-    }
-
-    final points = track.points.map((p) => LatLng(p.latitude, p.longitude)).toList();
-
-    // Calcola centro
-    double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    for (final p in points) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
-    }
-    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-
-    // Calcola zoom
-    final latDiff = maxLat - minLat;
-    final lngDiff = maxLng - minLng;
-    final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
-    double zoom = 14.0;
-    if (maxDiff > 0.5) zoom = 10;
-    else if (maxDiff > 0.2) zoom = 11;
-    else if (maxDiff > 0.1) zoom = 12;
-    else if (maxDiff > 0.05) zoom = 13;
-
-    return FlutterMap(
-      options: MapOptions(
-        initialCenter: center,
-        initialZoom: zoom,
-        interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
-      ),
-      children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.trailshare.app',
-        ),
-        PolylineLayer(
-          polylines: [
-            Polyline(
-              points: points,
-              strokeWidth: 4,
-              color: AppColors.primary,
-            ),
-          ],
-        ),
-        MarkerLayer(
-          markers: [
-            Marker(
-              point: points.first,
-              width: 28,
-              height: 28,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.success,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: const Icon(Icons.play_arrow, color: Colors.white, size: 16),
-              ),
-            ),
-            Marker(
-              point: points.last,
-              width: 28,
-              height: 28,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.danger,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: const Icon(Icons.flag, color: Colors.white, size: 14),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -290,7 +301,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         Expanded(
           child: _StatCard(
             icon: Icons.timer,
-            value: track.durationFormatted,
+            value: _formatNormalizedDuration(track.duration, track.distance),
             unit: '',
             label: 'Durata',
             color: AppColors.info,
@@ -299,6 +310,81 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
       ],
     );
   }
+  
+  /// Formatta la durata normalizzata per la visualizzazione
+  String _formatNormalizedDuration(int rawDuration, double distance) {
+    final duration = _normalizeDuration(rawDuration, distance);
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⭐ STEP 1: GALLERIA FOTO
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPhotoGallery() {
+    final photoUrls = widget.track.photoUrls;
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                const Icon(Icons.photo_library, size: 20, color: AppColors.textSecondary),
+                const SizedBox(width: 8),
+                Text(
+                  'Foto (${photoUrls.length})',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            // Galleria orizzontale scrollabile
+            SizedBox(
+              height: 140,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: photoUrls.length,
+                itemBuilder: (context, index) {
+                  return _PhotoThumbnail(
+                    url: photoUrls[index],
+                    onTap: () => _openPhotoViewer(index),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openPhotoViewer(int initialIndex) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _PhotoViewerPage(
+          photoUrls: widget.track.photoUrls,
+          initialIndex: initialIndex,
+          trackName: widget.track.name,
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildDescription() {
     return Card(
@@ -439,6 +525,10 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WIDGET: Stat Card
+// ═══════════════════════════════════════════════════════════════════════════
+
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String value;
@@ -493,6 +583,256 @@ class _StatCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐ WIDGET: Photo Thumbnail
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _PhotoThumbnail extends StatelessWidget {
+  final String url;
+  final VoidCallback onTap;
+
+  const _PhotoThumbnail({
+    required this.url,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Immagine
+            Image.network(
+              url,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Container(
+                  color: AppColors.background,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  color: AppColors.background,
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.broken_image, color: AppColors.textMuted, size: 32),
+                      SizedBox(height: 4),
+                      Text(
+                        'Errore',
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            
+            // Overlay gradiente
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.6),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            
+            // Icona espandi
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Icon(Icons.fullscreen, size: 16, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐ PAGE: Photo Viewer (fullscreen con swipe)
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _PhotoViewerPage extends StatefulWidget {
+  final List<String> photoUrls;
+  final int initialIndex;
+  final String trackName;
+
+  const _PhotoViewerPage({
+    required this.photoUrls,
+    required this.initialIndex,
+    required this.trackName,
+  });
+
+  @override
+  State<_PhotoViewerPage> createState() => _PhotoViewerPageState();
+}
+
+class _PhotoViewerPageState extends State<_PhotoViewerPage> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(
+          '${_currentIndex + 1} / ${widget.photoUrls.length}',
+          style: const TextStyle(fontSize: 16),
+        ),
+        actions: [
+          // Condividi foto
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () => _sharePhoto(widget.photoUrls[_currentIndex]),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // PageView per swipe
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.photoUrls.length,
+            onPageChanged: (index) {
+              setState(() => _currentIndex = index);
+            },
+            itemBuilder: (context, index) {
+              final url = widget.photoUrls[index];
+              return InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Center(
+                  child: Image.network(
+                    url,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      );
+                    },
+                    errorBuilder: (_, error, __) {
+                      return const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image, color: Colors.white54, size: 64),
+                          SizedBox(height: 16),
+                          Text(
+                            'Impossibile caricare l\'immagine',
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+          
+          // Indicatore pagina (dots)
+          if (widget.photoUrls.length > 1)
+            Positioned(
+              bottom: 30,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  widget.photoUrls.length,
+                  (index) => Container(
+                    width: index == _currentIndex ? 12 : 8,
+                    height: 8,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: index == _currentIndex
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _sharePhoto(String url) {
+    Share.share(
+      'Foto da ${widget.trackName}\n$url',
+      subject: 'Foto escursione',
     );
   }
 }
