@@ -41,6 +41,79 @@ class TrailImportService {
     }
   }
 
+  /// Cerca sentieri per area geografica (bounding box)
+  Future<List<WaymarkedRoute>> searchByBbox({
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    int limit = 100,
+  }) async {
+    try {
+      // API Waymarked: bbox=minLng,minLat,maxLng,maxLat
+      final bbox = "$minLng,$minLat,$maxLng,$maxLat";
+      final url = "$_waymarkedApiBase/list/by_bbox?bbox=$bbox&limit=$limit";
+      print("[TrailImport] Ricerca bbox: $bbox");
+      
+      final response = await http.get(Uri.parse(url), headers: {"Accept": "application/json"});
+      
+      if (response.statusCode != 200) {
+        print("[TrailImport] Errore bbox: ${response.statusCode}");
+        return [];
+      }
+      
+      final data = jsonDecode(response.body);
+      final results = data["results"] as List? ?? [];
+      print("[TrailImport] Trovati ${results.length} percorsi nel bbox");
+      return results.map((r) => WaymarkedRoute.fromJson(r)).where((r) => r.name.isNotEmpty).toList();
+    } catch (e) {
+      print("[TrailImport] Errore searchByBbox: $e");
+      return [];
+    }
+  }
+
+
+  /// Ottieni bounding box da nome luogo usando Nominatim (OpenStreetMap)
+  Future<Map<String, double>?> getBboxFromPlaceName(String placeName) async {
+    try {
+      final url = "https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(placeName)}&format=json&limit=1";
+      print("[TrailImport] Geocoding: $placeName");
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {"User-Agent": "TrailShare App", "Accept": "application/json"},
+      );
+      
+      if (response.statusCode != 200) {
+        print("[TrailImport] Errore Nominatim: ${response.statusCode}");
+        return null;
+      }
+      
+      final List<dynamic> data = jsonDecode(response.body);
+      if (data.isEmpty) {
+        print("[TrailImport] Nessun risultato per: $placeName");
+        return null;
+      }
+      
+      final result = data[0];
+      final bbox = result["boundingbox"] as List<dynamic>?;
+      if (bbox == null || bbox.length < 4) return null;
+      
+      // Nominatim bbox: [minLat, maxLat, minLng, maxLng]
+      final minLat = double.tryParse(bbox[0].toString()) ?? 0;
+      final maxLat = double.tryParse(bbox[1].toString()) ?? 0;
+      final minLng = double.tryParse(bbox[2].toString()) ?? 0;
+      final maxLng = double.tryParse(bbox[3].toString()) ?? 0;
+      
+      print("[TrailImport] Bbox per $placeName: $minLat,$maxLat,$minLng,$maxLng");
+      return {"minLat": minLat, "maxLat": maxLat, "minLng": minLng, "maxLng": maxLng};
+    } catch (e) {
+      print("[TrailImport] Errore getBboxFromPlaceName: $e");
+      return null;
+    }
+  }
+
+
   /// Ottieni dettagli completi di un percorso
   Future<WaymarkedRouteDetails?> getWaymarkedRouteDetails(int routeId) async {
     try {
@@ -151,23 +224,34 @@ class TrailImportService {
     final allRoutes = <int, WaymarkedRoute>{};
     
     // 1. Cerca percorsi
+    // Cerca per termini (sempre)
     for (int t = 0; t < searchTerms.length; t++) {
       final term = searchTerms[t];
       onProgress?.call(ImportProgress(
-        phase: 'search', 
-        current: t + 1, 
-        total: searchTerms.length, 
+        phase: 'search',
+        current: t + 1,
+        total: searchTerms.length,
         message: 'Ricerca "$term"...',
       ));
-      
       for (final route in await searchWaymarkedTrails(term)) {
         allRoutes.putIfAbsent(route.id, () => route);
       }
       await Future.delayed(_apiDelay);
     }
     
-    print('[TrailImport] Trovati ${allRoutes.length} percorsi unici');
-    
+    // Se abbiamo un bbox, aggiungi anche ricerca per nome regione
+    if (geoBbox != null && region.isNotEmpty && !searchTerms.contains(region)) {
+      onProgress?.call(ImportProgress(
+        phase: 'search',
+        current: searchTerms.length + 1,
+        total: searchTerms.length + 1,
+        message: 'Ricerca "$region"...',
+      ));
+      for (final route in await searchWaymarkedTrails(region)) {
+        allRoutes.putIfAbsent(route.id, () => route);
+      }
+    }
+    print("[TrailImport] Trovati ${allRoutes.length} percorsi unici");
     // 2. Processa percorsi
     final routesList = allRoutes.values.toList();
     
@@ -198,8 +282,9 @@ class TrailImportService {
         // Filtro geografico
         if (geoBbox != null) {
           final center = coords[coords.length ~/ 2];
-          if (center[0] < geoBbox[0] || center[0] > geoBbox[2] || 
-              center[1] < geoBbox[1] || center[1] > geoBbox[3]) {
+          // center[0]=lng, center[1]=lat, bbox=[minLat,maxLat,minLng,maxLng]
+          if (center[1] < geoBbox[0] || center[1] > geoBbox[1] || 
+              center[0] < geoBbox[2] || center[0] > geoBbox[3]) {
             skipped.add(SkippedTrail(name: route.name, reason: 'Fuori area'));
             continue;
           }

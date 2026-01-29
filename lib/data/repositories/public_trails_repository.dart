@@ -54,19 +54,19 @@ class PublicTrailsRepository {
     }
     
     // Prova cache prima
-    final cached = await _cache.getTrailsForZone(
-      minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
-    );
+    // DISABLED: final cached = await _cache.getTrailsForZone(
+    // DISABLED:       minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+    // DISABLED:     );
     
-    if (cached != null && cached.isNotEmpty) {
-      stopwatch.stop();
-      print('[PublicTrails] ⚡ Cache hit in ${stopwatch.elapsedMilliseconds}ms');
-      return TrailsResult(
-        clusters: [],
-        trails: cached.map((c) => _cachedToPublicTrail(c)).toList(),
-        fromCache: true,
-      );
-    }
+    // DISABLED:     if (false && cached != null && cached.isNotEmpty) {
+    // DISABLED:       stopwatch.stop();
+    // DISABLED:       print('[PublicTrails] ⚡ Cache hit in ${stopwatch.elapsedMilliseconds}ms');
+    // DISABLED:       return TrailsResult(
+    // DISABLED:         clusters: [],
+    // DISABLED:         trails: cached.map((c) => _cachedToPublicTrail(c)).toList(),
+    // DISABLED:         fromCache: true,
+    // DISABLED:       );
+    // DISABLED:     }
     
     // Cache miss: carica da Firestore
     final trails = await _loadFromFirestore(

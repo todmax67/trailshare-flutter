@@ -100,8 +100,21 @@ class _TrailImportPageState extends State<TrailImportPage> {
     _addLog('');
     
     try {
+      // Geocoding: ottieni bbox dalla regione
+      _addLog("🗺️ Ricerca coordinate per: $region");
+      final bbox = await _importService.getBboxFromPlaceName(region);
+      List<double>? geoBbox;
+      if (bbox != null) {
+        geoBbox = [bbox["minLat"]!, bbox["maxLat"]!, bbox["minLng"]!, bbox["maxLng"]!];
+        _addLog("📍 Area trovata: ${geoBbox[0].toStringAsFixed(2)},${geoBbox[1].toStringAsFixed(2)} - ${geoBbox[2].toStringAsFixed(2)},${geoBbox[3].toStringAsFixed(2)}");
+      } else {
+        _addLog("⚠️ Area non trovata, uso ricerca per termini");
+      }
+      _addLog("");
+
       final result = await _importService.importFromWaymarked(
         searchTerms: terms,
+        geoBbox: geoBbox,
         region: region,
         onProgress: (progress) {
           setState(() => _progress = progress);
