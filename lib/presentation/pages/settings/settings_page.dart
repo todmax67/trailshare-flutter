@@ -9,6 +9,7 @@ import '../../../core/services/delete_account_service.dart';
 import 'offline_maps_page.dart';
 import 'faq_page.dart';
 import '../admin/geohash_migration_page.dart';
+import '../admin/trail_import_page.dart';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -163,6 +164,17 @@ class _SettingsPageState extends State<SettingsPage> {
           if (_isAdmin(user)) ...[
             const Divider(height: 32),
             _buildSectionHeader('Amministrazione', danger: false),
+            _buildListTile(
+              icon: Icons.download,
+              title: 'Import Sentieri',
+              subtitle: 'Importa sentieri da Waymarked Trails',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TrailImportPage()),
+                );
+              },
+            ),
             _buildListTile(
               icon: Icons.location_on,
               title: 'Migrazione GeoHash',

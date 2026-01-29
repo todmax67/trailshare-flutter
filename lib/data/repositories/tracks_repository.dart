@@ -69,6 +69,7 @@ class TracksRepository {
     try {
       Query<Map<String, dynamic>> query = _tracksCollection(userId)
           .orderBy('createdAt', descending: true)
+          .limit(50)
           .limit(limit);
 
       // Se abbiamo un documento di partenza, inizia da lì

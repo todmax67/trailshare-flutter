@@ -4,7 +4,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
+// ⭐ Repository con cache e clustering
 import '../../../data/repositories/public_trails_repository.dart';
+import '../../../core/services/trails_cache_service.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import 'trail_detail_page.dart';
 import 'community_track_detail_page.dart';
@@ -25,11 +27,13 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   LatLng? _userPosition;
   bool _isLoadingLocation = true;
   
-  // Sentieri OSM - caricati in base al viewport della mappa
+  // ⭐ Repository con cache e clustering
   final PublicTrailsRepository _trailsRepository = PublicTrailsRepository();
   List<PublicTrail> _trails = [];
-  bool _isLoadingTrails = false; // Cambiato: false inizialmente, carica su viewport
+  List<TrailCluster> _clusters = []; // ⭐ NUOVO: Cluster per zoom basso
+  bool _isLoadingTrails = false;
   PublicTrail? _selectedTrail;
+  double _currentZoom = 11.0; // ⭐ NUOVO: Traccia zoom corrente
 
   // Community
   final CommunityTracksRepository _communityRepository = CommunityTracksRepository();
@@ -58,6 +62,9 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       });
     });
     
+    // ⭐ NUOVO: Inizializza cache
+    trailsCacheService.init();
+    
     // Prima ottieni la posizione, poi carica i sentieri
     _initializeLocation();
     _loadCommunityTracks();
@@ -67,7 +74,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
-    _viewportDebounce?.cancel(); // ⭐ Cancella timer viewport
+    _viewportDebounce?.cancel();
     super.dispose();
   }
 
@@ -140,7 +147,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
 
   Future<void> _loadCommunityTracks() async {
     setState(() => _isLoadingCommunity = true);
-    final tracks = await _communityRepository.getRecentTracks(limit: 30); // ⭐ Ridotto da 50
+    final tracks = await _communityRepository.getRecentTracks(limit: 30);
     setState(() {
       _communityTracks = tracks;
       _isLoadingCommunity = false;
@@ -222,7 +229,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ⭐ VIEWPORT-BASED LOADING (solo per sentieri)
+  // ⭐ VIEWPORT-BASED LOADING CON CACHE E CLUSTERING
   // ═══════════════════════════════════════════════════════════════════════════
 
   /// Handler per eventi mappa (zoom, pan) - carica sentieri nel viewport
@@ -231,11 +238,64 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     if (_tabController.index != 0) return;
     
     if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd) {
+      // ⭐ Cattura bounds E zoom dall'evento
+      final camera = event.camera;
+      final bounds = camera.visibleBounds;
+      final zoom = camera.zoom;
+      
       // Debounce per evitare troppe chiamate
       _viewportDebounce?.cancel();
       _viewportDebounce = Timer(const Duration(milliseconds: 300), () {
-        _loadTrailsForViewport();
+        _loadTrailsForBounds(bounds, zoom);
       });
+    }
+  }
+
+  /// ⭐ NUOVO: Carica sentieri con supporto clustering e cache
+  Future<void> _loadTrailsForBounds(LatLngBounds bounds, double zoom) async {
+    if (_isLoadingTrails) return;
+    
+    // Evita di ricaricare se bounds E zoom sono molto simili
+    if (_lastLoadedBounds != null && 
+        _areBoundsSimilar(bounds, _lastLoadedBounds!) &&
+        (_currentZoom - zoom).abs() < 0.5) {
+      return;
+    }
+    
+    setState(() {
+      _isLoadingTrails = true;
+      _currentZoom = zoom;
+    });
+    
+    try {
+      // ⭐ NUOVO: Usa repository ottimizzato con cache e clustering
+      final result = await _trailsRepository.getTrailsForViewport(
+        minLat: bounds.south,
+        maxLat: bounds.north,
+        minLng: bounds.west,
+        maxLng: bounds.east,
+        zoom: zoom,
+        limit: 200,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _clusters = result.clusters;
+          _trails = result.trails;
+          _lastLoadedBounds = bounds;
+          _isLoadingTrails = false;
+        });
+      }
+      
+      final source = result.fromCache ? '⚡ cache' : '🌐 server';
+      final type = result.hasClusters ? 'cluster' : 'trails';
+      print('[DiscoverPage] $source: ${result.totalCount} $type (zoom: ${zoom.toStringAsFixed(1)})');
+      
+    } catch (e) {
+      print('[DiscoverPage] Errore caricamento: $e');
+      if (mounted) {
+        setState(() => _isLoadingTrails = false);
+      }
     }
   }
 
@@ -244,37 +304,16 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     if (_isLoadingTrails) return;
     
     try {
+      // Aspetta un frame per assicurarsi che la camera sia aggiornata
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+      if (!mounted) return;
+      
       final bounds = _mapController.camera.visibleBounds;
-      
-      // Evita di ricaricare se i bounds sono molto simili
-      if (_lastLoadedBounds != null && _areBoundsSimilar(bounds, _lastLoadedBounds!)) {
-        return;
-      }
-      
-      setState(() => _isLoadingTrails = true);
-      
-      final trails = await _trailsRepository.getTrailsInBounds(
-        minLat: bounds.south,
-        maxLat: bounds.north,
-        minLng: bounds.west,
-        maxLng: bounds.east,
-        limit: 200, // ⭐ Aumentato da 50 a 200 con GeoHash
-      );
-      
-      if (mounted) {
-        setState(() {
-          _trails = trails;
-          _lastLoadedBounds = bounds;
-          _isLoadingTrails = false;
-        });
-      }
-      
-      print('[DiscoverPage] ⭐ Caricati ${trails.length} sentieri per viewport');
+      final zoom = _mapController.camera.zoom;
+      await _loadTrailsForBounds(bounds, zoom);
     } catch (e) {
-      print('[DiscoverPage] Errore caricamento viewport: $e');
-      if (mounted) {
-        setState(() => _isLoadingTrails = false);
-      }
+      print('[DiscoverPage] Errore _loadTrailsForViewport: $e');
     }
   }
 
@@ -297,7 +336,10 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
           tabs: [
             Tab(
               icon: const Icon(Icons.hiking),
-              text: 'Sentieri (${_trails.length})',
+              // ⭐ NUOVO: Mostra conteggio cluster se presente
+              text: _clusters.isNotEmpty 
+                  ? 'Sentieri (${_clusters.fold(0, (sum, c) => sum + c.count)})'
+                  : 'Sentieri (${_trails.length})',
             ),
             Tab(
               icon: const Icon(Icons.people),
@@ -381,8 +423,24 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     );
   }
 
-  /// Widget che mostra info sulla mappa (viewport-based)
+  /// ⭐ NUOVO: Widget info con supporto clustering
   Widget _buildLocationInfo() {
+    // Calcola conteggio totale (cluster o trails)
+    final totalCount = _clusters.isNotEmpty 
+        ? _clusters.fold(0, (sum, c) => sum + c.count)
+        : _trails.length;
+    
+    String message;
+    if (_isLoadingTrails) {
+      message = 'Caricamento sentieri...';
+    } else if (_clusters.isNotEmpty) {
+      message = '$totalCount sentieri (zoom per dettagli)';
+    } else if (_trails.isEmpty) {
+      message = 'Sposta la mappa per esplorare i sentieri';
+    } else {
+      message = '$totalCount sentieri in questa zona';
+    }
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -395,18 +453,18 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       child: Row(
         children: [
           Icon(
-            _isLoadingTrails ? Icons.hourglass_empty : Icons.explore,
+            _isLoadingTrails 
+                ? Icons.hourglass_empty 
+                : _clusters.isNotEmpty 
+                    ? Icons.bubble_chart  // Icona cluster
+                    : Icons.explore,
             size: 18,
             color: AppColors.info,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _isLoadingTrails
-                  ? 'Caricamento sentieri...'
-                  : _trails.isEmpty
-                      ? 'Sposta la mappa per esplorare i sentieri'
-                      : '${_trails.length} sentieri in questa zona',
+              message,
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.info,
@@ -442,8 +500,8 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       return _buildTrailsMapView(trails);
     }
 
-    // Modalità lista: mostra empty state se vuoto
-    if (trails.isEmpty && !_isLoadingTrails) {
+    // Modalità lista: mostra empty state se vuoto (e non ci sono cluster)
+    if (trails.isEmpty && _clusters.isEmpty && !_isLoadingTrails) {
       return _buildEmptyState(
         icon: Icons.hiking,
         message: _searchQuery.isEmpty 
@@ -478,56 +536,107 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
               userAgentPackageName: 'com.trailshare.app',
             ),
             
-            // Polylines dei sentieri
-            PolylineLayer(
-              polylines: trails.map((trail) {
-                final isSelected = trail.id == _selectedTrail?.id;
-                return Polyline(
-                  points: trail.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
-                  strokeWidth: isSelected ? 5 : 3,
-                  color: isSelected ? AppColors.primary : AppColors.info.withOpacity(0.7),
-                );
-              }).toList(),
-            ),
+            // ⭐ NUOVO: Mostra polylines SOLO se NON ci sono cluster
+            if (_clusters.isEmpty)
+              PolylineLayer(
+                polylines: trails.map((trail) {
+                  final isSelected = trail.id == _selectedTrail?.id;
+                  return Polyline(
+                    points: trail.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
+                    strokeWidth: isSelected ? 5 : 3,
+                    color: isSelected ? AppColors.primary : AppColors.info.withOpacity(0.7),
+                  );
+                }).toList(),
+              ),
 
-            // Markers dei sentieri
-            MarkerLayer(
-              markers: trails.map((trail) {
-                if (trail.points.isEmpty) return null;
-                final start = trail.points.first;
-                final isSelected = trail.id == _selectedTrail?.id;
-                
-                return Marker(
-                  point: LatLng(start.latitude, start.longitude),
-                  width: isSelected ? 40 : 30,
-                  height: isSelected ? 40 : 30,
+            // ⭐ NUOVO: Cluster markers (zoom basso)
+            if (_clusters.isNotEmpty)
+              MarkerLayer(
+                markers: _clusters.map((cluster) => Marker(
+                  point: cluster.center,
+                  width: 56,
+                  height: 56,
                   child: GestureDetector(
-                    onTap: () => _selectTrail(trail),
+                    onTap: () {
+                      // Zoom in sul cluster
+                      _mapController.move(cluster.center, _currentZoom + 2);
+                    },
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary : AppColors.info,
+                        color: AppColors.primary,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
                         ],
                       ),
                       child: Center(
-                        child: Text(
-                          trail.ref ?? '•',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: isSelected ? 12 : 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${cluster.count}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const Text(
+                              '🥾',
+                              style: TextStyle(fontSize: 10),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                );
-              }).whereType<Marker>().toList(),
-            ),
+                )).toList(),
+              ),
+
+            // Markers dei sentieri (solo quando NON ci sono cluster)
+            if (_clusters.isEmpty)
+              MarkerLayer(
+                markers: trails.map((trail) {
+                  if (trail.points.isEmpty) return null;
+                  final start = trail.points.first;
+                  final isSelected = trail.id == _selectedTrail?.id;
+                  
+                  return Marker(
+                    point: LatLng(start.latitude, start.longitude),
+                    width: isSelected ? 40 : 30,
+                    height: isSelected ? 40 : 30,
+                    child: GestureDetector(
+                      onTap: () => _selectTrail(trail),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.primary : AppColors.info,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            trail.ref ?? '•',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: isSelected ? 12 : 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).whereType<Marker>().toList(),
+              ),
 
             // Marker posizione utente
             if (_userPosition != null)
@@ -575,14 +684,20 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
             ),
           ),
 
-        // Badge contatore
+        // ⭐ NUOVO: Badge contatore aggiornato
         Positioned(
           top: 8,
           left: 8,
-          child: _CounterBadge(count: trails.length, label: 'sentieri'),
+          child: _CounterBadge(
+            count: _clusters.isNotEmpty 
+                ? _clusters.fold(0, (sum, c) => sum + c.count)
+                : trails.length, 
+            label: 'sentieri',
+            isCluster: _clusters.isNotEmpty,
+          ),
         ),
 
-        // ⭐ Indicatore caricamento viewport
+        // Indicatore caricamento viewport
         if (_isLoadingTrails)
           Positioned(
             top: 8,
@@ -617,8 +732,8 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
             ),
           ),
 
-        // ⭐ Messaggio quando non ci sono sentieri (ma non sta caricando)
-        if (trails.isEmpty && !_isLoadingTrails)
+        // Messaggio quando non ci sono sentieri (ma non sta caricando)
+        if (trails.isEmpty && _clusters.isEmpty && !_isLoadingTrails)
           Positioned(
             top: 60,
             left: 16,
@@ -687,7 +802,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
           final trail = trails[index];
           return _TrailCard(
             trail: trail,
-            showDistance: false, // Non mostriamo più la distanza dall'utente
+            showDistance: false,
             onTap: () => _openTrailDetail(trail),
           );
         },
@@ -903,7 +1018,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   Widget _buildEmptyState({
     required IconData icon, 
     required String message,
-    bool showExpandRadius = false, // Parametro mantenuto per compatibilità ma ignorato
+    bool showExpandRadius = false,
   }) {
     return Center(
       child: Column(
@@ -939,8 +1054,13 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
 class _CounterBadge extends StatelessWidget {
   final int count;
   final String label;
+  final bool isCluster;
 
-  const _CounterBadge({required this.count, required this.label});
+  const _CounterBadge({
+    required this.count, 
+    required this.label,
+    this.isCluster = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -951,7 +1071,16 @@ class _CounterBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
       ),
-      child: Text('$count $label', style: const TextStyle(fontWeight: FontWeight.bold)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isCluster) ...[
+            const Icon(Icons.bubble_chart, size: 14, color: AppColors.primary),
+            const SizedBox(width: 4),
+          ],
+          Text('$count $label', style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
     );
   }
 }
@@ -1140,7 +1269,7 @@ class _TrailCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ⭐ Anteprima mappa
+            // Anteprima mappa
             _buildMapPreview(),
             
             // Contenuto

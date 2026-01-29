@@ -4,124 +4,214 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/track.dart';
 import '../../core/utils/geohash_util.dart';
+import '../../core/services/trails_cache_service.dart';
+import '../../core/utils/geometry_simplifier.dart';
 
-/// Repository per i sentieri pubblici con supporto GeoHash per query geospaziali
+/// Repository ottimizzato per sentieri pubblici
 /// 
-/// Il GeoHash permette di fare query efficienti su milioni di documenti
-/// senza caricare tutto in memoria.
+/// Ottimizzazioni:
+/// 1. Cache locale con Hive
+/// 2. Geometrie semplificate per mappa
+/// 3. Clustering a zoom basso
+/// 4. Lazy loading geometria completa
 class PublicTrailsRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final TrailsCacheService _cache = trailsCacheService;
+  
+  // Soglie zoom per clustering
+  static const double _clusterZoomThreshold = 9.0;
+  static const double _simplifiedZoomThreshold = 14.0;
 
   CollectionReference<Map<String, dynamic>> get _trailsCollection {
     return _firestore.collection('public_trails');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // QUERY GEOHASH-BASED (SCALABILI)
+  // API PRINCIPALE - Usata dalla DiscoverPage
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Carica sentieri in un bounding box usando GeoHash
+  /// Carica sentieri per viewport con ottimizzazioni
   /// 
-  /// Questa è la query principale per la mappa. Scala a milioni di documenti.
-  /// 
-  /// [minLat], [maxLat], [minLng], [maxLng] - Bounding box
-  /// [limit] - Limite per singola query (default 200)
-  Future<List<PublicTrail>> getTrailsInBounds({
+  /// [zoom] - Livello zoom corrente per decidere cosa caricare
+  Future<TrailsResult> getTrailsForViewport({
     required double minLat,
     required double maxLat,
     required double minLng,
     required double maxLng,
+    required double zoom,
     int limit = 200,
   }) async {
+    final stopwatch = Stopwatch()..start();
+    
+    // A zoom molto basso, restituisci solo cluster/conteggi
+    if (zoom < _clusterZoomThreshold) {
+      final clusters = await _getClusteredTrails(
+        minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+      );
+      stopwatch.stop();
+      print('[PublicTrails] ⚡ Cluster in ${stopwatch.elapsedMilliseconds}ms');
+      return TrailsResult(clusters: clusters, trails: [], fromCache: false);
+    }
+    
+    // Prova cache prima
+    final cached = await _cache.getTrailsForZone(
+      minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+    );
+    
+    if (cached != null && cached.isNotEmpty) {
+      stopwatch.stop();
+      print('[PublicTrails] ⚡ Cache hit in ${stopwatch.elapsedMilliseconds}ms');
+      return TrailsResult(
+        clusters: [],
+        trails: cached.map((c) => _cachedToPublicTrail(c)).toList(),
+        fromCache: true,
+      );
+    }
+    
+    // Cache miss: carica da Firestore
+    final trails = await _loadFromFirestore(
+      minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+      limit: limit,
+      simplified: zoom < _simplifiedZoomThreshold,
+    );
+    
+    // Salva in cache (in background)
+    _cacheTrailsAsync(minLat, maxLat, minLng, maxLng, trails);
+    
+    stopwatch.stop();
+    print('[PublicTrails] 🌐 Firestore in ${stopwatch.elapsedMilliseconds}ms (${trails.length} sentieri)');
+    
+    return TrailsResult(clusters: [], trails: trails, fromCache: false);
+  }
+
+  /// Carica geometria completa per un sentiero (per pagina dettaglio)
+  Future<List<TrackPoint>?> getFullGeometry(String trailId) async {
     try {
-      // Prima prova con GeoHash (più efficiente se disponibile)
-      // NOTA: Il campo si chiama 'geoHash' con H maiuscola nei documenti esistenti
-      final geohashResults = await _getTrailsInBoundsGeohash(
-        minLat: minLat,
-        maxLat: maxLat,
-        minLng: minLng,
-        maxLng: maxLng,
-        limit: limit,
-      );
+      final doc = await _trailsCollection.doc(trailId).get();
+      if (!doc.exists) return null;
       
-      // Se GeoHash ha trovato risultati, usali
-      if (geohashResults.isNotEmpty) {
-        return geohashResults;
+      final data = doc.data()!;
+      final geometry = data['geometry'];
+      
+      if (geometry != null && geometry is Map) {
+        final coordsJsonStr = geometry['coordinatesJson'];
+        if (coordsJsonStr != null && coordsJsonStr is String) {
+          final List<dynamic> coordsList = jsonDecode(coordsJsonStr);
+          return coordsList.map((p) {
+            if (p is List && p.length >= 2) {
+              return TrackPoint(
+                longitude: (p[0] as num).toDouble(),
+                latitude: (p[1] as num).toDouble(),
+                elevation: p.length > 2 ? (p[2] as num?)?.toDouble() : null,
+                timestamp: DateTime.now(),
+              );
+            }
+            return null;
+          }).whereType<TrackPoint>().toList();
+        }
       }
-      
-      // Altrimenti usa query legacy (documenti senza geohash)
-      print('[PublicTrails] ⚠️ GeoHash vuoto, uso query legacy');
-      return _getTrailsInBoundsLegacy(
-        minLat: minLat,
-        maxLat: maxLat,
-        minLng: minLng,
-        maxLng: maxLng,
-        limit: limit,
-      );
-      
+      return null;
     } catch (e) {
-      print('[PublicTrails] Errore getTrailsInBounds: $e');
-      // Fallback alla query legacy
-      return _getTrailsInBoundsLegacy(
-        minLat: minLat,
-        maxLat: maxLat,
-        minLng: minLng,
-        maxLng: maxLng,
-        limit: limit,
-      );
+      print('[PublicTrails] Errore getFullGeometry: $e');
+      return null;
     }
   }
 
-  /// Query con GeoHash (per documenti migrati)
-  /// NOTA: Usa 'geoHash' con H maiuscola (campo esistente nei documenti)
-  Future<List<PublicTrail>> _getTrailsInBoundsGeohash({
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CLUSTERING
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Genera cluster per zoom basso
+  Future<List<TrailCluster>> _getClusteredTrails({
     required double minLat,
     required double maxLat,
     required double minLng,
     required double maxLng,
-    int limit = 200,
   }) async {
-    // Calcola precisione geohash ottimale per l'area visualizzata
-    final latDiff = maxLat - minLat;
-    final lngDiff = maxLng - minLng;
-    final areaSizeKm = math.max(latDiff, lngDiff) * 111; // ~111 km per grado
-    final precision = GeoHashUtil.precisionForRadius(areaSizeKm / 2);
-    
-    print('[PublicTrails] Query geoHash con precisione $precision per area ~${areaSizeKm.toStringAsFixed(0)}km');
-    
-    // Ottieni i range di geohash per la query
-    final ranges = GeoHashUtil.getQueryRanges(
-      minLat: minLat,
-      maxLat: maxLat,
-      minLng: minLng,
-      maxLng: maxLng,
-      precision: precision,
-    );
-    
-    print('[PublicTrails] Eseguo ${ranges.length} query geoHash');
-    
-    // Esegui query parallele per ogni range
-    final trails = <PublicTrail>[];
-    final seenIds = <String>{};
-    
-    // Limita il numero di query parallele per evitare rate limiting
-    final maxParallelQueries = math.min(ranges.length, 10);
-    
-    for (int i = 0; i < ranges.length; i += maxParallelQueries) {
-      final batch = ranges.skip(i).take(maxParallelQueries);
+    try {
+      // Dividi l'area in una griglia 4x4
+      final latStep = (maxLat - minLat) / 4;
+      final lngStep = (maxLng - minLng) / 4;
       
-      final futures = batch.map((range) async {
+      final clusters = <TrailCluster>[];
+      
+      // Per ogni cella, conta i sentieri
+      for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+          final cellMinLat = minLat + i * latStep;
+          final cellMaxLat = minLat + (i + 1) * latStep;
+          final cellMinLng = minLng + j * lngStep;
+          final cellMaxLng = minLng + (j + 1) * lngStep;
+          
+          // Geohash per questa cella
+          final centerLat = (cellMinLat + cellMaxLat) / 2;
+          final centerLng = (cellMinLng + cellMaxLng) / 2;
+          final geohash = GeoHashUtil.encode(centerLat, centerLng, precision: 5);
+          
+          // Query count (più veloce di caricare tutti i documenti)
+          final snapshot = await _trailsCollection
+              .where('geoHash', isGreaterThanOrEqualTo: geohash)
+              .where('geoHash', isLessThan: '${geohash}z')
+              .limit(100).count().get();
+          final count = snapshot.count ?? 0;
+          
+          if (count > 0) {
+            clusters.add(TrailCluster(
+              center: LatLng(centerLat, centerLng),
+              count: count,
+              bounds: ClusterBounds(
+                minLat: cellMinLat, maxLat: cellMaxLat,
+                minLng: cellMinLng, maxLng: cellMaxLng,
+              ),
+            ));
+          }
+        }
+      }
+      
+      return clusters;
+    } catch (e) {
+      print('[PublicTrails] Errore clustering: $e');
+      return [];
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FIRESTORE QUERY
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<List<PublicTrail>> _loadFromFirestore({
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    required int limit,
+    required bool simplified,
+  }) async {
+    try {
+      // Calcola geohash ranges
+      final latDiff = maxLat - minLat;
+      final lngDiff = maxLng - minLng;
+      final areaSizeKm = math.max(latDiff, lngDiff) * 111;
+      final precision = areaSizeKm > 5 ? 4 : 5;
+      
+      final ranges = GeoHashUtil.getQueryRanges(
+        minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+        precision: precision,
+      );
+      
+      final trails = <PublicTrail>[];
+      final seenIds = <String>{};
+      
+      // Query parallele
+      final futures = ranges.take(10).map((range) async {
         try {
-          // NOTA: Usa 'geoHash' con H maiuscola!
           final snapshot = await _trailsCollection
               .where('geoHash', isGreaterThanOrEqualTo: range.start)
               .where('geoHash', isLessThan: range.end)
-              .limit(limit ~/ ranges.length + 10) // Distribuisci il limite
+              .limit(limit ~/ ranges.length + 10)
               .get();
-          
           return snapshot.docs;
         } catch (e) {
-          print('[PublicTrails] Errore query range ${range.start}: $e');
           return <QueryDocumentSnapshot<Map<String, dynamic>>>[];
         }
       });
@@ -130,457 +220,127 @@ class PublicTrailsRepository {
       
       for (final docs in results) {
         for (final doc in docs) {
-          // Evita duplicati
           if (seenIds.contains(doc.id)) continue;
           seenIds.add(doc.id);
           
-          final trail = _docToTrail(doc);
+          final trail = _docToTrail(doc, simplified: simplified);
           if (trail != null) {
-            // Verifica che sia effettivamente nel bounding box
-            // (geohash può includere aree leggermente fuori)
-            if (trail.startLat >= minLat && 
-                trail.startLat <= maxLat &&
-                trail.startLng >= minLng && 
-                trail.startLng <= maxLng) {
+            if (trail.startLat >= minLat && trail.startLat <= maxLat &&
+                trail.startLng >= minLng && trail.startLng <= maxLng) {
               trails.add(trail);
             }
           }
+          
+          if (trails.length >= limit) break;
         }
-      }
-      
-      // Se abbiamo già abbastanza risultati, esci
-      if (trails.length >= limit) break;
-    }
-
-    print('[PublicTrails] ✅ Trovati ${trails.length} sentieri (geoHash)');
-    return trails.take(limit).toList();
-  }
-
-  /// Carica sentieri vicini a un punto usando GeoHash
-  Future<List<PublicTrail>> getTrailsNearby({
-    required LatLng center,
-    double radiusKm = 30,
-    int limit = 100,
-  }) async {
-    try {
-      // Calcola bounding box dal centro e raggio
-      final latDelta = radiusKm / 111.0; // ~111 km per grado di latitudine
-      final lngDelta = radiusKm / (111.0 * math.cos(center.latitude * math.pi / 180));
-      
-      final trails = await getTrailsInBounds(
-        minLat: center.latitude - latDelta,
-        maxLat: center.latitude + latDelta,
-        minLng: center.longitude - lngDelta,
-        maxLng: center.longitude + lngDelta,
-        limit: limit * 2, // Carica di più, filtreremo per distanza
-      );
-      
-      // Calcola distanza effettiva e filtra per raggio
-      final trailsWithDistance = <PublicTrail>[];
-      for (final trail in trails) {
-        final distance = _calculateDistance(
-          center,
-          LatLng(trail.startLat, trail.startLng),
-        );
-        
-        if (distance <= radiusKm) {
-          trailsWithDistance.add(trail.copyWith(distanceFromUser: distance));
-        }
-      }
-      
-      // Ordina per distanza
-      trailsWithDistance.sort((a, b) => 
-        (a.distanceFromUser ?? double.infinity)
-            .compareTo(b.distanceFromUser ?? double.infinity)
-      );
-      
-      print('[PublicTrails] ✅ Trovati ${trailsWithDistance.length} sentieri entro ${radiusKm}km');
-      return trailsWithDistance.take(limit).toList();
-      
-    } catch (e) {
-      print('[PublicTrails] Errore getTrailsNearby: $e');
-      return [];
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FALLBACK LEGACY (per documenti senza geohash)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Query legacy senza geohash (meno efficiente ma funziona sempre)
-  Future<List<PublicTrail>> _getTrailsInBoundsLegacy({
-    required double minLat,
-    required double maxLat,
-    required double minLng,
-    required double maxLng,
-    int limit = 100,
-  }) async {
-    print('[PublicTrails] ⚠️ Usando query legacy (senza geohash)');
-    
-    try {
-      // Carica documenti e filtra lato client
-      // Questo è meno efficiente ma funziona sempre
-      final snapshot = await _trailsCollection
-          .limit(1000) // Carica più documenti per avere copertura
-          .get();
-      
-      print('[PublicTrails] Legacy: caricati ${snapshot.docs.length} documenti da filtrare');
-      
-      final trails = <PublicTrail>[];
-      for (final doc in snapshot.docs) {
-        final trail = _docToTrail(doc);
-        if (trail != null) {
-          // Filtra per bounding box
-          if (trail.startLat >= minLat && 
-              trail.startLat <= maxLat &&
-              trail.startLng >= minLng && 
-              trail.startLng <= maxLng) {
-            trails.add(trail);
-          }
-        }
-        
-        // Esci se abbiamo abbastanza risultati
         if (trails.length >= limit) break;
       }
-
-      print('[PublicTrails] ✅ Trovati ${trails.length} sentieri (legacy)');
-      return trails.take(limit).toList();
-    } catch (e) {
-      print('[PublicTrails] Errore query legacy: $e');
-      return [];
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ALTRE QUERY
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Carica sentieri generici (fallback)
-  Future<List<PublicTrail>> getTrails({int limit = 50}) async {
-    try {
-      final snapshot = await _trailsCollection.limit(limit).get();
       
-      final trails = <PublicTrail>[];
-      for (final doc in snapshot.docs) {
-        final trail = _docToTrail(doc);
-        if (trail != null) {
-          trails.add(trail);
-        }
-      }
-
-      print('[PublicTrails] Caricati ${trails.length} sentieri');
       return trails;
     } catch (e) {
-      print('[PublicTrails] Errore: $e');
+      print('[PublicTrails] Errore Firestore: $e');
       return [];
-    }
-  }
-
-  Future<List<PublicTrail>> getTrailsByRegion(String region, {int limit = 50}) async {
-    try {
-      final snapshot = await _trailsCollection
-          .where('region', isEqualTo: region)
-          .limit(limit)
-          .get();
-
-      return snapshot.docs
-          .map((doc) => _docToTrail(doc))
-          .where((trail) => trail != null)
-          .cast<PublicTrail>()
-          .toList();
-    } catch (e) {
-      return [];
-    }
-  }
-
-  Future<List<PublicTrail>> searchTrails(String query, {int limit = 20}) async {
-    try {
-      // Per la ricerca testuale, dobbiamo comunque caricare e filtrare
-      // In futuro: usare Algolia o Firebase Extensions per full-text search
-      final snapshot = await _trailsCollection.limit(500).get();
-      final queryLower = query.toLowerCase();
-      
-      return snapshot.docs
-          .map((doc) => _docToTrail(doc))
-          .where((trail) => trail != null)
-          .cast<PublicTrail>()
-          .where((trail) =>
-              trail.name.toLowerCase().contains(queryLower) ||
-              (trail.ref?.toLowerCase().contains(queryLower) ?? false))
-          .take(limit)
-          .toList();
-    } catch (e) {
-      return [];
-    }
-  }
-
-  Future<PublicTrail?> getTrailById(String trailId) async {
-    try {
-      final doc = await _trailsCollection.doc(trailId).get();
-      if (!doc.exists) return null;
-      return _docToTrail(doc);
-    } catch (e) {
-      return null;
     }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // MIGRAZIONE GEOHASH
+  // CACHE
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Aggiunge geohash a tutti i documenti che non ce l'hanno
-  /// 
-  /// Chiamare una sola volta o periodicamente per nuovi documenti.
-  /// ATTENZIONE: Può richiedere molto tempo con milioni di documenti.
-  Future<int> migrateToGeohash({int batchSize = 50}) async {
-    int updated = 0;
-    int processed = 0;
-    int skipped = 0;
-    int noCoords = 0;
-    DocumentSnapshot? lastDoc;
-    
-    print('[PublicTrails] 🔄 Inizio migrazione geohash (batch: $batchSize)...');
-    
-    while (true) {
-      // Carica batch di documenti
-      Query<Map<String, dynamic>> query = _trailsCollection
-          .limit(batchSize);
+  void _cacheTrailsAsync(double minLat, double maxLat, double minLng, double maxLng, List<PublicTrail> trails) {
+    // Non bloccare - salva in background
+    Future(() async {
+      final cached = trails.map((t) => CachedTrail(
+        id: t.id,
+        name: t.name,
+        ref: t.ref,
+        difficulty: t.difficulty,
+        length: t.length,
+        elevationGain: t.elevationGain,
+        isCircular: t.isCircular,
+        startLat: t.startLat,
+        startLng: t.startLng,
+        network: t.network,
+        simplifiedCoords: t.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
+      )).toList();
       
-      if (lastDoc != null) {
-        query = query.startAfterDocument(lastDoc);
-      }
-      
-      final snapshot = await query.get();
-      
-      if (snapshot.docs.isEmpty) {
-        print('[PublicTrails] Nessun altro documento da processare');
-        break;
-      }
-      
-      final batch = _firestore.batch();
-      int batchUpdates = 0;
-      
-      for (final doc in snapshot.docs) {
-        processed++;
-        final data = doc.data();
-        
-        // Salta se ha già geoHash (H maiuscola - campo esistente)
-        if (data['geoHash'] != null && data['geoHash'].toString().isNotEmpty) {
-          skipped++;
-          continue;
-        }
-        
-        // Estrai coordinate
-        double? lat, lng;
-        String coordSource = '';
-        
-        // 1. Prova startLat/startLng
-        if (data['startLat'] != null && data['startLng'] != null) {
-          lat = (data['startLat'] as num?)?.toDouble();
-          lng = (data['startLng'] as num?)?.toDouble();
-          coordSource = 'startLat/Lng';
-        }
-        
-        // 2. Prova startPoint
-        if (lat == null && data['startPoint'] != null) {
-          final sp = data['startPoint'];
-          if (sp is GeoPoint) {
-            lat = sp.latitude;
-            lng = sp.longitude;
-            coordSource = 'startPoint GeoPoint';
-          } else if (sp is Map) {
-            lat = (sp['lat'] ?? sp['latitude'] as num?)?.toDouble();
-            lng = (sp['lng'] ?? sp['lon'] ?? sp['longitude'] as num?)?.toDouble();
-            coordSource = 'startPoint Map';
-          }
-        }
-        
-        // 3. Prova geometry.coordinatesJson
-        if (lat == null) {
-          final geometry = data['geometry'];
-          if (geometry != null && geometry is Map) {
-            final coordsJsonStr = geometry['coordinatesJson'];
-            if (coordsJsonStr != null && coordsJsonStr is String) {
-              try {
-                final List<dynamic> coordsList = jsonDecode(coordsJsonStr);
-                if (coordsList.isNotEmpty) {
-                  final first = coordsList.first;
-                  if (first is List && first.length >= 2) {
-                    lng = (first[0] as num).toDouble();
-                    lat = (first[1] as num).toDouble();
-                    coordSource = 'geometry.coordinatesJson';
-                  }
-                }
-              } catch (e) {
-                print('[PublicTrails] Errore parsing geometry per ${doc.id}: $e');
-              }
-            }
-          }
-        }
-        
-        // 4. Prova points array
-        if (lat == null && data['points'] != null) {
-          final points = data['points'];
-          if (points is List && points.isNotEmpty) {
-            final first = points.first;
-            if (first is Map) {
-              lat = (first['lat'] ?? first['latitude'] ?? first['y'] as num?)?.toDouble();
-              lng = (first['lng'] ?? first['lon'] ?? first['longitude'] ?? first['x'] as num?)?.toDouble();
-              coordSource = 'points array';
-            }
-          }
-        }
-        
-        // Debug: mostra primi documenti
-        if (processed <= 3) {
-          print('[PublicTrails] Doc ${doc.id}: lat=$lat, lng=$lng, source=$coordSource');
-          print('[PublicTrails]   Keys: ${data.keys.toList()}');
-        }
-        
-        if (lat != null && lng != null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-          final geohash = GeoHashUtil.encode(lat, lng, precision: 7);
-          batch.update(doc.reference, {
-            'geohash': geohash,
-            'startLat': lat,
-            'startLng': lng,
-          });
-          batchUpdates++;
-          updated++;
-        } else {
-          noCoords++;
-          if (noCoords <= 5) {
-            print('[PublicTrails] ⚠️ Doc ${doc.id} senza coordinate valide');
-            print('[PublicTrails]   Keys disponibili: ${data.keys.toList()}');
-          }
-        }
-      }
-      
-      if (batchUpdates > 0) {
-        await batch.commit();
-      }
-      
-      print('[PublicTrails] Processati: $processed, Aggiornati: $updated, Saltati: $skipped, Senza coords: $noCoords');
-      
-      lastDoc = snapshot.docs.last;
-      
-      // Se abbiamo caricato meno del batch size, abbiamo finito
-      if (snapshot.docs.length < batchSize) {
-        break;
-      }
-      
-      // Pausa per evitare rate limiting e liberare memoria
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-    
-    print('[PublicTrails] ✅ Migrazione completata: $updated documenti aggiornati, $noCoords senza coordinate');
-    return updated;
-  }
-
-  /// Verifica quanti documenti hanno geoHash
-  /// NOTA: Il campo si chiama 'geoHash' con H maiuscola
-  Future<({int withGeohash, int withoutGeohash})> checkGeohashCoverage() async {
-    try {
-      // Carica un campione di documenti per verificare
-      final snapshot = await _trailsCollection.limit(500).get();
-      
-      int withGeohash = 0;
-      int withoutGeohash = 0;
-      
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        // Controlla 'geoHash' (H maiuscola) - il campo esistente nei documenti
-        if (data['geoHash'] != null && data['geoHash'].toString().isNotEmpty) {
-          withGeohash++;
-        } else {
-          withoutGeohash++;
-        }
-      }
-      
-      print('[PublicTrails] Coverage check: $withGeohash con geoHash, $withoutGeohash senza');
-      
-      return (
-        withGeohash: withGeohash,
-        withoutGeohash: withoutGeohash,
+      await _cache.cacheTrailsForZone(
+        minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+        trails: cached,
       );
-    } catch (e) {
-      print('[PublicTrails] Errore verifica coverage: $e');
-      return (withGeohash: 0, withoutGeohash: 0);
-    }
+    });
+  }
+
+  PublicTrail _cachedToPublicTrail(CachedTrail cached) {
+    return PublicTrail(
+      id: cached.id,
+      name: cached.name,
+      ref: cached.ref,
+      difficulty: cached.difficulty,
+      length: cached.length,
+      elevationGain: cached.elevationGain,
+      isCircular: cached.isCircular,
+      startLat: cached.startLat,
+      startLng: cached.startLng,
+      network: cached.network,
+      points: cached.simplifiedCoords.map((c) => TrackPoint(
+        latitude: c.latitude,
+        longitude: c.longitude,
+        timestamp: DateTime.now(),
+      )).toList(),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // UTILITY
+  // DOCUMENT PARSING
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Calcola distanza tra due punti in km usando formula Haversine
-  double _calculateDistance(LatLng p1, LatLng p2) {
-    const earthRadius = 6371.0; // km
-    
-    final dLat = _toRadians(p2.latitude - p1.latitude);
-    final dLng = _toRadians(p2.longitude - p1.longitude);
-    
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(_toRadians(p1.latitude)) * 
-        math.cos(_toRadians(p2.latitude)) *
-        math.sin(dLng / 2) * math.sin(dLng / 2);
-    
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    
-    return earthRadius * c;
-  }
-
-  double _toRadians(double degrees) => degrees * math.pi / 180;
-
-  PublicTrail? _docToTrail(DocumentSnapshot<Map<String, dynamic>> doc) {
+  PublicTrail? _docToTrail(DocumentSnapshot<Map<String, dynamic>> doc, {bool simplified = true}) {
     try {
       final data = doc.data();
       if (data == null) return null;
 
       List<TrackPoint> points = [];
       
-      // geometry è un Map con {type, coordinatesJson}
       final geometry = data['geometry'];
-      
       if (geometry != null && geometry is Map) {
         final coordsJsonStr = geometry['coordinatesJson'];
-        
         if (coordsJsonStr != null && coordsJsonStr is String) {
-          // Parse la stringa JSON
           final List<dynamic> coordsList = jsonDecode(coordsJsonStr);
           
-          // Ogni elemento è [lon, lat, ele]
+          // Converti a LatLng per semplificazione
+          final latLngPoints = <LatLng>[];
           for (var p in coordsList) {
             if (p is List && p.length >= 2) {
               final lon = (p[0] as num).toDouble();
               final lat = (p[1] as num).toDouble();
-              final ele = p.length > 2 && p[2] != null ? (p[2] as num).toDouble() : null;
-              
               if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
-                points.add(TrackPoint(
-                  longitude: lon,
-                  latitude: lat,
-                  elevation: ele,
-                  timestamp: DateTime.now(),
-                ));
+                latLngPoints.add(LatLng(lat, lon));
               }
             }
           }
+          
+          // Semplifica se richiesto
+          final finalPoints = simplified 
+              ? GeometrySimplifier.simplify(latLngPoints, maxPoints: 30)
+              : latLngPoints;
+          
+          points = finalPoints.map((ll) => TrackPoint(
+            latitude: ll.latitude,
+            longitude: ll.longitude,
+            timestamp: DateTime.now(),
+          )).toList();
         }
       }
 
-      if (points.isEmpty) {
-        return null;
-      }
+      if (points.isEmpty) return null;
 
       String name = data['name']?.toString() ?? '';
       final ref = data['ref']?.toString();
       if (name.isEmpty && ref != null) name = 'Sentiero $ref';
       if (name.isEmpty) name = 'Sentiero';
 
-      // Estrai startPoint se presente, altrimenti usa il primo punto
-      double? startLat;
-      double? startLng;
-      
+      double? startLat, startLng;
       if (data['startPoint'] != null) {
         final sp = data['startPoint'];
         if (sp is GeoPoint) {
@@ -591,8 +351,6 @@ class PublicTrailsRepository {
           startLng = (sp['lng'] ?? sp['lon'] ?? sp['longitude'] as num?)?.toDouble();
         }
       }
-      
-      // Fallback al primo punto
       startLat ??= points.first.latitude;
       startLng ??= points.first.longitude;
 
@@ -612,16 +370,157 @@ class PublicTrailsRepository {
         duration: (data['duration'] as num?)?.toInt(),
         startLat: startLat,
         startLng: startLng,
-        geohash: data['geoHash']?.toString(), // NOTA: 'geoHash' con H maiuscola!
+        geohash: data['geoHash']?.toString(),
       );
     } catch (e) {
       print('[PublicTrails] Errore parsing ${doc.id}: $e');
       return null;
     }
   }
+
+  /// Invalida cache (chiamare dopo import)
+  Future<void> invalidateCache() async {
+    await _cache.invalidateAll();
+  }
+
+  /// Verifica copertura GeoHash per migrazione
+  Future<GeohashCoverage> checkGeohashCoverage() async {
+    try {
+      // Conta documenti con geoHash
+      final withGeohashCount = await _trailsCollection
+          .where('geoHash', isNull: false)
+          .limit(100).count()
+          .get();
+      
+      // Conta documenti totali
+      final total = await _trailsCollection.count().get();
+      
+      final withGh = withGeohashCount.count ?? 0;
+      final totalCount = total.count ?? 0;
+      
+      return GeohashCoverage(
+        withGeohash: withGh,
+        withoutGeohash: totalCount - withGh,
+      );
+    } catch (e) {
+      print('[PublicTrails] Errore checkGeohashCoverage: $e');
+      return GeohashCoverage(withGeohash: 0, withoutGeohash: 0);
+    }
+  }
+
+  /// Carica sentieri senza geohash per migrazione
+  Future<List<PublicTrail>> getTrailsWithoutGeohash({int limit = 100}) async {
+    try {
+      final snapshot = await _trailsCollection
+          .where('geoHash', isNull: true)
+          .limit(limit)
+          .get();
+      
+      return snapshot.docs
+          .map((doc) => _docToTrail(doc, simplified: false))
+          .whereType<PublicTrail>()
+          .toList();
+    } catch (e) {
+      print('[PublicTrails] Errore getTrailsWithoutGeohash: $e');
+      return [];
+    }
+  }
+
+  /// Aggiorna geohash per un sentiero
+  Future<void> updateTrailGeohash(String trailId, String geohash, List<String> geohashes) async {
+    try {
+      await _trailsCollection.doc(trailId).update({
+        'geoHash': geohash,
+        'geoHashes': geohashes,
+      });
+    } catch (e) {
+      print('[PublicTrails] Errore updateTrailGeohash: $e');
+      rethrow;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // METODO LEGACY - Per compatibilità con codice esistente
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Metodo legacy per caricare sentieri in bounds (senza clustering)
+  Future<List<PublicTrail>> getTrailsInBounds({
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    int limit = 100,
+  }) async {
+    return _loadFromFirestore(
+      minLat: minLat,
+      maxLat: maxLat,
+      minLng: minLng,
+      maxLng: maxLng,
+      limit: limit,
+      simplified: true,
+    );
+  }
 }
 
-/// Modello per sentiero pubblico
+// ═══════════════════════════════════════════════════════════════════════════
+// MODELLI RISULTATO
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Risultato query con supporto clustering
+class TrailsResult {
+  final List<TrailCluster> clusters;
+  final List<PublicTrail> trails;
+  final bool fromCache;
+  
+  const TrailsResult({
+    required this.clusters,
+    required this.trails,
+    required this.fromCache,
+  });
+  
+  bool get hasClusters => clusters.isNotEmpty;
+  bool get hasTrails => trails.isNotEmpty;
+  int get totalCount => hasClusters 
+      ? clusters.fold(0, (sum, c) => sum + c.count)
+      : trails.length;
+}
+
+/// Cluster di sentieri per zoom basso
+class TrailCluster {
+  final LatLng center;
+  final int count;
+  final ClusterBounds bounds;
+  
+  const TrailCluster({
+    required this.center,
+    required this.count,
+    required this.bounds,
+  });
+}
+
+class ClusterBounds {
+  final double minLat, maxLat, minLng, maxLng;
+  const ClusterBounds({
+    required this.minLat, required this.maxLat,
+    required this.minLng, required this.maxLng,
+  });
+}
+
+/// Risultato verifica copertura GeoHash
+class GeohashCoverage {
+  final int withGeohash;
+  final int withoutGeohash;
+  
+  const GeohashCoverage({
+    required this.withGeohash,
+    required this.withoutGeohash,
+  });
+  
+  int get total => withGeohash + withoutGeohash;
+  double get percentage => total > 0 ? (withGeohash / total * 100) : 0;
+}
+
+/// Modello PublicTrail (stesso di prima per compatibilità)
 class PublicTrail {
   final String id;
   final String name;
@@ -639,7 +538,7 @@ class PublicTrail {
   final double startLat;
   final double startLng;
   final double? distanceFromUser;
-  final String? geohash; // ⭐ NUOVO: GeoHash per query efficienti
+  final String? geohash;
 
   const PublicTrail({
     required this.id,
@@ -662,121 +561,64 @@ class PublicTrail {
   });
 
   double get lengthKm => (length ?? 0) / 1000;
-
-  String get displayName {
-    if (ref != null && ref!.isNotEmpty) {
-      return '$ref - $name';
-    }
-    return name;
-  }
-  
-  /// Nome della rete sentieristica (es. "CAI Bergamo")
+  String get displayName => ref != null && ref!.isNotEmpty ? '$ref - $name' : name;
   String get networkName => network ?? '';
-
-  String get distanceFromUserFormatted {
-    if (distanceFromUser == null) return '';
-    if (distanceFromUser! < 1) {
-      return '${(distanceFromUser! * 1000).toStringAsFixed(0)} m';
-    }
-    return '${distanceFromUser!.toStringAsFixed(1)} km';
-  }
 
   String get difficultyIcon {
     switch (difficulty?.toLowerCase()) {
-      case 't':
-      case 'turistico':
-      case 'facile':
-      case 'easy':
-        return '🟢';
-      case 'e':
-      case 'escursionistico':
-      case 'medio':
-      case 'medium':
-        return '🔵';
-      case 'ee':
-      case 'escursionisti esperti':
-      case 'difficile':
-      case 'hard':
-        return '🟠';
-      case 'eea':
-      case 'alpinistico':
-      case 'molto difficile':
-        return '🔴';
-      default:
-        return '⚪';
+      case 't': case 'turistico': case 'facile': return '🟢';
+      case 'e': case 'escursionistico': case 'medio': return '🔵';
+      case 'ee': case 'escursionisti esperti': case 'difficile': return '🟠';
+      case 'eea': case 'alpinistico': return '🔴';
+      default: return '⚪';
     }
   }
 
   String get difficultyName {
     switch (difficulty?.toLowerCase()) {
-      case 't':
-        return 'Turistico';
-      case 'e':
-        return 'Escursionistico';
-      case 'ee':
-        return 'Esperti';
-      case 'eea':
-        return 'Alpinistico';
-      default:
-        return difficulty ?? 'N/D';
+      case 't': return 'Turistico';
+      case 'e': return 'Escursionistico';
+      case 'ee': return 'Esperti';
+      case 'eea': return 'Alpinistico';
+      default: return difficulty ?? 'N/D';
     }
   }
-  
-  /// Converte in Track per compatibilità con widget esistenti
-  Track toTrack() {
-    return Track(
-      id: 'public_$id',
-      name: displayName,
-      description: 'Sentiero ${ref ?? ""} - ${network ?? ""}',
-      points: points,
-      activityType: ActivityType.trekking,
-      createdAt: DateTime.now(),
-      stats: TrackStats(
-        distance: length ?? 0,
-        elevationGain: elevationGain ?? 0,
-        duration: Duration(minutes: duration ?? 0),
-      ),
+
+  PublicTrail copyWith({double? distanceFromUser}) {
+    return PublicTrail(
+      id: id, name: name, ref: ref, network: network, operator: operator,
+      difficulty: difficulty, points: points, length: length,
+      elevationGain: elevationGain, region: region, isCircular: isCircular,
+      quality: quality, duration: duration, startLat: startLat, startLng: startLng,
+      distanceFromUser: distanceFromUser ?? this.distanceFromUser,
+      geohash: geohash,
     );
   }
 
-  /// Crea una copia con valori modificati
-  PublicTrail copyWith({
-    String? id,
-    String? name,
-    String? ref,
-    String? network,
-    String? operator,
-    String? difficulty,
-    List<TrackPoint>? points,
-    double? length,
-    double? elevationGain,
-    String? region,
-    bool? isCircular,
-    String? quality,
-    int? duration,
-    double? startLat,
-    double? startLng,
-    double? distanceFromUser,
-    String? geohash,
-  }) {
-    return PublicTrail(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      ref: ref ?? this.ref,
-      network: network ?? this.network,
-      operator: operator ?? this.operator,
-      difficulty: difficulty ?? this.difficulty,
-      points: points ?? this.points,
-      length: length ?? this.length,
-      elevationGain: elevationGain ?? this.elevationGain,
-      region: region ?? this.region,
-      isCircular: isCircular ?? this.isCircular,
-      quality: quality ?? this.quality,
-      duration: duration ?? this.duration,
-      startLat: startLat ?? this.startLat,
-      startLng: startLng ?? this.startLng,
-      distanceFromUser: distanceFromUser ?? this.distanceFromUser,
-      geohash: geohash ?? this.geohash,
+  /// Distanza dall'utente formattata
+  String get distanceFromUserFormatted {
+    if (distanceFromUser == null) return '';
+    if (distanceFromUser! < 1000) {
+      return '${distanceFromUser!.toStringAsFixed(0)} m';
+    }
+    return '${(distanceFromUser! / 1000).toStringAsFixed(1)} km';
+  }
+
+  /// Converte PublicTrail in Track per compatibilità con altre parti dell'app
+  Track toTrack() {
+    return Track(
+      id: id,
+      name: name,
+      points: points,
+      activityType: ActivityType.trekking,
+      createdAt: DateTime.now(),
+      isPublic: true,
+      stats: TrackStats(
+        distance: length ?? 0,
+        elevationGain: elevationGain ?? 0,
+        elevationLoss: 0,
+        duration: Duration(minutes: duration ?? 0),
+      ),
     );
   }
 }

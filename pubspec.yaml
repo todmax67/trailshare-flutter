@@ -52,6 +52,10 @@ dependencies:
 
   #supporto BLE
   flutter_blue_plus: ^1.16.0
+
+  #cache
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
   
   # Camera & Photos
   image_picker: ^1.1.2
