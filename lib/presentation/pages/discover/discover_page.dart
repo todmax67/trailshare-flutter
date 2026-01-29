@@ -147,7 +147,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
 
   Future<void> _loadCommunityTracks() async {
     setState(() => _isLoadingCommunity = true);
-    final tracks = await _communityRepository.getRecentTracks(limit: 30);
+    final tracks = await _communityRepository.getRecentTracks(limit: 50);
     setState(() {
       _communityTracks = tracks;
       _isLoadingCommunity = false;
@@ -262,9 +262,11 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       return;
     }
     
-    setState(() {
-      _isLoadingTrails = true;
-      _currentZoom = zoom;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {
+        _isLoadingTrails = true;
+        _currentZoom = zoom;
+      });
     });
     
     try {
