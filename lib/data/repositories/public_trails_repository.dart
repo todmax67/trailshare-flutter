@@ -129,44 +129,29 @@ class PublicTrailsRepository {
     required double maxLng,
   }) async {
     try {
-      // Dividi l'area in una griglia 4x4
-      final latStep = (maxLat - minLat) / 4;
-      final lngStep = (maxLng - minLng) / 4;
+      // Dividi l'area in una griglia 3x3 (meno celle = meno query)
+      final latStep = (maxLat - minLat) / 3;
+      final lngStep = (maxLng - minLng) / 3;
       
       final clusters = <TrailCluster>[];
+      final futures = <Future<TrailCluster?>>[];
       
-      // Per ogni cella, conta i sentieri
-      for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
+      // Per ogni cella, conta i sentieri in parallelo
+      for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
           final cellMinLat = minLat + i * latStep;
           final cellMaxLat = minLat + (i + 1) * latStep;
           final cellMinLng = minLng + j * lngStep;
           final cellMaxLng = minLng + (j + 1) * lngStep;
           
-          // Geohash per questa cella
-          final centerLat = (cellMinLat + cellMaxLat) / 2;
-          final centerLng = (cellMinLng + cellMaxLng) / 2;
-          final geohash = GeoHashUtil.encode(centerLat, centerLng, precision: 5);
-          
-          // Query count (più veloce di caricare tutti i documenti)
-          final snapshot = await _trailsCollection
-              .where('geoHash', isGreaterThanOrEqualTo: geohash)
-              .where('geoHash', isLessThan: '${geohash}z')
-              .limit(100).count().get();
-          final count = snapshot.count ?? 0;
-          
-          if (count > 0) {
-            clusters.add(TrailCluster(
-              center: LatLng(centerLat, centerLng),
-              count: count,
-              bounds: ClusterBounds(
-                minLat: cellMinLat, maxLat: cellMaxLat,
-                minLng: cellMinLng, maxLng: cellMaxLng,
-              ),
-            ));
-          }
+          futures.add(_countTrailsInCell(
+            cellMinLat, cellMaxLat, cellMinLng, cellMaxLng,
+          ));
         }
       }
+      
+      final results = await Future.wait(futures);
+      clusters.addAll(results.whereType<TrailCluster>());
       
       return clusters;
     } catch (e) {
@@ -174,6 +159,53 @@ class PublicTrailsRepository {
       return [];
     }
   }
+
+  /// Conta sentieri in una cella usando geohash ranges corretti
+  Future<TrailCluster?> _countTrailsInCell(
+    double minLat, double maxLat, double minLng, double maxLng,
+  ) async {
+    try {
+      final areaSizeKm = math.max(maxLat - minLat, maxLng - minLng) * 111;
+      final precision = areaSizeKm > 40 ? 3 : (areaSizeKm > 5 ? 4 : 5);
+      
+      final ranges = GeoHashUtil.getQueryRanges(
+        minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+        precision: precision,
+      );
+      
+      int totalCount = 0;
+      final countFutures = ranges.take(6).map((range) async {
+        try {
+          final snapshot = await _trailsCollection
+              .where('geoHash', isGreaterThanOrEqualTo: range.start)
+              .where('geoHash', isLessThan: range.end)
+              .count().get();
+          return snapshot.count ?? 0;
+        } catch (e) {
+          return 0;
+        }
+      });
+      
+      final counts = await Future.wait(countFutures);
+      totalCount = counts.fold(0, (sum, c) => sum + c);
+      
+      if (totalCount > 0) {
+        final centerLat = (minLat + maxLat) / 2;
+        final centerLng = (minLng + maxLng) / 2;
+        return TrailCluster(
+          center: LatLng(centerLat, centerLng),
+          count: totalCount,
+          bounds: ClusterBounds(
+            minLat: minLat, maxLat: maxLat,
+            minLng: minLng, maxLng: maxLng,
+          ),
+        );
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }  
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FIRESTORE QUERY
