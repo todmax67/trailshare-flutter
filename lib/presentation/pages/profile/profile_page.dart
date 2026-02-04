@@ -773,9 +773,15 @@ class _StatItem extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                value,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                  ),
+                ),
               ),
               if (isClickable) ...[
                 const SizedBox(width: 4),

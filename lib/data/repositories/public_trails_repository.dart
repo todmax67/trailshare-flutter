@@ -54,19 +54,19 @@ class PublicTrailsRepository {
     }
     
     // Prova cache prima
-    // DISABLED: final cached = await _cache.getTrailsForZone(
-    // DISABLED:       minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
-    // DISABLED:     );
-    
-    // DISABLED:     if (false && cached != null && cached.isNotEmpty) {
-    // DISABLED:       stopwatch.stop();
-    // DISABLED:       print('[PublicTrails] ⚡ Cache hit in ${stopwatch.elapsedMilliseconds}ms');
-    // DISABLED:       return TrailsResult(
-    // DISABLED:         clusters: [],
-    // DISABLED:         trails: cached.map((c) => _cachedToPublicTrail(c)).toList(),
-    // DISABLED:         fromCache: true,
-    // DISABLED:       );
-    // DISABLED:     }
+    final cached = await _cache.getTrailsForZone(
+      minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+    );
+
+    if (cached != null && cached.isNotEmpty) {
+      stopwatch.stop();
+      print('[PublicTrails] ⚡ Cache hit in ${stopwatch.elapsedMilliseconds}ms (${cached.length} sentieri)');
+      return TrailsResult(
+        clusters: [],
+        trails: cached.map((c) => _cachedToPublicTrail(c)).toList(),
+        fromCache: true,
+      );
+    }
     
     // Cache miss: carica da Firestore
     final trails = await _loadFromFirestore(
@@ -198,6 +198,9 @@ class PublicTrailsRepository {
         minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
         precision: precision,
       );
+
+      print('[PublicTrails] 📍 Query area: $minLat,$minLng → $maxLat,$maxLng (${areaSizeKm.toStringAsFixed(0)}km, precision: $precision)');
+      print('[PublicTrails] 🔍 ${ranges.length} geohash ranges: ${ranges.take(5).map((r) => "${r.start}-${r.end}").join(", ")}');
       
       final trails = <PublicTrail>[];
       final seenIds = <String>{};
@@ -217,6 +220,8 @@ class PublicTrailsRepository {
       });
       
       final results = await Future.wait(futures);
+      final totalDocs = results.fold<int>(0, (sum, docs) => sum + docs.length);
+      print('[PublicTrails] 📦 Risultati: $totalDocs documenti da ${results.length} query');
       
       for (final docs in results) {
         for (final doc in docs) {
@@ -225,8 +230,11 @@ class PublicTrailsRepository {
           
           final trail = _docToTrail(doc, simplified: simplified);
           if (trail != null) {
-            if (trail.startLat >= minLat && trail.startLat <= maxLat &&
-                trail.startLng >= minLng && trail.startLng <= maxLng) {
+            // Margine 50% per includere sentieri ai bordi del viewport
+            final latMargin = (maxLat - minLat) * 0.5;
+            final lngMargin = (maxLng - minLng) * 0.5;
+            if (trail.startLat >= minLat - latMargin && trail.startLat <= maxLat + latMargin &&
+                trail.startLng >= minLng - lngMargin && trail.startLng <= maxLng + lngMargin) {
               trails.add(trail);
             }
           }

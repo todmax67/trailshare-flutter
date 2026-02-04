@@ -34,6 +34,8 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   bool _isLoadingTrails = false;
   PublicTrail? _selectedTrail;
   double _currentZoom = 11.0; // ⭐ NUOVO: Traccia zoom corrente
+  LatLngBounds? _pendingBounds; // Bounds richiesti durante caricamento
+  double? _pendingZoom;
 
   // Community
   final CommunityTracksRepository _communityRepository = CommunityTracksRepository();
@@ -234,40 +236,56 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
 
   /// Handler per eventi mappa (zoom, pan) - carica sentieri nel viewport
   void _onMapEvent(MapEvent event) {
+    // Log temporaneo per debug
+    if (event is! MapEventMove) {
+      print('[DiscoverPage] 🗺️ MapEvent: ${event.runtimeType} (tab: ${_tabController.index})');
+    }
+    
     // Solo per tab sentieri e quando l'utente finisce di muovere la mappa
     if (_tabController.index != 0) return;
     
-    if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd) {
-      // ⭐ Cattura bounds E zoom dall'evento
-      final camera = event.camera;
-      final bounds = camera.visibleBounds;
-      final zoom = camera.zoom;
-      
+    if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd || event is MapEventRotateEnd) {
       // Debounce per evitare troppe chiamate
       _viewportDebounce?.cancel();
       _viewportDebounce = Timer(const Duration(milliseconds: 300), () {
+        // ⭐ Leggi bounds dal controller AL MOMENTO del caricamento
+        // così prende la posizione finale della mappa, non quella dell'evento
+        final camera = _mapController.camera;
+        final bounds = camera.visibleBounds;
+        final zoom = camera.zoom;
         _loadTrailsForBounds(bounds, zoom);
       });
     }
   }
 
   /// ⭐ NUOVO: Carica sentieri con supporto clustering e cache
+
+  /// ⭐ NUOVO: Carica sentieri con supporto clustering e cache
   Future<void> _loadTrailsForBounds(LatLngBounds bounds, double zoom) async {
-    if (_isLoadingTrails) return;
+    // Se già in caricamento, salva la richiesta per dopo
+    if (_isLoadingTrails) {
+      _pendingBounds = bounds;
+      _pendingZoom = zoom;
+      print('[DiscoverPage] ⏳ Pending (già in caricamento)');
+      return;
+    }
     
     // Evita di ricaricare se bounds E zoom sono molto simili
     if (_lastLoadedBounds != null && 
         _areBoundsSimilar(bounds, _lastLoadedBounds!) &&
         (_currentZoom - zoom).abs() < 0.5) {
+      print('[DiscoverPage] ⏭️ Skip (bounds simili, zoom diff: ${(_currentZoom - zoom).abs().toStringAsFixed(2)})');
       return;
     }
     
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {
+    print('[DiscoverPage] 🚀 Caricamento per zoom: ${zoom.toStringAsFixed(1)}, bounds: ${bounds.south.toStringAsFixed(3)},${bounds.west.toStringAsFixed(3)} → ${bounds.north.toStringAsFixed(3)},${bounds.east.toStringAsFixed(3)}');
+    
+    if (mounted) {
+      setState(() {
         _isLoadingTrails = true;
         _currentZoom = zoom;
       });
-    });
+    }
     
     try {
       // ⭐ NUOVO: Usa repository ottimizzato con cache e clustering
@@ -283,7 +301,17 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       if (mounted) {
         setState(() {
           _clusters = result.clusters;
-          _trails = result.trails;
+          if (result.hasClusters) {
+            // In modalità cluster, sostituisci tutto
+            _trails = result.trails;
+          } else {
+            // In modalità trails, accumula con deduplicazione
+            final existingIds = _trails.map((t) => t.id).toSet();
+            final newTrails = result.trails.where((t) => !existingIds.contains(t.id)).toList();
+            if (newTrails.isNotEmpty) {
+              _trails = [..._trails, ...newTrails];
+            }
+          }
           _lastLoadedBounds = bounds;
           _isLoadingTrails = false;
         });
@@ -298,6 +326,15 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
       if (mounted) {
         setState(() => _isLoadingTrails = false);
       }
+    }
+
+    // Se ci sono bounds pendenti richiesti durante il caricamento, eseguili ora
+    if (_pendingBounds != null && mounted) {
+      final nextBounds = _pendingBounds!;
+      final nextZoom = _pendingZoom ?? _currentZoom;
+      _pendingBounds = null;
+      _pendingZoom = null;
+      _loadTrailsForBounds(nextBounds, nextZoom);
     }
   }
 
@@ -433,8 +470,10 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
         : _trails.length;
     
     String message;
-    if (_isLoadingTrails) {
+    if (_isLoadingTrails && _trails.isEmpty && _clusters.isEmpty) {
       message = 'Caricamento sentieri...';
+    } else if (_isLoadingTrails) {
+      message = '$totalCount sentieri · Aggiornamento...';
     } else if (_clusters.isNotEmpty) {
       message = '$totalCount sentieri (zoom per dettagli)';
     } else if (_trails.isEmpty) {
