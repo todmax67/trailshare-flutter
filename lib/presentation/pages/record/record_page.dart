@@ -33,6 +33,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   
   final TrackPhotosService _photosService = TrackPhotosService();
   final List<TrackPhoto> _photos = [];
+  ActivityType _selectedActivity = ActivityType.trekking;
 
   @override
   void initState() {
@@ -408,8 +409,72 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     ]));
   }
 
-  Widget _buildStartButton() => GestureDetector(onTap: () => _trackingBloc.startRecording(), child: Container(width: 100, height: 100, decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle, boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 20, spreadRadius: 5)]), child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.play_arrow, color: Colors.white, size: 40), Text('INIZIA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))])));
+Widget _buildStartButton() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Selettore tipo attività
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: ActivityType.values.map((type) => _buildActivityChip(type)).toList(),
+          ),
+        ),
+        // Pulsante INIZIA
+        GestureDetector(
+          onTap: () => _trackingBloc.startRecording(activityType: _selectedActivity),
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 20, spreadRadius: 5)],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.play_arrow, color: Colors.white, size: 40),
+                Text(_selectedActivity.displayName.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
+  Widget _buildActivityChip(ActivityType type) {
+    final isSelected = type == _selectedActivity;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedActivity = type),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(type.icon, style: const TextStyle(fontSize: 16)),
+            if (isSelected) ...[
+              const SizedBox(width: 4),
+              Text(type.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+  
   Widget _buildRecordingControls(TrackingState state) => Column(mainAxisSize: MainAxisSize.min, children: [
     const Padding(padding: EdgeInsets.only(bottom: 12), child: LiveTrackButton()),
     Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [

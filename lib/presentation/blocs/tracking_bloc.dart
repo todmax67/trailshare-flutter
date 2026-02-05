@@ -233,6 +233,9 @@ class TrackingBloc extends ChangeNotifier {
     debugPrint('[TrackingBloc] Stato ripristinato in pausa');
   }
 
+  // Soglia minima per contare il dislivello (elimina rumore GPS)
+  static const double _elevationThreshold = 3.0; // metri
+
   /// Calcola le statistiche da una lista di punti esistenti
   TrackStats _calculateStatsFromPoints(List<TrackPoint> points) {
     if (points.isEmpty) return const TrackStats();
@@ -243,6 +246,9 @@ class TrackingBloc extends ChangeNotifier {
     double maxSpeed = 0;
     double? minElevation;
     double? maxElevation;
+    
+    // Filtro elevazione: ultima quota "confermata"
+    double? lastConfirmedElevation;
 
     for (int i = 1; i < points.length; i++) {
       final prev = points[i - 1];
@@ -256,23 +262,29 @@ class TrackingBloc extends ChangeNotifier {
         maxSpeed = curr.speed!;
       }
 
-      // Elevazione
-      if (prev.elevation != null && curr.elevation != null) {
-        final elevDiff = curr.elevation! - prev.elevation!;
-        if (elevDiff > 0) {
-          elevationGain += elevDiff;
-        } else {
-          elevationLoss += elevDiff.abs();
-        }
-      }
-
+      // Elevazione con filtro a soglia cumulativa
       if (curr.elevation != null) {
+        // Min/Max assoluti
         minElevation = minElevation == null 
             ? curr.elevation 
             : (curr.elevation! < minElevation ? curr.elevation : minElevation);
         maxElevation = maxElevation == null 
             ? curr.elevation 
             : (curr.elevation! > maxElevation ? curr.elevation : maxElevation);
+        
+        // Dislivello: solo se supera soglia dall'ultima conferma
+        if (lastConfirmedElevation == null) {
+          lastConfirmedElevation = curr.elevation;
+        } else {
+          final diff = curr.elevation! - lastConfirmedElevation!;
+          if (diff >= _elevationThreshold) {
+            elevationGain += diff;
+            lastConfirmedElevation = curr.elevation;
+          } else if (diff <= -_elevationThreshold) {
+            elevationLoss += diff.abs();
+            lastConfirmedElevation = curr.elevation;
+          }
+        }
       }
     }
 
@@ -369,20 +381,26 @@ class TrackingBloc extends ChangeNotifier {
       // Distanza
       distance += prev.distanceTo(curr);
 
-      // Elevazione
+      // Elevazione con filtro a soglia cumulativa
       if (curr.elevation != null) {
+        // Min/Max assoluti
         if (curr.elevation! > maxElevation) maxElevation = curr.elevation!;
         if (curr.elevation! < minElevation) minElevation = curr.elevation!;
 
-        if (lastElevation != null) {
-          final diff = curr.elevation! - lastElevation;
-          if (diff > 1) {  // Soglia minima 1m per evitare rumore
+        // Dislivello: solo se supera soglia dall'ultima conferma
+        if (lastElevation == null) {
+          lastElevation = curr.elevation;
+        } else {
+          final diff = curr.elevation! - lastElevation!;
+          if (diff >= _elevationThreshold) {
             elevationGain += diff;
-          } else if (diff < -1) {
+            lastElevation = curr.elevation;
+          } else if (diff <= -_elevationThreshold) {
             elevationLoss += diff.abs();
+            lastElevation = curr.elevation;
           }
+          // Se non supera la soglia, NON aggiornare lastElevation
         }
-        lastElevation = curr.elevation;
       }
 
       // Velocità max
