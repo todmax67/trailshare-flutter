@@ -270,33 +270,61 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   }
 
   void _showSaveDialog() async {
-    final track = await _trackingBloc.stopRecording();
-    if (track == null || track.points.isEmpty) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nessun punto registrato'))); return; }
+    // 1. Prima PAUSA per mostrare il dialog con i dati ancora disponibili
+    _trackingBloc.pauseRecording();
+    
+    final state = _trackingBloc.state;
+    if (state.points.isEmpty) {
+      await _trackingBloc.cancelRecording();
+      await _trackingBloc.stopForegroundService();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nessun punto registrato')));
+      return;
+    }
     if (!mounted) return;
     
-    final nameController = TextEditingController(text: track.name);
-    final shouldSave = await showDialog<bool>(context: context, barrierDismissible: false, builder: (context) => AlertDialog(
-      title: const Text('Salva traccia'),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nome traccia', border: OutlineInputBorder())),
-        const SizedBox(height: 16),
-        _buildSummaryRow('Distanza', '${track.stats.distanceKm.toStringAsFixed(2)} km'),
-        _buildSummaryRow('Dislivello', '+${track.stats.elevationGain.toStringAsFixed(0)} m'),
-        _buildSummaryRow('Durata', track.stats.durationFormatted),
-        _buildSummaryRow('Punti GPS', '${track.points.length}'),
-        if (_photos.isNotEmpty) _buildSummaryRow('Foto', '${_photos.length}'),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annulla')),
-        ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white), child: const Text('Salva')),
-      ],
-    ));
-    if (shouldSave != true) return;
+    // 2. Genera nome default con tipo attività e data
+    final now = DateTime.now();
+    final activityName = state.activityType.displayName;
+    final defaultName = '$activityName del ${now.day}/${now.month}/${now.year}';
+    final nameController = TextEditingController(text: defaultName);
+    
+    // 3. Mostra dialog di conferma (lo stato è in pausa, non perso)
+    final shouldSave = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Salva traccia'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nome traccia', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          _buildSummaryRow('Distanza', '${state.stats.distanceKm.toStringAsFixed(2)} km'),
+          _buildSummaryRow('Dislivello', '+${state.stats.elevationGain.toStringAsFixed(0)} m'),
+          _buildSummaryRow('Durata', state.stats.durationFormatted),
+          _buildSummaryRow('Punti GPS', '${state.points.length}'),
+          if (_photos.isNotEmpty) _buildSummaryRow('Foto', '${_photos.length}'),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white), child: const Text('Salva')),
+        ],
+      ),
+    );
+    
+    // 4. Se annullato, riprendi la registrazione
+    if (shouldSave != true) {
+      _trackingBloc.resumeRecording();
+      return;
+    }
 
+    // 5. Ora ferma definitivamente e salva
     setState(() => _isSaving = true);
     try {
+      final track = await _trackingBloc.stopRecording();
+      if (track == null) throw Exception('Errore nel fermare la registrazione');
+      
       final trackToSave = track.copyWith(name: nameController.text.trim());
       final trackId = await _repository.saveTrack(trackToSave);
+      
       if (_photos.isNotEmpty) {
         final uploadedPhotos = await _photosService.uploadPhotos(photos: _photos, trackId: trackId, onProgress: (c, t) => debugPrint('[RecordPage] Upload foto $c/$t'));
         if (uploadedPhotos.isNotEmpty) {
@@ -304,12 +332,20 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           await _repository.updateTrackPhotos(trackId, photoMetadata);
         }
       }
+      
+      await _trackingBloc.stopForegroundService();
       await _persistence.clearState();
-      setState(() { _photos.clear(); _isSaving = false; });
-      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Traccia salvata!'), backgroundColor: AppColors.success)); Navigator.pop(context); }
+      _photos.clear();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Traccia salvata!'), backgroundColor: AppColors.success));
+        // Non fare Navigator.pop() - RecordPage è una tab, non una pagina pushata
+      }
     } catch (e) {
-      setState(() => _isSaving = false);
+      debugPrint('[RecordPage] Errore salvataggio: $e');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 

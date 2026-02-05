@@ -130,10 +130,20 @@ class LocationService {
     _positionSubscription = null;
     
     // Ferma foreground service
-    await _stopForegroundService();
+    await stopForegroundService();
     
     _isTracking = false;
     debugPrint('[LocationService] Tracking fermato');
+  }
+
+  // NUOVO: Ferma solo lo stream GPS, senza toccare il foreground service.
+  // Usato durante il salvataggio per evitare il flash nero causato
+  // dalla distruzione del secondo Flutter engine.
+  Future<void> stopTrackingKeepService() async {
+    await _positionSubscription?.cancel();
+    _positionSubscription = null;
+    _isTracking = false;
+    debugPrint('[LocationService] Tracking fermato (service attivo)');
   }
 
   /// Pausa tracking
@@ -190,7 +200,7 @@ class LocationService {
   }
 
   /// Ferma foreground service
-  Future<void> _stopForegroundService() async {
+  Future<void> stopForegroundService() async {
     if (await FlutterForegroundTask.isRunningService) {
       await FlutterForegroundTask.stopService();
       debugPrint('[LocationService] Foreground service fermato');
@@ -224,7 +234,7 @@ class LocationService {
   void dispose() {
     _positionSubscription?.cancel();
     _positionController.close();
-    _stopForegroundService();
+    stopForegroundService();
   }
 }
 

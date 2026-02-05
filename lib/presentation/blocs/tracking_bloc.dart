@@ -155,8 +155,7 @@ class TrackingBloc extends ChangeNotifier {
   /// Ferma e restituisci la traccia
   Future<Track?> stopRecording() async {
     if (_state.isIdle) return null;
-
-    await _locationService.stopTracking();
+    await _locationService.stopTrackingKeepService();
     _locationSubscription?.cancel();
     _durationTimer?.cancel();
     _pauseStartTime = null;
@@ -193,6 +192,11 @@ class TrackingBloc extends ChangeNotifier {
 
     _state = const TrackingState();
     notifyListeners();
+  }
+
+  /// Ferma il foreground service (chiamare dopo il salvataggio completato)
+  Future<void> stopForegroundService() async {
+    await _locationService.stopForegroundService();
   }
 
   /// FIX: Ripristina lo stato da un backup
