@@ -13,6 +13,7 @@ import '../../../core/services/feature_tips.dart';
 import '../../../core/services/track_photos_service.dart';
 import '../../widgets/photo_gallery_widget.dart';
 import '../../../core/services/recording_persistence_service.dart';
+import '../../../core/services/live_track_service.dart';
 
 class RecordPage extends StatefulWidget {
   const RecordPage({super.key});
@@ -264,7 +265,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       content: Text(_photos.isEmpty ? 'I dati della traccia corrente verranno persi.' : 'I dati della traccia e le ${_photos.length} foto verranno persi.'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Continua')),
-        TextButton(onPressed: () { Navigator.pop(context); setState(() => _photos.clear()); _trackingBloc.cancelRecording(); _persistence.clearState(); },
+        TextButton(onPressed: () { Navigator.pop(context); setState(() => _photos.clear()); _trackingBloc.cancelRecording(); _persistence.clearState(); LiveTrackService().stop(); },
           child: const Text('Annulla', style: TextStyle(color: AppColors.danger))),
       ],
     ));
@@ -336,6 +337,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       
       await _trackingBloc.stopForegroundService();
       await _persistence.clearState();
+      await LiveTrackService().stop();
       _photos.clear();
       
       if (mounted) {
@@ -474,7 +476,7 @@ Widget _buildStartButton() {
       ),
     );
   }
-  
+
   Widget _buildRecordingControls(TrackingState state) => Column(mainAxisSize: MainAxisSize.min, children: [
     const Padding(padding: EdgeInsets.only(bottom: 12), child: LiveTrackButton()),
     Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [

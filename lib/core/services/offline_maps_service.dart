@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 
@@ -53,10 +52,8 @@ class OfflineMapsService {
   }) async {
     await initialize();
     
-    bool cancelled = false;
-    if (onCancel != null) {
-      // Il chiamante può settare cancelled = true per annullare
-    }
+    // TODO: Implementare cancellazione con ValueNotifier se necessario
+    const bool cancelled = false;
 
     int totalTiles = 0;
     int downloadedTiles = 0;
@@ -72,12 +69,10 @@ class OfflineMapsService {
     print('[OfflineMaps] Scaricamento $totalTiles tile per "$regionName"');
 
     // Scarica i tile per ogni livello di zoom
-    for (int z = minZoom; z <= maxZoom && !cancelled; z++) {
+    for (int z = minZoom; z <= maxZoom; z++) {
       final tiles = _getTilesForBounds(bounds, z);
       
       for (final tile in tiles) {
-        if (cancelled) break;
-        
         final x = tile['x']!;
         final y = tile['y']!;
         
