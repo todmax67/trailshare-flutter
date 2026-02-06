@@ -170,6 +170,7 @@ class TracksRepository {
     String? name,
     String? description,
     ActivityType? activityType,
+    bool? isPublic,
   }) async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return;
@@ -178,6 +179,7 @@ class TracksRepository {
     if (name != null) updates['name'] = name;
     if (description != null) updates['description'] = description;
     if (activityType != null) updates['activityType'] = activityType.name;
+    if (isPublic != null) updates['isPublic'] = isPublic;
 
     if (updates.isNotEmpty) {
       await _tracksCollection(userId).doc(trackId).update(updates);

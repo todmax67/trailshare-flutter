@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/gpx_service.dart';
 import '../../../data/models/track.dart';
+import '../../../data/repositories/tracks_repository.dart';
+import '../../../data/repositories/community_tracks_repository.dart';
 import '../../widgets/interactive_track_map.dart';
 import '../../widgets/track_charts_widget.dart';
 import '../../widgets/lap_splits_widget.dart';
@@ -18,7 +21,15 @@ class TrackDetailPage extends StatefulWidget {
 }
 
 class _TrackDetailPageState extends State<TrackDetailPage> {
-  Track get _track => widget.track;
+  late Track _track;
+  final TracksRepository _tracksRepository = TracksRepository();
+  final CommunityTracksRepository _communityRepository = CommunityTracksRepository();
+  
+  @override
+  void initState() {
+    super.initState();
+    _track = widget.track;
+  }
   
   /// Indice del punto attualmente selezionato (sincronizzazione mappa-grafico)
   int? _selectedPointIndex;
@@ -77,6 +88,52 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 icon: const Icon(Icons.share),
                 onPressed: () => _exportGpx(context),
                 tooltip: 'Esporta GPX',
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'edit':
+                      _showEditDialog();
+                      break;
+                    case 'publish':
+                      _showPublishDialog();
+                      break;
+                    case 'unpublish':
+                      _showUnpublishDialog();
+                      break;
+                    case 'delete':
+                      _showDeleteDialog();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(
+                      leading: Icon(Icons.edit),
+                      title: Text('Modifica'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _track.isPublic ? 'unpublish' : 'publish',
+                    child: ListTile(
+                      leading: Icon(_track.isPublic ? Icons.public_off : Icons.public),
+                      title: Text(_track.isPublic ? 'Rimuovi dalla community' : 'Pubblica nella community'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete, color: AppColors.danger),
+                      title: Text('Elimina', style: TextStyle(color: AppColors.danger)),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -289,6 +346,286 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   }
 
   String _formatDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DIALOGS: Modifica, Pubblica, Elimina
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _showEditDialog() {
+    final nameController = TextEditingController(text: _track.name);
+    final descriptionController = TextEditingController(text: _track.description ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Modifica traccia'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nome',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Descrizione',
+                  border: OutlineInputBorder(),
+                  hintText: 'Aggiungi una descrizione...',
+                ),
+                maxLines: 4,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              final newDescription = descriptionController.text.trim();
+              
+              if (newName.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Il nome non può essere vuoto')),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+              
+              try {
+                await _tracksRepository.updateTrack(
+                  _track.id!,
+                  name: newName,
+                  description: newDescription.isNotEmpty ? newDescription : null,
+                );
+                
+                setState(() {
+                  _track = _track.copyWith(
+                    name: newName,
+                    description: newDescription.isNotEmpty ? newDescription : null,
+                  );
+                });
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('✅ Traccia aggiornata!'), backgroundColor: AppColors.success),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPublishDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pubblica nella community'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('La tua traccia sarà visibile a tutti gli utenti nella sezione "Scopri".'),
+            const SizedBox(height: 16),
+            _buildSummaryRow('Nome', _track.name),
+            _buildSummaryRow('Distanza', '${_track.stats.distanceKm.toStringAsFixed(1)} km'),
+            _buildSummaryRow('Dislivello', '+${_track.stats.elevationGain.toStringAsFixed(0)} m'),
+            if (_track.description != null && _track.description!.isNotEmpty)
+              _buildSummaryRow('Descrizione', _track.description!),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () => _publishTrack(),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            child: const Text('Pubblica'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 90, child: Text(label, style: const TextStyle(color: AppColors.textSecondary))),
+          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _publishTrack() async {
+    Navigator.pop(context); // Chiudi dialog
+    
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Devi essere loggato'), backgroundColor: AppColors.danger),
+      );
+      return;
+    }
+
+    try {
+      final success = await _communityRepository.publishTrack(
+        trackId: _track.id!,
+        name: _track.name,
+        description: _track.description,
+        activityType: _track.activityType.name,
+        distance: _track.stats.distance,
+        elevationGain: _track.stats.elevationGain,
+        durationSeconds: _track.stats.duration.inSeconds,
+        points: _track.points,
+        ownerId: user.uid,
+        ownerUsername: user.displayName ?? user.email ?? 'Utente',
+        photoUrls: _track.photos.map((p) => p.url).toList(),
+      );
+
+      if (success) {
+        await _tracksRepository.updateTrack(_track.id!, isPublic: true);
+        setState(() {
+          _track = _track.copyWith(isPublic: true);
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✅ Traccia pubblicata nella community!'), backgroundColor: AppColors.success),
+          );
+        }
+      } else {
+        throw Exception('Pubblicazione fallita');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
+
+  void _showUnpublishDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rimuovi dalla community'),
+        content: const Text('La traccia non sarà più visibile nella sezione "Scopri". Puoi ripubblicarla in qualsiasi momento.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () => _unpublishTrack(),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning, foregroundColor: Colors.white),
+            child: const Text('Rimuovi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _unpublishTrack() async {
+    Navigator.pop(context);
+    
+    try {
+      final success = await _communityRepository.unpublishTrack(_track.id!);
+      
+      if (success) {
+        await _tracksRepository.updateTrack(_track.id!, isPublic: false);
+        setState(() {
+          _track = _track.copyWith(isPublic: false);
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Traccia rimossa dalla community'), backgroundColor: AppColors.info),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
+
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Elimina traccia'),
+        content: const Text('Questa azione è irreversibile. La traccia verrà eliminata definitivamente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () => _deleteTrack(),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteTrack() async {
+    Navigator.pop(context); // Chiudi dialog
+    
+    try {
+      // Se pubblica, rimuovi prima dalla community
+      if (_track.isPublic) {
+        await _communityRepository.unpublishTrack(_track.id!);
+      }
+      
+      await _tracksRepository.deleteTrack(_track.id!);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Traccia eliminata'), backgroundColor: AppColors.info),
+        );
+        Navigator.pop(context); // Torna indietro
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

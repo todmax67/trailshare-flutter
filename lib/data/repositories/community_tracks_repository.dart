@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/track.dart';
 
 /// Modello per traccia della community
@@ -338,6 +339,67 @@ class CommunityTracksRepository {
     } catch (e) {
       print('[CommunityTracks] Errore parsing ${doc.id}: $e');
       return null;
+    }
+  }
+
+  /// Pubblica una traccia nella community
+  Future<bool> publishTrack({
+    required String trackId,
+    required String name,
+    required String? description,
+    required String activityType,
+    required double distance,
+    required double elevationGain,
+    required int durationSeconds,
+    required List<TrackPoint> points,
+    required String ownerId,
+    required String ownerUsername,
+    List<String>? photoUrls,
+    String? difficulty,
+  }) async {
+    try {
+      // Converti punti in formato Firestore
+      final pointsData = points.map((p) => {
+        'lat': p.latitude,
+        'lng': p.longitude,
+        'ele': p.elevation,
+        'time': p.timestamp.toIso8601String(),
+        'speed': p.speed,
+      }).toList();
+
+      await _tracksCollection.doc(trackId).set({
+        'name': name,
+        'description': description,
+        'activityType': activityType,
+        'distance': distance,
+        'elevationGain': elevationGain,
+        'duration': durationSeconds,
+        'points': pointsData,
+        'originalOwnerId': ownerId,
+        'ownerUsername': ownerUsername,
+        'sharedAt': FieldValue.serverTimestamp(),
+        'cheerCount': 0,
+        'photoUrls': photoUrls ?? [],
+        'difficulty': difficulty,
+      });
+
+      debugPrint('[CommunityTracks] Traccia pubblicata: $trackId');
+      return true;
+    } catch (e) {
+      debugPrint('[CommunityTracks] Errore pubblicazione: $e');
+      return false;
+    }
+  }
+
+  /// Rimuovi una traccia dalla community
+  Future<bool> unpublishTrack(String trackId) async {
+    try {
+      await _tracksCollection.doc(trackId).delete();
+      debugPrint('[CommunityTracks] Traccia rimossa: $trackId');
+      return true;
+    } catch (e) {
+      debugPrint('[CommunityTracks] Errore rimozione: $e');
+      return false;
     }
   }
 }
