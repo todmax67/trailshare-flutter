@@ -117,12 +117,17 @@ class TrackPhotosService {
     }
   }
 
-  /// Upload foto su Firebase Storage
+  // Configurazione retry
+  static const int _maxRetries = 3;
+  static const Duration _initialRetryDelay = Duration(seconds: 2);
+
+  /// Upload foto su Firebase Storage con retry automatico
   /// Path: /tracks/{userId}/{trackId}/{photoId}.jpg
   Future<String?> uploadPhoto({
     required String localPath,
     required String trackId,
     String? photoId,
+    int retryCount = 0,
   }) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -157,7 +162,7 @@ class TrackPhotosService {
       );
 
       // Upload
-      debugPrint('[TrackPhotos] Upload in corso: $storagePath');
+      debugPrint('[TrackPhotos] Upload in corso: $storagePath (tentativo ${retryCount + 1}/$_maxRetries)');
       final uploadTask = ref.putFile(file, metadata);
       
       await uploadTask.whenComplete(() {});
@@ -168,18 +173,35 @@ class TrackPhotosService {
       
       return downloadUrl;
     } catch (e) {
-      debugPrint('[TrackPhotos] Errore upload: $e');
+      debugPrint('[TrackPhotos] Errore upload (tentativo ${retryCount + 1}): $e');
+      
+      // Retry con backoff esponenziale
+      if (retryCount < _maxRetries - 1) {
+        final delay = _initialRetryDelay * (retryCount + 1);
+        debugPrint('[TrackPhotos] Retry tra ${delay.inSeconds}s...');
+        await Future.delayed(delay);
+        return uploadPhoto(
+          localPath: localPath,
+          trackId: trackId,
+          photoId: photoId,
+          retryCount: retryCount + 1,
+        );
+      }
+      
+      debugPrint('[TrackPhotos] Upload fallito dopo $_maxRetries tentativi');
       return null;
     }
   }
 
-  /// Upload multiplo con progress callback
-  Future<List<UploadedPhoto>> uploadPhotos({
+  /// Upload multiplo con progress callback e tracking fallimenti
+  /// Ritorna le foto caricate con successo e logga quelle fallite
+  Future<UploadResult> uploadPhotos({
     required List<TrackPhoto> photos,
     required String trackId,
     void Function(int current, int total)? onProgress,
   }) async {
-    final results = <UploadedPhoto>[];
+    final uploaded = <UploadedPhoto>[];
+    final failed = <TrackPhoto>[];
     
     for (int i = 0; i < photos.length; i++) {
       final photo = photos[i];
@@ -191,17 +213,26 @@ class TrackPhotosService {
       );
 
       if (url != null) {
-        results.add(UploadedPhoto(
+        uploaded.add(UploadedPhoto(
           url: url,
           latitude: photo.latitude,
           longitude: photo.longitude,
           elevation: photo.elevation,
           timestamp: photo.timestamp,
         ));
+      } else {
+        failed.add(photo);
+        debugPrint('[TrackPhotos] Foto fallita: ${photo.localPath}');
       }
     }
 
-    return results;
+    if (failed.isNotEmpty) {
+      debugPrint('[TrackPhotos] Upload completato: ${uploaded.length}/${photos.length} (${failed.length} fallite)');
+    } else {
+      debugPrint('[TrackPhotos] Upload completato: ${uploaded.length}/${photos.length}');
+    }
+
+    return UploadResult(uploaded: uploaded, failed: failed);
   }
 
   /// Elimina foto da Storage
@@ -297,3 +328,19 @@ class UploadedPhoto {
     );
   }
 }
+
+/// Risultato dell'upload multiplo
+class UploadResult {
+  final List<UploadedPhoto> uploaded;
+  final List<TrackPhoto> failed;
+
+  UploadResult({
+    required this.uploaded,
+    required this.failed,
+  });
+
+  bool get hasFailures => failed.isNotEmpty;
+  bool get allSuccess => failed.isEmpty;
+  int get totalCount => uploaded.length + failed.length;
+}
+

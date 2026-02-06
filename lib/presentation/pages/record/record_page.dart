@@ -328,10 +328,13 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       final trackId = await _repository.saveTrack(trackToSave);
       
       if (_photos.isNotEmpty) {
-        final uploadedPhotos = await _photosService.uploadPhotos(photos: _photos, trackId: trackId, onProgress: (c, t) => debugPrint('[RecordPage] Upload foto $c/$t'));
-        if (uploadedPhotos.isNotEmpty) {
-          final photoMetadata = uploadedPhotos.map((p) => TrackPhotoMetadata(url: p.url, latitude: p.latitude, longitude: p.longitude, elevation: p.elevation, timestamp: p.timestamp)).toList();
+        final result = await _photosService.uploadPhotos(photos: _photos, trackId: trackId, onProgress: (c, t) => debugPrint('[RecordPage] Upload foto $c/$t'));
+        if (result.uploaded.isNotEmpty) {
+          final photoMetadata = result.uploaded.map((p) => TrackPhotoMetadata(url: p.url, latitude: p.latitude, longitude: p.longitude, elevation: p.elevation, timestamp: p.timestamp)).toList();
           await _repository.updateTrackPhotos(trackId, photoMetadata);
+        }
+        if (result.hasFailures && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('⚠️ ${result.failed.length} foto non caricate'), backgroundColor: AppColors.warning));
         }
       }
       
