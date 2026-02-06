@@ -359,11 +359,13 @@ class _TrackMapPageState extends State<TrackMapPage> {
               maxZoom: 18,
             ),
             children: [
-              // Tile layer
               TileLayer(
                 urlTemplate: layer.url,
                 subdomains: layer.subdomains,
                 userAgentPackageName: 'com.trailshare.app',
+                tileProvider: NetworkTileProvider(
+                  headers: const {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
+                ),
               ),
 
               // Polyline con colori pendenza

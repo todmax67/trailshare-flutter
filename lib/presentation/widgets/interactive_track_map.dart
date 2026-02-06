@@ -276,6 +276,9 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.trailshare.app',
+                  tileProvider: NetworkTileProvider(
+                    headers: const {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
+                  ),
                 ),
                 
                 // Percorso
@@ -745,6 +748,9 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                 urlTemplate: _mapStyles[_currentMapStyle].$2,
                 userAgentPackageName: 'com.trailshare.app',
                 subdomains: const ['a', 'b', 'c'],
+                tileProvider: NetworkTileProvider(
+                  headers: const {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
+                ),
               ),
               
               PolylineLayer(
