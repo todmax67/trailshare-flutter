@@ -130,9 +130,11 @@ class LiveTrackService {
       debugPrint('[LiveTrack] Session ID copiato: $_sessionId');
       
       // Prova a condividere
-      await Share.share(
-        'Segui la mia escursione in tempo reale! 🥾\n$url',
-        subject: 'Seguimi su TrailShare',
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Segui la mia escursione in tempo reale! 🥾\n$url',
+          subject: 'Seguimi su TrailShare',
+        ),
       );
     } catch (e) {
       debugPrint('[LiveTrack] Errore share: $e');
