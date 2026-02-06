@@ -14,6 +14,8 @@ import '../../../core/services/track_photos_service.dart';
 import '../../widgets/photo_gallery_widget.dart';
 import '../../../core/services/recording_persistence_service.dart';
 import '../../../core/services/live_track_service.dart';
+import 'package:battery_plus/battery_plus.dart';
+import 'dart:async';
 
 class RecordPage extends StatefulWidget {
   const RecordPage({super.key});
@@ -35,6 +37,11 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   final TrackPhotosService _photosService = TrackPhotosService();
   final List<TrackPhoto> _photos = [];
   ActivityType _selectedActivity = ActivityType.trekking;
+  
+  // Battery monitoring
+  final Battery _battery = Battery();
+  StreamSubscription<BatteryState>? _batterySubscription;
+  bool _lowBatteryWarningShown = false;
 
   @override
   void initState() {
@@ -43,6 +50,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _trackingBloc = TrackingBloc(LocationService());
     _trackingBloc.addListener(_onTrackingUpdate);
     _checkForBackup();
+    _startBatteryMonitoring();
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) AppTips.showFirstTrackTip(context);
     });
@@ -183,14 +191,100 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       _mapController.move(LatLng(lastPoint.latitude, lastPoint.longitude), _mapController.camera.zoom);
     }
     final state = _trackingBloc.state;
-    if (!state.isIdle && state.points.length % 10 == 0) _saveStateToBackup();
+    if (!state.isIdle && state.points.length % 5 == 0) _saveStateToBackup();
     setState(() {});
+  }
+
+  void _startBatteryMonitoring() {
+    _batterySubscription = _battery.onBatteryStateChanged.listen((_) async {
+      await _checkBatteryLevel();
+    });
+    // Check iniziale
+    _checkBatteryLevel();
+  }
+
+  Future<void> _checkBatteryLevel() async {
+    if (!mounted) return;
+    final state = _trackingBloc.state;
+    if (state.isIdle) return; // Non in registrazione
+    
+    try {
+      final level = await _battery.batteryLevel;
+      debugPrint('[RecordPage] Batteria: $level%');
+      
+      // Warning a 15%
+      if (level <= 15 && !_lowBatteryWarningShown) {
+        _lowBatteryWarningShown = true;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Batteria bassa! La traccia verrà salvata automaticamente al 5%'),
+              backgroundColor: AppColors.warning,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+      
+      // Salvataggio automatico a 5%
+      if (level <= 5 && state.points.isNotEmpty) {
+        debugPrint('[RecordPage] Batteria critica! Salvataggio automatico...');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('🔋 Batteria critica! Salvataggio traccia in corso...'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+        await _autoSaveTrack();
+      }
+    } catch (e) {
+      debugPrint('[RecordPage] Errore check batteria: $e');
+    }
+  }
+
+  Future<void> _autoSaveTrack() async {
+    if (_isSaving) return;
+    
+    final state = _trackingBloc.state;
+    if (state.isIdle || state.points.isEmpty) return;
+    
+    setState(() => _isSaving = true);
+    
+    try {
+      final track = await _trackingBloc.stopRecording();
+      if (track == null) return;
+      
+      final now = DateTime.now();
+      final activityName = track.activityType.displayName;
+      final trackToSave = track.copyWith(name: '$activityName ${now.day}/${now.month}/${now.year} (auto-salvato)');
+      
+      await _repository.saveTrack(trackToSave);
+      await _trackingBloc.stopForegroundService();
+      await _persistence.clearState();
+      await LiveTrackService().stop();
+      _photos.clear();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Traccia salvata automaticamente!'), backgroundColor: AppColors.success),
+        );
+      }
+    } catch (e) {
+      debugPrint('[RecordPage] Errore auto-save: $e');
+      // Almeno salva il backup
+      await _saveStateToBackup();
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _trackingBloc.removeListener(_onTrackingUpdate);
+    _batterySubscription?.cancel();
     _trackingBloc.dispose();
     super.dispose();
   }
