@@ -274,8 +274,46 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Dettagli', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                const Text('Dettagli', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                if (_track.isPublic)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.public, size: 14, color: AppColors.success),
+                        SizedBox(width: 4),
+                        Text('Pubblica', style: TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 12),
+            // Descrizione (se presente)
+            if (_track.description != null && _track.description!.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _track.description!,
+                  style: const TextStyle(fontSize: 14, height: 1.4),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             _detailRow(Icons.sports, 'Attività', _track.activityType.displayName),
             _detailRow(Icons.calendar_today, 'Data', _formatDate(_track.createdAt)),
             _detailRow(Icons.location_on, 'Punti GPS', '${_track.points.length}'),
