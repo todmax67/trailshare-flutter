@@ -364,7 +364,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                 subdomains: layer.subdomains,
                 userAgentPackageName: 'com.trailshare.app',
                 tileProvider: NetworkTileProvider(
-                  headers: const {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
+                  headers: {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
                 ),
               ),
 

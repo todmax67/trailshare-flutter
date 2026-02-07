@@ -277,7 +277,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.trailshare.app',
                   tileProvider: NetworkTileProvider(
-                    headers: const {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
+                    headers: {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
                   ),
                 ),
                 
@@ -749,7 +749,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                 userAgentPackageName: 'com.trailshare.app',
                 subdomains: const ['a', 'b', 'c'],
                 tileProvider: NetworkTileProvider(
-                  headers: const {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
+                  headers: {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
                 ),
               ),
               

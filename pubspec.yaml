@@ -37,6 +37,9 @@ dependencies:
 
   # File sharing
   path_provider: ^2.1.5
+  
+  # Audioplayer
+  audioplayers: ^6.1.0
 
   # Social Auth
   google_sign_in: ^6.2.2
