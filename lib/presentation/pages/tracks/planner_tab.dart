@@ -1,12 +1,14 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart' hide ActivityType;
 import 'package:latlong2/latlong.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/routing_service.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../data/models/track.dart';
+
 
 /// Tab per pianificare nuovi percorsi con routing ORS
 class PlannerTab extends StatefulWidget {
@@ -34,11 +36,85 @@ class _PlannerTabState extends State<PlannerTab> {
   String? _errorMessage;
   RoutingProfile _profile = RoutingProfile.hiking;
   bool _showElevationProfile = true;
+  LatLng? _userPosition;
 
   @override
   void initState() {
     super.initState();
     _routingService = RoutingService(apiKey: widget.orsApiKey);
+    _initUserPosition();
+  }
+
+  /// Ottieni posizione utente e centra la mappa
+  Future<void> _initUserPosition() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return; // Non abbiamo i permessi, resta sulla posizione default
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _userPosition = LatLng(position.latitude, position.longitude);
+      });
+
+      // Centra la mappa sulla posizione utente
+      _mapController.move(_userPosition!, 14);
+    } catch (e) {
+      debugPrint('[Planner] Errore posizione: $e');
+      // Resta sulla posizione default (45.95, 9.75)
+    }
+  }
+
+  /// Centra la mappa sulla posizione utente
+  void _centerOnUser() {
+    if (_userPosition != null) {
+      _mapController.move(_userPosition!, 14);
+    } else {
+      _initUserPosition();
+    }
+  }
+
+  /// Centra la mappa per mostrare tutto il percorso
+  void _centerOnRoute() {
+    if (_routeResult != null && _routeResult!.points.isNotEmpty) {
+      double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      for (final p in _routeResult!.points) {
+        if (p.latitude < minLat) minLat = p.latitude;
+        if (p.latitude > maxLat) maxLat = p.latitude;
+        if (p.longitude < minLng) minLng = p.longitude;
+        if (p.longitude > maxLng) maxLng = p.longitude;
+      }
+      final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+      final latDiff = maxLat - minLat;
+      final lngDiff = maxLng - minLng;
+      final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
+      double zoom = 14.0;
+      if (maxDiff > 0.5) zoom = 10;
+      else if (maxDiff > 0.2) zoom = 11;
+      else if (maxDiff > 0.1) zoom = 12;
+      else if (maxDiff > 0.05) zoom = 13;
+      _mapController.move(center, zoom - 0.5); // un po' di margine
+    } else if (_waypoints.isNotEmpty) {
+      double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      for (final p in _waypoints) {
+        if (p.latitude < minLat) minLat = p.latitude;
+        if (p.latitude > maxLat) maxLat = p.latitude;
+        if (p.longitude < minLng) minLng = p.longitude;
+        if (p.longitude > maxLng) maxLng = p.longitude;
+      }
+      final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+      _mapController.move(center, 14);
+    }
   }
 
   void _addWaypoint(LatLng point) {
@@ -284,6 +360,32 @@ class _PlannerTabState extends State<PlannerTab> {
                 );
               }).toList(),
             ),
+
+            // Marker posizione utente
+            if (_userPosition != null)
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _userPosition!,
+                    width: 20,
+                    height: 20,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withOpacity(0.3),
+                            blurRadius: 8,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
 
@@ -451,6 +553,32 @@ class _PlannerTabState extends State<PlannerTab> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Centra su percorso (se c'è una route o waypoints)
+        if (_routeResult != null || _waypoints.length >= 2)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: FloatingActionButton.small(
+              heroTag: 'centerRoute',
+              onPressed: _centerOnRoute,
+              backgroundColor: Colors.white,
+              elevation: 4,
+              child: const Icon(Icons.fit_screen, color: AppColors.textPrimary),
+            ),
+          ),
+        // Centra su posizione utente
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: FloatingActionButton.small(
+            heroTag: 'centerUser',
+            onPressed: _centerOnUser,
+            backgroundColor: Colors.white,
+            elevation: 4,
+            child: Icon(
+              Icons.my_location,
+              color: _userPosition != null ? AppColors.primary : AppColors.textMuted,
+            ),
+          ),
+        ),
         if (_waypoints.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
