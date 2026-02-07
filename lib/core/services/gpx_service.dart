@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:xml/xml.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../data/models/track.dart';
+import '../utils/elevation_processor.dart';
 
 /// Servizio per gestione file GPX (import/export)
 class GpxService {
@@ -162,35 +163,21 @@ class GpxService {
       return const TrackStats();
     }
 
+    // Calcola distanza (invariato)
     double distance = 0;
-    double elevationGain = 0;
-    double elevationLoss = 0;
-    double minEle = double.infinity;
-    double maxEle = double.negativeInfinity;
-
     for (int i = 1; i < points.length; i++) {
       final prev = points[i - 1];
       final curr = points[i];
-
       distance += _calculateDistance(
         prev.latitude, prev.longitude,
         curr.latitude, curr.longitude,
       );
-
-      if (prev.elevation != null && curr.elevation != null) {
-        final diff = curr.elevation! - prev.elevation!;
-        if (diff > 0) {
-          elevationGain += diff;
-        } else {
-          elevationLoss += diff.abs();
-        }
-      }
-
-      if (curr.elevation != null) {
-        if (curr.elevation! < minEle) minEle = curr.elevation!;
-        if (curr.elevation! > maxEle) maxEle = curr.elevation!;
-      }
     }
+
+    // Elevazione: usa ElevationProcessor (spike removal + smoothing + isteresi)
+    final processor = const ElevationProcessor();
+    final rawElevations = points.map((p) => p.elevation).toList();
+    final eleResult = processor.process(rawElevations);
 
     // Durata (se abbiamo timestamp validi)
     Duration dur = Duration.zero;
@@ -200,11 +187,11 @@ class GpxService {
 
     return TrackStats(
       distance: distance,
-      elevationGain: elevationGain,
-      elevationLoss: elevationLoss,
+      elevationGain: eleResult.elevationGain,
+      elevationLoss: eleResult.elevationLoss,
       duration: dur,
-      minElevation: minEle.isFinite ? minEle : 0,
-      maxElevation: maxEle.isFinite ? maxEle : 0,
+      minElevation: eleResult.minElevation,
+      maxElevation: eleResult.maxElevation,
     );
   }
 

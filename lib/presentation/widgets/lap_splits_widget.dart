@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/elevation_processor.dart';
 import '../../data/models/track.dart';
 import 'package:latlong2/latlong.dart';
+import 'dart:math' show min;
 
 /// Dati di un singolo lap (chilometro)
 class LapData {
@@ -117,7 +119,16 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
     double lapElevationGain = 0;
     double lapElevationLoss = 0;
     double lapTimeSeconds = 0;
-    double? lastElevation;
+
+    // Processa tutte le elevazioni con smoothing e spike removal
+    final elevationProcessor = const ElevationProcessor();
+    final rawElevations = widget.points.map((p) => p.elevation).toList();
+    final eleResult = elevationProcessor.process(rawElevations);
+    final smoothedElevations = eleResult.smoothedElevations;
+
+    // Per il calcolo dislivello per km, usiamo l'isteresi
+    // tramite un tracker dedicato per ogni lap
+    double? lastSmoothedElevation;
     
     // Verifica se i timestamp sono validi
     final firstTime = widget.points.first.timestamp;
@@ -181,23 +192,24 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
         }
       }
 
-      // Calcola dislivello
-      if (curr.elevation != null) {
-        if (lastElevation != null) {
-          final diff = curr.elevation! - lastElevation;
-          if (diff > 0) {
-            lapElevationGain += diff;
-          } else {
-            lapElevationLoss += diff.abs();
-          }
-        }
-        lastElevation = curr.elevation;
-      }
+      // Nota: il dislivello per lap viene calcolato DOPO il loop
+      // usando ElevationProcessor con isteresi (vedi sotto)
 
       // Ogni 1000 metri, crea un lap
       if (cumulativeDistance >= currentLap * 1000) {
         final lapDistance = 1000.0;
         
+        // Calcola dislivello del lap con isteresi sulle elevazioni smoothed
+        if (smoothedElevations.isNotEmpty && lapStartIndex < smoothedElevations.length) {
+          final lapEndIndex = min(i, smoothedElevations.length - 1);
+          final lapElevationData = smoothedElevations.sublist(lapStartIndex, lapEndIndex + 1);
+          if (lapElevationData.length >= 2) {
+            final lapEleResult = elevationProcessor.calculateGainLoss(lapElevationData);
+            lapElevationGain = lapEleResult.gain;
+            lapElevationLoss = lapEleResult.loss;
+          }
+        }
+
         // Se non abbiamo calcolato il tempo, stima dalla durata totale
         Duration lapTime;
         if (lapTimeSeconds > 0) {
@@ -247,6 +259,17 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
     final remainingDistance = cumulativeDistance - ((currentLap - 1) * 1000);
     if (remainingDistance > 100) {
       final lastIndex = widget.points.length - 1;
+
+      // Calcola dislivello ultimo lap con isteresi
+      if (smoothedElevations.isNotEmpty && lapStartIndex < smoothedElevations.length) {
+        final lapEndIndex = min(lastIndex, smoothedElevations.length - 1);
+        final lapElevationData = smoothedElevations.sublist(lapStartIndex, lapEndIndex + 1);
+        if (lapElevationData.length >= 2) {
+          final lapEleResult = elevationProcessor.calculateGainLoss(lapElevationData);
+          lapElevationGain = lapEleResult.gain;
+          lapElevationLoss = lapEleResult.loss;
+        }
+      }
       
       Duration lapTime;
       if (lapTimeSeconds > 0) {

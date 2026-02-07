@@ -5,6 +5,7 @@ import '../../core/services/location_service.dart';
 import '../../core/services/live_track_service.dart';
 import '../../core/services/gamification_service.dart';
 import '../widgets/level_up_dialog.dart';
+import '../../core/utils/elevation_processor.dart';
 
 /// Stati possibili del tracking
 enum TrackingStatus {
@@ -74,6 +75,8 @@ class TrackingBloc extends ChangeNotifier {
   static const double _minAccuracy = 50.0;     // Ignora punti con accuracy > 50m
   static const double _maxSpeed = 50.0;        // Ignora speed > 180 km/h (50 m/s)
   static const double _minDistance = 3.0;      // Distanza minima tra punti (3m)
+  /// Tracker elevazione con smoothing e isteresi (spike removal + dead band)
+  ElevationTracker? _elevationTracker;
 
   TrackingBloc(this._locationService);
 
@@ -94,11 +97,16 @@ class TrackingBloc extends ChangeNotifier {
       status: TrackingStatus.recording,
       startTime: DateTime.now(),
       activityType: activityType ?? ActivityType.trekking,
-    );
-    notifyListeners();
+      );
+      notifyListeners();
 
-    // Ascolta i nuovi punti GPS
-    _locationSubscription = _locationService.positionStream.listen(_onNewPoint);
+      // Inizializza tracker elevazione per l'attività selezionata
+      _elevationTracker = ElevationProcessor
+      .forActivity((activityType ?? ActivityType.trekking).name)
+      .createTracker();
+
+      // Ascolta i nuovi punti GPS
+      _locationSubscription = _locationService.positionStream.listen(_onNewPoint);
 
     // Timer per aggiornare la durata ogni secondo
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -162,9 +170,23 @@ class TrackingBloc extends ChangeNotifier {
 
     if (_state.points.isEmpty) {
       _state = const TrackingState();
+      _elevationTracker = null;
       notifyListeners();
       return null;
-    }
+      }
+
+      // Finalizza tracker elevazione (registra ultimo segmento pendente)
+      _elevationTracker?.finalize();
+
+      // Aggiorna stats con i valori finali del tracker
+      _state = _state.copyWith(
+      stats: _state.stats.copyWith(
+      elevationGain: _elevationTracker?.elevationGain ?? _state.stats.elevationGain,
+      elevationLoss: _elevationTracker?.elevationLoss ?? _state.stats.elevationLoss,
+      maxElevation: _elevationTracker?.maxElevation ?? _state.stats.maxElevation,
+      minElevation: _elevationTracker?.minElevation ?? _state.stats.minElevation,
+      ),
+      );
 
     // Crea la traccia finale
     final track = Track(
@@ -176,11 +198,12 @@ class TrackingBloc extends ChangeNotifier {
       stats: _state.stats,
     );
 
-    // Reset stato
-    _state = const TrackingState();
-    notifyListeners();
+    // Reset stato e tracker
+      _elevationTracker = null;
+      _state = const TrackingState();
+      notifyListeners();
 
-    return track;
+      return track;
   }
 
   /// Annulla registrazione senza salvare
@@ -190,9 +213,10 @@ class TrackingBloc extends ChangeNotifier {
     _durationTimer?.cancel();
     _pauseStartTime = null;
 
+    _elevationTracker = null;
     _state = const TrackingState();
     notifyListeners();
-  }
+    }
 
   /// Ferma il foreground service (chiamare dopo il salvataggio completato)
   Future<void> stopForegroundService() async {
@@ -206,13 +230,23 @@ class TrackingBloc extends ChangeNotifier {
     required DateTime startTime,
     required Duration pausedDuration,
     required ActivityType activityType,
-  }) async {
+    }) async {
     if (_state.isRecording) {
-      debugPrint('[TrackingBloc] Già in registrazione, ignoro restore');
-      return;
+    debugPrint('[TrackingBloc] Già in registrazione, ignoro restore');
+    return;
     }
 
     debugPrint('[TrackingBloc] Ripristino da backup: ${points.length} punti');
+
+    // Ricrea il tracker e alimentalo con tutti i punti storici
+    _elevationTracker = ElevationProcessor
+    .forActivity(activityType.name)
+    .createTracker();
+    for (final point in points) {
+    if (point.elevation != null) {
+    _elevationTracker!.addPoint(point.elevation);
+    }
+    }
 
     // Calcola le statistiche dai punti esistenti
     final stats = _calculateStatsFromPoints(points);
@@ -233,83 +267,55 @@ class TrackingBloc extends ChangeNotifier {
     debugPrint('[TrackingBloc] Stato ripristinato in pausa');
   }
 
-  // Soglia minima per contare il dislivello (elimina rumore GPS)
-  static const double _elevationThreshold = 3.0; // metri
-
   /// Calcola le statistiche da una lista di punti esistenti
+  
   TrackStats _calculateStatsFromPoints(List<TrackPoint> points) {
-    if (points.isEmpty) return const TrackStats();
+  if (points.isEmpty) return const TrackStats();
 
-    double totalDistance = 0;
-    double elevationGain = 0;
-    double elevationLoss = 0;
-    double maxSpeed = 0;
-    double? minElevation;
-    double? maxElevation;
-    
-    // Filtro elevazione: ultima quota "confermata"
-    double? lastConfirmedElevation;
+  double totalDistance = 0;
+  double maxSpeed = 0;
 
-    for (int i = 1; i < points.length; i++) {
-      final prev = points[i - 1];
-      final curr = points[i];
+  for (int i = 1; i < points.length; i++) {
+  final prev = points[i - 1];
+  final curr = points[i];
 
-      // Distanza
-      totalDistance += prev.distanceTo(curr);
+  // Distanza
+  totalDistance += prev.distanceTo(curr);
 
-      // Velocità massima
-      if (curr.speed != null && curr.speed! > maxSpeed) {
-        maxSpeed = curr.speed!;
-      }
+  // Velocità massima
+  if (curr.speed != null && curr.speed! > maxSpeed) {
+  maxSpeed = curr.speed!;
+  }
+  }
 
-      // Elevazione con filtro a soglia cumulativa
-      if (curr.elevation != null) {
-        // Min/Max assoluti
-        minElevation = minElevation == null 
-            ? curr.elevation 
-            : (curr.elevation! < minElevation ? curr.elevation : minElevation);
-        maxElevation = maxElevation == null 
-            ? curr.elevation 
-            : (curr.elevation! > maxElevation ? curr.elevation : maxElevation);
-        
-        // Dislivello: solo se supera soglia dall'ultima conferma
-        if (lastConfirmedElevation == null) {
-          lastConfirmedElevation = curr.elevation;
-        } else {
-          final diff = curr.elevation! - lastConfirmedElevation!;
-          if (diff >= _elevationThreshold) {
-            elevationGain += diff;
-            lastConfirmedElevation = curr.elevation;
-          } else if (diff <= -_elevationThreshold) {
-            elevationLoss += diff.abs();
-            lastConfirmedElevation = curr.elevation;
-          }
-        }
-      }
-    }
+  // Elevazione: usa ElevationProcessor per elaborazione batch completa
+  // (spike removal + smoothing + isteresi)
+  final processor = ElevationProcessor.forActivity(
+  _state.activityType.name,
+  );
+  final rawElevations = points.map((p) => p.elevation).toList();
+  final eleResult = processor.process(rawElevations);
 
-    // Durata basata sui timestamp
-    Duration duration = Duration.zero;
-    if (points.length >= 2) {
-      final firstTime = points.first.timestamp;
-      final lastTime = points.last.timestamp;
-      if (firstTime != null && lastTime != null) {
-        duration = lastTime.difference(firstTime);
-      }
-    }
+  // Durata basata sui timestamp
+  Duration duration = Duration.zero;
+  if (points.length >= 2) {
+  final firstTime = points.first.timestamp;
+  final lastTime = points.last.timestamp;
+  duration = lastTime.difference(firstTime);
+  }
 
-    return TrackStats(
-      distance: totalDistance,
-      elevationGain: elevationGain,
-      elevationLoss: elevationLoss,
-      duration: duration,
-      maxSpeed: maxSpeed,
-      avgSpeed: duration.inSeconds > 0 
-          ? totalDistance / duration.inSeconds 
-          : 0,
-      minElevation: minElevation ?? 0,
-      maxElevation: maxElevation ?? 0,
-    );
+  return TrackStats(
+  distance: totalDistance,
+  elevationGain: eleResult.elevationGain,
+  elevationLoss: eleResult.elevationLoss,
+  duration: duration,
+  maxSpeed: maxSpeed,
+  avgSpeed: duration.inSeconds > 0
+  ? totalDistance / duration.inSeconds
+  : 0,
+  minElevation: eleResult.minElevation,
+  maxElevation: eleResult.maxElevation,
+  );
   }
 
   /// Cambia tipo attività
@@ -346,9 +352,14 @@ class TrackingBloc extends ChangeNotifier {
       }
     }
 
-    // Aggiungi punto e ricalcola stats
-    final newPoints = [..._state.points, point];
-    final newStats = _calculateStats(newPoints, point);
+    // Alimenta il tracker elevazione (incrementale, 1 punto alla volta)
+      if (point.elevation != null) {
+      _elevationTracker?.addPoint(point.elevation);
+      }
+
+      // Aggiungi punto e ricalcola stats
+      final newPoints = [..._state.points, point];
+      final newStats = _calculateStats(newPoints, point);
 
     LiveTrackService().updatePosition(point.latitude, point.longitude);
 
@@ -366,48 +377,27 @@ class TrackingBloc extends ChangeNotifier {
     }
 
     double distance = 0;
-    double elevationGain = 0;
-    double elevationLoss = 0;
-    double maxElevation = double.negativeInfinity;
-    double minElevation = double.infinity;
     double maxSpeed = 0;
 
-    double? lastElevation;
-
     for (int i = 1; i < points.length; i++) {
-      final prev = points[i - 1];
-      final curr = points[i];
+    final prev = points[i - 1];
+    final curr = points[i];
 
-      // Distanza
-      distance += prev.distanceTo(curr);
+    // Distanza
+    distance += prev.distanceTo(curr);
 
-      // Elevazione con filtro a soglia cumulativa
-      if (curr.elevation != null) {
-        // Min/Max assoluti
-        if (curr.elevation! > maxElevation) maxElevation = curr.elevation!;
-        if (curr.elevation! < minElevation) minElevation = curr.elevation!;
-
-        // Dislivello: solo se supera soglia dall'ultima conferma
-        if (lastElevation == null) {
-          lastElevation = curr.elevation;
-        } else {
-          final diff = curr.elevation! - lastElevation!;
-          if (diff >= _elevationThreshold) {
-            elevationGain += diff;
-            lastElevation = curr.elevation;
-          } else if (diff <= -_elevationThreshold) {
-            elevationLoss += diff.abs();
-            lastElevation = curr.elevation;
-          }
-          // Se non supera la soglia, NON aggiornare lastElevation
-        }
-      }
-
-      // Velocità max
-      if (curr.speed != null && curr.speed! > maxSpeed) {
-        maxSpeed = curr.speed!;
-      }
+    // Velocità max
+    if (curr.speed != null && curr.speed! > maxSpeed) {
+    maxSpeed = curr.speed!;
     }
+    }
+
+    // Elevazione: leggi dal tracker (smoothing + isteresi)
+    // Il tracker è alimentato incrementalmente in _onNewPoint()
+    final double elevationGain = _elevationTracker?.elevationGain ?? 0;
+    final double elevationLoss = _elevationTracker?.elevationLoss ?? 0;
+    final double maxElevation = _elevationTracker?.maxElevation ?? 0;
+    final double minElevation = _elevationTracker?.minElevation ?? 0;
 
     // Durata e velocità media
     final duration = _state.startTime != null

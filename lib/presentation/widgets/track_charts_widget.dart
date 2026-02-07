@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/elevation_processor.dart';
 import '../../data/models/track.dart';
 
 /// Tipo di grafico disponibile
@@ -123,16 +124,32 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
           pointsWithSameTimestamp++;
         }
       }
-      
-      // Elevazione
-      _elevations.add(point.elevation);
-      if (point.elevation != null) {
-        if (point.elevation! > _maxElevation) _maxElevation = point.elevation!;
-        if (point.elevation! < _minElevation) _minElevation = point.elevation!;
-      }
     }
     
     _totalDistance = cumulativeDistance;
+
+    // Processa elevazioni con smoothing per grafico pulito
+    final rawElevations = widget.points.map((p) => p.elevation).toList();
+    final processor = const ElevationProcessor();
+    final eleResult = processor.process(rawElevations);
+
+    // Usa elevazioni smoothed per il grafico
+    if (eleResult.smoothedElevations.isNotEmpty) {
+      _elevations = eleResult.smoothedElevations
+          .map((e) => e)
+          .toList();
+      _maxElevation = eleResult.maxElevation;
+      _minElevation = eleResult.minElevation;
+    } else {
+      // Fallback: usa dati raw se il processing fallisce
+      for (final point in widget.points) {
+        _elevations.add(point.elevation);
+        if (point.elevation != null) {
+          if (point.elevation! > _maxElevation) _maxElevation = point.elevation!;
+          if (point.elevation! < _minElevation) _minElevation = point.elevation!;
+        }
+      }
+    }
     
     // Determina se i timestamp sono validi (almeno 50% dei punti con timestamp diversi)
     final validTimestamps = pointsWithSameTimestamp < (widget.points.length * 0.5);

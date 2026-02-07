@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import '../utils/elevation_processor.dart';
 
 /// Punto con elevazione per il routing
 class RoutePoint {
@@ -168,26 +169,24 @@ class RoutingService {
       final distance = (summary?['distance'] as num?)?.toDouble() ?? cumulativeDistance;
       final duration = (summary?['duration'] as num?)?.toDouble() ?? 0;
 
-      // Calcola dislivello
+      // Calcola dislivello con ElevationProcessor (smoothing + isteresi)
+      // Non usiamo ascent/descent di ORS perché sono calcolati raw
       double elevationGain = 0;
       double elevationLoss = 0;
 
-      if (elevationProfile.length > 1) {
-        for (int i = 1; i < elevationProfile.length; i++) {
-          final diff = elevationProfile[i] - elevationProfile[i - 1];
-          if (diff > 0) {
-            elevationGain += diff;
-          } else {
-            elevationLoss += diff.abs();
-          }
-        }
+      if (elevationProfile.length > 2) {
+        final processor = const ElevationProcessor(
+          hysteresisThreshold: 3.0,
+          smoothingWindow: 5,
+          medianWindow: 0,  // non serve per dati routing (già puliti)
+        );
+        final rawElevations = elevationProfile
+            .map((e) => e)
+            .toList();
+        final eleResult = processor.process(rawElevations);
+        elevationGain = eleResult.elevationGain;
+        elevationLoss = eleResult.elevationLoss;
       }
-
-      // Se ORS fornisce già i dati di elevazione, usali
-      final ascent = properties['ascent'] as num?;
-      final descent = properties['descent'] as num?;
-      if (ascent != null) elevationGain = ascent.toDouble();
-      if (descent != null) elevationLoss = descent.toDouble();
 
       print('[RoutingService] Route calcolata: ${points.length} punti, ${(distance/1000).toStringAsFixed(1)} km, +${elevationGain.toStringAsFixed(0)}m');
 
