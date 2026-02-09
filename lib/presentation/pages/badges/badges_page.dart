@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/gamification_service.dart';
 
@@ -13,6 +14,7 @@ class BadgesPage extends StatefulWidget {
 
 class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateMixin {
   final GamificationService _gamification = GamificationService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
   late TabController _tabController;
   List<UnlockedBadge> _unlockedBadges = [];
@@ -38,14 +40,149 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
       return;
     }
 
-    final badges = await _gamification.getUnlockedBadges(user.uid);
-    
-    if (mounted) {
-      setState(() {
-        _unlockedBadges = badges;
-        _isLoading = false;
-      });
+    try {
+      // ⭐ STEP 1: Calcola totali reali dalle tracce utente
+      final tracksSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('tracks')
+          .get();
+
+      double totalDistance = 0;
+      double totalElevation = 0;
+      int totalTracks = tracksSnapshot.docs.length;
+
+      for (final doc in tracksSnapshot.docs) {
+        final data = doc.data();
+        totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
+        totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
+      }
+
+      print('[BadgesPage] Totali: $totalTracks tracce, ${totalDistance.toStringAsFixed(0)}m distanza, +${totalElevation.toStringAsFixed(0)}m dislivello');
+
+      // ⭐ STEP 2: Ottieni followers count dal profilo
+      int followersCount = 0;
+      int cheersReceived = 0;
+      
+      final profileDoc = await _firestore
+          .collection('user_profiles')
+          .doc(user.uid)
+          .get();
+
+      if (profileDoc.exists) {
+        final profileData = profileDoc.data()!;
+        final followers = profileData['followers'] as List?;
+        followersCount = followers?.length ?? 0;
+      }
+
+      // ⭐ STEP 3: Conta cheers ricevuti sulle tracce pubblicate dell'utente
+      final publishedSnapshot = await _firestore
+          .collection('published_tracks')
+          .where('originalOwnerId', isEqualTo: user.uid)
+          .get();
+
+      for (final doc in publishedSnapshot.docs) {
+        final data = doc.data();
+        // Gestisce entrambi i nomi campo (cheerCount da publish, cheersCount da update)
+        final c1 = (data['cheerCount'] as num?)?.toInt() ?? 0;
+        final c2 = (data['cheersCount'] as num?)?.toInt() ?? 0;
+        cheersReceived += c1 > c2 ? c1 : c2; // Prende il valore più alto
+      }
+
+      print('[BadgesPage] Social: $followersCount followers, $cheersReceived cheers ricevuti');
+
+      // ⭐ STEP 4: Controlla e sblocca badge maturati
+      // (currentStreak = 0 per ora, richiede calcolo separato)
+      final newBadges = await _gamification.checkAndUnlockBadges(
+        totalDistance: totalDistance,
+        totalElevation: totalElevation,
+        totalTracks: totalTracks,
+        followersCount: followersCount,
+        cheersReceived: cheersReceived,
+        currentStreak: 0, // TODO: calcolare streak giorni consecutivi
+      );
+
+      if (newBadges.isNotEmpty) {
+        print('[BadgesPage] 🎉 Nuovi badge sbloccati: ${newBadges.map((b) => b.name).join(', ')}');
+      }
+
+      // ⭐ STEP 5: Ricarica badge aggiornati
+      final badges = await _gamification.getUnlockedBadges(user.uid);
+
+      if (mounted) {
+        setState(() {
+          _unlockedBadges = badges;
+          _isLoading = false;
+        });
+
+        // Mostra dialog per nuovi badge sbloccati
+        for (final badge in newBadges) {
+          if (mounted) {
+            await _showBadgeUnlockedDialog(badge);
+          }
+        }
+      }
+    } catch (e) {
+      print('[BadgesPage] Errore: $e');
+      // Fallback: carica solo badge esistenti
+      final badges = await _gamification.getUnlockedBadges(user.uid);
+      if (mounted) {
+        setState(() {
+          _unlockedBadges = badges;
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  /// Mostra dialog per badge appena sbloccato
+  Future<void> _showBadgeUnlockedDialog(GameBadge badge) async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🎊', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 8),
+            const Text(
+              'Nuovo Badge!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Text(badge.icon, style: const TextStyle(fontSize: 48)),
+                  const SizedBox(height: 8),
+                  Text(
+                    badge.name,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    badge.description,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fantastico!'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -257,7 +394,7 @@ class _BadgeCard extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                isUnlocked ? badge.icon : '🔒',
+                badge.icon,
                 style: TextStyle(
                   fontSize: 24,
                   color: isUnlocked ? null : Colors.grey,
@@ -266,7 +403,6 @@ class _BadgeCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,7 +410,7 @@ class _BadgeCard extends StatelessWidget {
                 Text(
                   badge.name,
                   style: TextStyle(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                     color: isUnlocked ? AppColors.textPrimary : Colors.grey,
                   ),
                 ),
@@ -283,46 +419,41 @@ class _BadgeCard extends StatelessWidget {
                   badge.description,
                   style: TextStyle(
                     fontSize: 12,
-                    color: isUnlocked ? AppColors.textSecondary : Colors.grey[500],
+                    color: isUnlocked ? AppColors.textSecondary : Colors.grey[400],
                   ),
                 ),
-                if (badge.requirement != null && !isUnlocked) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    badge.requirement!,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[500],
-                      fontStyle: FontStyle.italic,
+                if (badge.requirement != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      badge.requirement!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isUnlocked ? AppColors.primary : Colors.grey[400],
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ],
-                if (unlockedAt != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Sbloccato il ${_formatDate(unlockedAt!)}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.success,
+                if (unlockedAt != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Sbloccato il ${unlockedAt!.day}/${unlockedAt!.month}/${unlockedAt!.year}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.success,
+                      ),
                     ),
                   ),
-                ],
               ],
             ),
           ),
-
           if (isUnlocked)
-            const Icon(
-              Icons.check_circle,
-              color: AppColors.success,
-              size: 24,
-            ),
+            const Icon(Icons.check_circle, color: AppColors.success, size: 24)
+          else
+            Icon(Icons.lock_outline, color: Colors.grey[400], size: 24),
         ],
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
 }

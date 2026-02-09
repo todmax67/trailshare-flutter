@@ -10,6 +10,8 @@ import 'offline_maps_page.dart';
 import 'faq_page.dart';
 import '../admin/geohash_migration_page.dart';
 import '../admin/trail_import_page.dart';
+import '../admin/database_stats_page.dart';
+import '../admin/recalculate_stats_page.dart';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -191,13 +193,25 @@ class _SettingsPageState extends State<SettingsPage> {
               title: 'Statistiche Database',
               subtitle: 'Visualizza metriche e utilizzo',
               onTap: () {
-                // TODO: Implementare pagina statistiche
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!')),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DatabaseStatsPage()),
                 );
               },
             ),
           ],
+
+          _buildListTile(
+            icon: Icons.calculate,
+            title: 'Ricalcola Statistiche',
+            subtitle: 'Correggi dislivello e distanze dalle tracce GPS',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RecalculateStatsPage()),
+              );
+            },
+          ),
 
           // Zona pericolosa (solo se loggato)
           if (user != null) ...[

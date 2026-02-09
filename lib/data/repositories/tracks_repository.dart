@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/track.dart';
+import '../../core/utils/elevation_processor.dart';
 
 /// Risultato paginato per le tracce
 class PaginatedTracksResult {
@@ -219,13 +220,74 @@ class TracksRepository {
   // CONVERSIONI DATI
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /// Ricalcola le statistiche direttamente dai punti GPS.
+  /// Garantisce coerenza tra dati riassuntivi e grafici/stats per km.
+  /// USA ElevationProcessor (filtro mediano + smoothing + isteresi)
+  /// — stesso algoritmo usato da LapSplitsWidget.
+  TrackStats _recalculateStats(List<TrackPoint> points, TrackStats originalStats) {
+    if (points.isEmpty) return originalStats;
+
+    // Distanza dai punti originali (precisa, non serve smoothing)
+    double distance = 0;
+    double maxSpeed = 0;
+
+    for (int i = 1; i < points.length; i++) {
+      final prev = points[i - 1];
+      final curr = points[i];
+
+      distance += prev.distanceTo(curr);
+
+      // Velocità max (filtra valori assurdi > 180 km/h = 50 m/s)
+      if (curr.speed != null && curr.speed! > maxSpeed && curr.speed! < 50.0) {
+        maxSpeed = curr.speed!;
+      }
+    }
+
+    // Elevazione con ElevationProcessor (filtro mediano + smoothing + isteresi)
+    // Stesso identico processore usato da LapSplitsWidget
+    const elevationProcessor = ElevationProcessor();
+    final rawElevations = points.map((p) => p.elevation).toList();
+    final eleResult = elevationProcessor.process(rawElevations);
+
+    // Log per debug
+    print('[TracksRepository] ═══ RICALCOLO STATS DAI PUNTI ═══');
+    print('[TracksRepository] Punti: ${points.length}');
+    print('[TracksRepository] Distanza: ${(originalStats.distance / 1000).toStringAsFixed(2)}km → ${(distance / 1000).toStringAsFixed(2)}km');
+    print('[TracksRepository] Dislivello+: ${originalStats.elevationGain.toStringAsFixed(0)}m → ${eleResult.elevationGain.toStringAsFixed(0)}m');
+    print('[TracksRepository] Dislivello-: ${originalStats.elevationLoss.toStringAsFixed(0)}m → ${eleResult.elevationLoss.toStringAsFixed(0)}m');
+    print('[TracksRepository] Quota max: ${originalStats.maxElevation.toStringAsFixed(0)}m → ${eleResult.maxElevation.toStringAsFixed(0)}m');
+    print('[TracksRepository] Quota min: ${originalStats.minElevation.toStringAsFixed(0)}m → ${eleResult.minElevation.toStringAsFixed(0)}m');
+
+    return TrackStats(
+      distance: distance,
+      elevationGain: eleResult.elevationGain,
+      elevationLoss: eleResult.elevationLoss,
+      maxElevation: eleResult.maxElevation,
+      minElevation: eleResult.minElevation,
+      // Mantieni durata e tempi dall'originale (non calcolabili dai soli punti)
+      duration: originalStats.duration,
+      movingTime: originalStats.movingTime,
+      maxSpeed: maxSpeed > 0 ? maxSpeed : originalStats.maxSpeed,
+      avgSpeed: originalStats.avgSpeed,
+    );
+  }
+
   /// Converte Track in Map per Firestore (formato compatibile con app JS)
   Map<String, dynamic> _trackToFirestore(Track track, String userId) {
+    // Prima downsample i punti
+    final savedPoints = _downsamplePoints(track.points);
+    
+    // ⭐ RICALCOLA stats dai punti reali che verranno salvati
+    // Questo garantisce coerenza tra dati riassuntivi e grafici/stats per km
+    final stats = track.isPlanned 
+        ? track.stats  // Percorsi pianificati: usa stats dal router
+        : _recalculateStats(savedPoints, track.stats);
+
     return {
       'name': track.name,
       'description': track.description,
       // Salva punti nel formato dell'app JS esistente
-      'points': _downsamplePoints(track.points).map((p) => {
+      'points': savedPoints.map((p) => {
         'longitude': p.longitude,
         'latitude': p.latitude,
         'altitude': p.elevation ?? 0,
@@ -239,16 +301,16 @@ class TracksRepository {
       'userId': userId,
       'isPublic': track.isPublic,
       'isPlanned': track.isPlanned,
-      // Stats pre-calcolate
-      'distance': track.stats.distance,
-      'elevationGain': track.stats.elevationGain,
-      'elevationLoss': track.stats.elevationLoss,
-      'duration': track.stats.duration.inSeconds,
-      'movingTime': track.stats.movingTime.inSeconds,
-      'maxSpeed': track.stats.maxSpeed,
-      'avgSpeed': track.stats.avgSpeed,
-      'maxAltitude': track.stats.maxElevation,
-      'minAltitude': track.stats.minElevation,
+      // Stats RICALCOLATE dai punti (non più da track.stats)
+      'distance': stats.distance,
+      'elevationGain': stats.elevationGain,
+      'elevationLoss': stats.elevationLoss,
+      'duration': stats.duration.inSeconds,
+      'movingTime': stats.movingTime.inSeconds,
+      'maxSpeed': stats.maxSpeed,
+      'avgSpeed': stats.avgSpeed,
+      'maxAltitude': stats.maxElevation,
+      'minAltitude': stats.minElevation,
       // 📸 Foto
       'photos': track.photos.map((p) => p.toMap()).toList(),
     };

@@ -92,30 +92,54 @@ class LeaderboardRepository {
         level = (data['level'] as num?)?.toInt() ?? 1;
       }
 
-      // Ottieni tracce della settimana
-      final tracksSnapshot = await _firestore
+      // ⭐ FIX: carica TUTTE le tracce e filtra lato client
+      // Il database ha formati data misti (Timestamp, String ISO, int milliseconds)
+      // quindi .where() con Timestamp non funziona per tutte le tracce.
+      // Per utente sono poche tracce, quindi è efficiente caricarle tutte.
+      final allTracksSnapshot = await _firestore
           .collection('users')
           .doc(userId)
           .collection('tracks')
-          .where('recordedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(weekStart))
           .get();
+
+      print('[LeaderboardRepo] Utente $userId: ${allTracksSnapshot.docs.length} tracce totali, weekStart: $weekStart');
 
       double weeklyDistance = 0;
       double weeklyElevation = 0;
       int weeklyTracks = 0;
       int weeklyXp = 0;
 
-      for (final doc in tracksSnapshot.docs) {
+      for (final doc in allTracksSnapshot.docs) {
         final data = doc.data();
-        weeklyDistance += (data['distance'] as num?)?.toDouble() ?? 0;
-        weeklyElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
+        
+        // Parsing data robusto: gestisce Timestamp, String ISO, int milliseconds
+        final rawRecordedAt = data['recordedAt'];
+        final rawCreatedAt = data['createdAt'];
+        DateTime? trackDate = _parseDate(rawRecordedAt) ?? _parseDate(rawCreatedAt);
+        
+        print('[LeaderboardRepo]   Traccia ${doc.id}: recordedAt=${rawRecordedAt?.runtimeType}:$rawRecordedAt, createdAt=${rawCreatedAt?.runtimeType}:$rawCreatedAt → parsed=$trackDate');
+        
+        // Filtra solo tracce della settimana corrente
+        if (trackDate == null || trackDate.isBefore(weekStart)) {
+          print('[LeaderboardRepo]   → SKIP (fuori settimana o data null)');
+          continue;
+        }
+        
+        final dist = (data['distance'] as num?)?.toDouble() ?? 0;
+        final ele = (data['elevationGain'] as num?)?.toDouble() ?? 0;
+        weeklyDistance += dist;
+        weeklyElevation += ele;
         weeklyTracks++;
         
         // Calcola XP guadagnati (semplificato)
         // 1 XP per 100m di distanza + 1 XP per 10m di dislivello
-        weeklyXp += ((data['distance'] as num?)?.toDouble() ?? 0) ~/ 100;
-        weeklyXp += ((data['elevationGain'] as num?)?.toDouble() ?? 0) ~/ 10;
+        weeklyXp += dist ~/ 100;
+        weeklyXp += ele ~/ 10;
+        
+        print('[LeaderboardRepo]   → INCLUSA! dist=${dist.toStringAsFixed(0)}m, ele=${ele.toStringAsFixed(0)}m');
       }
+      
+      print('[LeaderboardRepo] Risultato $username: $weeklyTracks tracce, ${weeklyDistance.toStringAsFixed(0)}m, +${weeklyElevation.toStringAsFixed(0)}m, $weeklyXp XP');
 
       return LeaderboardEntry(
         userId: userId,
@@ -135,63 +159,20 @@ class LeaderboardRepository {
     }
   }
 
-  /// Ottiene la classifica precalcolata (se disponibile)
-  /// Fallback al calcolo in tempo reale se non esiste
+  /// Helper: parsing robusto di date Firestore (Timestamp, String ISO, int ms)
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value);
+    if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+    return null;
+  }
+
+  /// Ottiene la classifica - sempre calcolo real-time
+  /// (La versione precalcolata richiede Cloud Functions non ancora attive)
   Future<LeaderboardData> getPrecomputedLeaderboard() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return LeaderboardData(entries: [], currentUserRank: null);
-    }
-
-    try {
-      final leaderboardDoc = await _firestore
-          .collection('leaderboards')
-          .doc(user.uid)
-          .get();
-
-      if (!leaderboardDoc.exists) {
-        // Fallback al calcolo in tempo reale
-        return getWeeklyLeaderboard();
-      }
-
-      final data = leaderboardDoc.data()!;
-      final leaderboardList = data['userLeaderboard'] as List? ?? [];
-
-      final entries = leaderboardList.asMap().entries.map((entry) {
-        final index = entry.key;
-        final item = entry.value as Map<String, dynamic>;
-        
-        return LeaderboardEntry(
-          userId: item['userId'] ?? '',
-          username: item['username'] ?? 'Utente',
-          avatarUrl: item['avatarUrl'],
-          level: (item['level'] as num?)?.toInt() ?? 1,
-          totalXp: (item['xp'] as num?)?.toInt() ?? 0,
-          weeklyXp: (item['xp'] as num?)?.toInt() ?? 0,
-          weeklyDistance: (item['distance'] as num?)?.toDouble() ?? 0,
-          weeklyElevation: (item['elevation'] as num?)?.toDouble() ?? 0,
-          weeklyTracks: (item['tracks'] as num?)?.toInt() ?? 0,
-          rank: index + 1,
-        );
-      }).toList();
-
-      // Trova rank utente corrente
-      int? currentUserRank;
-      for (final entry in entries) {
-        if (entry.userId == user.uid) {
-          currentUserRank = entry.rank;
-          break;
-        }
-      }
-
-      return LeaderboardData(
-        entries: entries,
-        currentUserRank: currentUserRank,
-      );
-    } catch (e) {
-      print('[LeaderboardRepo] Errore leaderboard precalcolata: $e');
-      return getWeeklyLeaderboard();
-    }
+    print('[LeaderboardRepo] Uso calcolo real-time');
+    return getWeeklyLeaderboard();
   }
 }
 
