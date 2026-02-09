@@ -1,0 +1,19 @@
+flutter_launcher_icons:
+  # Icona app — logo pulito su sfondo bianco
+  image_path: "assets/icons/app_icon.png"
+  
+  # ═══ iOS ═══
+  ios: true
+  remove_alpha_ios: true
+  
+  # ═══ Android ═══
+  android: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"
+  
+  # ═══ Web ═══
+  web:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+    background_color: "#FFFFFF"
+    theme_color: "#1B5E20"

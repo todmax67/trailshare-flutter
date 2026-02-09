@@ -1,0 +1,27 @@
+flutter_native_splash:
+  # Splash screen fullscreen — foto montagna + logo TrailShare
+  
+  # Immagine fullscreen come sfondo
+  background_image: "assets/icons/splash_screen.png"
+  
+  # Anche per dark mode, stessa immagine
+  background_image_dark: "assets/icons/splash_screen.png"
+  
+  # ═══ Android 12+ ═══
+  # Android 12 usa un sistema diverso (centered icon + background color)
+  android_12:
+    image: "assets/icons/app_icon.png"
+    icon_background_color: "#1A2330"
+    color: "#1A2330"
+    image_dark: "assets/icons/app_icon.png"
+    icon_background_color_dark: "#1A2330"
+    color_dark: "#1A2330"
+  
+  # ═══ iOS ═══
+  ios: true
+  
+  # ═══ Web ═══
+  web: true
+  
+  # Fullscreen (no status bar)
+  fullscreen: true
