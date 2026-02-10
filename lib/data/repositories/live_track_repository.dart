@@ -126,7 +126,7 @@ class LiveTrackRepository {
   /// Genera URL di condivisione per una sessione
   String getShareUrl(String sessionId) {
     // Usa deep link o URL web
-    return 'https://trailshare.app/?live=$sessionId';
+    return 'https://trailshare.app/live?id=$sessionId';
   }
 }
 
