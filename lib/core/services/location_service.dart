@@ -1,8 +1,9 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import '../../data/models/track.dart';
+import '../../data/models/track.dart' hide ActivityType;
 
 /// Servizio per il tracking GPS con supporto background
 /// 
@@ -20,10 +21,32 @@ class LocationService {
   bool get isTracking => _isTracking;
   
   /// Configurazione location settings per tracking preciso
-  LocationSettings get _trackingSettings => const LocationSettings(
-    accuracy: LocationAccuracy.bestForNavigation,
-    distanceFilter: 5, // Aggiorna ogni 5 metri
-  );
+  /// iOS richiede AppleSettings con allowBackgroundLocationUpdates
+  /// per continuare il tracking con schermo bloccato
+  LocationSettings get _trackingSettings {
+    if (Platform.isIOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5,
+        activityType: ActivityType.fitness, // Geolocator ActivityType
+        allowBackgroundLocationUpdates: true,
+        showBackgroundLocationIndicator: true,
+        pauseLocationUpdatesAutomatically: false,
+      );
+    } else {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5,
+        forceLocationManager: false,
+        intervalDuration: const Duration(seconds: 2),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'TrailShare',
+          notificationText: 'Registrazione GPS attiva',
+          enableWakeLock: true,
+        ),
+      );
+    }
+  }
 
   /// Inizializza il servizio (chiamare una volta all'avvio app)
   static Future<void> initialize() async {
@@ -69,6 +92,17 @@ class LocationService {
     if (permission == LocationPermission.deniedForever) {
       debugPrint('[LocationService] Permesso negato permanentemente');
       return false;
+    }
+
+    // Su iOS, richiedi "Always" per il background tracking
+    // Se l'utente ha solo "When In Use", il GPS si ferma in background
+    if (Platform.isIOS && permission == LocationPermission.whileInUse) {
+      debugPrint('[LocationService] iOS: richiedo permesso Always per background');
+      permission = await Geolocator.requestPermission();
+      // Se resta whileInUse, funziona comunque ma potrebbe fermarsi in background
+      if (permission == LocationPermission.whileInUse) {
+        debugPrint('[LocationService] iOS: solo WhileInUse - background limitato');
+      }
     }
 
     return true;

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'gamification_service.dart';
 import 'challenges_service.dart';
 import '../../presentation/widgets/level_up_dialog.dart';
+import '../../presentation/widgets/xp_snack_bar.dart';
 
 /// Servizio centralizzato per gestire tutte le azioni post-salvataggio traccia.
 ///

@@ -1,4 +1,4 @@
-package com.trailshare.trailshare_flutter
+package com.trailshare.app
 
 import io.flutter.embedding.android.FlutterActivity
 

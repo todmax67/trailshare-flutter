@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -110,50 +111,33 @@ class AuthService {
   // APPLE SIGN-IN
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Login con Apple
+  /// Login con Apple — Metodo nativo Firebase (bypassa OAuth server-side)
   Future<AuthResult> signInWithApple() async {
     try {
-      // Genera nonce per sicurezza
-      final rawNonce = _generateNonce();
-      final nonce = _sha256ofString(rawNonce);
+      debugPrint('[AppleSignIn] Starting native Firebase Apple Sign-In...');
 
-      // Richiedi credenziali Apple
-      final appleCredential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
-        nonce: nonce,
-      );
+      final appleProvider = AppleAuthProvider();
+      appleProvider.addScope('email');
+      appleProvider.addScope('name');
 
-      // Crea credenziali Firebase
-      final oauthCredential = OAuthProvider('apple.com').credential(
-        idToken: appleCredential.identityToken,
-        rawNonce: rawNonce,
-      );
+      // Usa signInWithProvider — gestisce tutto Firebase/iOS nativamente
+      // Non passa per la configurazione OAuth server-side
+      final userCredential = await _auth.signInWithProvider(appleProvider);
 
-      // Accedi a Firebase
-      final userCredential = await _auth.signInWithCredential(oauthCredential);
-
-      // Aggiorna display name se disponibile (Apple lo fornisce solo al primo accesso)
-      if (userCredential.user != null && 
-          appleCredential.givenName != null) {
-        final displayName = '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim();
-        if (displayName.isNotEmpty) {
-          await userCredential.user!.updateDisplayName(displayName);
-        }
-      }
+      debugPrint('[AppleSignIn] SUCCESS! uid: ${userCredential.user?.uid}');
+      debugPrint('[AppleSignIn] email: ${userCredential.user?.email}');
+      debugPrint('[AppleSignIn] displayName: ${userCredential.user?.displayName}');
 
       return AuthResult(success: true, user: userCredential.user);
-    } on SignInWithAppleAuthorizationException catch (e) {
-      if (e.code == AuthorizationErrorCode.canceled) {
+    } on FirebaseAuthException catch (e) {
+      debugPrint('[AppleSignIn] Firebase Auth Exception: code=${e.code}, message=${e.message}');
+      if (e.code == 'canceled' || e.message?.contains('canceled') == true) {
         return AuthResult(success: false, errorMessage: 'Accesso annullato');
       }
-      return AuthResult(success: false, errorMessage: 'Errore Apple Sign-In');
-    } on FirebaseAuthException catch (e) {
-      return AuthResult(success: false, errorMessage: _getErrorMessage(e.code));
+      return AuthResult(success: false, errorMessage: 'Firebase [${e.code}]: ${e.message}');
     } catch (e) {
-      return AuthResult(success: false, errorMessage: 'Errore Apple Sign-In: $e');
+      debugPrint('[AppleSignIn] Generic Exception: ${e.runtimeType}: $e');
+      return AuthResult(success: false, errorMessage: 'Errore: ${e.runtimeType}: $e');
     }
   }
 

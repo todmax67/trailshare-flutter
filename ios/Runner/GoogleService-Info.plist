@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>760969043040-rebmjpn824dc40gfo8s70k7n96262ud5.apps.googleusercontent.com</string>
+	<string>760969043040-lmk5n7t2v8o3j788jubdu87bqcll2jdl.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.760969043040-rebmjpn824dc40gfo8s70k7n96262ud5</string>
+	<string>com.googleusercontent.apps.760969043040-lmk5n7t2v8o3j788jubdu87bqcll2jdl</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>760969043040-1ngorkl23ebkn42l7qqnqkke89vc2i7i.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.trailshare.trailshareFlutter</string>
+	<string>com.trailshare.app</string>
 	<key>PROJECT_ID</key>
 	<string>trailshare-5334b</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:760969043040:ios:aa052dd2e9489d4b76f705</string>
+	<string>1:760969043040:ios:68e32749c97160ea76f705</string>
 </dict>
 </plist>
