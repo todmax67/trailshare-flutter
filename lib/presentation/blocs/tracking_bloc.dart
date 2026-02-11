@@ -102,8 +102,8 @@ class TrackingBloc extends ChangeNotifier {
 
       // Inizializza tracker elevazione per l'attività selezionata
       _elevationTracker = ElevationProcessor
-      .forActivity((activityType ?? ActivityType.trekking).name)
-      .createTracker();
+        .forActivity((activityType ?? ActivityType.trekking).elevationProfile)
+        .createTracker();
 
       // Ascolta i nuovi punti GPS
       _locationSubscription = _locationService.positionStream.listen(_onNewPoint);
@@ -291,7 +291,7 @@ class TrackingBloc extends ChangeNotifier {
   // Elevazione: usa ElevationProcessor per elaborazione batch completa
   // (spike removal + smoothing + isteresi)
   final processor = ElevationProcessor.forActivity(
-  _state.activityType.name,
+      _state.activityType.elevationProfile,
   );
   final rawElevations = points.map((p) => p.elevation).toList();
   final eleResult = processor.process(rawElevations);

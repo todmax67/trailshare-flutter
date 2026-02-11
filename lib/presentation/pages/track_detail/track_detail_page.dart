@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/gpx_service.dart';
 import '../../../data/models/track.dart';
@@ -10,6 +11,7 @@ import '../../../data/repositories/community_tracks_repository.dart';
 import '../../widgets/interactive_track_map.dart';
 import '../../widgets/track_charts_widget.dart';
 import '../../widgets/lap_splits_widget.dart';
+import '../../../data/repositories/tracks_repository.dart';
 
 class TrackDetailPage extends StatefulWidget {
   final Track track;
@@ -314,7 +316,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               ),
               const SizedBox(height: 12),
             ],
-            _detailRow(Icons.sports, 'Attività', _track.activityType.displayName),
+            _buildEditableActivityRow(),
             _detailRow(Icons.calendar_today, 'Data', _formatDate(_track.createdAt)),
             _detailRow(Icons.location_on, 'Punti GPS', '${_track.points.length}'),
             if (stats.elevationLoss > 0)
@@ -323,6 +325,195 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               _detailRow(Icons.landscape, 'Quota max', '${stats.maxElevation.toStringAsFixed(0)} m'),
             if (stats.minElevation > 0)
               _detailRow(Icons.terrain, 'Quota min', '${stats.minElevation.toStringAsFixed(0)} m'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Riga attività tappabile per cambiare sport
+  Widget _buildEditableActivityRow() {
+    return InkWell(
+      onTap: _showChangeActivityType,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Icon(Icons.sports, size: 20, color: Colors.grey[600]),
+            const SizedBox(width: 12),
+            Text('Attività', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+            const Spacer(),
+            Text(
+              '${_track.activityType.icon} ${_track.activityType.displayName}',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.edit, size: 14, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet per cambiare tipo attività
+  void _showChangeActivityType() {
+    // Raggruppa per categoria
+    final grouped = <String, List<ActivityType>>{};
+    for (final type in ActivityType.values) {
+      grouped.putIfAbsent(type.category, () => []).add(type);
+    }
+
+    String categoryIcon(String cat) {
+      switch (cat) {
+        case 'A piedi': return '🚶';
+        case 'In bicicletta': return '🚴';
+        case 'Sport invernali': return '❄️';
+        default: return '🏃';
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Titolo
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Text(
+                'Cambia attività',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            // Lista sport per categoria
+            ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              children: grouped.entries.map((entry) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12, bottom: 8, left: 4),
+                      child: Row(
+                        children: [
+                          Text(categoryIcon(entry.key), style: const TextStyle(fontSize: 16)),
+                          const SizedBox(width: 8),
+                          Text(
+                            entry.key,
+                            style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w700,
+                              color: Colors.grey[600], letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Wrap(
+                      spacing: 8, runSpacing: 8,
+                      children: entry.value.map((type) {
+                        final isSelected = type == _track.activityType;
+                        return GestureDetector(
+                          onTap: () async {
+                            Navigator.pop(context);
+                            if (type == _track.activityType) return;
+                            
+                            // Salva su Firestore
+                            final realId = _track.id;
+                            if (realId == null) return;
+                            await TracksRepository().updateTrack(
+                              realId,
+                              activityType: type,
+                            );
+
+                            // Se la traccia è pubblica, aggiorna anche quella nella community
+                              if (_track.isPublic) {
+                                await FirebaseFirestore.instance
+                                    .collection('published_tracks')
+                                    .doc(realId)
+                                    .update({'activityType': type.name});
+                              }
+                            
+                            // Aggiorna UI
+                            setState(() {
+                              _track = Track(
+                                id: _track.id,
+                                name: _track.name,
+                                description: _track.description,
+                                points: _track.points,
+                                activityType: type,
+                                createdAt: _track.createdAt,
+                                stats: _track.stats,
+                                isPublic: _track.isPublic,
+                                photos: _track.photos,
+                              );
+                            });
+                            
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Attività cambiata in ${type.displayName}'),
+                                  backgroundColor: const Color(0xFF388E3C),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF4CAF50)
+                                  : const Color(0xFFF5F7F2),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF388E3C)
+                                    : const Color(0xFFE0E4DA),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(type.icon, style: const TextStyle(fontSize: 18)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  type.displayName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                    color: isSelected ? Colors.white : const Color(0xFF1A2E1A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
           ],
         ),
       ),

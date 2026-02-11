@@ -82,6 +82,31 @@ class CommunityTrack {
       case 'walking':
       case 'walk':
         return '🚶';
+      case 'mountainbiking':
+      case 'mountain_biking':
+        return '🚵';
+      case 'gravelbiking':
+      case 'gravel_biking':
+        return '🚴‍♂️';
+      case 'ebike':
+      case 'e_bike':
+      case 'emountainbike':
+      case 'e_mountain_bike':
+        return '⚡';
+      case 'alpineskiing':
+      case 'alpine_skiing':
+        return '⛷️';
+      case 'skitouring':
+      case 'ski_touring':
+      case 'scialpinismo':
+        return '🎿';
+      case 'nordicskiing':
+      case 'nordic_skiing':
+        return '🎿';
+      case 'snowshoeing':
+        return '❄️';
+      case 'snowboarding':
+        return '🏂';
       default:
         return '🥾';
     }
@@ -121,18 +146,56 @@ class CommunityTrack {
     );
   }
 
+  /// Converte la stringa activityType in enum ActivityType
   ActivityType _parseActivityType() {
+    // Prima prova match diretto per nome enum
+    for (final type in ActivityType.values) {
+      if (type.name == activityType) return type;
+    }
+
+    // Fallback per vecchi formati stringa
     switch (activityType.toLowerCase()) {
+      case 'trail_running':
       case 'trailrunning':
-      case 'running':
-      case 'run':
         return ActivityType.trailRunning;
       case 'cycling':
+      case 'ciclismo':
       case 'bike':
         return ActivityType.cycling;
       case 'walking':
+      case 'camminata':
       case 'walk':
         return ActivityType.walking;
+      case 'running':
+      case 'corsa':
+      case 'run':
+        return ActivityType.running;
+      case 'mountain_biking':
+      case 'mountainbiking':
+        return ActivityType.mountainBiking;
+      case 'gravel_biking':
+      case 'gravelbiking':
+        return ActivityType.gravelBiking;
+      case 'ebike':
+      case 'e_bike':
+        return ActivityType.eBike;
+      case 'emountainbike':
+      case 'e_mountain_bike':
+        return ActivityType.eMountainBike;
+      case 'alpine_skiing':
+      case 'alpineskiing':
+        return ActivityType.alpineSkiing;
+      case 'ski_touring':
+      case 'skitouring':
+      case 'scialpinismo':
+        return ActivityType.skiTouring;
+      case 'nordic_skiing':
+      case 'nordicskiing':
+        return ActivityType.nordicSkiing;
+      case 'snowshoeing':
+        return ActivityType.snowshoeing;
+      case 'snowboarding':
+        return ActivityType.snowboarding;
       default:
         return ActivityType.trekking;
     }
@@ -265,7 +328,7 @@ class CommunityTracksRepository {
               lon = (p['x'] ?? p['lon'] ?? p['lng'] ?? p['longitude'] as num?)?.toDouble();
               ele = (p['ele'] ?? p['elevation'] ?? p['altitude'] ?? p['z'] as num?)?.toDouble();
               
-              // ⭐ NUOVO: Parse speed
+              // Parse speed
               speed = (p['speed'] as num?)?.toDouble();
               
               // Timestamp - gestisce vari formati
@@ -292,7 +355,7 @@ class CommunityTracksRepository {
                   longitude: lon,
                   elevation: ele,
                   timestamp: timestamp ?? DateTime.now(),
-                  speed: speed,  // ⭐ NUOVO: Aggiungi speed
+                  speed: speed,
                 ));
               }
             }

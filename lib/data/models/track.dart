@@ -105,12 +105,43 @@ class TrackPoint {
 
 
 /// Tipo di attività
-enum ActivityType {
-  trekking,
-  trailRunning,
-  walking,
-  cycling;
+// ============================================================
+// NUOVO ENUM ActivityType per track.dart
+// 
+// ISTRUZIONI: Sostituire SOLO l'enum ActivityType nel file
+// lib/data/models/track.dart (righe 108-140 circa)
+// NON toccare il resto del file (TrackPoint, Track, TrackStats)
+// ============================================================
 
+// IMPORTANTE: i primi 4 valori (trekking, trailRunning, walking, cycling)
+// DEVONO restare nello stesso ordine perché recording_persistence_service
+// usa l'indice numerico (ActivityType.values[index]) per deserializzare.
+// I nuovi valori vanno SEMPRE aggiunti IN FONDO.
+
+enum ActivityType {
+  // === Esistenti (NON cambiare ordine! index 0-3) ===
+  trekking,       // 0
+  trailRunning,   // 1
+  walking,        // 2
+  cycling,        // 3
+
+  // === Nuovi - Corsa ===
+  running,        // 4
+
+  // === Nuovi - Bicicletta ===
+  mountainBiking, // 5
+  gravelBiking,   // 6
+  eBike,          // 7
+  eMountainBike,  // 8
+
+  // === Nuovi - Sport invernali ===
+  alpineSkiing,   // 9
+  skiTouring,     // 10 (scialpinismo)
+  nordicSkiing,   // 11
+  snowshoeing,    // 12
+  snowboarding;   // 13
+
+  /// Nome visualizzato
   String get displayName {
     switch (this) {
       case ActivityType.trekking:
@@ -121,9 +152,30 @@ enum ActivityType {
         return 'Camminata';
       case ActivityType.cycling:
         return 'Ciclismo';
+      case ActivityType.running:
+        return 'Corsa';
+      case ActivityType.mountainBiking:
+        return 'Mountain Bike';
+      case ActivityType.gravelBiking:
+        return 'Gravel Bike';
+      case ActivityType.eBike:
+        return 'E-Bike';
+      case ActivityType.eMountainBike:
+        return 'E-Mountain Bike';
+      case ActivityType.alpineSkiing:
+        return 'Sci Alpino';
+      case ActivityType.skiTouring:
+        return 'Scialpinismo';
+      case ActivityType.nordicSkiing:
+        return 'Sci Nordico';
+      case ActivityType.snowshoeing:
+        return 'Racchette da Neve';
+      case ActivityType.snowboarding:
+        return 'Snowboard';
     }
   }
 
+  /// Emoji icona
   String get icon {
     switch (this) {
       case ActivityType.trekking:
@@ -134,10 +186,78 @@ enum ActivityType {
         return '🚶';
       case ActivityType.cycling:
         return '🚴';
+      case ActivityType.running:
+        return '🏃‍♂️';
+      case ActivityType.mountainBiking:
+        return '🚵';
+      case ActivityType.gravelBiking:
+        return '🚴‍♂️';
+      case ActivityType.eBike:
+        return '⚡';
+      case ActivityType.eMountainBike:
+        return '⚡';
+      case ActivityType.alpineSkiing:
+        return '⛷️';
+      case ActivityType.skiTouring:
+        return '🎿';
+      case ActivityType.nordicSkiing:
+        return '🎿';
+      case ActivityType.snowshoeing:
+        return '❄️';
+      case ActivityType.snowboarding:
+        return '🏂';
+    }
+  }
+
+  /// Categoria sport (per raggruppamento nel selettore)
+  String get category {
+    switch (this) {
+      case ActivityType.trekking:
+      case ActivityType.trailRunning:
+      case ActivityType.walking:
+      case ActivityType.running:
+        return 'A piedi';
+      case ActivityType.cycling:
+      case ActivityType.mountainBiking:
+      case ActivityType.gravelBiking:
+      case ActivityType.eBike:
+      case ActivityType.eMountainBike:
+        return 'In bicicletta';
+      case ActivityType.alpineSkiing:
+      case ActivityType.skiTouring:
+      case ActivityType.nordicSkiing:
+      case ActivityType.snowshoeing:
+      case ActivityType.snowboarding:
+        return 'Sport invernali';
+    }
+  }
+
+  /// Profilo elevazione da usare per il filtraggio GPS
+  /// Mappa le nuove attività ai profili esistenti di ElevationProcessor
+  String get elevationProfile {
+    switch (this) {
+      case ActivityType.trekking:
+      case ActivityType.skiTouring:
+      case ActivityType.snowshoeing:
+        return 'trekking';
+      case ActivityType.trailRunning:
+      case ActivityType.running:
+        return 'trailRunning';
+      case ActivityType.walking:
+      case ActivityType.nordicSkiing:
+        return 'walking';
+      case ActivityType.cycling:
+      case ActivityType.mountainBiking:
+      case ActivityType.gravelBiking:
+      case ActivityType.eBike:
+      case ActivityType.eMountainBike:
+        return 'cycling';
+      case ActivityType.alpineSkiing:
+      case ActivityType.snowboarding:
+        return 'cycling'; // Discese veloci, simile a ciclismo
     }
   }
 }
-
 
 /// Statistiche della traccia
 class TrackStats {

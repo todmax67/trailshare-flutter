@@ -508,22 +508,38 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     ]));
   }
 
-Widget _buildStartButton() {
+  Widget _buildStartButton() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Selettore tipo attività
-        Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(25),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: ActivityType.values.map((type) => _buildActivityChip(type)).toList(),
+        // Selettore tipo attività (tap per aprire bottom sheet)
+        GestureDetector(
+          onTap: _showActivityPicker,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(25),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_selectedActivity.icon, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Text(
+                  _selectedActivity.displayName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Color(0xFF1A2E1A),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.expand_more, size: 20, color: Colors.grey[600]),
+              ],
+            ),
           ),
         ),
         // Pulsante INIZIA
@@ -541,7 +557,10 @@ Widget _buildStartButton() {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.play_arrow, color: Colors.white, size: 40),
-                Text(_selectedActivity.displayName.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
+                Text(
+                  _selectedActivity.displayName.toUpperCase(),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
+                ),
               ],
             ),
           ),
@@ -550,29 +569,23 @@ Widget _buildStartButton() {
     );
   }
 
-  Widget _buildActivityChip(ActivityType type) {
-    final isSelected = type == _selectedActivity;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedActivity = type),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(type.icon, style: const TextStyle(fontSize: 16)),
-            if (isSelected) ...[
-              const SizedBox(width: 4),
-              Text(type.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-            ],
-          ],
-        ),
+  // --- BOTTOM SHEET per selezionare attività ---
+
+  void _showActivityPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _ActivityPickerSheet(
+        selected: _selectedActivity,
+        onSelected: (type) {
+          setState(() => _selectedActivity = type);
+          Navigator.pop(context);
+        },
       ),
     );
   }
+
 
   Widget _buildRecordingControls(TrackingState state) => Column(mainAxisSize: MainAxisSize.min, children: [
     const Padding(padding: EdgeInsets.only(bottom: 12), child: LiveTrackButton()),
@@ -586,5 +599,148 @@ Widget _buildStartButton() {
   Widget _buildControlButton({required IconData icon, required String label, required Color color, required VoidCallback onTap, bool large = false}) {
     final size = large ? 64.0 : 48.0;
     return GestureDetector(onTap: onTap, child: Column(mainAxisSize: MainAxisSize.min, children: [Container(width: size, height: size, decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle), child: Icon(icon, color: color, size: large ? 32 : 24)), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500))]));
+  }
+}
+class _ActivityPickerSheet extends StatelessWidget {
+  final ActivityType selected;
+  final ValueChanged<ActivityType> onSelected;
+
+  const _ActivityPickerSheet({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Raggruppa per categoria
+    final grouped = <String, List<ActivityType>>{};
+    for (final type in ActivityType.values) {
+      grouped.putIfAbsent(type.category, () => []).add(type);
+    }
+
+    // Icona categoria
+    String categoryIcon(String cat) {
+      switch (cat) {
+        case 'A piedi':
+          return '🚶';
+        case 'In bicicletta':
+          return '🚴';
+        case 'Sport invernali':
+          return '❄️';
+        default:
+          return '🏃';
+      }
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Titolo
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+            child: Text(
+              'Scegli attività',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1A2E1A),
+              ),
+            ),
+          ),
+
+          // Lista categorie + sport
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              children: grouped.entries.map((entry) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header categoria
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12, bottom: 8, left: 4),
+                      child: Row(
+                        children: [
+                          Text(categoryIcon(entry.key), style: const TextStyle(fontSize: 16)),
+                          const SizedBox(width: 8),
+                          Text(
+                            entry.key,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey[600],
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Grid di sport
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: entry.value.map((type) {
+                        final isSelected = type == selected;
+                        return GestureDetector(
+                          onTap: () => onSelected(type),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF4CAF50)
+                                  : const Color(0xFFF5F7F2),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF388E3C)
+                                    : const Color(0xFFE0E4DA),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(type.icon, style: const TextStyle(fontSize: 18)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  type.displayName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                    color: isSelected ? Colors.white : const Color(0xFF1A2E1A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

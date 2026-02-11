@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/gpx_service.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
@@ -7,7 +8,9 @@ import '../../../presentation/widgets/charts/elevation_chart.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../../presentation/widgets/lap_splits_widget.dart';
+import '../../../data/repositories/public_trails_repository.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../core/services/trails_cache_service.dart';
 
 class CommunityTrackDetailPage extends StatefulWidget {
   final CommunityTrack track;
@@ -24,6 +27,31 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
   
   /// Indice del punto attualmente selezionato (sincronizzazione mappa-grafico)
   int? _selectedPointIndex;
+
+  bool _isPromoting = false;
+  bool _isAlreadyPromoted = false;
+  bool _isAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdmin();
+  }
+
+  void _checkAdmin() {
+    final email = FirebaseAuth.instance.currentUser?.email;
+    _isAdmin = email == 'admin@trailshare.app' || email == 'todde.massimiliano@gmail.com';
+    if (_isAdmin) {
+      _checkIfPromoted();
+    }
+  }
+
+  Future<void> _checkIfPromoted() async {
+    final promoted = await PublicTrailsRepository().isAlreadyPromoted(widget.track.id);
+    if (mounted) {
+      setState(() => _isAlreadyPromoted = promoted);
+    }
+  }
 
   /// Costruisce la mappa dei marker foto (url -> posizione)
   /// Per ora le foto community non hanno posizione GPS, quindi ritorna null
@@ -453,6 +481,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
   Widget _buildActions() {
     return Column(
       children: [
+        // Pulsante Scarica GPX (esistente)
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -472,8 +501,198 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             ),
           ),
         ),
+
+        // --- ADMIN: Promuovi a Sentiero ---
+        if (_isAdmin) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.admin_panel_settings, size: 16, color: Colors.orange),
+                    const SizedBox(width: 6),
+                    Text(
+                      'ADMIN',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.orange[700],
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isAlreadyPromoted || _isPromoting
+                        ? null
+                        : _showPromoteDialog,
+                    icon: _isPromoting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Icon(_isAlreadyPromoted ? Icons.check_circle : Icons.arrow_upward),
+                    label: Text(
+                      _isAlreadyPromoted
+                          ? 'Già promossa a Sentiero ✓'
+                          : _isPromoting
+                              ? 'Promozione in corso...'
+                              : 'Promuovi a Sentiero',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isAlreadyPromoted
+                          ? Colors.grey[400]
+                          : Colors.orange[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
+  }
+
+  void _showPromoteDialog() {
+    final track = widget.track;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Promuovi a Sentiero'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Questa traccia verrà aggiunta ai sentieri pubblici e sarà visibile a tutti gli utenti nella sezione Scopri.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            _promoteInfoRow('Nome', track.name),
+            _promoteInfoRow('Autore', track.ownerUsername),
+            _promoteInfoRow('Distanza', '${track.distanceKm.toStringAsFixed(1)} km'),
+            _promoteInfoRow('Dislivello', '+${track.elevationGain.toStringAsFixed(0)} m'),
+            _promoteInfoRow('Punti GPS', '${track.points.length}'),
+            const SizedBox(height: 12),
+            // Warning qualità
+            if (track.points.length < 50)
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber, size: 16, color: Colors.amber),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Pochi punti GPS — la traccia potrebbe essere imprecisa',
+                        style: TextStyle(fontSize: 12, color: Colors.amber),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _promoteTrack();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange[700],
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Promuovi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _promoteInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+          Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _promoteTrack() async {
+    setState(() => _isPromoting = true);
+
+    try {
+      final track = widget.track;
+      final repo = PublicTrailsRepository();
+
+      final trailId = await repo.promoteFromCommunityTrack(
+        communityTrackId: track.id,
+        name: track.name,
+        activityType: track.activityType,
+        points: track.points,
+        distance: track.distance,
+        elevationGain: track.elevationGain,
+        durationSeconds: track.duration,
+        ownerUsername: track.ownerUsername,
+        description: track.description,
+      );
+
+      if (trailId != null && mounted) {
+        setState(() {
+          _isPromoting = false;
+          _isAlreadyPromoted = true;
+        });
+        trailsCacheService.invalidateAll();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Traccia promossa a sentiero pubblico!'),
+            backgroundColor: Color(0xFF388E3C),
+          ),
+        );
+      } else {
+        throw Exception('Promozione fallita');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPromoting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Errore: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _exportGpx() async {

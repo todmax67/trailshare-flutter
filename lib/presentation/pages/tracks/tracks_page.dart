@@ -50,13 +50,24 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
   Color _getActivityColor(ActivityType type) {
     switch (type) {
       case ActivityType.trekking:
+      case ActivityType.skiTouring:
+      case ActivityType.snowshoeing:
         return AppColors.success;
       case ActivityType.trailRunning:
+      case ActivityType.running:
         return AppColors.warning;
       case ActivityType.cycling:
+      case ActivityType.mountainBiking:
+      case ActivityType.gravelBiking:
+      case ActivityType.eBike:
+      case ActivityType.eMountainBike:
         return AppColors.info;
       case ActivityType.walking:
+      case ActivityType.nordicSkiing:
         return AppColors.primary;
+      case ActivityType.alpineSkiing:
+      case ActivityType.snowboarding:
+        return Colors.blue;
     }
   }
 
@@ -66,11 +77,25 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
       case ActivityType.trekking:
         return Icons.hiking;
       case ActivityType.trailRunning:
+      case ActivityType.running:
         return Icons.directions_run;
       case ActivityType.cycling:
+      case ActivityType.gravelBiking:
+      case ActivityType.eBike:
         return Icons.directions_bike;
+      case ActivityType.mountainBiking:
+      case ActivityType.eMountainBike:
+        return Icons.terrain;
       case ActivityType.walking:
         return Icons.directions_walk;
+      case ActivityType.alpineSkiing:
+      case ActivityType.snowboarding:
+        return Icons.downhill_skiing;
+      case ActivityType.skiTouring:
+      case ActivityType.nordicSkiing:
+        return Icons.downhill_skiing;
+      case ActivityType.snowshoeing:
+        return Icons.ac_unit;
     }
   }
 
@@ -376,13 +401,24 @@ class _TrackCard extends StatelessWidget {
   Color _getActivityColor(ActivityType type) {
     switch (type) {
       case ActivityType.trekking:
+      case ActivityType.skiTouring:
+      case ActivityType.snowshoeing:
         return AppColors.success;
       case ActivityType.trailRunning:
+      case ActivityType.running:
         return AppColors.warning;
       case ActivityType.cycling:
+      case ActivityType.mountainBiking:
+      case ActivityType.gravelBiking:
+      case ActivityType.eBike:
+      case ActivityType.eMountainBike:
         return AppColors.info;
       case ActivityType.walking:
+      case ActivityType.nordicSkiing:
         return AppColors.primary;
+      case ActivityType.alpineSkiing:
+      case ActivityType.snowboarding:
+        return Colors.blue;
     }
   }
 
@@ -391,11 +427,25 @@ class _TrackCard extends StatelessWidget {
       case ActivityType.trekking:
         return Icons.hiking;
       case ActivityType.trailRunning:
+      case ActivityType.running:
         return Icons.directions_run;
       case ActivityType.cycling:
+      case ActivityType.gravelBiking:
+      case ActivityType.eBike:
         return Icons.directions_bike;
+      case ActivityType.mountainBiking:
+      case ActivityType.eMountainBike:
+        return Icons.terrain;
       case ActivityType.walking:
         return Icons.directions_walk;
+      case ActivityType.alpineSkiing:
+      case ActivityType.snowboarding:
+        return Icons.downhill_skiing;
+      case ActivityType.skiTouring:
+      case ActivityType.nordicSkiing:
+        return Icons.downhill_skiing;
+      case ActivityType.snowshoeing:
+        return Icons.ac_unit;
     }
   }
 

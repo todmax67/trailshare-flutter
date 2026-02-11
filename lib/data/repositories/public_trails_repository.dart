@@ -110,6 +110,43 @@ class PublicTrailsRepository {
           }).whereType<TrackPoint>().toList();
         }
       }
+      // Usa fullGeometry per tracce promosse (contiene elevazione)
+      final fullGeo = data['fullGeometry'];
+      if (fullGeo != null && fullGeo is List) {
+        return fullGeo.map((p) {
+          if (p is Map) {
+            return TrackPoint(
+              latitude: (p['lat'] as num).toDouble(),
+              longitude: (p['lng'] as num).toDouble(),
+              elevation: (p['ele'] as num?)?.toDouble(),
+              timestamp: DateTime.now(),
+            );
+          }
+          return null;
+        }).whereType<TrackPoint>().toList();
+      }
+      // Geometry come stringa JSON (tracce promosse)
+      if (geometry != null && geometry is String) {
+        try {
+          final Map<String, dynamic> geoJson = jsonDecode(geometry);
+          final coords = geoJson['coordinates'];
+          if (coords is List) {
+            return coords.map((p) {
+              if (p is List && p.length >= 2) {
+                return TrackPoint(
+                  longitude: (p[0] as num).toDouble(),
+                  latitude: (p[1] as num).toDouble(),
+                  timestamp: DateTime.now(),
+                );
+              }
+              return null;
+            }).whereType<TrackPoint>().toList();
+          }
+        } catch (e) {
+          print('[PublicTrails] Errore parsing geometry string in getFullGeometry: $e');
+        }
+      }
+
       return null;
     } catch (e) {
       print('[PublicTrails] Errore getFullGeometry: $e');
@@ -373,6 +410,36 @@ class PublicTrailsRepository {
         }
       }
 
+      // Gestisci geometry come stringa JSON (tracce promosse dalla community)
+      if (points.isEmpty && geometry != null && geometry is String) {
+        try {
+          final Map<String, dynamic> geoJson = jsonDecode(geometry);
+          final coords = geoJson['coordinates'];
+          if (coords is List) {
+            final latLngPoints = <LatLng>[];
+            for (var p in coords) {
+              if (p is List && p.length >= 2) {
+                final lon = (p[0] as num).toDouble();
+                final lat = (p[1] as num).toDouble();
+                if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+                  latLngPoints.add(LatLng(lat, lon));
+                }
+              }
+            }
+            final finalPoints = simplified
+                ? GeometrySimplifier.simplify(latLngPoints, maxPoints: 30)
+                : latLngPoints;
+            points = finalPoints.map((ll) => TrackPoint(
+              latitude: ll.latitude,
+              longitude: ll.longitude,
+              timestamp: DateTime.now(),
+            )).toList();
+          }
+        } catch (e) {
+          print('[PublicTrails] Errore parsing geometry string: $e');
+        }
+      }
+
       if (points.isEmpty) return null;
 
       String name = data['name']?.toString() ?? '';
@@ -499,6 +566,133 @@ class PublicTrailsRepository {
       limit: limit,
       simplified: true,
     );
+  }
+
+  /// Promuove una traccia community a sentiero pubblico
+  Future<String?> promoteFromCommunityTrack({
+    required String communityTrackId,
+    required String name,
+    required String activityType,
+    required List<TrackPoint> points,
+    required double distance,
+    required double elevationGain,
+    required int durationSeconds,
+    required String ownerUsername,
+    String? description,
+    String? difficulty,
+    String? region,
+  }) async {
+    if (points.isEmpty) return null;
+
+    try {
+      final startPoint = GeoPoint(points.first.latitude, points.first.longitude);
+      final endPoint = GeoPoint(points.last.latitude, points.last.longitude);
+
+      // Calcola se circolare (start/end entro 200m)
+      final distStartEnd = _haversineDistance(
+        points.first.latitude, points.first.longitude,
+        points.last.latitude, points.last.longitude,
+      );
+      final isCircular = distStartEnd < 200;
+
+      // GeoHash per clustering nella mappa
+      final geoHash = GeoHashUtil.encode(points.first.latitude, points.first.longitude);
+
+      // Geometry in formato GeoJSON (come i sentieri OSM)
+      final coordinates = points.map((p) => [p.longitude, p.latitude]).toList();
+
+      // Punti completi con elevazione
+      final fullGeometry = points.map((p) => {
+        'lat': p.latitude,
+        'lng': p.longitude,
+        'ele': p.elevation ?? 0,
+      }).toList();
+
+      final docData = <String, dynamic>{
+        'name': name,
+        'description': description,
+        'activityType': activityType,
+        'distance': distance,
+        'elevationGain': elevationGain,
+        'duration': (durationSeconds / 60).round(), // In minuti come gli altri sentieri
+        'startPoint': startPoint,
+        'endPoint': endPoint,
+        'isCircular': isCircular,
+        'geoHash': geoHash,
+        'difficulty': difficulty,
+        'region': region,
+        'quality': 'community',
+        'network': null,
+        'operator': null,
+        'ref': null,
+        'geometry': jsonEncode({
+          'type': 'LineString',
+          'coordinates': coordinates,
+        }),
+        'fullGeometry': fullGeometry,
+        'pointCount': points.length,
+        // Metadati promozione
+        'promotedFrom': communityTrackId,
+        'promotedBy': ownerUsername,
+        'promotedAt': FieldValue.serverTimestamp(),
+        'source': 'community',
+      };
+
+      final docRef = await _trailsCollection.add(docData);
+      print('[PublicTrails] Traccia promossa: ${docRef.id} (da $communityTrackId)');
+      return docRef.id;
+    } catch (e) {
+      print('[PublicTrails] Errore promozione: $e');
+      return null;
+    }
+  }
+
+  /// Verifica se una traccia community è già stata promossa
+  Future<bool> isAlreadyPromoted(String communityTrackId) async {
+    try {
+      final snapshot = await _trailsCollection
+          .where('promotedFrom', isEqualTo: communityTrackId)
+          .limit(1)
+          .get();
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Distanza Haversine in metri
+  double _haversineDistance(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371000.0;
+    final dLat = (lat2 - lat1) * math.pi / 180;
+    final dLon = (lon2 - lon1) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) * math.cos(lat2 * math.pi / 180) *
+        math.sin(dLon / 2) * math.sin(dLon / 2);
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  /// Codifica GeoHash
+  String _encodeGeohash(double lat, double lng, int precision) {
+    const base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+    var minLat = -90.0, maxLat = 90.0;
+    var minLng = -180.0, maxLng = 180.0;
+    var isEven = true;
+    var bit = 0, ch = 0;
+    var hash = '';
+
+    while (hash.length < precision) {
+      if (isEven) {
+        final mid = (minLng + maxLng) / 2;
+        if (lng > mid) { ch |= (1 << (4 - bit)); minLng = mid; } else { maxLng = mid; }
+      } else {
+        final mid = (minLat + maxLat) / 2;
+        if (lat > mid) { ch |= (1 << (4 - bit)); minLat = mid; } else { maxLat = mid; }
+      }
+      isEven = !isEven;
+      bit++;
+      if (bit == 5) { hash += base32[ch]; bit = 0; ch = 0; }
+    }
+    return hash;
   }
 }
 
