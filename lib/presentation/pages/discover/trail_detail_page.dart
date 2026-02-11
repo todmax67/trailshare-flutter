@@ -348,13 +348,15 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
             if (trail.ref != null)
               _buildDetailRow(Icons.tag, 'Numero sentiero', trail.ref!),
             _buildDetailRow(Icons.terrain, 'Difficoltà', trail.difficultyName),
+            if (trail.activityType != null)
+              _buildDetailRow(Icons.directions_walk, 'Attività', trail.activityType!),
             if (trail.operator != null)
               _buildDetailRow(Icons.business, 'Gestore', trail.operator!),
             if (trail.networkName.isNotEmpty)
               _buildDetailRow(Icons.hub, 'Rete', trail.networkName),
             if (trail.region != null)
               _buildDetailRow(Icons.map, 'Regione', trail.region!),
-            _buildDetailRow(Icons.source, 'Fonte', 'OpenStreetMap'),
+            _buildDetailRow(Icons.source, 'Fonte', trail.source == 'community' ? 'Community' : 'OpenStreetMap'),
           ],
         ),
       ),

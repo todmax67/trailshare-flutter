@@ -478,6 +478,8 @@ class PublicTrailsRepository {
         startLat: startLat,
         startLng: startLng,
         geohash: data['geoHash']?.toString(),
+        activityType: data['activityType']?.toString(),
+        source: data['source']?.toString(),
       );
     } catch (e) {
       print('[PublicTrails] Errore parsing ${doc.id}: $e');
@@ -768,6 +770,8 @@ class PublicTrail {
   final String? region;
   final bool isCircular;
   final String? quality;
+  final String? activityType;
+  final String? source;
   final int? duration;
   final double startLat;
   final double startLng;
@@ -787,6 +791,8 @@ class PublicTrail {
     this.region,
     this.isCircular = false,
     this.quality,
+    this.activityType,
+    this.source,
     this.duration,
     this.startLat = 0,
     this.startLng = 0,
@@ -825,7 +831,7 @@ class PublicTrail {
       elevationGain: elevationGain, region: region, isCircular: isCircular,
       quality: quality, duration: duration, startLat: startLat, startLng: startLng,
       distanceFromUser: distanceFromUser ?? this.distanceFromUser,
-      geohash: geohash,
+      geohash: geohash, activityType: activityType, source: source,
     );
   }
 
@@ -844,7 +850,10 @@ class PublicTrail {
       id: id,
       name: name,
       points: points,
-      activityType: ActivityType.trekking,
+      activityType: ActivityType.values.firstWhere(
+        (e) => e.name == activityType,
+        orElse: () => ActivityType.trekking,
+      ),
       createdAt: DateTime.now(),
       isPublic: true,
       stats: TrackStats(
