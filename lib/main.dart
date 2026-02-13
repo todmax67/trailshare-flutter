@@ -5,6 +5,7 @@ import 'firebase_options.dart';
 import 'app.dart';
 import 'core/services/location_service.dart';
 import 'core/services/theme_service.dart';
+import 'core/services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,10 +14,11 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  await LocationService.initialize();
-  
   // Inizializza tema
   await ThemeService().initialize();
+  
+  // Inizializza notifiche push
+  await PushNotificationService().initialize();
   
   runApp(const TrailShareApp());
 }

@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import '../services/push_notification_service.dart';
 
 /// Risultato autenticazione
 class AuthResult {
@@ -150,8 +151,8 @@ class AuthService {
   // LOGOUT
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Logout
   Future<void> signOut() async {
+    await PushNotificationService().removeToken();
     await Future.wait([
       _auth.signOut(),
       _googleSignIn.signOut(),

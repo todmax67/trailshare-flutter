@@ -6,6 +6,7 @@ import 'core/constants/app_themes.dart';
 import 'core/services/theme_service.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'presentation/pages/onboarding/onboarding_page.dart';
+import 'core/services/push_notification_service.dart';
 
 
 class TrailShareApp extends StatefulWidget {
@@ -91,7 +92,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-        if (snapshot.hasData) return const HomePage();
+        if (snapshot.hasData) {
+          PushNotificationService().onUserLogin();
+          return const HomePage();
+        }
         return const LoginPage();
       },
     );
