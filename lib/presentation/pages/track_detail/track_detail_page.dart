@@ -12,6 +12,9 @@ import '../../widgets/interactive_track_map.dart';
 import '../../widgets/track_charts_widget.dart';
 import '../../widgets/lap_splits_widget.dart';
 import '../../../data/repositories/tracks_repository.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 class TrackDetailPage extends StatefulWidget {
   final Track track;
@@ -1074,9 +1077,11 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
           style: const TextStyle(fontSize: 16),
         ),
         actions: [
+          // Scarica foto
           IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: () => _showPhotoInfo(widget.photos[_currentIndex]),
+            icon: const Icon(Icons.download, color: Colors.white, size: 28),
+            tooltip: 'Scarica',
+            onPressed: () => _downloadPhoto(widget.photos[_currentIndex].url),
           ),
         ],
       ),
@@ -1244,5 +1249,33 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
         ],
       ),
     );
+  }
+  Future<void> _downloadPhoto(String url) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Download in corso...')),
+      );
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) throw Exception('Errore download');
+
+      final tempDir = await getTemporaryDirectory();
+      final fileName = 'trailshare_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsBytes(response.bodyBytes);
+
+      if (!mounted) return;
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Foto da ${widget.trackName}',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }

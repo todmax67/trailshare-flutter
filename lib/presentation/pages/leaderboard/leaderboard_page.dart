@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/leaderboard_repository.dart';
+import '../profile/public_profile_page.dart';
 
 /// Pagina Classifica Settimanale
 /// 
@@ -371,9 +372,14 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   }
 
   void _openUserProfile(LeaderboardEntry entry) {
-    // TODO: Navigare al profilo pubblico dell'utente
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Profilo di ${entry.username}')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicProfilePage(
+          userId: entry.userId,
+          username: entry.username,
+        ),
+      ),
     );
   }
 }

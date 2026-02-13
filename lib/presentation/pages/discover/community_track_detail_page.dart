@@ -11,6 +11,10 @@ import '../../../presentation/widgets/lap_splits_widget.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/services/trails_cache_service.dart';
+import '../../pages/profile/public_profile_page.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 class CommunityTrackDetailPage extends StatefulWidget {
   final CommunityTrack track;
@@ -226,8 +230,19 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
+        child: GestureDetector(
+          onTap: () {
+            if (track.ownerId.isNotEmpty) {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => PublicProfilePage(
+                  userId: track.ownerId,
+                  username: track.ownerUsername,
+                ),
+              ));
+            }
+          },
+          child: Row(
+            children: [
             // Avatar
             Container(
               width: 50,
@@ -297,6 +312,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -964,9 +980,16 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
           style: const TextStyle(fontSize: 16),
         ),
         actions: [
+          // Scarica foto
+          IconButton(
+            icon: const Icon(Icons.download, color: Colors.white, size: 28),
+            tooltip: 'Scarica',
+            onPressed: () => _downloadPhoto(widget.photoUrls[_currentIndex]),
+          ),
           // Condividi foto
           IconButton(
-            icon: const Icon(Icons.share),
+            icon: const Icon(Icons.share, color: Colors.white, size: 28),
+            tooltip: 'Condividi',
             onPressed: () => _sharePhoto(widget.photoUrls[_currentIndex]),
           ),
         ],
@@ -1053,5 +1076,34 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
       'Foto da ${widget.trackName}\n$url',
       subject: 'Foto escursione',
     );
+  }
+
+  Future<void> _downloadPhoto(String url) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Download in corso...')),
+      );
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) throw Exception('Errore download');
+
+      final tempDir = await getTemporaryDirectory();
+      final fileName = 'trailshare_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsBytes(response.bodyBytes);
+
+      if (!mounted) return;
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Foto da ${widget.trackName}',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }

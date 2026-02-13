@@ -312,6 +312,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         _buildStatsGrid(),
                         const SizedBox(height: 24),
 
+                        // Contatti Button
+                        _buildContactsButton(),
+                        const SizedBox(height: 12),
+
                         // Dashboard Button
                         _buildDashboardButton(),
                         const SizedBox(height: 12),
@@ -618,6 +622,40 @@ class _ProfilePageState extends State<ProfilePage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildContactsButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _openFollowingList,
+        icon: const Icon(Icons.people),
+        label: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('I miei contatti'),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$_followersCount follower · $_followingCount seguiti',
+                style: const TextStyle(fontSize: 11),
+              ),
+            ),
+          ],
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary.withOpacity(0.8),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
     );
   }

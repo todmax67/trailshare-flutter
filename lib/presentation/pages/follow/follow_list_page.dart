@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../widgets/follow_button.dart';
+import '../profile/public_profile_page.dart';
 
 /// Pagina che mostra lista Followers o Following
 class FollowListPage extends StatefulWidget {
@@ -127,13 +128,14 @@ class _FollowListPageState extends State<FollowListPage> {
   }
 
   void _openProfile(UserProfile profile) {
-    // TODO: Navigare al profilo pubblico dell'utente
-    // Navigator.push(context, MaterialPageRoute(
-    //   builder: (_) => PublicProfilePage(userId: profile.id),
-    // ));
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Profilo di ${profile.username}')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicProfilePage(
+          userId: profile.id,
+          username: profile.username,
+        ),
+      ),
     );
   }
 }
