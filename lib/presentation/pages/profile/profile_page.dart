@@ -10,6 +10,7 @@ import '../leaderboard/leaderboard_page.dart';
 import '../settings/settings_page.dart';
 import '../badges/badges_page.dart';
 import '../challenges/challenges_page.dart';
+import '../groups/groups_list_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -314,6 +315,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         // Contatti Button
                         _buildContactsButton(),
+                        const SizedBox(height: 12),
+
+                        // Gruppi Button
+                        _buildGroupsButton(),
                         const SizedBox(height: 12),
 
                         // Dashboard Button
@@ -652,6 +657,28 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary.withOpacity(0.8),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupsButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const GroupsListPage()),
+          );
+        },
+        icon: const Icon(Icons.groups),
+        label: const Text('I miei Gruppi'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary.withOpacity(0.9),
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
