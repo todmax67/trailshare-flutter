@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../profile/public_profile_page.dart';
+import '../../../data/repositories/follow_repository.dart';
 
 class GroupMembersPage extends StatefulWidget {
   final String groupId;
@@ -50,6 +51,14 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
+        actions: [
+          if (widget.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.person_add),
+              tooltip: 'Invita',
+              onPressed: _showInviteDialog,
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -150,5 +159,112 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
       await _repo.removeMember(widget.groupId, member.userId);
       _loadMembers();
     }
+  }
+
+  Future<void> _showInviteDialog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final followRepo = FollowRepository();
+    final following = await followRepo.getFollowingWithProfiles(user.uid);
+
+    // Filtra chi è già membro
+    final memberIds = _members.map((m) => m.userId).toSet();
+    final invitable = following.where((u) => !memberIds.contains(u.id)).toList();
+
+    if (!mounted) return;
+
+    if (invitable.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tutti i tuoi contatti sono già nel gruppo')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Invita un contatto',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: invitable.length,
+                itemBuilder: (context, index) {
+                  final profile = invitable[index];
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      backgroundImage: profile.avatarUrl != null
+                          ? NetworkImage(profile.avatarUrl!)
+                          : null,
+                      child: profile.avatarUrl == null
+                          ? Text(
+                              profile.username.isNotEmpty
+                                  ? profile.username[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            )
+                          : null,
+                    ),
+                    title: Text(profile.username),
+                    subtitle: Text('Livello ${profile.level}', style: const TextStyle(fontSize: 12)),
+                    trailing: ElevatedButton(
+                      onPressed: () async {
+                        final success = await _repo.addMember(widget.groupId, profile.id);
+                        if (success && mounted) {
+                          Navigator.pop(context);
+                          _loadMembers();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${profile.username} aggiunto al gruppo!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Invita', style: TextStyle(fontSize: 13)),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
