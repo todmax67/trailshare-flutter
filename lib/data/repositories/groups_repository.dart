@@ -343,6 +343,29 @@ class GroupsRepository {
     }
   }
 
+  /// Carica gruppi pubblici a cui non sei già iscritto
+  Future<List<Group>> getPublicGroups() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
+
+    try {
+      final snapshot = await _groupsRef
+          .where('isPublic', isEqualTo: true)
+          .orderBy('memberCount', descending: true)
+          .limit(50)
+          .get();
+
+      // Filtra quelli di cui sei già membro
+      return snapshot.docs
+          .map((doc) => Group.fromFirestore(doc))
+          .where((g) => !g.memberIds.contains(user.uid))
+          .toList();
+    } catch (e) {
+      print('[Groups] Errore caricamento gruppi pubblici: $e');
+      return [];
+    }
+  }
+
   /// Carica dettaglio gruppo
   Future<Group?> getGroup(String groupId) async {
     try {
@@ -352,6 +375,23 @@ class GroupsRepository {
     } catch (e) {
       print('[Groups] Errore caricamento gruppo: $e');
       return null;
+    }
+  }
+
+  /// Aggiorna nome e/o descrizione del gruppo
+  Future<bool> updateGroup(String groupId, {String? name, String? description}) async {
+    try {
+      final updates = <String, dynamic>{};
+      if (name != null) updates['name'] = name;
+      if (description != null) updates['description'] = description;
+      if (updates.isEmpty) return false;
+
+      await _groupDoc(groupId).update(updates);
+      print('[Groups] Gruppo $groupId aggiornato');
+      return true;
+    } catch (e) {
+      print('[Groups] Errore aggiornamento gruppo: $e');
+      return false;
     }
   }
 

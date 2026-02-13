@@ -12,24 +12,50 @@ class GroupsListPage extends StatefulWidget {
   State<GroupsListPage> createState() => _GroupsListPageState();
 }
 
-class _GroupsListPageState extends State<GroupsListPage> {
+class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProviderStateMixin {
   final _repo = GroupsRepository();
-  List<Group> _groups = [];
-  bool _isLoading = true;
+  List<Group> _myGroups = [];
+  List<Group> _publicGroups = [];
+  bool _isLoadingMy = true;
+  bool _isLoadingPublic = true;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _loadGroups();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && _isLoadingPublic) {
+        _loadPublicGroups();
+      }
+    });
+    _loadMyGroups();
   }
 
-  Future<void> _loadGroups() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadMyGroups() async {
+    setState(() => _isLoadingMy = true);
     final groups = await _repo.getMyGroups();
     if (mounted) {
       setState(() {
-        _groups = groups;
-        _isLoading = false;
+        _myGroups = groups;
+        _isLoadingMy = false;
+      });
+    }
+  }
+
+  Future<void> _loadPublicGroups() async {
+    setState(() => _isLoadingPublic = true);
+    final groups = await _repo.getPublicGroups();
+    if (mounted) {
+      setState(() {
+        _publicGroups = groups;
+        _isLoadingPublic = false;
       });
     }
   }
@@ -38,10 +64,20 @@ class _GroupsListPageState extends State<GroupsListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('I miei Gruppi'),
+        title: const Text('Gruppi'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textMuted,
+          indicatorColor: AppColors.primary,
+          tabs: const [
+            Tab(text: 'I miei Gruppi'),
+            Tab(text: 'Scopri'),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -49,25 +85,48 @@ class _GroupsListPageState extends State<GroupsListPage> {
             context,
             MaterialPageRoute(builder: (_) => const CreateGroupPage()),
           );
-          if (created == true) _loadGroups();
+          if (created == true) {
+            _loadMyGroups();
+            _loadPublicGroups();
+          }
         },
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
         label: const Text('Nuovo Gruppo'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _groups.isEmpty
-              ? _buildEmptyState()
-              : RefreshIndicator(
-                  onRefresh: _loadGroups,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _groups.length,
-                    itemBuilder: (context, index) => _buildGroupCard(_groups[index]),
-                  ),
-                ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Tab 1: I miei Gruppi
+          _isLoadingMy
+              ? const Center(child: CircularProgressIndicator())
+              : _myGroups.isEmpty
+                  ? _buildEmptyState()
+                  : RefreshIndicator(
+                      onRefresh: _loadMyGroups,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _myGroups.length,
+                        itemBuilder: (context, index) => _buildGroupCard(_myGroups[index], isMember: true),
+                      ),
+                    ),
+
+          // Tab 2: Scopri
+          _isLoadingPublic
+              ? const Center(child: CircularProgressIndicator())
+              : _publicGroups.isEmpty
+                  ? _buildEmptyDiscover()
+                  : RefreshIndicator(
+                      onRefresh: _loadPublicGroups,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _publicGroups.length,
+                        itemBuilder: (context, index) => _buildGroupCard(_publicGroups[index], isMember: false),
+                      ),
+                    ),
+        ],
+      ),
     );
   }
 
@@ -97,7 +156,7 @@ class _GroupsListPageState extends State<GroupsListPage> {
                   context,
                   MaterialPageRoute(builder: (_) => const CreateGroupPage()),
                 );
-                if (created == true) _loadGroups();
+                if (created == true) _loadMyGroups();
               },
               icon: const Icon(Icons.add),
               label: const Text('Crea il tuo primo gruppo'),
@@ -113,19 +172,46 @@ class _GroupsListPageState extends State<GroupsListPage> {
     );
   }
 
-  Widget _buildGroupCard(Group group) {
+  Widget _buildEmptyDiscover() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.explore_outlined, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 24),
+            const Text(
+              'Nessun gruppo disponibile',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Non ci sono gruppi pubblici a cui unirti al momento. Creane uno tu!',
+              style: TextStyle(color: Colors.grey[600], fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupCard(Group group, {required bool isMember}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => GroupDetailPage(groupId: group.id, groupName: group.name),
-            ),
-          );
-          _loadGroups(); // Ricarica in caso di modifiche
-        },
+        onTap: isMember
+            ? () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => GroupDetailPage(groupId: group.id, groupName: group.name),
+                  ),
+                );
+                _loadMyGroups();
+              }
+            : null,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -172,7 +258,7 @@ class _GroupsListPageState extends State<GroupsListPage> {
                       const SizedBox(height: 4),
                       Text(
                         group.description!,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.textSecondary,
@@ -204,7 +290,32 @@ class _GroupsListPageState extends State<GroupsListPage> {
                 ),
               ),
 
-              const Icon(Icons.chevron_right, color: AppColors.textMuted),
+              // Bottone unisciti o freccia
+              if (isMember)
+                const Icon(Icons.chevron_right, color: AppColors.textMuted)
+              else
+                ElevatedButton(
+                  onPressed: () async {
+                    final success = await _repo.joinGroup(group.id);
+                    if (success && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Ti sei unito a "${group.name}"!'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                      _loadMyGroups();
+                      _loadPublicGroups();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('Unisciti', style: TextStyle(fontSize: 13)),
+                ),
             ],
           ),
         ),

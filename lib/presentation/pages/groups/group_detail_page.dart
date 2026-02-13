@@ -287,18 +287,39 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             ),
           ),
 
-          if (group.description != null && group.description!.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            const Text(
-              'Descrizione',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Descrizione',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              if (_isAdmin)
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20),
+                  color: AppColors.primary,
+                  tooltip: 'Modifica',
+                  onPressed: () => _showEditGroupDialog(group),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            (group.description != null && group.description!.isNotEmpty)
+                ? group.description!
+                : 'Nessuna descrizione. Tocca modifica per aggiungerne una.',
+            style: TextStyle(
+              color: (group.description != null && group.description!.isNotEmpty)
+                  ? AppColors.textSecondary
+                  : AppColors.textMuted,
+              fontSize: 14,
+              height: 1.5,
+              fontStyle: (group.description != null && group.description!.isNotEmpty)
+                  ? FontStyle.normal
+                  : FontStyle.italic,
             ),
-            const SizedBox(height: 8),
-            Text(
-              group.description!,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
-            ),
-          ],
+          ),
 
           const SizedBox(height: 24),
           const Divider(),
@@ -319,6 +340,76 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         ],
       ),
     );
+  }
+
+  Future<void> _showEditGroupDialog(Group group) async {
+    final nameController = TextEditingController(text: group.name);
+    final descController = TextEditingController(text: group.description ?? '');
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Modifica gruppo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Nome gruppo',
+                border: OutlineInputBorder(),
+              ),
+              maxLength: 30,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descController,
+              decoration: const InputDecoration(
+                labelText: 'Descrizione',
+                hintText: 'Descrivi il tuo gruppo...',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 4,
+              maxLength: 200,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              if (newName.length < 3) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Il nome deve avere almeno 3 caratteri')),
+                );
+                return;
+              }
+              final success = await _repo.updateGroup(
+                widget.groupId,
+                name: newName,
+                description: descController.text.trim(),
+              );
+              if (success && context.mounted) {
+                Navigator.pop(context, true);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      _loadGroup();
+    }
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
