@@ -11,6 +11,8 @@ import '../settings/settings_page.dart';
 import '../badges/badges_page.dart';
 import '../challenges/challenges_page.dart';
 import '../groups/groups_list_page.dart';
+import '../../../data/repositories/admin_repository.dart';
+import '../admin/admin_panel_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -315,6 +317,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         // Contatti Button
                         _buildContactsButton(),
+                        const SizedBox(height: 12),
+
+                        // Admin Button
+                        _buildAdminButton(),
                         const SizedBox(height: 12),
 
                         // Gruppi Button
@@ -660,6 +666,34 @@ class _ProfilePageState extends State<ProfilePage> {
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminButton() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (!AdminRepository.isSuperAdmin(uid)) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AdminPanelPage()),
+            );
+          },
+          icon: const Icon(Icons.admin_panel_settings),
+          label: const Text('Pannello Admin'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.amber.shade700,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
         ),
       ),
     );

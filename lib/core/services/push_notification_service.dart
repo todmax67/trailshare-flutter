@@ -73,6 +73,8 @@ class PushNotificationService {
     try {
       await _firestore.collection('user_profiles').doc(user.uid).set({
         'fcmTokens': FieldValue.arrayUnion([token]),
+        'email': user.email,
+        'lastActive': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
       debugPrint('[Push] Token salvato su Firestore');
