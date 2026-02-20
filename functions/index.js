@@ -1107,3 +1107,62 @@ exports.onGroupChallenge = onDocumentCreated("groups/{groupId}/challenges/{chall
 
     return null;
 });
+
+// ===================================================================
+// BACKFILL: Aggiorna email/displayName/createdAt da Auth a user_profiles
+// Esegui UNA VOLTA: https://europe-west3-YOUR_PROJECT.cloudfunctions.net/backfillUserEmails
+// ===================================================================
+exports.backfillUserEmails = onRequest({ region: "europe-west3" }, async (req, res) => {
+  try {
+    let nextPageToken;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const results = [];
+
+    do {
+      const listResult = await admin.auth().listUsers(1000, nextPageToken);
+
+      for (const userRecord of listResult.users) {
+        try {
+          const profileRef = db.collection("user_profiles").doc(userRecord.uid);
+          const profileDoc = await profileRef.get();
+          const existing = profileDoc.exists ? profileDoc.data() : {};
+          const updates = {};
+
+          // FORZA email da Auth (sovrascrive null)
+          if (userRecord.email && existing.email !== userRecord.email) {
+            updates.email = userRecord.email;
+          }
+
+          // Username: usa displayName se manca o è placeholder
+          if (userRecord.displayName && (!existing.username || existing.username === "Utente")) {
+            updates.username = userRecord.displayName;
+          }
+
+          // createdAt da Auth se manca
+          if (userRecord.metadata.creationTime && !existing.createdAt) {
+            updates.createdAt = admin.firestore.Timestamp.fromDate(
+              new Date(userRecord.metadata.creationTime)
+            );
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await profileRef.set(updates, { merge: true });
+            updatedCount++;
+            results.push("UPDATED: " + userRecord.email + " -> " + JSON.stringify(updates));
+          } else {
+            skippedCount++;
+            results.push("SKIP: " + (userRecord.email || userRecord.uid) + " (already complete)");
+          }
+        } catch (err) {
+          results.push("ERROR: " + userRecord.uid + " - " + err.message);
+        }
+      }
+      nextPageToken = listResult.pageToken;
+    } while (nextPageToken);
+
+    res.json({ updated: updatedCount, skipped: skippedCount, details: results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
