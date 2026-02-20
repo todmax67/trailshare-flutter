@@ -635,12 +635,15 @@ class _StatChip extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: color ?? AppColors.textSecondary),
         const SizedBox(width: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            color: color ?? AppColors.textPrimary,
-            fontWeight: FontWeight.w500,
+        Flexible(
+          child: Text(
+            value,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: color ?? AppColors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],
