@@ -224,6 +224,125 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     }
   }
 
+  Future<void> _showJoinByCodeDialog() async {
+    final codeController = TextEditingController();
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        bool isJoining = false;
+        String? errorMessage;
+        
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.vpn_key, color: AppColors.primary),
+                SizedBox(width: 8),
+                Text('Unisciti con codice'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Inserisci il codice invito ricevuto per unirti a un gruppo.',
+                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: codeController,
+                  textCapitalization: TextCapitalization.characters,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 4,
+                    fontFamily: 'monospace',
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'XXXXXX',
+                    hintStyle: TextStyle(
+                      color: Colors.grey[300],
+                      fontSize: 24,
+                      letterSpacing: 4,
+                    ),
+                    border: const OutlineInputBorder(),
+                    counterText: '',
+                    errorText: errorMessage,
+                  ),
+                  maxLength: 6,
+                  onChanged: (_) {
+                    if (errorMessage != null) {
+                      setDialogState(() => errorMessage = null);
+                    }
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isJoining ? null : () => Navigator.pop(context, false),
+                child: const Text('Annulla'),
+              ),
+              ElevatedButton(
+                onPressed: isJoining
+                    ? null
+                    : () async {
+                        final code = codeController.text.trim();
+                        if (code.length < 6) {
+                          setDialogState(() => errorMessage = 'Il codice deve essere di 6 caratteri');
+                          return;
+                        }
+
+                        setDialogState(() {
+                          isJoining = true;
+                          errorMessage = null;
+                        });
+
+                        final result = await _groupsRepo.joinByInviteCode(code);
+
+                        if (!context.mounted) return;
+
+                        if (result['success'] == true) {
+                          Navigator.pop(context, true);
+                        } else {
+                          setDialogState(() {
+                            isJoining = false;
+                            errorMessage = result['error'] ?? 'Errore sconosciuto';
+                          });
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+                child: isJoining
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Unisciti'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == true && mounted) {
+      // Ricarica gruppi dopo l'unione
+      _loadMyGroups();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ti sei unito al gruppo!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // CARICAMENTO: EVENTI & SFIDE
   // ═══════════════════════════════════════════════════════════════════════
@@ -598,6 +717,17 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     if (_publicGroups.isEmpty) _loadPublicGroups();
                   },
                   selectedColor: AppColors.primary.withOpacity(0.2),
+                ),
+                const Spacer(),
+                // ⭐ NUOVO: Bottone unisciti con codice
+                TextButton.icon(
+                  onPressed: _showJoinByCodeDialog,
+                  icon: const Icon(Icons.vpn_key, size: 18),
+                  label: const Text('Codice'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
                 ),
               ],
             ),

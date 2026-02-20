@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MODELLI
@@ -15,6 +16,7 @@ class Group {
   final List<String> memberIds;
   final int memberCount;
   final bool isPublic;
+  final String? inviteCode;
 
   const Group({
     required this.id,
@@ -26,6 +28,7 @@ class Group {
     required this.memberIds,
     this.memberCount = 0,
     this.isPublic = false,
+    this.inviteCode,
   });
 
   factory Group.fromFirestore(DocumentSnapshot doc) {
@@ -40,6 +43,7 @@ class Group {
       memberIds: List<String>.from(data['memberIds'] ?? []),
       memberCount: (data['memberCount'] as num?)?.toInt() ?? 0,
       isPublic: data['isPublic'] ?? false,
+      inviteCode: data['inviteCode'],
     );
   }
 }
@@ -307,6 +311,13 @@ class GroupsRepository {
   DocumentReference<Map<String, dynamic>> _groupDoc(String groupId) =>
       _groupsRef.doc(groupId);
 
+  /// Genera un codice invito univoco (6 caratteri alfanumerici maiuscoli)
+  static String _generateInviteCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Senza I,O,0,1 per evitare confusione
+    final random = Random();
+    return List.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
+  }    
+
   // ─────────────────────────────────────────────────────────────────────
   // CRUD GRUPPO
   // ─────────────────────────────────────────────────────────────────────
@@ -335,6 +346,7 @@ class GroupsRepository {
         'memberIds': [user.uid],
         'memberCount': 1,
         'isPublic': isPublic,
+        'inviteCode': _generateInviteCode(),
       });
 
       // Aggiungi creatore come admin
@@ -837,6 +849,98 @@ class GroupsRepository {
       }, SetOptions(merge: true));
     } catch (e) {
       print('[Groups] Errore aggiornamento standing: $e');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // CODICE INVITO
+  // ─────────────────────────────────────────────────────────────────────
+
+  /// Cerca gruppo per codice invito
+  Future<Group?> findGroupByInviteCode(String code) async {
+    try {
+      final snapshot = await _groupsRef
+          .where('inviteCode', isEqualTo: code.toUpperCase().trim())
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) return null;
+      return Group.fromFirestore(snapshot.docs.first);
+    } catch (e) {
+      print('[Groups] Errore ricerca codice invito: $e');
+      return null;
+    }
+  }
+
+  /// Unisciti a un gruppo tramite codice invito
+  Future<Map<String, dynamic>> joinByInviteCode(String code) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return {'success': false, 'error': 'Non autenticato'};
+
+    try {
+      // Cerca il gruppo
+      final group = await findGroupByInviteCode(code);
+      if (group == null) {
+        return {'success': false, 'error': 'Codice invito non valido'};
+      }
+
+      // Controlla se già membro
+      if (group.memberIds.contains(user.uid)) {
+        return {'success': false, 'error': 'Sei già membro di "${group.name}"', 'groupName': group.name};
+      }
+
+      // Unisciti
+      final success = await joinGroup(group.id);
+      if (success) {
+        return {'success': true, 'groupId': group.id, 'groupName': group.name};
+      } else {
+        return {'success': false, 'error': 'Errore nell\'unirsi al gruppo'};
+      }
+    } catch (e) {
+      print('[Groups] Errore join con codice: $e');
+      return {'success': false, 'error': 'Errore: $e'};
+    }
+  }
+
+  /// Rigenera codice invito (solo admin)
+  Future<String?> regenerateInviteCode(String groupId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+
+    try {
+      // Verifica admin
+      final isAdminUser = await isAdmin(groupId);
+      if (!isAdminUser) return null;
+
+      final newCode = _generateInviteCode();
+      await _groupDoc(groupId).update({'inviteCode': newCode});
+      print('[Groups] Codice invito rigenerato per $groupId: $newCode');
+      return newCode;
+    } catch (e) {
+      print('[Groups] Errore rigenerazione codice: $e');
+      return null;
+    }
+  }
+
+  /// Assicura che un gruppo abbia un codice invito (per gruppi pre-esistenti)
+  Future<String?> ensureInviteCode(String groupId) async {
+    try {
+      final doc = await _groupDoc(groupId).get();
+      final data = doc.data();
+      if (data == null) return null;
+
+      final existingCode = data['inviteCode'] as String?;
+      if (existingCode != null && existingCode.isNotEmpty) {
+        return existingCode;
+      }
+
+      final newCode = _generateInviteCode();
+      await _groupDoc(groupId).update({'inviteCode': newCode});
+      print('[Groups] Codice invito generato per gruppo esistente $groupId: $newCode');
+      return newCode;
+    } catch (e) {
+      print('[Groups] Errore ensureInviteCode: $e');
+      return null;
     }
   }
 

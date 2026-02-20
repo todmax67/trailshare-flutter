@@ -6,6 +6,8 @@ import 'group_chat_tab.dart';
 import 'group_events_tab.dart';
 import 'group_challenges_tab.dart';
 import 'group_members_page.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:flutter/services.dart';
 
 class GroupDetailPage extends StatefulWidget {
   final String groupId;
@@ -54,6 +56,16 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         _isLoading = false;
       });
     }
+
+    // Assicura che il gruppo abbia un codice invito
+      if (group != null && group.inviteCode == null) {
+        await _repo.ensureInviteCode(widget.groupId);
+        // Ricarica per avere il codice
+        final updated = await _repo.getGroup(widget.groupId);
+        if (mounted && updated != null) {
+          setState(() => _group = updated);
+        }
+      }
   }
 
   Future<void> _leaveGroup() async {
@@ -217,6 +229,173 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     );
   }
 
+  Widget _buildInviteCodeSection() {
+    final code = _group?.inviteCode ?? '';
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.vpn_key, size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              const Text(
+                'Codice Invito',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const Spacer(),
+              if (_isAdmin)
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  color: AppColors.textMuted,
+                  tooltip: 'Rigenera codice',
+                  onPressed: _regenerateInviteCode,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // Codice grande e copiabile
+          GestureDetector(
+            onTap: () => _copyInviteCode(code),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    code,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 4,
+                      color: AppColors.primary,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(Icons.copy, size: 20, color: AppColors.primary.withOpacity(0.6)),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Bottoni azioni
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _copyInviteCode(code),
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('Copia'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _shareInviteCode(code),
+                  icon: const Icon(Icons.share, size: 18),
+                  label: const Text('Condividi'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 8),
+          Text(
+            'Condividi questo codice per invitare nuove persone al gruppo',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyInviteCode(String code) {
+    Clipboard.setData(ClipboardData(text: code));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Codice copiato!'),
+        backgroundColor: AppColors.success,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _shareInviteCode(String code) {
+    final groupName = _group?.name ?? widget.groupName;
+    Share.share(
+      'Unisciti al gruppo "$groupName" su TrailShare!\n\n'
+      'Usa il codice invito: $code\n\n'
+      'Scarica TrailShare e inserisci il codice nella sezione Community > Gruppi.',
+      subject: 'Invito gruppo TrailShare',
+    );
+  }
+
+  Future<void> _regenerateInviteCode() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rigenera codice'),
+        content: const Text(
+          'Il vecchio codice non funzionerà più. Vuoi generare un nuovo codice invito?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Rigenera'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final newCode = await _repo.regenerateInviteCode(widget.groupId);
+      if (newCode != null && mounted) {
+        _loadGroup(); // Ricarica per aggiornare il codice
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Nuovo codice: $newCode'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildInfoTab() {
     final group = _group;
     if (group == null) return const SizedBox();
@@ -324,6 +503,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 16),
+
+          // ⭐ Codice Invito
+          if (_group?.inviteCode != null) ...[
+            const SizedBox(height: 16),
+            _buildInviteCodeSection(),
+            const SizedBox(height: 16),
+            const Divider(),
+          ],
 
           // Info dettagli
           _buildInfoRow(Icons.calendar_today, 'Creato il', _formatDate(group.createdAt)),
