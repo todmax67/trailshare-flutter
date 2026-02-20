@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import '../map/map_page.dart';
+import '../community/community_page.dart';
 import '../record/record_page.dart';
 import '../tracks/tracks_page.dart';
 import '../profile/profile_page.dart';
 import '../discover/discover_page.dart';
-import '../dashboard/dashboard_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,14 +13,14 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentIndex = 1; // Mappa come default
+  int _currentIndex = 1; // Community come default
 
   final List<Widget> _pages = [
-    const DiscoverPage(),    // ← Scopri vero!
-    const MapPage(),
-    const RecordPage(),
-    const TracksPage(),
-    const ProfilePage(),
+    const DiscoverPage(),       // 0 - Scopri (Sentieri OSM)
+    const CommunityPage(),      // 1 - Community (Tracce + Gruppi + Eventi) ← DEFAULT
+    const RecordPage(),         // 2 - Registra
+    const TracksPage(),         // 3 - Tracce
+    const ProfilePage(),        // 4 - Profilo
   ];
 
   @override
@@ -45,9 +44,9 @@ class _HomePageState extends State<HomePage> {
             label: 'Scopri',
           ),
           NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'Mappa',
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
+            label: 'Community',
           ),
           NavigationDestination(
             icon: Icon(Icons.radio_button_checked),

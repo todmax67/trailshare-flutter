@@ -233,6 +233,34 @@ class ChallengeStanding {
   }
 }
 
+/// Evento con info del gruppo di appartenenza (per vista cross-gruppo)
+class GroupEventWithInfo {
+  final GroupEvent event;
+  final String groupId;
+  final String groupName;
+  final bool isPublic;
+
+  const GroupEventWithInfo({
+    required this.event,
+    required this.groupId,
+    required this.groupName,
+    this.isPublic = false,
+  });
+}
+
+/// Sfida con info del gruppo di appartenenza (per vista cross-gruppo)
+class GroupChallengeWithInfo {
+  final GroupChallenge challenge;
+  final String groupId;
+  final String groupName;
+
+  const GroupChallengeWithInfo({
+    required this.challenge,
+    required this.groupId,
+    required this.groupName,
+  });
+}
+
 class GroupMessage {
   final String id;
   final String text;
@@ -810,6 +838,84 @@ class GroupsRepository {
     } catch (e) {
       print('[Groups] Errore aggiornamento standing: $e');
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // CROSS-GROUP QUERIES (per Community Page)
+  // ─────────────────────────────────────────────────────────────────────
+
+  /// Carica prossimi eventi da TUTTI i gruppi dell'utente
+  Future<List<GroupEventWithInfo>> getAllUpcomingEvents() async {
+    final groups = await getMyGroups();
+    final allEvents = <GroupEventWithInfo>[];
+
+    for (final group in groups) {
+      try {
+        final events = await getEvents(group.id, upcomingOnly: true);
+        for (final event in events) {
+          allEvents.add(GroupEventWithInfo(
+            event: event,
+            groupId: group.id,
+            groupName: group.name,
+            isPublic: group.isPublic,
+          ));
+        }
+      } catch (e) {
+        print('[Groups] Errore caricamento eventi per ${group.name}: $e');
+      }
+    }
+
+    // Ordina per data (prossimi prima)
+    allEvents.sort((a, b) => a.event.date.compareTo(b.event.date));
+    return allEvents;
+  }
+
+  /// Carica sfide attive da TUTTI i gruppi dell'utente
+  Future<List<GroupChallengeWithInfo>> getAllActiveChallenges() async {
+    final groups = await getMyGroups();
+    final allChallenges = <GroupChallengeWithInfo>[];
+
+    for (final group in groups) {
+      try {
+        final challenges = await getChallenges(group.id, activeOnly: true);
+        for (final challenge in challenges) {
+          allChallenges.add(GroupChallengeWithInfo(
+            challenge: challenge,
+            groupId: group.id,
+            groupName: group.name,
+          ));
+        }
+      } catch (e) {
+        print('[Groups] Errore caricamento sfide per ${group.name}: $e');
+      }
+    }
+
+    return allChallenges;
+  }
+
+  /// Carica eventi pubblici (da gruppi pubblici a cui NON sei iscritto)
+  Future<List<GroupEventWithInfo>> getPublicUpcomingEvents() async {
+    final publicGroups = await getPublicGroups();
+    final allEvents = <GroupEventWithInfo>[];
+
+    for (final group in publicGroups) {
+      try {
+        final events = await getEvents(group.id, upcomingOnly: true);
+        for (final event in events) {
+          allEvents.add(GroupEventWithInfo(
+            event: event,
+            groupId: group.id,
+            groupName: group.name,
+            isPublic: true,
+          ));
+        }
+      } catch (e) {
+        print('[Groups] Errore caricamento eventi pubblici per ${group.name}: $e');
+      }
+    }
+
+    allEvents.sort((a, b) => a.event.date.compareTo(b.event.date));
+    return allEvents;
   }
 
   // ─────────────────────────────────────────────────────────────────────

@@ -7,10 +7,7 @@ import '../../../core/constants/app_colors.dart';
 // ⭐ Repository con cache e clustering
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../core/services/trails_cache_service.dart';
-import '../../../data/repositories/community_tracks_repository.dart';
 import 'trail_detail_page.dart';
-import 'community_track_detail_page.dart';
-import '../../../presentation/widgets/community_track_card.dart';
 
 class DiscoverPage extends StatefulWidget {
   const DiscoverPage({super.key});
@@ -19,8 +16,7 @@ class DiscoverPage extends StatefulWidget {
   State<DiscoverPage> createState() => _DiscoverPageState();
 }
 
-class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _DiscoverPageState extends State<DiscoverPage> {
   final MapController _mapController = MapController();
   
   // Posizione utente (solo per centrare mappa inizialmente e mostrare marker)
@@ -37,12 +33,6 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   LatLngBounds? _pendingBounds; // Bounds richiesti durante caricamento
   double? _pendingZoom;
 
-  // Community
-  final CommunityTracksRepository _communityRepository = CommunityTracksRepository();
-  List<CommunityTrack> _communityTracks = [];
-  bool _isLoadingCommunity = true;
-  CommunityTrack? _selectedCommunityTrack;
-
   // UI
   bool _showMap = true;
   final TextEditingController _searchController = TextEditingController();
@@ -55,26 +45,16 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      // Reset selezione quando si cambia tab
-      setState(() {
-        _selectedTrail = null;
-        _selectedCommunityTrack = null;
-      });
-    });
     
-    // ⭐ NUOVO: Inizializza cache
+    // ⭐ Inizializza cache
     trailsCacheService.init();
     
     // Prima ottieni la posizione, poi carica i sentieri
     _initializeLocation();
-    _loadCommunityTracks();
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
     _searchController.dispose();
     _viewportDebounce?.cancel();
     super.dispose();
@@ -147,15 +127,6 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     await _loadTrailsForViewport();
   }
 
-  Future<void> _loadCommunityTracks() async {
-    setState(() => _isLoadingCommunity = true);
-    final tracks = await _communityRepository.getRecentTracks(limit: 50);
-    setState(() {
-      _communityTracks = tracks;
-      _isLoadingCommunity = false;
-    });
-  }
-
   void _onSearchChanged(String query) {
     setState(() => _searchQuery = query.toLowerCase());
   }
@@ -168,28 +139,11 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
     ).toList();
   }
 
-  List<CommunityTrack> get _filteredCommunity {
-    if (_searchQuery.isEmpty) return _communityTracks;
-    return _communityTracks.where((track) =>
-        track.name.toLowerCase().contains(_searchQuery) ||
-        track.ownerUsername.toLowerCase().contains(_searchQuery)
-    ).toList();
-  }
-
   void _selectTrail(PublicTrail trail) {
     setState(() => _selectedTrail = trail);
     
     if (trail.points.isNotEmpty) {
       final center = _calculateCenter(trail.points);
-      _mapController.move(center, 13);
-    }
-  }
-
-  void _selectCommunityTrack(CommunityTrack track) {
-    setState(() => _selectedCommunityTrack = track);
-    
-    if (track.points.isNotEmpty) {
-      final center = _calculateCenterFromTrackPoints(track.points);
       _mapController.move(center, 13);
     }
   }
@@ -238,11 +192,8 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   void _onMapEvent(MapEvent event) {
     // Log temporaneo per debug
     if (event is! MapEventMove) {
-      print('[DiscoverPage] 🗺️ MapEvent: ${event.runtimeType} (tab: ${_tabController.index})');
+      print('[DiscoverPage] 🗺️ MapEvent: ${event.runtimeType}');
     }
-    
-    // Solo per tab sentieri e quando l'utente finisce di muovere la mappa
-    if (_tabController.index != 0) return;
     
     if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd || event is MapEventRotateEnd) {
       // Debounce per evitare troppe chiamate
@@ -369,22 +320,10 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scopri'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(
-              icon: const Icon(Icons.hiking),
-              // ⭐ NUOVO: Mostra conteggio cluster se presente
-              text: _clusters.isNotEmpty 
-                  ? 'Sentieri (${_clusters.fold(0, (sum, c) => sum + c.count)})'
-                  : 'Sentieri (${_trails.length})',
-            ),
-            Tab(
-              icon: const Icon(Icons.people),
-              text: 'Community (${_communityTracks.length})',
-            ),
-          ],
+        title: Text(
+          _clusters.isNotEmpty 
+              ? 'Scopri (${_clusters.fold(0, (sum, c) => sum + c.count)})'
+              : 'Scopri (${_trails.length})',
         ),
         actions: [
           // Toggle mappa/lista
@@ -393,16 +332,12 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
             onPressed: () => setState(() {
               _showMap = !_showMap;
               _selectedTrail = null;
-              _selectedCommunityTrack = null;
             }),
             tooltip: _showMap ? 'Mostra lista' : 'Mostra mappa',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              _refreshTrails();
-              _loadCommunityTracks();
-            },
+            onPressed: _refreshTrails,
           ),
         ],
       ),
@@ -418,7 +353,7 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
                   controller: _searchController,
                   onChanged: _onSearchChanged,
                   decoration: InputDecoration(
-                    hintText: 'Cerca...',
+                    hintText: 'Cerca sentieri...',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
@@ -437,25 +372,15 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   ),
                 ),
-                
-                // Info posizione (solo per tab Sentieri)
-                if (_tabController.index == 0) ...[
-                  const SizedBox(height: 8),
-                  _buildLocationInfo(),
-                ],
+                const SizedBox(height: 8),
+                _buildLocationInfo(),
               ],
             ),
           ),
 
-          // Tab content
+          // Contenuto sentieri (diretto, senza TabBarView)
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildTrailsTab(),
-                _buildCommunityTab(),
-              ],
-            ),
+            child: _buildTrailsTab(),
           ),
         ],
       ),
@@ -859,200 +784,6 @@ class _DiscoverPageState extends State<DiscoverPage> with SingleTickerProviderSt
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // TAB COMMUNITY
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildCommunityTab() {
-    if (_isLoadingCommunity) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final tracks = _filteredCommunity;
-
-    if (tracks.isEmpty) {
-      return _buildEmptyState(
-        icon: Icons.people_outline,
-        message: _searchQuery.isEmpty 
-            ? 'Nessuna traccia condivisa' 
-            : 'Nessun risultato per "$_searchQuery"',
-      );
-    }
-
-    return _showMap ? _buildCommunityMapView(tracks) : _buildCommunityList(tracks);
-  }
-
-  Widget _buildCommunityMapView(List<CommunityTrack> tracks) {
-    final defaultCenter = _userPosition ?? const LatLng(45.95, 9.75);
-
-    return Stack(
-      children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: tracks.isNotEmpty && tracks.first.points.isNotEmpty
-                ? _calculateCenterFromTrackPoints(tracks.first.points)
-                : defaultCenter,
-            initialZoom: 11,
-            minZoom: 8,
-            maxZoom: 18,
-            onTap: (_, __) => setState(() => _selectedCommunityTrack = null),
-          ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.trailshare.app',
-            ),
-            
-            // Polylines delle tracce
-            PolylineLayer(
-              polylines: tracks.map((track) {
-                final isSelected = track.id == _selectedCommunityTrack?.id;
-                return Polyline(
-                  points: track.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
-                  strokeWidth: isSelected ? 5 : 3,
-                  color: isSelected ? AppColors.primary : AppColors.success.withOpacity(0.7),
-                );
-              }).toList(),
-            ),
-
-            // Markers inizio tracce
-            MarkerLayer(
-              markers: tracks.map((track) {
-                if (track.points.isEmpty) return null;
-                final start = track.points.first;
-                final isSelected = track.id == _selectedCommunityTrack?.id;
-                
-                return Marker(
-                  point: LatLng(start.latitude, start.longitude),
-                  width: isSelected ? 44 : 36,
-                  height: isSelected ? 44 : 36,
-                  child: GestureDetector(
-                    onTap: () => _selectCommunityTrack(track),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary : AppColors.success,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          track.activityIcon,
-                          style: TextStyle(fontSize: isSelected ? 18 : 14),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).whereType<Marker>().toList(),
-            ),
-
-            // Marker posizione utente
-            if (_userPosition != null)
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _userPosition!,
-                    width: 44,
-                    height: 44,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withOpacity(0.4),
-                            blurRadius: 10,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.person,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-
-        // Card info traccia selezionata
-        if (_selectedCommunityTrack != null)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _CommunityTrackInfoCard(
-              track: _selectedCommunityTrack!,
-              onTap: () => _openCommunityTrackDetail(_selectedCommunityTrack!),
-              onClose: () => setState(() => _selectedCommunityTrack = null),
-            ),
-          ),
-
-        Positioned(
-          top: 8,
-          left: 8,
-          child: _CounterBadge(count: tracks.length, label: 'tracce'),
-        ),
-
-        // Pulsante centra su utente
-        if (_userPosition != null)
-          Positioned(
-            bottom: _selectedCommunityTrack != null ? 180 : 16,
-            right: 16,
-            child: FloatingActionButton.small(
-              heroTag: 'center_user_community',
-              onPressed: _centerOnUser,
-              backgroundColor: Colors.white,
-              child: const Icon(Icons.my_location, color: AppColors.primary),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildCommunityList(List<CommunityTrack> tracks) {
-    return RefreshIndicator(
-      onRefresh: _loadCommunityTracks,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: tracks.length,
-        itemBuilder: (context, index) {
-          final track = tracks[index];
-          return CommunityTrackCard(
-            trackId: track.id,
-            name: track.name,
-            ownerUsername: track.ownerUsername,
-            activityIcon: track.activityIcon,
-            distanceKm: track.distanceKm,
-            elevationGain: track.elevationGain,
-            durationFormatted: track.durationFormatted,
-            cheerCount: track.cheerCount,
-            sharedAt: track.sharedAt,
-            difficulty: track.difficulty,
-            photoUrls: track.photoUrls,
-            points: track.points,
-            onTap: () => _openCommunityTrackDetail(track),
-          );
-        },
-      ),
-    );
-  }
-
-  void _openCommunityTrackDetail(CommunityTrack track) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => CommunityTrackDetailPage(track: track)),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
   // WIDGETS COMUNI
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1192,86 +923,6 @@ class _TrailInfoCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(icon: const Icon(Icons.close), onPressed: onClose, iconSize: 20),
-                const Icon(Icons.chevron_right, color: AppColors.textMuted),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CommunityTrackInfoCard extends StatelessWidget {
-  final CommunityTrack track;
-  final VoidCallback onTap;
-  final VoidCallback onClose;
-
-  const _CommunityTrackInfoCard({required this.track, required this.onTap, required this.onClose});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, spreadRadius: 2)],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(child: Text(track.activityIcon, style: const TextStyle(fontSize: 24))),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(track.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.person, size: 14, color: AppColors.textMuted),
-                          const SizedBox(width: 4),
-                          Flexible(child: Text(track.ownerUsername, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                          const SizedBox(width: 8),
-                          Icon(Icons.straighten, size: 14, color: AppColors.textMuted),
-                          const SizedBox(width: 4),
-                          Text('${track.distanceKm.toStringAsFixed(1)} km', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                if (track.cheerCount > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.danger.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.favorite, size: 14, color: AppColors.danger),
-                        const SizedBox(width: 4),
-                        Text('${track.cheerCount}', style: const TextStyle(color: AppColors.danger, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
                 IconButton(icon: const Icon(Icons.close), onPressed: onClose, iconSize: 20),
                 const Icon(Icons.chevron_right, color: AppColors.textMuted),
               ],
