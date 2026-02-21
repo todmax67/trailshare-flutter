@@ -15,8 +15,12 @@ class Group {
   final DateTime createdAt;
   final List<String> memberIds;
   final int memberCount;
-  final bool isPublic;
+  final String visibility; // 'public' | 'private' | 'secret'
   final String? inviteCode;
+  bool get isPublic => visibility == 'public';
+  bool get isPrivate => visibility == 'private';
+  bool get isSecret => visibility == 'secret';
+  bool get isDiscoverable => visibility != 'secret';
 
   const Group({
     required this.id,
@@ -27,7 +31,7 @@ class Group {
     required this.createdAt,
     required this.memberIds,
     this.memberCount = 0,
-    this.isPublic = false,
+    this.visibility = 'secret',
     this.inviteCode,
   });
 
@@ -42,10 +46,16 @@ class Group {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       memberIds: List<String>.from(data['memberIds'] ?? []),
       memberCount: (data['memberCount'] as num?)?.toInt() ?? 0,
-      isPublic: data['isPublic'] ?? false,
+      visibility: _parseVisibility(data),
       inviteCode: data['inviteCode'],
     );
   }
+}
+/// Helper retrocompatibilità: vecchi gruppi hanno isPublic, nuovi hanno visibility
+String _parseVisibility(Map<String, dynamic> data) {
+  if (data['visibility'] != null) return data['visibility'];
+  if (data['isPublic'] == true) return 'public';
+  return 'secret';
 }
 
 class GroupMember {
@@ -242,13 +252,15 @@ class GroupEventWithInfo {
   final GroupEvent event;
   final String groupId;
   final String groupName;
-  final bool isPublic;
+  final String visibility;
+
+  bool get isPublic => visibility == 'public';
 
   const GroupEventWithInfo({
     required this.event,
     required this.groupId,
     required this.groupName,
-    this.isPublic = false,
+    this.visibility = 'secret',
   });
 }
 
@@ -326,7 +338,7 @@ class GroupsRepository {
   Future<String?> createGroup({
     required String name,
     String? description,
-    bool isPublic = false,
+    String visibility = 'secret',
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
@@ -345,7 +357,8 @@ class GroupsRepository {
         'createdAt': FieldValue.serverTimestamp(),
         'memberIds': [user.uid],
         'memberCount': 1,
-        'isPublic': isPublic,
+        'visibility': visibility,
+        'isPublic': visibility == 'public',
         'inviteCode': _generateInviteCode(),
       });
 
@@ -384,22 +397,33 @@ class GroupsRepository {
   }
 
   /// Carica gruppi pubblici a cui non sei già iscritto
-  Future<List<Group>> getPublicGroups() async {
+  Future<List<Group>> getDiscoverableGroups() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
 
     try {
-      final snapshot = await _groupsRef
-          .where('isPublic', isEqualTo: true)
-          .orderBy('memberCount', descending: true)
+      // Query 1: nuovi gruppi con visibility
+      final snapshot1 = await _groupsRef
+          .where('visibility', whereIn: ['public', 'private'])
           .limit(50)
           .get();
 
-      // Filtra quelli di cui sei già membro
-      return snapshot.docs
+      // Query 2: vecchi gruppi con isPublic (retrocompatibilità)
+      final snapshot2 = await _groupsRef
+          .where('isPublic', isEqualTo: true)
+          .limit(50)
+          .get();
+
+      // Merge e deduplica
+      final allDocs = <String, QueryDocumentSnapshot>{};
+      for (final doc in snapshot1.docs) allDocs[doc.id] = doc;
+      for (final doc in snapshot2.docs) allDocs[doc.id] = doc;
+
+      return allDocs.values
           .map((doc) => Group.fromFirestore(doc))
-          .where((g) => !g.memberIds.contains(user.uid))
+          .where((g) => !g.memberIds.contains(user.uid) && g.isDiscoverable)
           .toList();
+
     } catch (e) {
       print('[Groups] Errore caricamento gruppi pubblici: $e');
       return [];
@@ -961,7 +985,7 @@ class GroupsRepository {
             event: event,
             groupId: group.id,
             groupName: group.name,
-            isPublic: group.isPublic,
+            visibility: group.visibility,
           ));
         }
       } catch (e) {
@@ -999,7 +1023,7 @@ class GroupsRepository {
 
   /// Carica eventi pubblici (da gruppi pubblici a cui NON sei iscritto)
   Future<List<GroupEventWithInfo>> getPublicUpcomingEvents() async {
-    final publicGroups = await getPublicGroups();
+    final publicGroups = await getDiscoverableGroups();
     final allEvents = <GroupEventWithInfo>[];
 
     for (final group in publicGroups) {
@@ -1010,7 +1034,7 @@ class GroupsRepository {
             event: event,
             groupId: group.id,
             groupName: group.name,
-            isPublic: true,
+            visibility: group.visibility,
           ));
         }
       } catch (e) {
@@ -1021,7 +1045,132 @@ class GroupsRepository {
     allEvents.sort((a, b) => a.event.date.compareTo(b.event.date));
     return allEvents;
   }
+  // ─────────────────────────────────────────────────────────────────────
+  // RICHIESTE DI ACCESSO (per gruppi privati)
+  // ─────────────────────────────────────────────────────────────────────
 
+  /// Invia richiesta di accesso a un gruppo privato
+  Future<bool> requestJoin(String groupId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    try {
+      final profileDoc = await _firestore.collection('user_profiles').doc(user.uid).get();
+      final username = profileDoc.data()?['username'] ?? 'Utente';
+      final avatarUrl = profileDoc.data()?['avatarUrl'];
+
+      await _groupDoc(groupId).collection('join_requests').doc(user.uid).set({
+        'username': username,
+        'avatarUrl': avatarUrl,
+        'requestedAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+
+      print('[Groups] Richiesta accesso inviata per $groupId');
+      return true;
+    } catch (e) {
+      print('[Groups] Errore richiesta accesso: $e');
+      return false;
+    }
+  }
+
+  /// Controlla se l'utente ha già una richiesta pendente
+  Future<bool> hasPendingRequest(String groupId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    try {
+      final doc = await _groupDoc(groupId)
+          .collection('join_requests')
+          .doc(user.uid)
+          .get();
+      return doc.exists && doc.data()?['status'] == 'pending';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Carica richieste pendenti (per admin)
+  Future<List<Map<String, dynamic>>> getPendingRequests(String groupId) async {
+    try {
+      final snapshot = await _groupDoc(groupId)
+          .collection('join_requests')
+          .where('status', isEqualTo: 'pending')
+          .orderBy('requestedAt', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['uid'] = doc.id;
+        return data;
+      }).toList();
+    } catch (e) {
+      print('[Groups] Errore caricamento richieste: $e');
+      return [];
+    }
+  }
+
+  /// Approva richiesta di accesso
+  Future<bool> approveJoinRequest(String groupId, String userId) async {
+    try {
+      final profileDoc = await _firestore.collection('user_profiles').doc(userId).get();
+      final username = profileDoc.data()?['username'] ?? 'Utente';
+      final avatarUrl = profileDoc.data()?['avatarUrl'];
+
+      await _groupDoc(groupId).update({
+        'memberIds': FieldValue.arrayUnion([userId]),
+        'memberCount': FieldValue.increment(1),
+      });
+
+      await _groupDoc(groupId).collection('members').doc(userId).set({
+        'username': username,
+        'avatarUrl': avatarUrl,
+        'role': 'member',
+        'joinedAt': FieldValue.serverTimestamp(),
+      });
+
+      await _groupDoc(groupId).collection('join_requests').doc(userId).update({
+        'status': 'approved',
+        'approvedAt': FieldValue.serverTimestamp(),
+      });
+
+      print('[Groups] Richiesta approvata: $userId in $groupId');
+      return true;
+    } catch (e) {
+      print('[Groups] Errore approvazione: $e');
+      return false;
+    }
+  }
+
+  /// Rifiuta richiesta di accesso
+  Future<bool> rejectJoinRequest(String groupId, String userId) async {
+    try {
+      await _groupDoc(groupId).collection('join_requests').doc(userId).update({
+        'status': 'rejected',
+        'rejectedAt': FieldValue.serverTimestamp(),
+      });
+
+      print('[Groups] Richiesta rifiutata: $userId in $groupId');
+      return true;
+    } catch (e) {
+      print('[Groups] Errore rifiuto: $e');
+      return false;
+    }
+  }
+
+  /// Conteggio richieste pendenti (per badge admin)
+  Future<int> getPendingRequestsCount(String groupId) async {
+    try {
+      final snapshot = await _groupDoc(groupId)
+          .collection('join_requests')
+          .where('status', isEqualTo: 'pending')
+          .count()
+          .get();
+      return snapshot.count ?? 0;
+    } catch (e) {
+      return 0;
+    }
+  }
   // ─────────────────────────────────────────────────────────────────────
   // UTILITY
   // ─────────────────────────────────────────────────────────────────────

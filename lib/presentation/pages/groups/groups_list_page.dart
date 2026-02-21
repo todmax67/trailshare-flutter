@@ -51,7 +51,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
 
   Future<void> _loadPublicGroups() async {
     setState(() => _isLoadingPublic = true);
-    final groups = await _repo.getPublicGroups();
+    final groups = await _repo.getDiscoverableGroups();
     if (mounted) {
       setState(() {
         _publicGroups = groups;

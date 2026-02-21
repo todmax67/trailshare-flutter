@@ -14,7 +14,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _repo = GroupsRepository();
-  bool _isPublic = false;
+  String _visibility = 'public'; // 'public' | 'private' | 'secret'
   bool _isCreating = false;
 
   @override
@@ -34,7 +34,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
       description: _descriptionController.text.trim().isEmpty
           ? null
           : _descriptionController.text.trim(),
-      isPublic: _isPublic,
+      visibility: _visibility,
     );
 
     if (mounted) {
@@ -135,24 +135,37 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
               ),
               const SizedBox(height: 24),
 
-              // Pubblico/Privato
-              SwitchListTile(
-                value: _isPublic,
-                onChanged: (value) => setState(() => _isPublic = value),
-                title: const Text('Gruppo pubblico'),
-                subtitle: Text(
-                  _isPublic
-                      ? 'Chiunque può trovare e unirsi al gruppo'
-                      : 'Solo chi viene invitato può unirsi',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                secondary: Icon(
-                  _isPublic ? Icons.public : Icons.lock,
-                  color: AppColors.primary,
-                ),
-                activeColor: AppColors.primary,
-                contentPadding: EdgeInsets.zero,
+              // Visibilità — 3 opzioni
+              const Text(
+                'Visibilità',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
+              const SizedBox(height: 12),
+
+              _buildVisibilityOption(
+                value: 'public',
+                icon: Icons.public,
+                title: 'Pubblico',
+                subtitle: 'Visibile a tutti, chiunque può unirsi',
+                color: AppColors.success,
+              ),
+              const SizedBox(height: 8),
+              _buildVisibilityOption(
+                value: 'private',
+                icon: Icons.lock_open,
+                title: 'Privato',
+                subtitle: 'Visibile a tutti, ma serve approvazione admin',
+                color: AppColors.primary,
+              ),
+              const SizedBox(height: 8),
+              _buildVisibilityOption(
+                value: 'secret',
+                icon: Icons.lock,
+                title: 'Segreto',
+                subtitle: 'Invisibile, accessibile solo tramite codice invito',
+                color: Colors.grey,
+              ),
+
               const SizedBox(height: 40),
 
               // Bottone crea
@@ -184,6 +197,65 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVisibilityOption({
+    required String value,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+  }) {
+    final isSelected = _visibility == value;
+
+    return InkWell(
+      onTap: () => setState(() => _visibility = value),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+          color: isSelected ? color.withOpacity(0.05) : null,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? color : Colors.grey, size: 28),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: isSelected ? color : null,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle, color: color, size: 24)
+            else
+              Icon(Icons.radio_button_unchecked, color: Colors.grey[300], size: 24),
+          ],
         ),
       ),
     );

@@ -8,6 +8,7 @@ import 'group_challenges_tab.dart';
 import 'group_members_page.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class GroupDetailPage extends StatefulWidget {
   final String groupId;
@@ -29,6 +30,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
   Group? _group;
   bool _isAdmin = false;
   bool _isLoading = true;
+  List<Map<String, dynamic>> _pendingRequests = [];
 
   @override
   void initState() {
@@ -57,6 +59,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
       });
     }
 
+    // Carica richieste pendenti (solo admin)
+    if (isAdmin) {
+      final requests = await _repo.getPendingRequests(widget.groupId);
+      if (mounted) {
+        setState(() => _pendingRequests = requests);
+      }
+    }
+
     // Assicura che il gruppo abbia un codice invito
       if (group != null && group.inviteCode == null) {
         await _repo.ensureInviteCode(widget.groupId);
@@ -66,6 +76,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           setState(() => _group = updated);
         }
       }
+
+    // Carica richieste pendenti (solo admin)
+    if (isAdmin) {
+      final requests = await _repo.getPendingRequests(widget.groupId);
+      if (mounted) {
+        setState(() => _pendingRequests = requests);
+      }
+    }
   }
 
   Future<void> _leaveGroup() async {
@@ -336,6 +354,212 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     );
   }
 
+  Widget _buildVisibilitySelector(Group group) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Visibilità del gruppo',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 12),
+        _buildVisibilityTile(
+          group: group,
+          value: 'public',
+          icon: Icons.public,
+          title: 'Pubblico',
+          subtitle: 'Visibile, chiunque può unirsi',
+          color: AppColors.success,
+        ),
+        const SizedBox(height: 8),
+        _buildVisibilityTile(
+          group: group,
+          value: 'private',
+          icon: Icons.lock_open,
+          title: 'Privato',
+          subtitle: 'Visibile, richiesta accesso',
+          color: AppColors.primary,
+        ),
+        const SizedBox(height: 8),
+        _buildVisibilityTile(
+          group: group,
+          value: 'secret',
+          icon: Icons.lock,
+          title: 'Segreto',
+          subtitle: 'Invisibile, solo codice invito',
+          color: Colors.grey,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPendingRequestsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.person_add, size: 20, color: Colors.orange),
+            const SizedBox(width: 8),
+            const Text(
+              'Richieste di accesso',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.orange,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${_pendingRequests.length}',
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ..._pendingRequests.map((req) => Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundImage: req['avatarUrl'] != null && req['avatarUrl'].toString().isNotEmpty
+                  ? NetworkImage(req['avatarUrl'])
+                  : null,
+              child: req['avatarUrl'] == null || req['avatarUrl'].toString().isEmpty
+                  ? Text(
+                      (req['username'] ?? 'U')[0].toUpperCase(),
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                    )
+                  : null,
+            ),
+            title: Text(req['username'] ?? 'Utente', style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(
+              req['requestedAt'] != null
+                  ? 'Richiesta il ${_formatDate((req['requestedAt'] as Timestamp).toDate())}'
+                  : 'In attesa',
+              style: const TextStyle(fontSize: 12),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.check_circle, color: AppColors.success),
+                  onPressed: () async {
+                    final success = await _repo.approveJoinRequest(widget.groupId, req['uid']);
+                    if (success && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${req['username']} approvato!'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                      _loadGroup();
+                    }
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.cancel, color: Colors.red),
+                  onPressed: () async {
+                    final success = await _repo.rejectJoinRequest(widget.groupId, req['uid']);
+                    if (success && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Richiesta rifiutata'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                      _loadGroup();
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        )),
+      ],
+    );
+  }
+
+  Widget _buildVisibilityTile({
+    required Group group,
+    required String value,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+  }) {
+    final isSelected = group.visibility == value;
+
+    return InkWell(
+      onTap: isSelected ? null : () => _changeVisibility(value),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+          color: isSelected ? color.withOpacity(0.05) : null,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? color : Colors.grey, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? color : null,
+                  )),
+                  Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle, color: color, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _changeVisibility(String newVisibility) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('groups')
+          .doc(widget.groupId)
+          .update({
+        'visibility': newVisibility,
+        'isPublic': newVisibility == 'public',
+      });
+
+      await _loadGroup();
+
+      if (mounted) {
+        final labels = {'public': 'Pubblico', 'private': 'Privato', 'secret': 'Segreto'};
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gruppo ora è ${labels[newVisibility]}'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
+
   void _copyInviteCode(String code) {
     Clipboard.setData(ClipboardData(text: code));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -444,13 +668,13 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      group.isPublic ? Icons.public : Icons.lock,
+                      group.isPublic ? Icons.public : group.isPrivate ? Icons.lock_open : Icons.lock,
                       size: 16,
                       color: AppColors.textMuted,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      group.isPublic ? 'Gruppo pubblico' : 'Gruppo privato',
+                      group.isPublic ? 'Pubblico' : group.isPrivate ? 'Privato' : 'Segreto',
                       style: const TextStyle(color: AppColors.textMuted),
                     ),
                     const SizedBox(width: 16),
@@ -508,6 +732,22 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           if (_group?.inviteCode != null) ...[
             const SizedBox(height: 16),
             _buildInviteCodeSection(),
+            const SizedBox(height: 16),
+            const Divider(),
+          ],
+
+          // ⭐ Richieste di accesso (solo admin)
+          if (_isAdmin && _pendingRequests.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildPendingRequestsSection(),
+            const SizedBox(height: 16),
+            const Divider(),
+          ],
+
+          // ⭐ Visibilità (solo admin)
+          if (_isAdmin) ...[
+            const SizedBox(height: 16),
+            _buildVisibilitySelector(group),
             const SizedBox(height: 16),
             const Divider(),
           ],

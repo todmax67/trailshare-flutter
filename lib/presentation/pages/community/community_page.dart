@@ -45,9 +45,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // STATO: GRUPPI
   // ═══════════════════════════════════════════════════════════════════════
   List<Group> _myGroups = [];
-  List<Group> _publicGroups = [];
+  List<Group> _discoverableGroups = [];
   bool _isLoadingMyGroups = true;
-  bool _isLoadingPublicGroups = false;
+  bool _isLoadingDiscoverable = false;
   bool _showPublicGroups = false; // Toggle I miei / Scopri
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -214,13 +214,13 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     }
   }
 
-  Future<void> _loadPublicGroups() async {
-    setState(() => _isLoadingPublicGroups = true);
-    final groups = await _groupsRepo.getPublicGroups();
+  Future<void> _loadDiscoverableGroups() async {
+    setState(() => _isLoadingDiscoverable = true);
+    final groups = await _groupsRepo.getDiscoverableGroups();
     if (mounted) {
       setState(() {
-        _publicGroups = groups;
-        _isLoadingPublicGroups = false;
+        _discoverableGroups = groups;
+        _isLoadingDiscoverable = false;
       });
     }
   }
@@ -451,7 +451,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         break;
       case 1:
         _loadMyGroups();
-        if (_showPublicGroups) _loadPublicGroups();
+        if (_showPublicGroups) _loadDiscoverableGroups();
         break;
       case 2:
         _loadMyEvents();
@@ -696,7 +696,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           );
           if (created == true) {
             _loadMyGroups();
-            if (_showPublicGroups) _loadPublicGroups();
+            if (_showPublicGroups) _loadDiscoverableGroups();
           }
         },
         backgroundColor: AppColors.primary,
@@ -725,7 +725,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   selected: _showPublicGroups,
                   onSelected: (value) {
                     setState(() => _showPublicGroups = true);
-                    if (_publicGroups.isEmpty) _loadPublicGroups();
+                    if (_discoverableGroups.isEmpty) _loadDiscoverableGroups();
                   },
                   selectedColor: AppColors.primary.withOpacity(0.2),
                 ),
@@ -796,11 +796,11 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   }
 
   Widget _buildPublicGroupsList() {
-    if (_isLoadingPublicGroups) {
+    if (_isLoadingDiscoverable) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_publicGroups.isEmpty) {
+    if (_discoverableGroups.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -826,11 +826,11 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     }
 
     return RefreshIndicator(
-      onRefresh: _loadPublicGroups,
+      onRefresh: _loadDiscoverableGroups,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _publicGroups.length,
-        itemBuilder: (context, index) => _buildGroupCard(_publicGroups[index], isMember: false),
+        itemCount: _discoverableGroups.length,
+        itemBuilder: (context, index) => _buildGroupCard(_discoverableGroups[index], isMember: false),
       ),
     );
   }
@@ -907,17 +907,16 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                           '${group.memberCount} ${group.memberCount == 1 ? "membro" : "membri"}',
                           style: TextStyle(color: Colors.grey[500], fontSize: 12),
                         ),
-                        if (group.isPublic) ...[
-                          const SizedBox(width: 12),
-                          Icon(Icons.public, size: 14, color: Colors.grey[500]),
-                          const SizedBox(width: 4),
-                          Text('Pubblico', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-                        ] else ...[
-                          const SizedBox(width: 12),
-                          Icon(Icons.lock, size: 14, color: Colors.grey[500]),
-                          const SizedBox(width: 4),
-                          Text('Privato', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-                        ],
+                        const SizedBox(width: 12),
+                        Icon(
+                          group.isPublic ? Icons.public : group.isPrivate ? Icons.lock_open : Icons.lock,
+                          size: 14, color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          group.isPublic ? 'Pubblico' : group.isPrivate ? 'Privato' : 'Segreto',
+                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                        ),
                       ],
                     ),
                   ],
@@ -927,7 +926,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               // Bottone unisciti o freccia
               if (isMember)
                 const Icon(Icons.chevron_right, color: AppColors.textMuted)
-              else
+              else if (group.isPublic)
                 ElevatedButton(
                   onPressed: () async {
                     final success = await _groupsRepo.joinGroup(group.id);
@@ -939,7 +938,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         ),
                       );
                       _loadMyGroups();
-                      _loadPublicGroups();
+                      _loadDiscoverableGroups();
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -949,6 +948,39 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   child: const Text('Unisciti', style: TextStyle(fontSize: 13)),
+                )
+              else if (group.isPrivate)
+                ElevatedButton(
+                  onPressed: () async {
+                    final hasPending = await _groupsRepo.hasPendingRequest(group.id);
+                    if (hasPending) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Richiesta già inviata, attendi approvazione'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                    final success = await _groupsRepo.requestJoin(group.id);
+                    if (success && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Richiesta inviata a "${group.name}"!'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('Richiedi', style: TextStyle(fontSize: 13)),
                 ),
             ],
           ),
