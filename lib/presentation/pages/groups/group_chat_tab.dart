@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/groups_repository.dart';
 
@@ -16,6 +19,8 @@ class _GroupChatTabState extends State<GroupChatTab> {
   final _repo = GroupsRepository();
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  final _imagePicker = ImagePicker();
+  bool _isUploading = false;
 
   @override
   void dispose() {
@@ -30,6 +35,52 @@ class _GroupChatTabState extends State<GroupChatTab> {
 
     _messageController.clear();
     await _repo.sendMessage(widget.groupId, text);
+  }
+
+  Future<void> _pickAndSendImage() async {
+    final picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 75,
+    );
+    if (picked == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${user.uid}.jpg';
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('group_images')
+          .child(widget.groupId)
+          .child(fileName);
+
+      await ref.putFile(File(picked.path));
+      final url = await ref.getDownloadURL();
+
+      await _repo.sendMessage(
+        widget.groupId,
+        '📷 Foto',
+        type: 'image',
+        imageUrl: url,
+      );
+    } catch (e) {
+      debugPrint('[GroupChat] Errore upload immagine: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Errore invio immagine: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
   }
 
   @override
@@ -75,7 +126,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
 
               return ListView.builder(
                 controller: _scrollController,
-                reverse: true, // Messaggi più recenti in basso
+                reverse: true,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 itemCount: messages.length,
                 itemBuilder: (context, index) {
@@ -93,6 +144,20 @@ class _GroupChatTabState extends State<GroupChatTab> {
           ),
         ),
 
+        // Upload indicator
+        if (_isUploading)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                SizedBox(width: 8),
+                Text('Invio immagine...', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+              ],
+            ),
+          ),
+
         // Input
         _buildMessageInput(),
       ],
@@ -101,6 +166,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
 
   Widget _buildMessageBubble(GroupMessage message, bool isMe, bool showSender) {
     final isSystem = message.type == 'event';
+    final isImage = message.type == 'image' && message.imageUrl != null;
 
     if (isSystem) {
       return Padding(
@@ -153,9 +219,8 @@ class _GroupChatTabState extends State<GroupChatTab> {
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.75,
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isMe ? AppColors.primary : Colors.grey[200],
+                color: isImage ? Colors.transparent : (isMe ? AppColors.primary : Colors.grey[200]),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -163,29 +228,113 @@ class _GroupChatTabState extends State<GroupChatTab> {
                   bottomRight: Radius.circular(isMe ? 4 : 16),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    message.text,
-                    style: TextStyle(
-                      color: isMe ? Colors.white : AppColors.textPrimary,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatTime(message.timestamp),
-                    style: TextStyle(
-                      color: isMe ? Colors.white70 : AppColors.textMuted,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
+              child: isImage
+                  ? _buildImageMessage(message, isMe)
+                  : _buildTextMessage(message, isMe),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTextMessage(GroupMessage message, bool isMe) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            message.text,
+            style: TextStyle(
+              color: isMe ? Colors.white : AppColors.textPrimary,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _formatTime(message.timestamp),
+            style: TextStyle(
+              color: isMe ? Colors.white70 : AppColors.textMuted,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageMessage(GroupMessage message, bool isMe) {
+    return GestureDetector(
+      onTap: () => _showFullImage(message.imageUrl!),
+      child: ClipRRect(
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(16),
+          topRight: const Radius.circular(16),
+          bottomLeft: Radius.circular(isMe ? 16 : 4),
+          bottomRight: Radius.circular(isMe ? 4 : 16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Image.network(
+              message.imageUrl!,
+              width: 250,
+              height: 200,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return Container(
+                  width: 250,
+                  height: 200,
+                  color: Colors.grey[200],
+                  child: const Center(child: CircularProgressIndicator()),
+                );
+              },
+              errorBuilder: (context, error, stack) {
+                return Container(
+                  width: 250,
+                  height: 200,
+                  color: Colors.grey[200],
+                  child: const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                );
+              },
+            ),
+            Container(
+              width: 250,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              color: isMe ? AppColors.primary : Colors.grey[200],
+              child: Text(
+                _formatTime(message.timestamp),
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: isMe ? Colors.white70 : AppColors.textMuted,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFullImage(String url) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.network(url),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -210,6 +359,12 @@ class _GroupChatTabState extends State<GroupChatTab> {
       ),
       child: Row(
         children: [
+          // Bottone immagine
+          IconButton(
+            icon: Icon(Icons.image, color: Colors.grey[600]),
+            onPressed: _isUploading ? null : _pickAndSendImage,
+          ),
+          // Campo testo
           Expanded(
             child: TextField(
               controller: _messageController,
@@ -228,6 +383,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
             ),
           ),
           const SizedBox(width: 8),
+          // Bottone invio
           Container(
             decoration: const BoxDecoration(
               color: AppColors.primary,

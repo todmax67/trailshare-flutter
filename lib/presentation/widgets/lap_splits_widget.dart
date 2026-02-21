@@ -180,16 +180,16 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
       cumulativeDistance += segmentDistance;
 
       // Calcola tempo del segmento usando la velocità del punto
-      if (hasSpeedData && curr.speed != null && curr.speed! > 0.1) {
-        // speed è in m/s, tempo = distanza / velocità
-        final segmentTime = segmentDistance / curr.speed!;
-        lapTimeSeconds += segmentTime;
-      } else if (hasValidTimestamps) {
-        // Fallback ai timestamp
+      // Calcola tempo del segmento — timestamp hanno priorità (fonte di verità)
+      if (hasValidTimestamps) {
         final segmentTime = curr.timestamp.difference(prev.timestamp).inMilliseconds / 1000.0;
-        if (segmentTime > 0 && segmentTime < 3600) { // Max 1 ora per segmento
+        if (segmentTime > 0 && segmentTime < 300) { // Max 5 min per segmento
           lapTimeSeconds += segmentTime;
         }
+      } else if (hasSpeedData && curr.speed != null && curr.speed! > 0.1) {
+        // Fallback: usa speed solo se non abbiamo timestamp
+        final segmentTime = segmentDistance / curr.speed!;
+        lapTimeSeconds += segmentTime;
       }
 
       // Nota: il dislivello per lap viene calcolato DOPO il loop

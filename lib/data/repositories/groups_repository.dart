@@ -285,6 +285,7 @@ class GroupMessage {
   final DateTime timestamp;
   final String type; // 'text' | 'track' | 'event' | 'image'
   final String? referenceId;
+  final String? imageUrl;
 
   const GroupMessage({
     required this.id,
@@ -294,6 +295,7 @@ class GroupMessage {
     required this.timestamp,
     this.type = 'text',
     this.referenceId,
+    this.imageUrl,
   });
 
   factory GroupMessage.fromFirestore(DocumentSnapshot doc) {
@@ -306,6 +308,7 @@ class GroupMessage {
       timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       type: data['type'] ?? 'text',
       referenceId: data['referenceId'],
+      imageUrl: data['imageUrl'],
     );
   }
 }
@@ -637,7 +640,7 @@ class GroupsRepository {
   }
 
   /// Invia messaggio
-  Future<bool> sendMessage(String groupId, String text, {String type = 'text', String? referenceId}) async {
+  Future<bool> sendMessage(String groupId, String text, {String type = 'text', String? referenceId, String? imageUrl}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
 
@@ -652,6 +655,7 @@ class GroupsRepository {
         'timestamp': FieldValue.serverTimestamp(),
         'type': type,
         'referenceId': referenceId,
+        'imageUrl': imageUrl,
       });
 
       return true;
