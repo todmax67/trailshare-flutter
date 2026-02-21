@@ -181,6 +181,90 @@ class FollowRepository {
     return getUserProfiles(followingIds);
   }
 
+  /// Cerca utenti per username (prefix search)
+  Future<List<UserProfile>> searchUsers(String query) async {
+    if (query.trim().isEmpty) return [];
+
+    final q = query.trim().toLowerCase();
+    
+    try {
+      // Ricerca per username (prefix match)
+      final snapshot = await _firestore
+          .collection('user_profiles')
+          .orderBy('username')
+          .startAt([q])
+          .endAt([q + '\uf8ff'])
+          .limit(20)
+          .get();
+
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+      return snapshot.docs
+          .where((doc) => doc.id != currentUserId) // Escludi te stesso
+          .map((doc) => UserProfile.fromFirestore(doc))
+          .where((u) => u.username != 'Utente') // Escludi senza username
+          .toList();
+    } catch (e) {
+      print('[FollowRepo] Errore searchUsers: $e');
+      return [];
+    }
+  }
+
+  /// Utenti suggeriti (attivi di recente, non già seguiti)
+  Future<List<UserProfile>> getSuggestedUsers({int limit = 15}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
+
+    try {
+      // Ottieni lista following attuale
+      final myDoc = await _firestore.collection('user_profiles').doc(user.uid).get();
+      final following = List<String>.from(myDoc.data()?['following'] ?? []);
+
+      // Carica utenti recenti (con lastActive o createdAt)
+      final snapshot = await _firestore
+          .collection('user_profiles')
+          .orderBy('lastActive', descending: true)
+          .limit(50)
+          .get();
+
+      return snapshot.docs
+          .where((doc) => doc.id != user.uid) // Escludi te stesso
+          .where((doc) => !following.contains(doc.id)) // Escludi già seguiti
+          .map((doc) => UserProfile.fromFirestore(doc))
+          .where((u) => u.username != 'Utente') // Escludi senza username
+          .take(limit)
+          .toList();
+    } catch (e) {
+      print('[FollowRepo] Errore suggeriti: $e');
+      
+      // Fallback: carica per username
+      try {
+        final snapshot = await _firestore
+            .collection('user_profiles')
+            .orderBy('username')
+            .limit(50)
+            .get();
+
+        final following = <String>[];
+        try {
+          final myDoc = await _firestore.collection('user_profiles').doc(user.uid).get();
+          following.addAll(List<String>.from(myDoc.data()?['following'] ?? []));
+        } catch (_) {}
+
+        return snapshot.docs
+            .where((doc) => doc.id != user.uid)
+            .where((doc) => !following.contains(doc.id))
+            .map((doc) => UserProfile.fromFirestore(doc))
+            .where((u) => u.username != 'Utente')
+            .take(limit)
+            .toList();
+      } catch (e2) {
+        print('[FollowRepo] Errore fallback suggeriti: $e2');
+        return [];
+      }
+    }
+  }
+
   /// Stream per conteggi in tempo reale
   Stream<FollowCounts> watchFollowCounts(String userId) {
     return _firestore
