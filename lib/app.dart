@@ -9,6 +9,8 @@ import 'core/services/theme_service.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'presentation/pages/onboarding/onboarding_page.dart';
 import 'core/services/push_notification_service.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/generated/app_localizations.dart';
 
 
 class TrailShareApp extends StatefulWidget {
@@ -46,6 +48,16 @@ class _TrailShareAppState extends State<TrailShareApp> {
         theme: AppThemes.lightTheme,
         darkTheme: AppThemes.darkTheme,
         themeMode: _themeService.themeMode,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('it'),
+          Locale('en'),
+        ],
         home: const AuthWrapper(),
       ),
     );
