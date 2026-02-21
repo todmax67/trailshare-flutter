@@ -438,8 +438,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       _photos.clear();
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Traccia salvata!'), backgroundColor: AppColors.success));
-        // Non fare Navigator.pop() - RecordPage è una tab, non una pagina pushata
+        _showCompletionDialog(trackToSave);
       }
     } catch (e) {
       debugPrint('[RecordPage] Errore salvataggio: $e');
@@ -599,6 +598,93 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   Widget _buildControlButton({required IconData icon, required String label, required Color color, required VoidCallback onTap, bool large = false}) {
     final size = large ? 64.0 : 48.0;
     return GestureDetector(onTap: onTap, child: Column(mainAxisSize: MainAxisSize.min, children: [Container(width: size, height: size, decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle), child: Icon(icon, color: color, size: large ? 32 : 24)), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500))]));
+  }
+
+  void _showCompletionDialog(Track track) {
+    final km = (track.stats.distance / 1000).toStringAsFixed(1);
+    final elev = track.stats.elevationGain.toStringAsFixed(0);
+    final h = track.stats.duration.inHours;
+    final m = track.stats.duration.inMinutes % 60;
+    final duration = h > 0 ? '${h}h ${m}m' : '${m} min';
+
+    // Messaggi motivazionali casuali
+    final messages = [
+      'Ottimo lavoro! 💪',
+      'Grande escursione! 🏔️',
+      'Fantastico percorso! 🥾',
+      'Che avventura! 🌟',
+      'Sei un vero esploratore! 🧭',
+      'Trail completato! 🎯',
+      'Complimenti, continua così! 🔥',
+    ];
+    final message = messages[DateTime.now().millisecond % messages.length];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle, color: AppColors.success, size: 48),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildStatColumn('🏃', km, 'km'),
+                Container(width: 1, height: 40, color: Colors.grey[300]),
+                _buildStatColumn('⬆️', elev, 'm D+'),
+                Container(width: 1, height: 40, color: Colors.grey[300]),
+                _buildStatColumn('⏱️', duration, ''),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Continua', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String emoji, String value, String label) {
+    return Column(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 20)),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        if (label.isNotEmpty)
+          Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+      ],
+    );
   }
 }
 class _ActivityPickerSheet extends StatelessWidget {

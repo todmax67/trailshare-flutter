@@ -1109,6 +1109,205 @@ exports.onGroupChallenge = onDocumentCreated("groups/{groupId}/challenges/{chall
 });
 
 // ===================================================================
+// NOTIFICA: Richiesta accesso gruppo → notifica admin
+// ===================================================================
+exports.onJoinRequest = onDocumentCreated("groups/{groupId}/join_requests/{userId}", async (event) => {
+    const groupId = event.params.groupId;
+    const requestUserId = event.params.userId;
+    const data = event.data.data();
+
+    if (data.status !== 'pending') return null;
+
+    const username = data.username || "Un utente";
+
+    // Carica info gruppo
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    if (!groupDoc.exists) return null;
+    const groupData = groupDoc.data();
+    const groupName = groupData.name || "Gruppo";
+
+    // Trova admin del gruppo
+    const membersSnap = await db.collection("groups").doc(groupId)
+        .collection("members")
+        .where("role", "==", "admin")
+        .get();
+
+    const adminIds = membersSnap.docs.map(doc => doc.id);
+    if (adminIds.length === 0) return null;
+
+    // Raccogli token admin
+    const allTokens = [];
+    for (const adminId of adminIds) {
+        const profileDoc = await db.collection("user_profiles").doc(adminId).get();
+        if (profileDoc.exists) {
+            const tokens = profileDoc.data().fcmTokens || [];
+            allTokens.push(...tokens);
+        }
+    }
+
+    if (allTokens.length === 0) return null;
+
+    logger.info(`[JoinRequest] Notifica a ${allTokens.length} dispositivi admin per gruppo ${groupId}`);
+
+    const message = {
+        notification: {
+            title: `🔔 Richiesta accesso a ${groupName}`,
+            body: `${username} vuole unirsi al tuo gruppo`,
+        },
+        data: { type: "join_request", groupId: groupId, userId: requestUserId },
+        tokens: allTokens,
+    };
+
+    await admin.messaging().sendEachForMulticast(message);
+    return null;
+});
+
+// ===================================================================
+// NOTIFICA: Approvazione richiesta → notifica al richiedente
+// ===================================================================
+exports.onJoinRequestApproved = onDocumentUpdated("groups/{groupId}/join_requests/{userId}", async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+
+    // Solo quando status cambia da pending ad approved
+    if (before.status === 'pending' && after.status === 'approved') {
+        const userId = event.params.userId;
+        const groupId = event.params.groupId;
+
+        const groupDoc = await db.collection("groups").doc(groupId).get();
+        const groupName = groupDoc.exists ? groupDoc.data().name : "Gruppo";
+
+        const profileDoc = await db.collection("user_profiles").doc(userId).get();
+        if (!profileDoc.exists) return null;
+
+        const tokens = profileDoc.data().fcmTokens || [];
+        if (tokens.length === 0) return null;
+
+        logger.info(`[JoinApproved] Notifica approvazione a ${userId} per gruppo ${groupId}`);
+
+        const message = {
+            notification: {
+                title: `✅ Richiesta approvata!`,
+                body: `Sei stato accettato nel gruppo "${groupName}"`,
+            },
+            data: { type: "join_approved", groupId: groupId },
+            tokens: tokens,
+        };
+
+        await admin.messaging().sendEachForMulticast(message);
+    }
+
+    return null;
+});
+
+// ===================================================================
+// NOTIFICA: Cheers su community_tracks → notifica proprietario
+// ===================================================================
+exports.onCommunityCheerCreated = onDocumentCreated("community_tracks/{trackId}/cheers/{userId}", async (event) => {
+    const trackId = event.params.trackId;
+    const cheerUserId = event.params.userId;
+
+    // Incrementa contatore
+    const trackRef = db.collection("community_tracks").doc(trackId);
+    await trackRef.update({ cheerCount: admin.firestore.FieldValue.increment(1) });
+
+    // Carica traccia
+    const trackDoc = await trackRef.get();
+    if (!trackDoc.exists) return null;
+
+    const trackData = trackDoc.data();
+    const ownerId = trackData.ownerId;
+
+    // No auto-cheer
+    if (String(ownerId).trim() === String(cheerUserId).trim()) return null;
+
+    // Token proprietario
+    const ownerDoc = await db.collection("user_profiles").doc(ownerId).get();
+    if (!ownerDoc.exists) return null;
+
+    const tokens = ownerDoc.data().fcmTokens || [];
+    if (tokens.length === 0) return null;
+
+    // Username di chi ha messo cheer
+    const cheererDoc = await db.collection("user_profiles").doc(cheerUserId).get();
+    const cheererName = cheererDoc.exists ? cheererDoc.data().username : "Un utente";
+
+    logger.info(`[CommunityCheer] Notifica a ${ownerId} da ${cheerUserId}`);
+
+    const message = {
+        notification: {
+            title: "❤️ Nuovo cheer!",
+            body: `${cheererName} ha apprezzato "${trackData.name || 'la tua traccia'}"`,
+        },
+        data: { type: "community_cheer", trackId: trackId },
+        tokens: tokens,
+    };
+
+    await admin.messaging().sendEachForMulticast(message);
+    return null;
+});
+
+// ===================================================================
+// NOTIFICA: Decrementa cheers community_tracks
+// ===================================================================
+exports.onCommunityCheerDeleted = onDocumentDeleted("community_tracks/{trackId}/cheers/{userId}", (event) => {
+    const trackId = event.params.trackId;
+    return db.collection("community_tracks").doc(trackId).update({
+        cheerCount: admin.firestore.FieldValue.increment(-1)
+    });
+});
+
+// ===================================================================
+// NOTIFICA: Amico completa attività → notifica ai follower
+// ===================================================================
+exports.onCommunityTrackShared = onDocumentCreated("community_tracks/{trackId}", async (event) => {
+    const data = event.data.data();
+    const ownerId = data.ownerId;
+    const trackName = data.name || "una nuova traccia";
+
+    // Carica profilo autore
+    const ownerDoc = await db.collection("user_profiles").doc(ownerId).get();
+    if (!ownerDoc.exists) return null;
+
+    const ownerData = ownerDoc.data();
+    const ownerName = ownerData.username || "Un utente";
+    const followers = ownerData.followers || [];
+
+    if (followers.length === 0) return null;
+
+    // Raccogli token di tutti i follower
+    const allTokens = [];
+    const tokenOwnerMap = {};
+
+    for (const followerId of followers) {
+        const profileDoc = await db.collection("user_profiles").doc(followerId).get();
+        if (profileDoc.exists) {
+            const tokens = profileDoc.data().fcmTokens || [];
+            for (const token of tokens) {
+                allTokens.push(token);
+                tokenOwnerMap[token] = followerId;
+            }
+        }
+    }
+
+    if (allTokens.length === 0) return null;
+
+    logger.info(`[CommunityTrack] Notifica a ${allTokens.length} follower per ${ownerId}`);
+
+    const message = {
+        notification: {
+            title: `🥾 ${ownerName} ha condiviso un percorso`,
+            body: `"${trackName}" - Guarda i dettagli!`,
+        },
+        data: { type: "community_track", trackId: event.params.trackId },
+        tokens: allTokens,
+    };
+
+    await admin.messaging().sendEachForMulticast(message);
+    return null;
+});
+
+// ===================================================================
 // BACKFILL: Aggiorna email/displayName/createdAt da Auth a user_profiles
 // Esegui UNA VOLTA: https://europe-west3-YOUR_PROJECT.cloudfunctions.net/backfillUserEmails
 // ===================================================================
