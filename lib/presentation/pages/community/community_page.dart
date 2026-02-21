@@ -11,6 +11,7 @@ import '../../../presentation/widgets/community_track_card.dart';
 import '../groups/create_group_page.dart';
 import '../groups/group_detail_page.dart';
 import '../follow/search_users_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key});
@@ -37,9 +38,14 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   List<CommunityTrack> _communityTracks = [];
   bool _isLoadingCommunity = true;
   CommunityTrack? _selectedCommunityTrack;
-  bool _showMap = true;
+  bool _showMap = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  // Paginazione
+  QueryDocumentSnapshot? _lastDocument;
+  bool _hasMoreTracks = true;
+  bool _isLoadingMore = false;
+  final ScrollController _scrollController = ScrollController();
 
   // ═══════════════════════════════════════════════════════════════════════
   // STATO: GRUPPI
@@ -83,6 +89,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     _loadMyGroups();
     _loadMyEvents();
     _loadActiveChallenges();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -90,6 +97,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
+    _scrollController.dispose();
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -151,12 +159,38 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
   Future<void> _loadCommunityTracks() async {
     setState(() => _isLoadingCommunity = true);
-    final tracks = await _communityRepo.getRecentTracks(limit: 50);
+    final result = await _communityRepo.getRecentTracksPaginated(limit: 20);
     if (mounted) {
       setState(() {
-        _communityTracks = tracks;
+        _communityTracks = result.tracks;
+        _lastDocument = result.lastDocument;
+        _hasMoreTracks = result.hasMore;
         _isLoadingCommunity = false;
       });
+    }
+  }
+
+  Future<void> _loadMoreCommunityTracks() async {
+    if (_isLoadingMore || !_hasMoreTracks || _lastDocument == null) return;
+    setState(() => _isLoadingMore = true);
+    final result = await _communityRepo.getRecentTracksPaginated(
+      limit: 20,
+      startAfterDoc: _lastDocument,
+    );
+    if (mounted) {
+      setState(() {
+        _communityTracks.addAll(result.tracks);
+        _lastDocument = result.lastDocument;
+        _hasMoreTracks = result.hasMore;
+        _isLoadingMore = false;
+      });
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= 
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreCommunityTracks();
     }
   }
 
@@ -648,6 +682,37 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               child: const Icon(Icons.my_location, color: AppColors.primary),
             ),
           ),
+        // Bottone carica altre tracce
+        if (_hasMoreTracks)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Material(
+              borderRadius: BorderRadius.circular(20),
+              elevation: 2,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: _isLoadingMore ? null : _loadMoreCommunityTracks,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: _isLoadingMore
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add, size: 18, color: AppColors.primary),
+                            SizedBox(width: 4),
+                            Text('Carica altre', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13)),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          ),  
       ],
     );
   }
@@ -656,9 +721,24 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     return RefreshIndicator(
       onRefresh: _loadCommunityTracks,
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.all(12),
-        itemCount: tracks.length,
+        itemCount: tracks.length + (_hasMoreTracks ? 1 : 0),
         itemBuilder: (context, index) {
+          if (index == tracks.length) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: _isLoadingMore
+                    ? const CircularProgressIndicator()
+                    : TextButton.icon(
+                        onPressed: _loadMoreCommunityTracks,
+                        icon: const Icon(Icons.expand_more),
+                        label: const Text('Carica altre tracce'),
+                      ),
+              ),
+            );
+          }
           final track = tracks[index];
           return CommunityTrackCard(
             trackId: track.id,

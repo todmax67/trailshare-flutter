@@ -12,7 +12,6 @@ import 'core/services/push_notification_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/generated/app_localizations.dart';
 
-
 class TrailShareApp extends StatefulWidget {
   const TrailShareApp({super.key});
 
@@ -138,18 +137,29 @@ class _UsernameGateState extends State<_UsernameGate> {
 
   Future<void> _checkUsername() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('user_profiles')
-          .doc(widget.user.uid)
-          .get();
+      // Prima prova dal server (dopo reinstall la cache è vuota)
+      DocumentSnapshot doc;
+      try {
+        doc = await FirebaseFirestore.instance
+            .collection('user_profiles')
+            .doc(widget.user.uid)
+            .get(const GetOptions(source: Source.server));
+      } catch (_) {
+        // Fallback cache se offline
+        doc = await FirebaseFirestore.instance
+            .collection('user_profiles')
+            .doc(widget.user.uid)
+            .get();
+      }
 
-      final data = doc.data();
+      final data = doc.data() as Map<String, dynamic>?;
       final username = data?['username'] as String?;
 
-      // Ha username se il campo esiste, non è vuoto, e non è un placeholder
       final valid = username != null && 
                     username.isNotEmpty && 
                     username != 'Utente';
+
+      debugPrint('[UsernameGate] Username: $username, valid: $valid');
 
       if (mounted) {
         setState(() {
@@ -158,8 +168,7 @@ class _UsernameGateState extends State<_UsernameGate> {
         });
       }
     } catch (e) {
-      print('[UsernameGate] Errore check: $e');
-      // In caso di errore, lascia passare per non bloccare l'utente
+      debugPrint('[UsernameGate] Errore check: $e');
       if (mounted) {
         setState(() {
           _hasUsername = true;

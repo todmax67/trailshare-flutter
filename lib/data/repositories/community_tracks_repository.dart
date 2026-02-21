@@ -202,6 +202,19 @@ class CommunityTrack {
   }
 }
 
+/// Risultato paginato
+class PaginatedCommunityTracks {
+  final List<CommunityTrack> tracks;
+  final QueryDocumentSnapshot? lastDocument;
+  final bool hasMore;
+
+  PaginatedCommunityTracks({
+    required this.tracks,
+    this.lastDocument,
+    this.hasMore = true,
+  });
+}
+
 /// Repository per le tracce della community
 class CommunityTracksRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -231,6 +244,40 @@ class CommunityTracksRepository {
     } catch (e) {
       print('[CommunityTracks] Errore: $e');
       return [];
+    }
+  }
+
+  /// Tracce recenti con paginazione
+  Future<PaginatedCommunityTracks> getRecentTracksPaginated({
+    int limit = 20,
+    QueryDocumentSnapshot? startAfterDoc,
+  }) async {
+    try {
+      Query<Map<String, dynamic>> query = _tracksCollection
+          .orderBy('sharedAt', descending: true)
+          .limit(limit);
+
+      if (startAfterDoc != null) {
+        query = query.startAfterDocument(startAfterDoc);
+      }
+
+      final snapshot = await query.get();
+      final tracks = <CommunityTrack>[];
+      for (final doc in snapshot.docs) {
+        final track = _docToTrack(doc);
+        if (track != null) tracks.add(track);
+      }
+
+      debugPrint('[CommunityTracks] Paginate: ${tracks.length} tracce (hasMore: ${snapshot.docs.length == limit})');
+
+      return PaginatedCommunityTracks(
+        tracks: tracks,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+        hasMore: snapshot.docs.length == limit,
+      );
+    } catch (e) {
+      debugPrint('[CommunityTracks] Errore paginazione: $e');
+      return PaginatedCommunityTracks(tracks: [], hasMore: false);
     }
   }
 
@@ -444,6 +491,8 @@ class CommunityTracksRepository {
         'cheerCount': 0,
         'photoUrls': photoUrls ?? [],
         'difficulty': difficulty,
+        'startLat': points.isNotEmpty ? points.first.latitude : null,
+        'startLng': points.isNotEmpty ? points.first.longitude : null,
       });
 
       debugPrint('[CommunityTracks] Traccia pubblicata: $trackId');
