@@ -1365,3 +1365,50 @@ exports.backfillUserEmails = onRequest({ region: "europe-west3" }, async (req, r
     res.status(500).json({ error: error.message });
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// BACKFILL: Aggiunge startLat/startLng alle community_tracks esistenti
+// ═══════════════════════════════════════════════════════════════════
+exports.backfillStartCoords = functions.https.onRequest(async (req, res) => {
+  try {
+    const snapshot = await admin.firestore().collection("published_tracks").get();
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const doc of snapshot.docs) {
+      try {
+        const data = doc.data();
+        
+        // Salta se ha già startLat
+        if (data.startLat != null && data.startLng != null) {
+          skipped++;
+          continue;
+        }
+
+        const points = data.points;
+        if (!points || !Array.isArray(points) || points.length === 0) {
+          skipped++;
+          continue;
+        }
+
+        const first = points[0];
+        const lat = first.lat || first.latitude || first.y;
+        const lng = first.lng || first.longitude || first.x;
+
+        if (lat != null && lng != null) {
+          await doc.ref.update({ startLat: lat, startLng: lng });
+          updated++;
+        } else {
+          skipped++;
+        }
+      } catch (err) {
+        errors++;
+      }
+    }
+
+    res.json({ total: snapshot.size, updated, skipped, errors });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
