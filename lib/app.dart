@@ -11,6 +11,7 @@ import 'presentation/pages/onboarding/onboarding_page.dart';
 import 'core/services/push_notification_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/generated/app_localizations.dart';
+import 'dart:async';
 
 class TrailShareApp extends StatefulWidget {
   const TrailShareApp({super.key});
@@ -143,9 +144,10 @@ class _UsernameGateState extends State<_UsernameGate> {
         doc = await FirebaseFirestore.instance
             .collection('user_profiles')
             .doc(widget.user.uid)
-            .get(const GetOptions(source: Source.server));
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 5));
       } catch (_) {
-        // Fallback cache se offline
+        // Fallback cache se offline o timeout
         doc = await FirebaseFirestore.instance
             .collection('user_profiles')
             .doc(widget.user.uid)

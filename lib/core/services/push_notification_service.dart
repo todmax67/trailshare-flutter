@@ -55,13 +55,15 @@ class PushNotificationService {
   /// Salva il token FCM corrente
   Future<void> _saveToken() async {
     try {
-      final token = await _messaging.getToken();
+      final token = await _messaging.getToken()
+          .timeout(const Duration(seconds: 10));
       if (token != null) {
         debugPrint('[Push] Token FCM: ${token.substring(0, 20)}...');
-        await _saveTokenToFirestore(token);
+        await _saveTokenToFirestore(token)
+            .timeout(const Duration(seconds: 5));
       }
     } catch (e) {
-      debugPrint('[Push] Errore get token: $e');
+      debugPrint('[Push] Errore get token (offline?): $e');
     }
   }
 

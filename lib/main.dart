@@ -6,6 +6,7 @@ import 'app.dart';
 import 'core/services/location_service.dart';
 import 'core/services/theme_service.dart';
 import 'core/services/push_notification_service.dart';
+import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,8 +18,10 @@ void main() async {
   // Inizializza tema
   await ThemeService().initialize();
   
-  // Inizializza notifiche push
-  await PushNotificationService().initialize();
+  // Inizializza notifiche push (non blocca l'avvio)
+  PushNotificationService().initialize().catchError((e) {
+    debugPrint('[Push] Init fallita, riproverà dopo: $e');
+  });
   
   runApp(const TrailShareApp());
 }
