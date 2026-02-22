@@ -7,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/gpx_service.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
+import '../../../core/services/fit_service.dart';
 
 class ImportGpxPage extends StatefulWidget {
   const ImportGpxPage({super.key});
@@ -17,6 +18,7 @@ class ImportGpxPage extends StatefulWidget {
 
 class _ImportGpxPageState extends State<ImportGpxPage> {
   final GpxService _gpxService = GpxService();
+  final FitService _fitService = FitService();
   final TracksRepository _tracksRepository = TracksRepository();
   final TextEditingController _nameController = TextEditingController();
 
@@ -42,7 +44,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['gpx'],
+        allowedExtensions: ['gpx', 'fit'],
         withData: true,
       );
 
@@ -52,13 +54,24 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
       }
 
       final file = result.files.first;
+      final extension = file.name.split('.').last.toLowerCase();
       Track? track;
 
-      if (file.bytes != null) {
-        final content = String.fromCharCodes(file.bytes!);
-        track = _gpxService.parseGpxString(content, fileName: file.name);
-      } else if (file.path != null) {
-        track = await _gpxService.parseGpxFile(File(file.path!));
+      if (extension == 'fit') {
+        // Parse FIT
+        if (file.bytes != null) {
+          track = _fitService.parseFitBytes(file.bytes!, fileName: file.name);
+        } else if (file.path != null) {
+          track = await _fitService.parseFitFile(File(file.path!));
+        }
+      } else {
+        // Parse GPX
+        if (file.bytes != null) {
+          final content = String.fromCharCodes(file.bytes!);
+          track = _gpxService.parseGpxString(content, fileName: file.name);
+        } else if (file.path != null) {
+          track = await _gpxService.parseGpxFile(File(file.path!));
+        }
       }
 
       if (track == null) {

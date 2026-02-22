@@ -162,11 +162,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
   }
 
   String _getStoreUrl() {
-    if (Platform.isIOS) {
-      return '📲 https://apps.apple.com/us/app/trailshare/id6751456265';
-    } else {
-      return '📲 https://play.google.com/store/apps/details?id=com.trailshare.app';
-    }
+    return '📲 https://trailshare.app/app';
   }
 
   @override
