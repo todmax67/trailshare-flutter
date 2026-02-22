@@ -105,6 +105,7 @@ class GroupEvent {
   final double? estimatedDistance;
   final double? estimatedElevation;
   final String? notes;
+  final String? coverImageUrl;
 
   const GroupEvent({
     required this.id,
@@ -124,6 +125,7 @@ class GroupEvent {
     this.estimatedDistance,
     this.estimatedElevation,
     this.notes,
+    this.coverImageUrl,
   });
 
   factory GroupEvent.fromFirestore(DocumentSnapshot doc) {
@@ -146,6 +148,7 @@ class GroupEvent {
       estimatedDistance: (data['estimatedDistance'] as num?)?.toDouble(),
       estimatedElevation: (data['estimatedElevation'] as num?)?.toDouble(),
       notes: data['notes'],
+      coverImageUrl: data['coverImageUrl'],
     );
   }
 
@@ -771,6 +774,121 @@ class GroupsRepository {
       print('[Groups] Errore toggle partecipazione: $e');
       return false;
     }
+  }
+
+  /// Aggiorna evento
+  Future<bool> updateEvent(String groupId, String eventId, Map<String, dynamic> data) async {
+    try {
+      await _groupDoc(groupId).collection('events').doc(eventId).update(data);
+      return true;
+    } catch (e) {
+      print('[Groups] Errore aggiornamento evento: $e');
+      return false;
+    }
+  }
+
+  /// Ottieni singolo evento
+  Future<GroupEvent?> getEvent(String groupId, String eventId) async {
+    try {
+      final doc = await _groupDoc(groupId).collection('events').doc(eventId).get();
+      if (!doc.exists) return null;
+      return GroupEvent.fromFirestore(doc);
+    } catch (e) {
+      print('[Groups] Errore caricamento evento: $e');
+      return null;
+    }
+  }
+
+  /// Elimina evento
+  Future<bool> deleteEvent(String groupId, String eventId) async {
+    try {
+      await _groupDoc(groupId).collection('events').doc(eventId).delete();
+      return true;
+    } catch (e) {
+      print('[Groups] Errore eliminazione evento: $e');
+      return false;
+    }
+  }
+
+  /// Aggiungi post/aggiornamento all'evento
+  Future<bool> addEventPost(String groupId, String eventId, {
+    required String text,
+    String? imageUrl,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    try {
+      final profileDoc = await _firestore.collection('user_profiles').doc(user.uid).get();
+      final username = profileDoc.data()?['username'] ?? 'Utente';
+
+      await _groupDoc(groupId)
+          .collection('events')
+          .doc(eventId)
+          .collection('posts')
+          .add({
+        'text': text,
+        'imageUrl': imageUrl,
+        'authorId': user.uid,
+        'authorName': username,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      print('[Groups] Errore aggiunta post evento: $e');
+      return false;
+    }
+  }
+
+  /// Ottieni post dell'evento
+  Future<List<Map<String, dynamic>>> getEventPosts(String groupId, String eventId) async {
+    try {
+      final snapshot = await _groupDoc(groupId)
+          .collection('events')
+          .doc(eventId)
+          .collection('posts')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    } catch (e) {
+      print('[Groups] Errore caricamento post evento: $e');
+      return [];
+    }
+  }
+
+  /// Elimina post dell'evento
+  Future<bool> deleteEventPost(String groupId, String eventId, String postId) async {
+    try {
+      await _groupDoc(groupId)
+          .collection('events')
+          .doc(eventId)
+          .collection('posts')
+          .doc(postId)
+          .delete();
+      return true;
+    } catch (e) {
+      print('[Groups] Errore eliminazione post: $e');
+      return false;
+    }
+  }
+
+  /// Ottieni username di un partecipante
+  Future<Map<String, String>> getParticipantNames(List<String> userIds) async {
+    final names = <String, String>{};
+    for (final uid in userIds) {
+      try {
+        final doc = await _firestore.collection('user_profiles').doc(uid).get();
+        names[uid] = doc.data()?['username'] ?? 'Utente';
+      } catch (_) {
+        names[uid] = 'Utente';
+      }
+    }
+    return names;
   }
 
   // ─────────────────────────────────────────────────────────────────────

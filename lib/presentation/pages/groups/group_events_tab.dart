@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_event_page.dart';
+import 'event_detail_page.dart';
 
 class GroupEventsTab extends StatefulWidget {
   final String groupId;
@@ -133,7 +134,21 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
     final isParticipating = currentUserId != null && event.participants.contains(currentUserId);
     final isPast = event.isPast;
 
-    return Card(
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EventDetailPage(
+              groupId: widget.groupId,
+              eventId: event.id,
+              isAdmin: widget.isAdmin,
+            ),
+          ),
+        );
+        _loadEvents(); // Ricarica dopo ritorno
+      },
+      child: Card(
       margin: const EdgeInsets.only(bottom: 12),
       color: isPast ? Colors.grey[50] : null,
       child: Padding(
@@ -277,6 +292,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
               ),
             ],
           ],
+        ),
         ),
       ),
     );
