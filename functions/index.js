@@ -1412,3 +1412,36 @@ exports.backfillStartCoords = functions.https.onRequest(async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Fix ownerUsername nelle published_tracks (da email a username)
+exports.backfillOwnerUsername = functions.https.onRequest(async (req, res) => {
+  try {
+    const snapshot = await admin.firestore().collection("published_tracks").get();
+    let updated = 0;
+    let skipped = 0;
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const username = data.ownerUsername || "";
+
+      // Se contiene @ è un'email, va fixato
+      if (username.includes("@")) {
+        const ownerId = data.originalOwnerId;
+        if (!ownerId) { skipped++; continue; }
+
+        try {
+          const profileDoc = await admin.firestore().collection("user_profiles").doc(ownerId).get();
+          const realUsername = profileDoc.exists ? (profileDoc.data().username || "Utente") : "Utente";
+          await doc.ref.update({ ownerUsername: realUsername });
+          updated++;
+        } catch (err) { skipped++; }
+      } else {
+        skipped++;
+      }
+    }
+
+    res.json({ total: snapshot.size, updated, skipped });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});

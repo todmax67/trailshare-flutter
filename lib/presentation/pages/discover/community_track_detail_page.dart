@@ -15,6 +15,7 @@ import '../../pages/profile/public_profile_page.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import '../../widgets/share_card_widget.dart';
 
 class CommunityTrackDetailPage extends StatefulWidget {
   final CommunityTrack track;
@@ -497,6 +498,32 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
   Widget _buildActions() {
     return Column(
       children: [
+        // Pulsante Condividi Social
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => ShareCardGenerator.showSharePreview(
+              context: context,
+              name: widget.track.name,
+              points: widget.track.points,
+              distanceKm: widget.track.distanceKm,
+              elevationGain: widget.track.elevationGain,
+              durationFormatted: widget.track.durationFormatted,
+              activityEmoji: widget.track.activityIcon,
+              activityName: widget.track.activityType,
+              username: widget.track.ownerUsername,
+              onExportGpx: _exportGpx,
+            ),
+            icon: const Icon(Icons.share),
+            label: const Text('Condividi'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         // Pulsante Scarica GPX (esistente)
         SizedBox(
           width: double.infinity,

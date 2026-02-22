@@ -15,6 +15,7 @@ import '../../../data/repositories/tracks_repository.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import '../../widgets/share_card_widget.dart';
 
 class TrackDetailPage extends StatefulWidget {
   final Track track;
@@ -29,6 +30,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   late Track _track;
   final TracksRepository _tracksRepository = TracksRepository();
   final CommunityTracksRepository _communityRepository = CommunityTracksRepository();
+  final GlobalKey _mapKey = GlobalKey();
   
   @override
   void initState() {
@@ -73,7 +75,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               title: Text(_track.name, style: const TextStyle(fontSize: 16)),
               background: Padding(
                 padding: const EdgeInsets.only(bottom: 48),
-                child: InteractiveTrackMap(
+                child: RepaintBoundary(
+                  key: _mapKey,
+                  child: InteractiveTrackMap(
                   points: _track.points,
                   height: 300,
                   photoMarkers: _buildPhotoMarkers(),
@@ -86,13 +90,24 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   },
                   track: _track, // ⭐ Per fullscreen con TrackMapPage
                 ),
+                ),
               ),
             ),
             actions: [
               IconButton(
                 icon: const Icon(Icons.share),
-                onPressed: () => _exportGpx(context),
-                tooltip: 'Esporta GPX',
+                onPressed: () => ShareCardGenerator.showSharePreview(
+                  context: context,
+                  name: _track.name,
+                  points: _track.points,
+                  distanceKm: _track.stats.distance / 1000,
+                  elevationGain: _track.stats.elevationGain,
+                  durationFormatted: _formatDuration(_track.stats.duration),
+                  activityEmoji: _track.activityType.icon,
+                  activityName: _track.activityType.displayName,
+                  onExportGpx: () => _exportGpx(context),
+                ),
+                tooltip: 'Condividi',
               ),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert),
@@ -737,7 +752,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         durationSeconds: _track.stats.duration.inSeconds,
         points: _track.points,
         ownerId: user.uid,
-        ownerUsername: user.displayName ?? user.email ?? 'Utente',
+        ownerUsername: await _getUsername(user.uid),
         photoUrls: _track.photos.map((p) => p.url).toList(),
       );
 
@@ -856,6 +871,18 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
         );
       }
+    }
+  }
+
+  Future<String> _getUsername(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(uid)
+          .get();
+      return doc.data()?['username'] ?? 'Utente';
+    } catch (_) {
+      return 'Utente';
     }
   }
 }
