@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../core/services/trails_cache_service.dart';
 import 'trail_detail_page.dart';
+import '../../../core/services/offline_tile_provider.dart';
 
 class DiscoverPage extends StatefulWidget {
   const DiscoverPage({super.key});
@@ -500,6 +501,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.trailshare.app',
+              tileProvider: OfflineFallbackTileProvider(),
             ),
             
             // ⭐ NUOVO: Mostra polylines SOLO se NON ci sono cluster
@@ -1162,6 +1164,7 @@ class _TrailCard extends StatelessWidget {
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.trailshare.app',
+                  tileProvider: OfflineFallbackTileProvider(),
                 ),
                 PolylineLayer(
                   polylines: [

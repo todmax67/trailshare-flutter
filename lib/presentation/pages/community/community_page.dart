@@ -12,6 +12,7 @@ import '../groups/create_group_page.dart';
 import '../groups/group_detail_page.dart';
 import '../follow/search_users_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/services/offline_tile_provider.dart';
 
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key});
@@ -571,9 +572,10 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.trailshare.app',
-            ),
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.trailshare.app',
+          tileProvider: OfflineFallbackTileProvider(),
+        ),
 
             // Polylines delle tracce
             PolylineLayer(

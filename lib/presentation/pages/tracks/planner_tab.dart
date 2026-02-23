@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/routing_service.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../data/models/track.dart';
+import '../../../core/services/offline_tile_provider.dart';
 
 
 /// Tab per pianificare nuovi percorsi con routing ORS
@@ -289,6 +290,7 @@ class _PlannerTabState extends State<PlannerTab> {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.trailshare.app',
+              tileProvider: OfflineFallbackTileProvider(),
             ),
 
             if (_routeResult != null)

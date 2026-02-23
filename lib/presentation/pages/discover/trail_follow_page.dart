@@ -13,6 +13,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
+import '../../../core/services/offline_tile_provider.dart';
 
 /// Pagina per seguire una traccia in tempo reale
 ///
@@ -728,6 +729,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
           urlTemplate: _mapStyles[_currentMapStyle].$2,
           subdomains: _currentMapStyle == 1 ? const ['a', 'b', 'c'] : const [],
           userAgentPackageName: 'com.trailshare.app',
+          tileProvider: OfflineFallbackTileProvider(),
         ),
 
         // Traccia percorsa (grigia)

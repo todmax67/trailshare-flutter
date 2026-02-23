@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/offline_maps_service.dart';
+import '../../../core/services/offline_tile_provider.dart';
 
 /// Pagina gestione mappe offline
 class OfflineMapsPage extends StatefulWidget {
@@ -44,7 +46,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mappe Offline'),
+        title: Text(context.l10n.offlineMaps),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -52,7 +54,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
           IconButton(
             icon: const Icon(Icons.delete_sweep),
             onPressed: _regions.isEmpty ? null : _confirmClearAll,
-            tooltip: 'Elimina tutto',
+            tooltip: context.l10n.deleteAll,
           ),
         ],
       ),
@@ -63,7 +65,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
         onPressed: _downloadNewRegion,
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.download),
-        label: const Text('Scarica Area'),
+        label: Text(context.l10n.downloadArea),
       ),
     );
   }
@@ -109,9 +111,9 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Spazio utilizzato',
-                  style: TextStyle(
+                Text(
+                  context.l10n.storageUsed,
+                  style: const TextStyle(
                     fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
                   ),
@@ -128,7 +130,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
             ),
           ),
           Text(
-            '${_regions.length} ${_regions.length == 1 ? 'area' : 'aree'}',
+            context.l10n.areasCount(_regions.length),
             style: const TextStyle(color: AppColors.textMuted),
           ),
         ],
@@ -145,13 +147,13 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
           children: [
             Icon(Icons.map_outlined, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            const Text(
-              'Nessuna mappa offline',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              context.l10n.noOfflineMaps,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Scarica mappe per usarle quando sei senza connessione',
+              context.l10n.downloadMapsForOffline,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -210,7 +212,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
           final sizeMB = _service.estimateDownloadSize(tileCount);
 
           return AlertDialog(
-            title: const Text('Scarica Area'),
+            title: Text(context.l10n.downloadArea),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -218,14 +220,14 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
                 children: [
                   TextField(
                     controller: nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome area',
-                      hintText: 'Es: Dolomiti, Appennino...',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: context.l10n.areaName,
+                      hintText: context.l10n.areaNameHint,
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text('Zoom minimo: $minZoom'),
+                  Text(context.l10n.minZoomLabel(minZoom)),
                   Slider(
                     value: minZoom.toDouble(),
                     min: 8,
@@ -233,7 +235,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
                     divisions: maxZoom - 8,
                     onChanged: (v) => setDialogState(() => minZoom = v.toInt()),
                   ),
-                  Text('Zoom massimo: $maxZoom'),
+                  Text(context.l10n.maxZoomLabel(maxZoom)),
                   Slider(
                     value: maxZoom.toDouble(),
                     min: minZoom.toDouble(),
@@ -245,7 +247,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Tile da scaricare:'),
+                      Text(context.l10n.tilesToDownload),
                       Text('$tileCount', style: const TextStyle(fontWeight: FontWeight.bold)),
                     ],
                   ),
@@ -253,7 +255,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Dimensione stimata:'),
+                      Text(context.l10n.estimatedSize),
                       Text('~${sizeMB.toStringAsFixed(1)} MB', 
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                     ],
@@ -264,7 +266,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Annulla'),
+                child: Text(context.l10n.cancel),
               ),
               ElevatedButton(
                 onPressed: nameController.text.trim().isNotEmpty
@@ -274,7 +276,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('Scarica'),
+                child: Text(context.l10n.downloadAction),
               ),
             ],
           );
@@ -315,17 +317,17 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Elimina area'),
-        content: Text('Vuoi eliminare "${region.name}"?'),
+        title: Text(context.l10n.deleteArea),
+        content: Text(context.l10n.deleteAreaConfirm(region.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.deleteLabel),
           ),
         ],
       ),
@@ -341,17 +343,17 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Elimina tutte le mappe'),
-        content: const Text('Vuoi eliminare tutte le mappe offline? Questa azione non può essere annullata.'),
+        title: Text(context.l10n.deleteAllMaps),
+        content: Text(context.l10n.deleteAllMapsConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Elimina tutto'),
+            child: Text(context.l10n.deleteAllAction),
           ),
         ],
       ),
@@ -420,14 +422,14 @@ class _SelectAreaPageState extends State<_SelectAreaPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Seleziona Area'),
+        title: Text(context.l10n.selectArea),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
         actions: [
           TextButton(
             onPressed: _confirm,
-            child: const Text('Conferma'),
+            child: Text(context.l10n.confirmAction),
           ),
         ],
       ),
@@ -446,7 +448,8 @@ class _SelectAreaPageState extends State<_SelectAreaPage> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'app.trailshare',
+                userAgentPackageName: 'com.trailshare.app',
+                tileProvider: OfflineFallbackTileProvider(),
               ),
               // Cerchio area selezionata
               CircleLayer(
@@ -490,14 +493,14 @@ class _SelectAreaPageState extends State<_SelectAreaPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Tocca la mappa per selezionare il centro',
-                      style: TextStyle(color: AppColors.textMuted),
+                    Text(
+                      context.l10n.tapMapToSelectCenter,
+                      style: const TextStyle(color: AppColors.textMuted),
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        const Text('Raggio:'),
+                        Text(context.l10n.radiusLabel),
                         Expanded(
                           child: Slider(
                             value: _radiusKm,
@@ -608,7 +611,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_completed ? '✓ Completato!' : 'Download in corso...'),
+      title: Text(_completed ? context.l10n.downloadCompleted : context.l10n.downloadInProgress),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -617,7 +620,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
           else ...[
             LinearProgressIndicator(value: _progress),
             const SizedBox(height: 16),
-            Text('$_downloaded / $_total tile'),
+            Text(context.l10n.tileProgress(_downloaded, _total)),
             Text('${(_progress * 100).toStringAsFixed(0)}%'),
           ],
         ],
@@ -626,7 +629,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
           ? [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Chiudi'),
+                child: Text(context.l10n.closeAction),
               ),
             ]
           : null,

@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
+import '../../../core/services/offline_tile_provider.dart';
 
 /// Pagina mappa a schermo intero per visualizzare una traccia
 /// Supporta sia Track (tracce private) che CommunityTrack (tracce community)
@@ -363,9 +364,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                 urlTemplate: layer.url,
                 subdomains: layer.subdomains,
                 userAgentPackageName: 'com.trailshare.app',
-                tileProvider: NetworkTileProvider(
-                  headers: {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
-                ),
+                tileProvider: OfflineFallbackTileProvider(),
               ),
 
               // Polyline con colori pendenza

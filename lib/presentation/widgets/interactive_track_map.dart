@@ -6,6 +6,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/community_tracks_repository.dart';
 import '../pages/map/track_map_page.dart';
+import '../../core/services/offline_tile_provider.dart';
 
 /// Widget mappa interattiva per visualizzare tracce GPS
 /// 
@@ -73,6 +74,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
   double? _tappedDistance;
   double? _tappedElevation;
   bool _isLoadingLocation = false;
+  final OfflineFallbackTileProvider _tileProvider = OfflineFallbackTileProvider();
 
   @override
   void initState() {
@@ -276,9 +278,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.trailshare.app',
-                  tileProvider: NetworkTileProvider(
-                    headers: {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
-                  ),
+                  tileProvider: _tileProvider,
                 ),
                 
                 // Percorso
@@ -618,6 +618,7 @@ class _FullscreenMapPage extends StatefulWidget {
 
 class _FullscreenMapPageState extends State<_FullscreenMapPage> {
   final MapController _mapController = MapController();
+  final OfflineFallbackTileProvider _tileProvider = OfflineFallbackTileProvider();
   LatLng? _tappedPoint;
   double? _tappedDistance;
   double? _tappedElevation;
@@ -748,9 +749,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                 urlTemplate: _mapStyles[_currentMapStyle].$2,
                 userAgentPackageName: 'com.trailshare.app',
                 subdomains: const ['a', 'b', 'c'],
-                tileProvider: NetworkTileProvider(
-                  headers: {'User-Agent': 'TrailShare/1.0 (https://trailshare.app)'},
-                ),
+                tileProvider: _tileProvider,
               ),
               
               PolylineLayer(

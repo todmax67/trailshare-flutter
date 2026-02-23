@@ -9,6 +9,7 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../core/services/fit_service.dart';
 import '../../../core/services/tcx_service.dart';
+import '../../../core/services/offline_tile_provider.dart';
 
 class ImportGpxPage extends StatefulWidget {
   final String? initialFilePath;
@@ -375,7 +376,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
         interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
       ),
       children: [
-        TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.trailshare.app'),
+        TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.trailshare.app', tileProvider: OfflineFallbackTileProvider()),
         PolylineLayer(polylines: [Polyline(points: points, strokeWidth: 4, color: AppColors.primary)]),
         MarkerLayer(markers: [
           Marker(point: points.first, width: 24, height: 24,

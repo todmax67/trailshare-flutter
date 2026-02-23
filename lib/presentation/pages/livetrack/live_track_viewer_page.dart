@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/live_track_repository.dart';
+import '../../../core/services/offline_tile_provider.dart';
 
 /// Pagina per visualizzare una sessione LiveTrack in tempo reale
 /// 
@@ -155,6 +156,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.trailshare.app',
+          tileProvider: OfflineFallbackTileProvider(),
         ),
         
         // Traccia percorso

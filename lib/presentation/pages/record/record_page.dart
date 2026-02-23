@@ -17,6 +17,7 @@ import '../../../core/services/live_track_service.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'dart:async';
 import '../../../core/services/health_service.dart';
+import '../../../core/services/offline_tile_provider.dart';
 
 class RecordPage extends StatefulWidget {
   const RecordPage({super.key});
@@ -508,7 +509,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       mapController: _mapController,
       options: MapOptions(initialCenter: center, initialZoom: 16, minZoom: 4, maxZoom: 18, onPositionChanged: (position, hasGesture) { if (hasGesture) _followUser = false; }),
       children: [
-        TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.trailshare.app'),
+        TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.trailshare.app', tileProvider: OfflineFallbackTileProvider()),
         if (state.points.length >= 2) PolylineLayer(polylines: [Polyline(points: state.points.map((p) => LatLng(p.latitude, p.longitude)).toList(), strokeWidth: 4, color: state.isRecording ? AppColors.trackRecording : AppColors.primary)]),
         if (state.points.isNotEmpty) MarkerLayer(markers: [
           Marker(point: LatLng(state.points.first.latitude, state.points.first.longitude), width: 24, height: 24, child: Container(decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)), child: const Icon(Icons.flag, color: Colors.white, size: 14))),
