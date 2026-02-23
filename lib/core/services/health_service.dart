@@ -436,7 +436,9 @@ class HealthService {
         if (dp.value is NumericHealthValue) {
           final cal = (dp.value as NumericHealthValue).numericValue.toDouble();
           final key = '${dp.dateFrom.day}/${dp.dateFrom.month}';
-          daily[key] = (daily[key] ?? 0) + cal;
+          if (daily.containsKey(key)) {
+            daily[key] = daily[key]! + cal;
+          }
         }
       }
 
@@ -477,7 +479,9 @@ class HealthService {
         if (dp.value is NumericHealthValue) {
           final steps = (dp.value as NumericHealthValue).numericValue.round();
           final key = '${dp.dateFrom.day}/${dp.dateFrom.month}';
-          daily[key] = (daily[key] ?? 0) + steps;
+          if (daily.containsKey(key)) {
+            daily[key] = daily[key]! + steps;
+          }
         }
       }
 
