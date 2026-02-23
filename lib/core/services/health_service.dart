@@ -326,6 +326,170 @@ class HealthService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // DASHBOARD — Dati giornalieri e settimanali
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Passi di oggi
+  Future<int> getTodaySteps() async {
+    final enabled = await isSyncEnabled();
+    if (!enabled) return 0;
+
+    await configure();
+
+    try {
+      final now = DateTime.now();
+      final midnight = DateTime(now.year, now.month, now.day);
+
+      final dataPoints = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.STEPS],
+        startTime: midnight,
+        endTime: now,
+      );
+
+      int total = 0;
+      for (final dp in dataPoints) {
+        if (dp.value is NumericHealthValue) {
+          total += (dp.value as NumericHealthValue).numericValue.round();
+        }
+      }
+
+      debugPrint('[HealthService] Passi oggi: $total');
+      return total;
+    } catch (e) {
+      debugPrint('[HealthService] Errore passi oggi: $e');
+      return 0;
+    }
+  }
+
+  /// Battito a riposo (ultimo campione oggi con valore basso)
+  Future<int?> getRestingHeartRate() async {
+    final enabled = await isSyncEnabled();
+    if (!enabled) return null;
+
+    await configure();
+
+    try {
+      final now = DateTime.now();
+      final midnight = DateTime(now.year, now.month, now.day);
+
+      final dataPoints = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.HEART_RATE],
+        startTime: midnight,
+        endTime: now,
+      );
+
+      if (dataPoints.isEmpty) return null;
+
+      // Prendi i campioni HR e trova il minimo (approssimazione riposo)
+      final hrValues = <int>[];
+      for (final dp in dataPoints) {
+        if (dp.value is NumericHealthValue) {
+          final bpm = (dp.value as NumericHealthValue).numericValue.round();
+          if (bpm > 30 && bpm < 120) {
+            hrValues.add(bpm);
+          }
+        }
+      }
+
+      if (hrValues.isEmpty) return null;
+
+      // Media dei 5 valori più bassi come stima riposo
+      hrValues.sort();
+      final lowest = hrValues.take(5).toList();
+      final avg = lowest.reduce((a, b) => a + b) ~/ lowest.length;
+
+      debugPrint('[HealthService] HR riposo stimato: $avg bpm (da ${hrValues.length} campioni)');
+      return avg;
+    } catch (e) {
+      debugPrint('[HealthService] Errore HR riposo: $e');
+      return null;
+    }
+  }
+
+  /// Calorie degli ultimi 7 giorni (giorno per giorno)
+  Future<Map<String, double>> getWeeklyCalories() async {
+    final enabled = await isSyncEnabled();
+    if (!enabled) return {};
+
+    await configure();
+
+    try {
+      final now = DateTime.now();
+      final weekAgo = now.subtract(const Duration(days: 7));
+
+      final dataPoints = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.TOTAL_CALORIES_BURNED],
+        startTime: weekAgo,
+        endTime: now,
+      );
+
+      final daily = <String, double>{};
+
+      // Inizializza tutti i 7 giorni
+      for (int i = 6; i >= 0; i--) {
+        final date = now.subtract(Duration(days: i));
+        final key = '${date.day}/${date.month}';
+        daily[key] = 0;
+      }
+
+      for (final dp in dataPoints) {
+        if (dp.value is NumericHealthValue) {
+          final cal = (dp.value as NumericHealthValue).numericValue.toDouble();
+          final key = '${dp.dateFrom.day}/${dp.dateFrom.month}';
+          daily[key] = (daily[key] ?? 0) + cal;
+        }
+      }
+
+      debugPrint('[HealthService] Calorie settimanali: $daily');
+      return daily;
+    } catch (e) {
+      debugPrint('[HealthService] Errore calorie settimanali: $e');
+      return {};
+    }
+  }
+
+  /// Passi degli ultimi 7 giorni (giorno per giorno)
+  Future<Map<String, int>> getWeeklySteps() async {
+    final enabled = await isSyncEnabled();
+    if (!enabled) return {};
+
+    await configure();
+
+    try {
+      final now = DateTime.now();
+      final weekAgo = now.subtract(const Duration(days: 7));
+
+      final dataPoints = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.STEPS],
+        startTime: weekAgo,
+        endTime: now,
+      );
+
+      final daily = <String, int>{};
+
+      for (int i = 6; i >= 0; i--) {
+        final date = now.subtract(Duration(days: i));
+        final key = '${date.day}/${date.month}';
+        daily[key] = 0;
+      }
+
+      for (final dp in dataPoints) {
+        if (dp.value is NumericHealthValue) {
+          final steps = (dp.value as NumericHealthValue).numericValue.round();
+          final key = '${dp.dateFrom.day}/${dp.dateFrom.month}';
+          daily[key] = (daily[key] ?? 0) + steps;
+        }
+      }
+
+      debugPrint('[HealthService] Passi settimanali: $daily');
+      return daily;
+    } catch (e) {
+      debugPrint('[HealthService] Errore passi settimanali: $e');
+      return {};
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // UTILITÀ
   // ═══════════════════════════════════════════════════════════════════════════
 

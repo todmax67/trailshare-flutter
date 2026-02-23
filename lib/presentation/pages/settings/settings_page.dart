@@ -15,6 +15,8 @@ import '../admin/recalculate_stats_page.dart';
 import 'dart:io';
 import 'package:health/health.dart';
 import '../../../core/services/health_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'health_dashboard_page.dart';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -29,6 +31,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final ThemeService _themeService = ThemeService();
   final HealthService _healthService = HealthService();
   bool _healthSyncEnabled = false;
+  int _maxHR = 0;
 
   @override
   void initState() {
@@ -51,6 +54,81 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadHealthSync() async {
     final enabled = await _healthService.isSyncEnabled();
     if (mounted) setState(() => _healthSyncEnabled = enabled);
+  }
+
+  Future<void> _loadMaxHR() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getInt('user_max_hr') ?? 0;
+    if (mounted) setState(() => _maxHR = saved);
+  }
+
+  Future<void> _showMaxHRDialog() async {
+    final ageController = TextEditingController();
+    final hrController = TextEditingController(
+      text: _maxHR > 0 ? '$_maxHR' : '',
+    );
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Frequenza cardiaca massima'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Inserisci la tua FC max se la conosci, oppure inserisci la tua età per stimarla (220 - età).',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: hrController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'FC Max (BPM)',
+                hintText: 'Es: 185',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text('oppure', style: TextStyle(color: AppColors.textMuted)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ageController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Età',
+                hintText: 'Es: 35',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (val) {
+                final age = int.tryParse(val);
+                if (age != null && age > 10 && age < 100) {
+                  hrController.text = '${220 - age}';
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final hr = int.tryParse(hrController.text);
+              if (hr != null && hr > 100 && hr < 250) {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setInt('user_max_hr', hr);
+                setState(() => _maxHR = hr);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
   }
 
   bool _isAdmin(User? user) {
@@ -163,6 +241,27 @@ class _SettingsPageState extends State<SettingsPage> {
               setState(() => _healthSyncEnabled = value);
             },
           ),
+          if (_healthSyncEnabled) ...[
+            ListTile(
+              leading: const Icon(Icons.monitor_heart, color: AppColors.danger),
+              title: const Text('Frequenza cardiaca massima'),
+              subtitle: Text(
+                _maxHR > 0 ? '$_maxHR BPM' : 'Imposta per calcolare le zone cardio',
+              ),
+              trailing: const Icon(Icons.edit, size: 18),
+              onTap: () => _showMaxHRDialog(),
+            ),
+            ListTile(
+              leading: const Icon(Icons.dashboard, color: AppColors.primary),
+              title: const Text('Dashboard Salute'),
+              subtitle: const Text('Passi, battito, calorie settimanali'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HealthDashboardPage()),
+              ),
+            ),
+          ],
           const Divider(height: 32),
 
           // Sezione Legale
