@@ -10,7 +10,8 @@ import '../../../data/repositories/tracks_repository.dart';
 import '../../../core/services/fit_service.dart';
 
 class ImportGpxPage extends StatefulWidget {
-  const ImportGpxPage({super.key});
+  final String? initialFilePath;
+  const ImportGpxPage({super.key, this.initialFilePath});
 
   @override
   State<ImportGpxPage> createState() => _ImportGpxPageState();
@@ -32,6 +33,55 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialFilePath != null) {
+      // Auto-parse del file ricevuto da "Apri con"
+      Future.microtask(() => _parseFileFromPath(widget.initialFilePath!));
+    }
+  }
+
+  Future<void> _parseFileFromPath(String path) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _parsedTrack = null;
+    });
+
+    try {
+      final file = File(path);
+      final ext = path.split('.').last.toLowerCase();
+      Track? track;
+
+      if (ext == 'fit') {
+        track = await _fitService.parseFitFile(file);
+      } else {
+        track = await _gpxService.parseGpxFile(file);
+      }
+
+      if (track == null) {
+        setState(() {
+          _error = 'Impossibile leggere il file. Verifica che sia un file GPX o FIT valido.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _parsedTrack = track;
+        _nameController.text = track!.name;
+        _selectedActivity = track.activityType;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Errore: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _pickAndParseFile() async {

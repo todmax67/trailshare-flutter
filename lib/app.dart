@@ -12,6 +12,11 @@ import 'core/services/push_notification_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'dart:async';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'presentation/pages/tracks/import_gpx_page.dart';
+
+/// Chiave globale per la navigazione da qualsiasi punto
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class TrailShareApp extends StatefulWidget {
   const TrailShareApp({super.key});
@@ -22,16 +27,19 @@ class TrailShareApp extends StatefulWidget {
 
 class _TrailShareAppState extends State<TrailShareApp> {
   final ThemeService _themeService = ThemeService();
+  StreamSubscription? _intentSub;
 
   @override
   void initState() {
     super.initState();
     _themeService.addListener(_onThemeChanged);
+    _listenForSharedFiles();
   }
 
   @override
   void dispose() {
     _themeService.removeListener(_onThemeChanged);
+    _intentSub?.cancel();
     super.dispose();
   }
 
@@ -39,10 +47,44 @@ class _TrailShareAppState extends State<TrailShareApp> {
     setState(() {});
   }
 
+  void _listenForSharedFiles() {
+    // File ricevuti mentre l'app è aperta
+    _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((files) {
+      _handleSharedFiles(files);
+    });
+
+    // File ricevuti all'avvio dell'app
+    ReceiveSharingIntent.instance.getInitialMedia().then((files) {
+      _handleSharedFiles(files);
+      ReceiveSharingIntent.instance.reset();
+    });
+  }
+
+  void _handleSharedFiles(List<SharedMediaFile> files) {
+    if (files.isEmpty) return;
+    
+    for (final file in files) {
+      final path = file.path;
+      final ext = path.split('.').last.toLowerCase();
+      
+      if (['gpx', 'fit', 'tcx'].contains(ext)) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (_) => ImportGpxPage(initialFilePath: path),
+            ),
+          );
+        });
+        break;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return WithForegroundTask(
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'TrailShare',
         debugShowCheckedModeBanner: false,
         theme: AppThemes.lightTheme,
