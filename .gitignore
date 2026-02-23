@@ -47,3 +47,5 @@ functions/node_modules/
 functions/.DS_Store
 functions/serviceAccountKey.json
 functions/serviceAccountKey.json
+functions/serviceAccountKey.json
+**/*serviceAccountKey*
