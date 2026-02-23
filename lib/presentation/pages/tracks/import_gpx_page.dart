@@ -8,6 +8,7 @@ import '../../../core/services/gpx_service.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../core/services/fit_service.dart';
+import '../../../core/services/tcx_service.dart';
 
 class ImportGpxPage extends StatefulWidget {
   final String? initialFilePath;
@@ -20,6 +21,7 @@ class ImportGpxPage extends StatefulWidget {
 class _ImportGpxPageState extends State<ImportGpxPage> {
   final GpxService _gpxService = GpxService();
   final FitService _fitService = FitService();
+  final TcxService _tcxService = TcxService();
   final TracksRepository _tracksRepository = TracksRepository();
   final TextEditingController _nameController = TextEditingController();
 
@@ -58,6 +60,8 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
 
       if (ext == 'fit') {
         track = await _fitService.parseFitFile(file);
+      } else if (ext == 'tcx') {
+        track = await _tcxService.parseTcxFile(file);
       } else {
         track = await _gpxService.parseGpxFile(file);
       }
@@ -94,7 +98,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['gpx', 'fit'],
+        allowedExtensions: ['gpx', 'fit', 'tcx'],
         withData: true,
       );
 
@@ -108,14 +112,19 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
       Track? track;
 
       if (extension == 'fit') {
-        // Parse FIT
         if (file.bytes != null) {
           track = _fitService.parseFitBytes(file.bytes!, fileName: file.name);
         } else if (file.path != null) {
           track = await _fitService.parseFitFile(File(file.path!));
         }
+      } else if (extension == 'tcx') {
+        if (file.bytes != null) {
+          final content = String.fromCharCodes(file.bytes!);
+          track = _tcxService.parseTcxString(content, fileName: file.name);
+        } else if (file.path != null) {
+          track = await _tcxService.parseTcxFile(File(file.path!));
+        }
       } else {
-        // Parse GPX
         if (file.bytes != null) {
           final content = String.fromCharCodes(file.bytes!);
           track = _gpxService.parseGpxString(content, fileName: file.name);
