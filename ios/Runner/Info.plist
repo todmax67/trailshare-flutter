@@ -139,5 +139,9 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>TrailShare legge i dati di salute per arricchire le tue attività con battito cardiaco, passi e calorie dal tuo smartwatch.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>TrailShare salva le tue attività outdoor su Apple Salute per tenere traccia dei tuoi allenamenti.</string>
 </dict>
 </plist>

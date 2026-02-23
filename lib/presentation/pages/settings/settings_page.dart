@@ -12,6 +12,9 @@ import '../admin/geohash_migration_page.dart';
 import '../admin/trail_import_page.dart';
 import '../admin/database_stats_page.dart';
 import '../admin/recalculate_stats_page.dart';
+import 'dart:io';
+import 'package:health/health.dart';
+import '../../../core/services/health_service.dart';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -24,11 +27,14 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   String _appVersion = '';
   final ThemeService _themeService = ThemeService();
+  final HealthService _healthService = HealthService();
+  bool _healthSyncEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _loadAppVersion();
+    _loadHealthSync();
   }
 
   Future<void> _loadAppVersion() async {
@@ -40,6 +46,11 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       setState(() => _appVersion = '1.0.0');
     }
+  }
+
+  Future<void> _loadHealthSync() async {
+    final enabled = await _healthService.isSyncEnabled();
+    if (mounted) setState(() => _healthSyncEnabled = enabled);
   }
 
   bool _isAdmin(User? user) {
@@ -85,6 +96,73 @@ class _SettingsPageState extends State<SettingsPage> {
           // Sezione Aspetto
           _buildSectionHeader('Aspetto'),
           _buildThemeTile(),
+          const Divider(height: 32),
+
+          // Sezione Salute
+          _buildSectionHeader('Connessione Salute'),
+          SwitchListTile(
+            secondary: Icon(
+              Icons.favorite_outline,
+              color: _healthSyncEnabled ? AppColors.danger : AppColors.textSecondary,
+            ),
+            title: const Text('Sincronizza con Salute'),
+            subtitle: Text(
+              Platform.isIOS
+                  ? 'Salva le attività su Apple Salute'
+                  : 'Salva le attività su Health Connect',
+            ),
+            value: _healthSyncEnabled,
+            activeColor: AppColors.primary,
+            onChanged: (value) async {
+              if (value) {
+                if (Platform.isAndroid) {
+                  final available = await _healthService.isHealthConnectAvailable();
+                  if (!available) {
+                    if (mounted) {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Health Connect necessario'),
+                          content: const Text(
+                            'Per sincronizzare le attività è necessario installare '
+                            'Health Connect dal Play Store.\n\n'
+                            'Vuoi installarlo ora?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Annulla'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                Health().installHealthConnect();
+                              },
+                              child: const Text('Installa'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                }
+                final granted = await _healthService.requestPermissions();
+                debugPrint('[Settings] Permessi concessi: $granted');
+                if (!granted && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Permessi non concessi. Riprova o abilita dalle impostazioni del dispositivo.'),
+                      backgroundColor: AppColors.warning,
+                    ),
+                  );
+                  return;
+                }
+              }
+              await _healthService.setSyncEnabled(value);
+              setState(() => _healthSyncEnabled = value);
+            },
+          ),
           const Divider(height: 32),
 
           // Sezione Legale

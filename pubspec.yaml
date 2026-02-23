@@ -73,6 +73,7 @@ dependencies:
   intl: any
   fit_sdk: ^0.3.0
   receive_sharing_intent: ^1.8.1
+  health: ^13.3.1
 
 dev_dependencies:
   flutter_test:
