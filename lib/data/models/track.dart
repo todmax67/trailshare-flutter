@@ -382,6 +382,10 @@ class Track {
   // 📸 NUOVO: Lista foto
   final List<TrackPhotoMetadata> photos;
 
+  // ❤️ Dati battito cardiaco da Health Connect/Apple Health
+  // Mappa: timestamp -> BPM
+  final Map<DateTime, int>? heartRateData;
+
   const Track({
     this.id,
     required this.name,
@@ -395,10 +399,11 @@ class Track {
     this.isPlanned = false,
     this.stats = const TrackStats(),
     this.photos = const [], // 📸 Default: nessuna foto
+    this.heartRateData, // ❤️ Battito cardiaco (opzionale)
   });
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'name': name,
       'description': description,
       'points': points.map((p) => p.toMap()).toList(),
@@ -416,6 +421,15 @@ class Track {
       // 📸 NUOVO
       'photos': photos.map((p) => p.toMap()).toList(),
     };
+
+    // ❤️ Battito cardiaco (aggiunto separatamente per chiarezza)
+    if (heartRateData != null && heartRateData!.isNotEmpty) {
+      map['heartRateData'] = heartRateData!.map(
+        (key, value) => MapEntry(key.millisecondsSinceEpoch.toString(), value),
+      );
+    }
+
+    return map;
   }
 
   Track copyWith({
@@ -431,6 +445,7 @@ class Track {
     bool? isPlanned,
     TrackStats? stats,
     List<TrackPhotoMetadata>? photos, // 📸 NUOVO
+    Map<DateTime, int>? heartRateData, // ❤️
   }) {
     return Track(
       id: id ?? this.id,
@@ -445,6 +460,7 @@ class Track {
       isPlanned: isPlanned ?? this.isPlanned,
       stats: stats ?? this.stats,
       photos: photos ?? this.photos, // 📸 NUOVO
+      heartRateData: heartRateData ?? this.heartRateData, // ❤️
     );
   }
 }

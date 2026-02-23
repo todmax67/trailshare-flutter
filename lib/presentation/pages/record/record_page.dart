@@ -16,6 +16,7 @@ import '../../../core/services/recording_persistence_service.dart';
 import '../../../core/services/live_track_service.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'dart:async';
+import '../../../core/services/health_service.dart';
 
 class RecordPage extends StatefulWidget {
   const RecordPage({super.key});
@@ -431,6 +432,35 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('⚠️ ${result.failed.length} foto non caricate'), backgroundColor: AppColors.warning));
         }
       }
+
+      // Sync con Apple Health / Health Connect
+      HealthService().saveTrackAsWorkout(trackToSave).catchError((e) {
+        debugPrint('[RecordPage] Errore sync Health: $e');
+      });
+
+      // ❤️ Recupera battito cardiaco da Health Connect/Apple Health
+      // e salvalo sulla traccia (in background, non blocca il salvataggio)
+      () async {
+        try {
+          final healthService = HealthService();
+          final startTime = trackToSave.createdAt;
+          final endTime = startTime.add(trackToSave.stats.duration);
+          
+          final hrData = await healthService.getHeartRateForTimeRange(
+            start: startTime,
+            end: endTime,
+          );
+          
+          if (hrData.isNotEmpty) {
+            await _repository.updateTrackHeartRate(trackId, hrData);
+            debugPrint('[RecordPage] ❤️ ${hrData.length} campioni HR salvati sulla traccia');
+          } else {
+            debugPrint('[RecordPage] ❤️ Nessun dato HR trovato per questo intervallo');
+          }
+        } catch (e) {
+          debugPrint('[RecordPage] ❤️ Errore recupero HR: $e');
+        }
+      }();
       
       await _trackingBloc.stopForegroundService();
       await _persistence.clearState();

@@ -19,6 +19,18 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    
+    <!-- Health Connect -->
+        <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
+        <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
+        <uses-permission android:name="android.permission.health.READ_DISTANCE"/>
+        <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED"/>
+        <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
+        <uses-permission android:name="android.permission.health.READ_STEPS"/>
+        <uses-permission android:name="android.permission.health.WRITE_EXERCISE"/>
+        <uses-permission android:name="android.permission.health.WRITE_DISTANCE"/>
+        <uses-permission android:name="android.permission.health.WRITE_TOTAL_CALORIES_BURNED"/>
+        <uses-permission android:name="android.permission.health.WRITE_STEPS"/>
 
     <!-- Permessi foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -78,6 +90,23 @@
                             <data android:pathPattern=".*\\.fit"/>
                         </intent-filter>
         </activity>
+        
+        <!-- Health Connect -->
+                        <activity
+                            android:name="androidx.health.connect.client.impl.permission.RequestPermissionRationale"
+                            android:exported="true"/>
+                            
+                        <activity-alias
+                            android:name="ViewPermissionUsageActivity"
+                            android:exported="true"
+                            android:targetActivity=".MainActivity"
+                            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+                            <intent-filter>
+                                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
+                                <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
+                            </intent-filter>
+                        </activity-alias>
+        
          <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="location"
@@ -97,6 +126,9 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <intent>
+            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
         </intent>
     </queries>
 </manifest>

@@ -176,6 +176,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     const SizedBox(height: 24),
                     TrackChartsWidget(
                       points: _track.points,
+                      heartRateData: _track.heartRateData,
                       height: 180,
                       totalDuration: _track.stats.duration,
                       onPointTap: (index, distance) {

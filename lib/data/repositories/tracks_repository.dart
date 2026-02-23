@@ -198,6 +198,21 @@ class TracksRepository {
     print('[TracksRepository] ${photos.length} foto aggiornate per traccia $trackId');
   }
 
+  /// ❤️ Aggiorna i dati battito cardiaco di una traccia
+  Future<void> updateTrackHeartRate(String trackId, Map<DateTime, int> heartRateData) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Utente non autenticato');
+
+    final serialized = heartRateData.map(
+      (key, value) => MapEntry(key.millisecondsSinceEpoch.toString(), value),
+    );
+
+    await _tracksCollection(userId).doc(trackId).update({
+      'heartRateData': serialized,
+    });
+    print('[TracksRepository] ${heartRateData.length} campioni HR salvati per traccia $trackId');
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // ELIMINAZIONE
   // ═══════════════════════════════════════════════════════════════════════════
@@ -313,6 +328,11 @@ class TracksRepository {
       'minAltitude': stats.minElevation,
       // 📸 Foto
       'photos': track.photos.map((p) => p.toMap()).toList(),
+      // ❤️ Battito cardiaco
+      if (track.heartRateData != null && track.heartRateData!.isNotEmpty)
+        'heartRateData': track.heartRateData!.map(
+          (key, value) => MapEntry(key.millisecondsSinceEpoch.toString(), value),
+        ),
     };
   }
 
@@ -446,6 +466,25 @@ class TracksRepository {
       maxElevation: _toDouble(data['maxAltitude'] ?? data['maxElevation']) ?? 0,
     );
 
+    // ❤️ Parse battito cardiaco
+    Map<DateTime, int>? heartRateData;
+    final hrData = data['heartRateData'];
+    if (hrData != null && hrData is Map) {
+      heartRateData = {};
+      for (final entry in hrData.entries) {
+        try {
+          final timestamp = DateTime.fromMillisecondsSinceEpoch(int.parse(entry.key.toString()));
+          final bpm = (entry.value as num).toInt();
+          if (bpm > 30 && bpm < 250) {
+            heartRateData[timestamp] = bpm;
+          }
+        } catch (e) {
+          // Skip dati malformati
+        }
+      }
+      if (heartRateData.isEmpty) heartRateData = null;
+    }
+
     return Track(
       id: id,
       name: data['name']?.toString() ?? 'Senza nome',
@@ -459,6 +498,7 @@ class TracksRepository {
       isPlanned: data['isPlanned'] == true,
       stats: stats,
       photos: photos, // 📸 Foto
+      heartRateData: heartRateData, // ❤️ Battito cardiaco
     );
   }
 
