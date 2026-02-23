@@ -387,6 +387,8 @@ class Track {
   final Map<DateTime, int>? heartRateData;
   // 🔥 Calorie reali da Health Connect/Apple Health
   final double? healthCalories;
+  // 👣 Passi da Health Connect/Apple Health
+  final int? healthSteps;
 
   const Track({
     this.id,
@@ -403,6 +405,7 @@ class Track {
     this.photos = const [], // 📸 Default: nessuna foto
     this.heartRateData, // ❤️ Battito cardiaco (opzionale)
     this.healthCalories, // 🔥 Calorie reali (opzionale)
+    this.healthSteps, // 👣 Passi (opzionale)
   });
 
   Map<String, dynamic> toMap() {
@@ -434,6 +437,9 @@ class Track {
     if (healthCalories != null) {
       map['healthCalories'] = healthCalories;
     }
+    if (healthSteps != null) {
+      map['healthSteps'] = healthSteps;
+    }
 
     return map;
   }
@@ -453,6 +459,7 @@ class Track {
     List<TrackPhotoMetadata>? photos, // 📸 NUOVO
     Map<DateTime, int>? heartRateData, // ❤️
     double? healthCalories, // 🔥
+    int? healthSteps, // 👣
   }) {
     return Track(
       id: id ?? this.id,
@@ -469,6 +476,7 @@ class Track {
       photos: photos ?? this.photos, // 📸 NUOVO
       heartRateData: heartRateData ?? this.heartRateData, // ❤️
       healthCalories: healthCalories ?? this.healthCalories, // 🔥
+      healthSteps: healthSteps ?? this.healthSteps, // 👣
     );
   }
 }

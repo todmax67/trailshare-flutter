@@ -286,6 +286,45 @@ class HealthService {
     }
   }
 
+  /// Legge i passi da Health Connect/Apple Health
+  /// per l'intervallo di tempo specificato
+  Future<int?> getStepsForTimeRange({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final enabled = await isSyncEnabled();
+    if (!enabled) return null;
+
+    await configure();
+
+    try {
+      final queryStart = start.subtract(const Duration(minutes: 1));
+      final queryEnd = end.add(const Duration(minutes: 1));
+
+      final dataPoints = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.STEPS],
+        startTime: queryStart,
+        endTime: queryEnd,
+      );
+
+      int totalSteps = 0;
+      for (final dp in dataPoints) {
+        if (dp.value is NumericHealthValue) {
+          final numValue = dp.value as NumericHealthValue;
+          totalSteps += numValue.numericValue.round();
+        }
+      }
+
+      debugPrint('[HealthService] Passi trovati: $totalSteps '
+          '(${start.toIso8601String()} → ${end.toIso8601String()})');
+
+      return totalSteps > 0 ? totalSteps : null;
+    } catch (e) {
+      debugPrint('[HealthService] Errore lettura passi: $e');
+      return null;
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // UTILITÀ
   // ═══════════════════════════════════════════════════════════════════════════

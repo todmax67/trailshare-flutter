@@ -346,6 +346,8 @@ class TracksRepository {
         ),
       if (track.healthCalories != null)
         'healthCalories': track.healthCalories,  
+      if (track.healthSteps != null)
+        'healthSteps': track.healthSteps,  
     };
   }
 
@@ -482,6 +484,9 @@ class TracksRepository {
     // 🔥 Calorie reali
     final healthCalories = (data['healthCalories'] as num?)?.toDouble();
 
+    // 👣 Passi
+    final healthSteps = (data['healthSteps'] as num?)?.toInt();
+
     // ❤️ Parse battito cardiaco
     Map<DateTime, int>? heartRateData;
     final hrData = data['heartRateData'];
@@ -516,6 +521,7 @@ class TracksRepository {
       photos: photos, // 📸 Foto
       heartRateData: heartRateData, // ❤️ Battito cardiaco
       healthCalories: healthCalories, // 🔥 Calorie reali
+      healthSteps: healthSteps, // 👣 Passi
     );
   }
 

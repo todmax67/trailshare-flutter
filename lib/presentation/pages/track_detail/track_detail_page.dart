@@ -363,6 +363,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               _detailRow(Icons.terrain, 'Quota min', '${stats.minElevation.toStringAsFixed(0)} m'),
             if (_track.healthCalories != null)
               _detailRow(Icons.local_fire_department, 'Calorie', '${_track.healthCalories!.round()} kcal'),
+            if (_track.healthSteps != null)
+              _detailRow(Icons.directions_walk, 'Passi', '${_track.healthSteps}'),  
           ],
         ),
       ),
@@ -808,6 +810,18 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           await repo.updateTrackField(_track.id!, 'healthCalories', calories);
           setState(() {
             _track = _track.copyWith(healthCalories: calories);
+          });
+        }
+        // 👣 Recupera anche passi
+        final steps = await healthService.getStepsForTimeRange(
+          start: startTime,
+          end: endTime,
+        );
+        if (steps != null) {
+          final repo = TracksRepository();
+          await repo.updateTrackField(_track.id!, 'healthSteps', steps);
+          setState(() {
+            _track = _track.copyWith(healthSteps: steps);
           });
         }
 

@@ -469,6 +469,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             await _repository.updateTrackField(trackId, 'healthCalories', calories);
             debugPrint('[RecordPage] 🔥 Calorie reali: ${calories.round()} kcal');
           }
+          // 👣 Recupera passi
+          final steps = await healthService.getStepsForTimeRange(
+            start: startTime,
+            end: endTime,
+          );
+          if (steps != null) {
+            await _repository.updateTrackField(trackId, 'healthSteps', steps);
+            debugPrint('[RecordPage] 👣 Passi: $steps');
+          }
         } catch (e) {
           debugPrint('[RecordPage] ❤️ Errore recupero HR: $e');
         }
