@@ -361,6 +361,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               _detailRow(Icons.landscape, 'Quota max', '${stats.maxElevation.toStringAsFixed(0)} m'),
             if (stats.minElevation > 0)
               _detailRow(Icons.terrain, 'Quota min', '${stats.minElevation.toStringAsFixed(0)} m'),
+            if (_track.healthCalories != null)
+              _detailRow(Icons.local_fire_department, 'Calorie', '${_track.healthCalories!.round()} kcal'),
           ],
         ),
       ),
@@ -795,6 +797,19 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         setState(() {
           _track = _track.copyWith(heartRateData: hrData);
         });
+
+        // 🔥 Recupera anche calorie
+        final calories = await healthService.getCaloriesForTimeRange(
+          start: startTime,
+          end: endTime,
+        );
+        if (calories != null) {
+          final repo = TracksRepository();
+          await repo.updateTrackField(_track.id!, 'healthCalories', calories);
+          setState(() {
+            _track = _track.copyWith(healthCalories: calories);
+          });
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

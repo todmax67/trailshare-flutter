@@ -22,6 +22,7 @@ class HealthService {
     HealthDataType.STEPS,
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.HEART_RATE,
+    HealthDataType.TOTAL_CALORIES_BURNED,
   ];
 
   static final List<HealthDataType> _writeTypes = [
@@ -242,6 +243,46 @@ class HealthService {
     } catch (e) {
       debugPrint('[HealthService] Errore lettura HR: $e');
       return {};
+    }
+  }
+
+  /// Legge le calorie bruciate da Health Connect/Apple Health
+  /// per l'intervallo di tempo specificato
+  /// Restituisce il totale calorie o null se non disponibile
+  Future<double?> getCaloriesForTimeRange({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final enabled = await isSyncEnabled();
+    if (!enabled) return null;
+
+    await configure();
+
+    try {
+      final queryStart = start.subtract(const Duration(minutes: 1));
+      final queryEnd = end.add(const Duration(minutes: 1));
+
+      final dataPoints = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.TOTAL_CALORIES_BURNED],
+        startTime: queryStart,
+        endTime: queryEnd,
+      );
+
+      double totalCalories = 0;
+      for (final dp in dataPoints) {
+        if (dp.value is NumericHealthValue) {
+          final numValue = dp.value as NumericHealthValue;
+          totalCalories += numValue.numericValue.toDouble();
+        }
+      }
+
+      debugPrint('[HealthService] Calorie trovate: ${totalCalories.round()} kcal '
+          '(${start.toIso8601String()} → ${end.toIso8601String()})');
+
+      return totalCalories > 0 ? totalCalories : null;
+    } catch (e) {
+      debugPrint('[HealthService] Errore lettura calorie: $e');
+      return null;
     }
   }
 

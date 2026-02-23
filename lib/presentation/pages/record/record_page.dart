@@ -459,6 +459,16 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           } else {
             debugPrint('[RecordPage] ❤️ Nessun dato HR trovato per questo intervallo');
           }
+
+          // 🔥 Recupera calorie reali
+          final calories = await healthService.getCaloriesForTimeRange(
+            start: startTime,
+            end: endTime,
+          );
+          if (calories != null) {
+            await _repository.updateTrackField(trackId, 'healthCalories', calories);
+            debugPrint('[RecordPage] 🔥 Calorie reali: ${calories.round()} kcal');
+          }
         } catch (e) {
           debugPrint('[RecordPage] ❤️ Errore recupero HR: $e');
         }

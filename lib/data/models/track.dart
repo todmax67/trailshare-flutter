@@ -385,6 +385,8 @@ class Track {
   // ❤️ Dati battito cardiaco da Health Connect/Apple Health
   // Mappa: timestamp -> BPM
   final Map<DateTime, int>? heartRateData;
+  // 🔥 Calorie reali da Health Connect/Apple Health
+  final double? healthCalories;
 
   const Track({
     this.id,
@@ -400,6 +402,7 @@ class Track {
     this.stats = const TrackStats(),
     this.photos = const [], // 📸 Default: nessuna foto
     this.heartRateData, // ❤️ Battito cardiaco (opzionale)
+    this.healthCalories, // 🔥 Calorie reali (opzionale)
   });
 
   Map<String, dynamic> toMap() {
@@ -428,6 +431,9 @@ class Track {
         (key, value) => MapEntry(key.millisecondsSinceEpoch.toString(), value),
       );
     }
+    if (healthCalories != null) {
+      map['healthCalories'] = healthCalories;
+    }
 
     return map;
   }
@@ -446,6 +452,7 @@ class Track {
     TrackStats? stats,
     List<TrackPhotoMetadata>? photos, // 📸 NUOVO
     Map<DateTime, int>? heartRateData, // ❤️
+    double? healthCalories, // 🔥
   }) {
     return Track(
       id: id ?? this.id,
@@ -461,6 +468,7 @@ class Track {
       stats: stats ?? this.stats,
       photos: photos ?? this.photos, // 📸 NUOVO
       heartRateData: heartRateData ?? this.heartRateData, // ❤️
+      healthCalories: healthCalories ?? this.healthCalories, // 🔥
     );
   }
 }

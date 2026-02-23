@@ -213,6 +213,17 @@ class TracksRepository {
     print('[TracksRepository] ${heartRateData.length} campioni HR salvati per traccia $trackId');
   }
 
+  /// Aggiorna un singolo campo di una traccia
+  Future<void> updateTrackField(String trackId, String field, dynamic value) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Utente non autenticato');
+
+    await _tracksCollection(userId).doc(trackId).update({
+      field: value,
+    });
+    print('[TracksRepository] Campo "$field" aggiornato per traccia $trackId');
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // ELIMINAZIONE
   // ═══════════════════════════════════════════════════════════════════════════
@@ -333,6 +344,8 @@ class TracksRepository {
         'heartRateData': track.heartRateData!.map(
           (key, value) => MapEntry(key.millisecondsSinceEpoch.toString(), value),
         ),
+      if (track.healthCalories != null)
+        'healthCalories': track.healthCalories,  
     };
   }
 
@@ -466,6 +479,9 @@ class TracksRepository {
       maxElevation: _toDouble(data['maxAltitude'] ?? data['maxElevation']) ?? 0,
     );
 
+    // 🔥 Calorie reali
+    final healthCalories = (data['healthCalories'] as num?)?.toDouble();
+
     // ❤️ Parse battito cardiaco
     Map<DateTime, int>? heartRateData;
     final hrData = data['heartRateData'];
@@ -499,6 +515,7 @@ class TracksRepository {
       stats: stats,
       photos: photos, // 📸 Foto
       heartRateData: heartRateData, // ❤️ Battito cardiaco
+      healthCalories: healthCalories, // 🔥 Calorie reali
     );
   }
 
