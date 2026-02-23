@@ -438,10 +438,12 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         debugPrint('[RecordPage] Errore sync Health: $e');
       });
 
-      // ❤️ Recupera battito cardiaco da Health Connect/Apple Health
-      // e salvalo sulla traccia (in background, non blocca il salvataggio)
+      /// ❤️ Recupera battito cardiaco da Health Connect/Apple Health
+      // Attende 15 secondi per dare tempo al wearable di sincronizzare
       () async {
         try {
+          debugPrint('[RecordPage] ❤️ Attesa 15s per sync wearable...');
+          await Future.delayed(const Duration(seconds: 15));
           final healthService = HealthService();
           final startTime = trackToSave.createdAt;
           final endTime = startTime.add(trackToSave.stats.duration);

@@ -16,6 +16,8 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/share_card_widget.dart';
+import '../../../presentation/widgets/heart_rate_zones_widget.dart';
+import '../../../core/services/health_service.dart';
 
 class TrackDetailPage extends StatefulWidget {
   final Track track;
@@ -184,6 +186,21 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                         debugPrint('[TrackDetail] Grafico tap punto $index a ${(distance/1000).toStringAsFixed(2)} km');
                       },
                     ),
+                  ],
+
+                  // ❤️ Zone Cardio
+                  if (_track.heartRateData != null && _track.heartRateData!.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    HeartRateZonesWidget(
+                      heartRateData: _track.heartRateData!,
+                    ),
+                  ],
+
+                  // ❤️ Pulsante aggiorna HR (se non ci sono dati HR)
+                  if ((_track.heartRateData == null || _track.heartRateData!.isEmpty) &&
+                      _track.id != null) ...[
+                    const SizedBox(height: 16),
+                    _buildRefreshHRButton(),
                   ],
                   
                   // ⭐ Statistiche per Km (Lap Splits)
@@ -716,6 +733,92 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         ],
       ),
     );
+  }
+
+  // ❤️ Pulsante per recuperare dati HR da Health Connect
+  Widget _buildRefreshHRButton() {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _refreshHeartRateData,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(Icons.favorite_outline, color: AppColors.danger.withOpacity(0.7)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Dati battito cardiaco',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tocca per cercare dati HR dal tuo smartwatch',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.refresh, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _refreshHeartRateData() async {
+    if (_track.id == null) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('🔍 Ricerca dati battito cardiaco...')),
+    );
+
+    try {
+      final healthService = HealthService();
+      final startTime = _track.createdAt;
+      final endTime = startTime.add(_track.stats.duration);
+
+      final hrData = await healthService.getHeartRateForTimeRange(
+        start: startTime,
+        end: endTime,
+      );
+
+      if (hrData.isNotEmpty) {
+        final repo = TracksRepository();
+        await repo.updateTrackHeartRate(_track.id!, hrData);
+
+        setState(() {
+          _track = _track.copyWith(heartRateData: hrData);
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('❤️ ${hrData.length} campioni HR trovati!')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Nessun dato HR trovato. Assicurati che il tuo smartwatch abbia sincronizzato con Health Connect.'),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[TrackDetail] Errore refresh HR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Errore nel recupero dati HR')),
+        );
+      }
+    }
   }
 
   Widget _buildSummaryRow(String label, String value) {
