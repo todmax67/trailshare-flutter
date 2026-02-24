@@ -325,6 +325,41 @@ class HealthService {
     }
   }
 
+  /// Filtra i dati mantenendo solo la fonte prioritaria
+  /// Priorità: Garmin > altri wearable > Google Fit > Android
+  List<HealthDataPoint> _filterBestSource(List<HealthDataPoint> data) {
+    if (data.isEmpty) return data;
+
+    final sources = data.map((d) => d.sourceName).toSet();
+    debugPrint('[HealthService] Fonti disponibili: $sources');
+
+    // Ordine di priorità
+    const priority = [
+      'com.garmin.android.apps.connectmobile',
+      'com.samsung.health',
+      'com.polar.beat',
+      'com.fitbit.FitbitMobile',
+      'com.google.android.apps.fitness',
+    ];
+
+    String? bestSource;
+    for (final p in priority) {
+      if (sources.contains(p)) {
+        bestSource = p;
+        break;
+      }
+    }
+
+    // Se nessuna fonte prioritaria, usa la prima non-Android
+    bestSource ??= sources.firstWhere(
+      (s) => s != 'android',
+      orElse: () => sources.first,
+    );
+
+    debugPrint('[HealthService] Fonte selezionata: $bestSource');
+    return data.where((d) => d.sourceName == bestSource).toList();
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // DASHBOARD — Dati giornalieri e settimanali
   // ═══════════════════════════════════════════════════════════════════════════
@@ -346,8 +381,14 @@ class HealthService {
         endTime: now,
       );
 
+      final stepsOnly = dataPoints.where(
+        (dp) => dp.type == HealthDataType.STEPS
+      ).toList();
+      final deduplicated = _health.removeDuplicates(stepsOnly);
+      final filtered = _filterBestSource(deduplicated);
+
       int total = 0;
-      for (final dp in dataPoints) {
+      for (final dp in filtered) {
         if (dp.value is NumericHealthValue) {
           total += (dp.value as NumericHealthValue).numericValue.round();
         }
@@ -378,11 +419,13 @@ class HealthService {
         endTime: now,
       );
 
-      if (dataPoints.isEmpty) return null;
+      final deduplicated = _health.removeDuplicates(dataPoints);
+      final filtered = _filterBestSource(deduplicated);
+      if (filtered.isEmpty) return null;
 
       // Prendi i campioni HR e trova il minimo (approssimazione riposo)
       final hrValues = <int>[];
-      for (final dp in dataPoints) {
+      for (final dp in filtered) {
         if (dp.value is NumericHealthValue) {
           final bpm = (dp.value as NumericHealthValue).numericValue.round();
           if (bpm > 30 && bpm < 120) {
@@ -423,16 +466,35 @@ class HealthService {
         endTime: now,
       );
 
+      // Filtra SOLO dati realmente di tipo calorie
+      final calorieOnly = dataPoints.where(
+        (dp) => dp.type == HealthDataType.TOTAL_CALORIES_BURNED
+      ).toList();
+
+      debugPrint('[HealthService] Calorie raw: ${dataPoints.length}, filtrate: ${calorieOnly.length}');
+
+      if (calorieOnly.isEmpty) return {};
+
+      // Usa una sola fonte
+      final sources = calorieOnly.map((d) => d.sourceName).toSet();
+      String bestSource = sources.firstWhere(
+        (s) => s.contains('garmin'), orElse: () => sources.firstWhere(
+          (s) => !s.contains('android'), orElse: () => sources.first,
+        ),
+      );
+
+      final filtered = calorieOnly.where((d) => d.sourceName == bestSource).toList();
+      debugPrint('[HealthService] Calorie fonte: $bestSource (${filtered.length} campioni)');
+
       final daily = <String, double>{};
 
-      // Inizializza tutti i 7 giorni
       for (int i = 6; i >= 0; i--) {
         final date = now.subtract(Duration(days: i));
         final key = '${date.day}/${date.month}';
         daily[key] = 0;
       }
 
-      for (final dp in dataPoints) {
+      for (final dp in filtered) {
         if (dp.value is NumericHealthValue) {
           final cal = (dp.value as NumericHealthValue).numericValue.toDouble();
           final key = '${dp.dateFrom.day}/${dp.dateFrom.month}';
@@ -467,6 +529,17 @@ class HealthService {
         endTime: now,
       );
 
+      final deduplicated = _health.removeDuplicates(dataPoints);
+      final filtered = _filterBestSource(deduplicated);
+
+      int total = 0;
+
+      // Debug: mostra fonti calorie
+      final calSources = <String>{};
+      for (final dp in deduplicated) {
+        calSources.add('${dp.type}:${dp.sourceName}');
+      }
+
       final daily = <String, int>{};
 
       for (int i = 6; i >= 0; i--) {
@@ -475,7 +548,7 @@ class HealthService {
         daily[key] = 0;
       }
 
-      for (final dp in dataPoints) {
+      for (final dp in filtered) {
         if (dp.value is NumericHealthValue) {
           final steps = (dp.value as NumericHealthValue).numericValue.round();
           final key = '${dp.dateFrom.day}/${dp.dateFrom.month}';
