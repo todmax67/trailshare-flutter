@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../profile/public_profile_page.dart';
 import '../../../data/repositories/follow_repository.dart';
@@ -47,7 +48,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Membri (${_members.length})'),
+        title: Text(context.l10n.membersWithCount(_members.length)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -55,7 +56,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
           if (widget.isAdmin)
             IconButton(
               icon: const Icon(Icons.person_add),
-              tooltip: 'Invita',
+              tooltip: context.l10n.inviteTooltip,
               onPressed: _showInviteDialog,
             ),
         ],
@@ -118,11 +119,11 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
               ),
             ),
             if (isMe)
-              const Text(' (tu)', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              Text(context.l10n.youSuffix, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
           ],
         ),
         subtitle: Text(
-          member.isAdmin ? '👑 Amministratore' : 'Membro',
+          member.isAdmin ? context.l10n.adminWithCrown : context.l10n.memberRole,
           style: const TextStyle(fontSize: 12),
         ),
         trailing: widget.isAdmin && !isMe && !member.isAdmin
@@ -139,17 +140,17 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rimuovi membro'),
-        content: Text('Vuoi rimuovere ${member.username} dal gruppo?'),
+        title: Text(context.l10n.removeMember),
+        content: Text(context.l10n.removeMemberConfirm(member.username)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Rimuovi'),
+            child: Text(context.l10n.removeAction),
           ),
         ],
       ),
@@ -176,7 +177,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
 
     if (invitable.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tutti i tuoi contatti sono già nel gruppo')),
+        SnackBar(content: Text(context.l10n.allContactsInGroup)),
       );
       return;
     }
@@ -202,11 +203,11 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.all(16),
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Text(
-                'Invita un contatto',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                context.l10n.inviteContact,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             const Divider(height: 1),
@@ -235,7 +236,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                           : null,
                     ),
                     title: Text(profile.username),
-                    subtitle: Text('Livello ${profile.level}', style: const TextStyle(fontSize: 12)),
+                    subtitle: Text(context.l10n.levelLabel(profile.level), style: const TextStyle(fontSize: 12)),
                     trailing: ElevatedButton(
                       onPressed: () async {
                         final success = await _repo.addMember(widget.groupId, profile.id);
@@ -244,7 +245,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                           _loadMembers();
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('${profile.username} aggiunto al gruppo!'),
+                              content: Text(context.l10n.addedToGroup(profile.username)),
                               backgroundColor: AppColors.success,
                             ),
                           );
@@ -256,7 +257,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: const Text('Invita', style: TextStyle(fontSize: 13)),
+                      child: Text(context.l10n.inviteAction, style: const TextStyle(fontSize: 13)),
                     ),
                   );
                 },

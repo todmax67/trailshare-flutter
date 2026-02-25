@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 
 class CreateEventPage extends StatefulWidget {
@@ -68,6 +69,14 @@ class _CreateEventPageState extends State<CreateEventPage> {
         _selectedTime.minute,
       );
 
+  /// Mappa valore Firestore → label localizzata
+  Map<String, String> _difficultyLabels(BuildContext context) => {
+    'Facile': context.l10n.easy,
+    'Medio': context.l10n.mediumDifficulty,
+    'Difficile': context.l10n.hard,
+    'Esperto': context.l10n.expertDifficulty,
+  };
+
   Future<void> _createEvent() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -104,16 +113,16 @@ class _CreateEventPageState extends State<CreateEventPage> {
 
       if (eventId != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Evento creato!'),
+          SnackBar(
+            content: Text(context.l10n.eventCreatedSnack),
             backgroundColor: AppColors.success,
           ),
         );
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Errore nella creazione'),
+          SnackBar(
+            content: Text(context.l10n.creationError),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -123,11 +132,16 @@ class _CreateEventPageState extends State<CreateEventPage> {
 
   @override
   Widget build(BuildContext context) {
-    final months = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+    final months = [
+      context.l10n.monthLowerGen, context.l10n.monthLowerFeb, context.l10n.monthLowerMar,
+      context.l10n.monthLowerApr, context.l10n.monthLowerMag, context.l10n.monthLowerGiu,
+      context.l10n.monthLowerLug, context.l10n.monthLowerAgo, context.l10n.monthLowerSet,
+      context.l10n.monthLowerOtt, context.l10n.monthLowerNov, context.l10n.monthLowerDic,
+    ];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nuovo Evento'),
+        title: Text(context.l10n.newEvent),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -140,24 +154,24 @@ class _CreateEventPageState extends State<CreateEventPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Titolo
-              const Text('Titolo *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.titleRequired, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(
-                  hintText: 'Es. Uscita al Rifugio Vaccaro',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.event),
+                decoration: InputDecoration(
+                  hintText: context.l10n.eventTitleHint,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.event),
                 ),
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) return 'Inserisci un titolo';
+                  if (value == null || value.trim().isEmpty) return context.l10n.enterTitle;
                   return null;
                 },
               ),
               const SizedBox(height: 20),
 
               // Data e Ora
-              const Text('Data e ora *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.dateAndTime, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -209,33 +223,33 @@ class _CreateEventPageState extends State<CreateEventPage> {
               const SizedBox(height: 20),
 
               // Descrizione
-              const Text('Descrizione', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.descriptionLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _descriptionController,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Dettagli sull\'uscita...',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  hintText: context.l10n.outingDetails,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 20),
 
               // Punto di ritrovo
-              const Text('Punto di ritrovo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.meetingPoint, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _meetingPointController,
-                decoration: const InputDecoration(
-                  hintText: 'Es. Parcheggio Parre centro',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.location_on),
+                decoration: InputDecoration(
+                  hintText: context.l10n.meetingPointHint,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.location_on),
                 ),
               ),
               const SizedBox(height: 20),
 
               // Dettagli percorso
-              const Text('Dettagli percorso', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.routeDetails, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -243,11 +257,11 @@ class _CreateEventPageState extends State<CreateEventPage> {
                     child: TextFormField(
                       controller: _distanceController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        hintText: 'Distanza',
+                      decoration: InputDecoration(
+                        hintText: context.l10n.distanceHintShort,
                         suffixText: 'km',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.straighten, size: 20),
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.straighten, size: 20),
                       ),
                     ),
                   ),
@@ -256,11 +270,11 @@ class _CreateEventPageState extends State<CreateEventPage> {
                     child: TextFormField(
                       controller: _elevationController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        hintText: 'Dislivello',
+                      decoration: InputDecoration(
+                        hintText: context.l10n.elevationHintShort,
                         suffixText: 'm',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.terrain, size: 20),
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.terrain, size: 20),
                       ),
                     ),
                   ),
@@ -269,17 +283,17 @@ class _CreateEventPageState extends State<CreateEventPage> {
               const SizedBox(height: 20),
 
               // Difficoltà
-              const Text('Difficoltà', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.difficultyLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
-                children: ['Facile', 'Medio', 'Difficile', 'Esperto'].map((d) {
-                  final isSelected = _difficulty == d;
+                children: _difficultyLabels(context).entries.map((entry) {
+                  final isSelected = _difficulty == entry.key;
                   return ChoiceChip(
-                    label: Text(d),
+                    label: Text(entry.value),
                     selected: isSelected,
                     onSelected: (selected) {
-                      setState(() => _difficulty = selected ? d : null);
+                      setState(() => _difficulty = selected ? entry.key : null);
                     },
                     selectedColor: AppColors.primary.withOpacity(0.2),
                   );
@@ -288,14 +302,14 @@ class _CreateEventPageState extends State<CreateEventPage> {
               const SizedBox(height: 20),
 
               // Max partecipanti
-              const Text('Partecipanti massimi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.maxParticipantsLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 children: [null, 5, 10, 15, 20].map((n) {
                   final isSelected = _maxParticipants == n;
                   return ChoiceChip(
-                    label: Text(n == null ? 'Nessun limite' : '$n'),
+                    label: Text(n == null ? context.l10n.noLimit : '$n'),
                     selected: isSelected,
                     onSelected: (selected) {
                       setState(() => _maxParticipants = selected ? n : null);
@@ -307,15 +321,15 @@ class _CreateEventPageState extends State<CreateEventPage> {
               const SizedBox(height: 20),
 
               // Note
-              const Text('Note', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.notesLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _notesController,
                 maxLines: 2,
-                decoration: const InputDecoration(
-                  hintText: 'Es. Portare pranzo al sacco, bastoncini consigliati...',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.note),
+                decoration: InputDecoration(
+                  hintText: context.l10n.notesHint,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.note),
                 ),
               ),
               const SizedBox(height: 32),
@@ -336,9 +350,9 @@ class _CreateEventPageState extends State<CreateEventPage> {
                           width: 20, height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text(
-                          'Crea Evento',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      : Text(
+                          context.l10n.createEvent,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                 ),
               ),

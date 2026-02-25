@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_event_page.dart';
 import 'event_detail_page.dart';
@@ -69,7 +70,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
             child: Row(
               children: [
                 FilterChip(
-                  label: const Text('Prossimi'),
+                  label: Text(context.l10n.upcomingFilter),
                   selected: !_showPast,
                   onSelected: (value) {
                     setState(() => _showPast = false);
@@ -79,7 +80,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
-                  label: const Text('Tutti'),
+                  label: Text(context.l10n.allFilter),
                   selected: _showPast,
                   onSelected: (value) {
                     setState(() => _showPast = true);
@@ -118,10 +119,10 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
         children: [
           Icon(Icons.event_busy, size: 64, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          const Text('Nessun evento', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(context.l10n.noEventsTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Text(
-            'Organizza un\'uscita!',
+            context.l10n.organizeAnOuting,
             style: TextStyle(color: Colors.grey[600]),
           ),
         ],
@@ -178,7 +179,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                         ),
                       ),
                       Text(
-                        _monthName(event.date.month),
+                        _monthName(context, event.date.month),
                         style: TextStyle(
                           fontSize: 11,
                           color: isPast ? Colors.grey : AppColors.primary,
@@ -215,7 +216,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                       color: Colors.grey[200],
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text('Passato', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    child: Text(context.l10n.pastLabel, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                   ),
               ],
             ),
@@ -257,7 +258,14 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                 Icon(Icons.people, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 4),
                 Text(
-                  '${event.participants.length}${event.maxParticipants != null ? "/${event.maxParticipants}" : ""} partecipanti',
+                  event.maxParticipants != null
+                      ? context.l10n.participantsCountWithMax(
+                          event.participants.length.toString(),
+                          event.maxParticipants.toString(),
+                        )
+                      : context.l10n.participantsCountSimple(
+                          event.participants.length.toString(),
+                        ),
                   style: TextStyle(color: Colors.grey[600], fontSize: 13),
                 ),
                 const Spacer(),
@@ -276,7 +284,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       child: Text(
-                        isParticipating ? 'Ritirati' : 'Partecipa',
+                        isParticipating ? context.l10n.withdraw : context.l10n.participate,
                         style: const TextStyle(fontSize: 13),
                       ),
                     ),
@@ -309,8 +317,13 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
     );
   }
 
-  String _monthName(int month) {
-    const months = ['GEN', 'FEB', 'MAR', 'APR', 'MAG', 'GIU', 'LUG', 'AGO', 'SET', 'OTT', 'NOV', 'DIC'];
+  String _monthName(BuildContext context, int month) {
+    final months = [
+      context.l10n.monthShortJan, context.l10n.monthShortFeb, context.l10n.monthShortMar,
+      context.l10n.monthShortApr, context.l10n.monthShortMay, context.l10n.monthShortJun,
+      context.l10n.monthShortJul, context.l10n.monthShortAug, context.l10n.monthShortSep,
+      context.l10n.monthShortOct, context.l10n.monthShortNov, context.l10n.monthShortDec,
+    ];
     return months[month - 1];
   }
 }

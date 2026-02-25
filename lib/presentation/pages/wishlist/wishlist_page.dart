@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/wishlist_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../widgets/community_track_card.dart';
@@ -98,8 +99,8 @@ class _WishlistPageState extends State<WishlistPage> {
 
       return CommunityTrack(
         id: doc.id,
-        name: data['name'] ?? 'Senza nome',
-        ownerUsername: data['ownerUsername'] ?? 'Utente',
+        name: data['name'] ?? context.l10n.noName,
+        ownerUsername: data['ownerUsername'] ?? context.l10n.userFallback,
         ownerId: data['originalOwnerId'] ?? '',
         activityType: data['activityType'] ?? 'trekking',
         distance: (data['distance'] as num?)?.toDouble() ?? 0,
@@ -136,17 +137,17 @@ class _WishlistPageState extends State<WishlistPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rimuovi dai salvati'),
-        content: const Text('Vuoi rimuovere questo percorso dalla tua lista?'),
+        title: Text(context.l10n.removeFromSaved),
+        content: Text(context.l10n.removeTrackQuestion),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Rimuovi'),
+            child: Text(context.l10n.removeLabel),
           ),
         ],
       ),
@@ -159,8 +160,8 @@ class _WishlistPageState extends State<WishlistPage> {
           _tracks.removeWhere((t) => t.id == trackId);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Percorso rimosso dai salvati'),
+          SnackBar(
+            content: Text(context.l10n.trackRemovedFromSaved),
             backgroundColor: AppColors.success,
           ),
         );
@@ -181,7 +182,7 @@ class _WishlistPageState extends State<WishlistPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Percorsi Salvati'),
+        title: Text(context.l10n.savedTracks),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -219,14 +220,14 @@ class _WishlistPageState extends State<WishlistPage> {
           children: [
             Icon(Icons.bookmark_border, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            const Text(
-              'Accedi per vedere i tuoi percorsi salvati',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            Text(
+              context.l10n.loginToSeeSaved,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Salva i percorsi che ti interessano per ritrovarli facilmente!',
+              context.l10n.saveTracksHint,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -245,13 +246,13 @@ class _WishlistPageState extends State<WishlistPage> {
           children: [
             const Icon(Icons.error_outline, size: 64, color: AppColors.danger),
             const SizedBox(height: 16),
-            const Text(
-              'Errore nel caricamento',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            Text(
+              context.l10n.loadingError,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Text(
-              _error ?? 'Errore sconosciuto',
+              _error ?? context.l10n.unknownError,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -259,7 +260,7 @@ class _WishlistPageState extends State<WishlistPage> {
             ElevatedButton.icon(
               onPressed: _loadWishlistTracks,
               icon: const Icon(Icons.refresh),
-              label: const Text('Riprova'),
+              label: Text(context.l10n.retry),
             ),
           ],
         ),
@@ -276,13 +277,13 @@ class _WishlistPageState extends State<WishlistPage> {
           children: [
             Icon(Icons.bookmark_border, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            const Text(
-              'Nessun percorso salvato',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              context.l10n.noSavedTracks,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Esplora la sezione "Scopri" e salva i percorsi che ti interessano!',
+              context.l10n.exploreSavedHint,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -290,7 +291,7 @@ class _WishlistPageState extends State<WishlistPage> {
             OutlinedButton.icon(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.explore),
-              label: const Text('Vai a Scopri'),
+              label: Text(context.l10n.goToDiscover),
             ),
           ],
         ),

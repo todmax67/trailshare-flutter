@@ -87,7 +87,7 @@ class TrackingBloc extends ChangeNotifier {
     final success = await _locationService.startTracking();
     if (!success) {
       _state = _state.copyWith(
-        errorMessage: 'Impossibile accedere al GPS. Verifica i permessi.',
+        errorMessage: 'gps_access_error',
       );
       notifyListeners();
       return;
@@ -133,7 +133,7 @@ class TrackingBloc extends ChangeNotifier {
     final success = await _locationService.resumeTracking();
     if (!success) {
       _state = _state.copyWith(
-        errorMessage: 'Impossibile riprendere il GPS.',
+        errorMessage: 'gps_resume_error',
       );
       notifyListeners();
       return;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_group_page.dart';
 import 'group_detail_page.dart';
@@ -64,7 +65,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gruppi'),
+        title: Text(context.l10n.groups),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -73,9 +74,9 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textMuted,
           indicatorColor: AppColors.primary,
-          tabs: const [
-            Tab(text: 'I miei Gruppi'),
-            Tab(text: 'Scopri'),
+          tabs: [
+            Tab(text: context.l10n.myGroupsTab),
+            Tab(text: context.l10n.discoverFilter),
           ],
         ),
       ),
@@ -93,7 +94,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
-        label: const Text('Nuovo Gruppo'),
+        label: Text(context.l10n.newGroup),
       ),
       body: TabBarView(
         controller: _tabController,
@@ -139,13 +140,13 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
           children: [
             Icon(Icons.groups_outlined, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            const Text(
-              'Nessun gruppo',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              context.l10n.noGroups,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Crea un gruppo per organizzare uscite, lanciare sfide e chattare con i tuoi compagni di avventura!',
+              context.l10n.createGroupCTA,
               style: TextStyle(color: Colors.grey[600], fontSize: 14),
               textAlign: TextAlign.center,
             ),
@@ -159,7 +160,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                 if (created == true) _loadMyGroups();
               },
               icon: const Icon(Icons.add),
-              label: const Text('Crea il tuo primo gruppo'),
+              label: Text(context.l10n.createFirstGroup),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -181,13 +182,13 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
           children: [
             Icon(Icons.explore_outlined, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            const Text(
-              'Nessun gruppo disponibile',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              context.l10n.noGroupsAvailable,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Non ci sono gruppi pubblici a cui unirti al momento. Creane uno tu!',
+              context.l10n.noPublicGroupsCTA,
               style: TextStyle(color: Colors.grey[600], fontSize: 14),
               textAlign: TextAlign.center,
             ),
@@ -272,7 +273,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                         Icon(Icons.people, size: 14, color: Colors.grey[500]),
                         const SizedBox(width: 4),
                         Text(
-                          '${group.memberCount} ${group.memberCount == 1 ? "membro" : "membri"}',
+                          context.l10n.memberCountPlural(group.memberCount),
                           style: TextStyle(color: Colors.grey[500], fontSize: 12),
                         ),
                         if (group.isPublic) ...[
@@ -280,7 +281,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                           Icon(Icons.public, size: 14, color: Colors.grey[500]),
                           const SizedBox(width: 4),
                           Text(
-                            'Pubblico',
+                            context.l10n.publicLabel,
                             style: TextStyle(color: Colors.grey[500], fontSize: 12),
                           ),
                         ],
@@ -300,7 +301,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                     if (success && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Ti sei unito a "${group.name}"!'),
+                          content: Text(context.l10n.joinedGroupSnack(group.name)),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -314,7 +315,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text('Unisciti', style: TextStyle(fontSize: 13)),
+                  child: Text(context.l10n.joinGroupAction, style: const TextStyle(fontSize: 13)),
                 ),
             ],
           ),

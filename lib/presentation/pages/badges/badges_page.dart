@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/gamification_service.dart';
 
 /// Pagina Badge
@@ -145,9 +146,9 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
           children: [
             const Text('🎊', style: TextStyle(fontSize: 48)),
             const SizedBox(height: 8),
-            const Text(
-              'Nuovo Badge!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              context.l10n.newBadge,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Container(
@@ -178,7 +179,7 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Fantastico!'),
+            child: Text(context.l10n.fantastic),
           ),
         ],
       ),
@@ -189,7 +190,7 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Badge'),
+        title: Text(context.l10n.badges),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -199,8 +200,8 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
           unselectedLabelColor: AppColors.textMuted,
           indicatorColor: AppColors.primary,
           tabs: [
-            Tab(text: 'Sbloccati (${_unlockedBadges.length})'),
-            Tab(text: 'Tutti (${GamificationService.availableBadges.length})'),
+            Tab(text: context.l10n.unlockedCount(_unlockedBadges.length)),
+            Tab(text: context.l10n.allCount(GamificationService.availableBadges.length)),
           ],
         ),
       ),
@@ -266,27 +267,27 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
 
     switch (category) {
       case GameBadgeCategory.milestone:
-        title = 'Traguardi';
+        title = context.l10n.milestones;
         icon = Icons.flag;
         break;
       case GameBadgeCategory.distance:
-        title = 'Distanza';
+        title = context.l10n.distance;
         icon = Icons.straighten;
         break;
       case GameBadgeCategory.elevation:
-        title = 'Dislivello';
+        title = context.l10n.elevation;
         icon = Icons.terrain;
         break;
       case GameBadgeCategory.social:
-        title = 'Social';
+        title = context.l10n.socialCategory;
         icon = Icons.people;
         break;
       case GameBadgeCategory.streak:
-        title = 'Costanza';
+        title = context.l10n.streakCategory;
         icon = Icons.local_fire_department;
         break;
       case GameBadgeCategory.challenge:
-        title = 'Sfide';
+        title = context.l10n.challenges;
         icon = Icons.emoji_events;
         break;
     }
@@ -319,13 +320,13 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
           children: [
             const Text('🏅', style: TextStyle(fontSize: 64)),
             const SizedBox(height: 16),
-            const Text(
-              'Nessun badge ancora',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              context.l10n.noBadgesYet,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Completa tracce e attività per sbloccare badge!',
+              context.l10n.completeTracksForBadges,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -335,7 +336,7 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
                 _tabController.animateTo(1);
               },
               icon: const Icon(Icons.visibility),
-              label: const Text('Vedi tutti i badge'),
+              label: Text(context.l10n.viewAllBadges),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -438,7 +439,7 @@ class _BadgeCard extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      'Sbloccato il ${unlockedAt!.day}/${unlockedAt!.month}/${unlockedAt!.year}',
+                      context.l10n.unlockedOn('${unlockedAt!.day}/${unlockedAt!.month}/${unlockedAt!.year}'),
                       style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.success,

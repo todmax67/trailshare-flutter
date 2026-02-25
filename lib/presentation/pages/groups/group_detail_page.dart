@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'group_chat_tab.dart';
 import 'group_events_tab.dart';
@@ -90,17 +91,17 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Esci dal gruppo'),
-        content: Text('Vuoi uscire da "${_group?.name ?? widget.groupName}"?'),
+        title: Text(context.l10n.leaveGroupTitle),
+        content: Text(context.l10n.leaveGroupConfirm(_group?.name ?? widget.groupName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Esci'),
+            child: Text(context.l10n.exitAction),
           ),
         ],
       ),
@@ -118,19 +119,19 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Elimina gruppo'),
+        title: Text(context.l10n.deleteGroup),
         content: Text(
-          'Vuoi eliminare "${_group?.name ?? widget.groupName}"?\n\nQuesta azione è irreversibile.',
+          context.l10n.deleteGroupConfirm(_group?.name ?? widget.groupName),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.deleteAction),
           ),
         ],
       ),
@@ -156,7 +157,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           // Membri
           IconButton(
             icon: const Icon(Icons.people),
-            tooltip: 'Membri',
+            tooltip: context.l10n.membersLabel,
             onPressed: () {
               Navigator.push(
                 context,
@@ -183,24 +184,24 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'leave',
                 child: Row(
                   children: [
-                    Icon(Icons.exit_to_app, color: AppColors.danger, size: 20),
-                    SizedBox(width: 8),
-                    Text('Esci dal gruppo'),
+                    const Icon(Icons.exit_to_app, color: AppColors.danger, size: 20),
+                    const SizedBox(width: 8),
+                    Text(context.l10n.leaveGroupTitle),
                   ],
                 ),
               ),
               if (_isAdmin)
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'delete',
                   child: Row(
                     children: [
-                      Icon(Icons.delete, color: AppColors.danger, size: 20),
-                      SizedBox(width: 8),
-                      Text('Elimina gruppo', style: TextStyle(color: AppColors.danger)),
+                      const Icon(Icons.delete, color: AppColors.danger, size: 20),
+                      const SizedBox(width: 8),
+                      Text(context.l10n.deleteGroupMenu, style: const TextStyle(color: AppColors.danger)),
                     ],
                   ),
                 ),
@@ -212,11 +213,11 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textMuted,
           indicatorColor: AppColors.primary,
-          tabs: const [
-            Tab(icon: Icon(Icons.chat_bubble_outline), text: 'Chat'),
-            Tab(icon: Icon(Icons.event), text: 'Eventi'),
-            Tab(icon: Icon(Icons.emoji_events), text: 'Sfide'),
-            Tab(icon: Icon(Icons.info_outline), text: 'Info'),
+          tabs: [
+            Tab(icon: const Icon(Icons.chat_bubble_outline), text: context.l10n.chatTab),
+            Tab(icon: const Icon(Icons.event), text: context.l10n.eventsTab),
+            Tab(icon: const Icon(Icons.emoji_events), text: context.l10n.challengesTab),
+            Tab(icon: const Icon(Icons.info_outline), text: context.l10n.infoTab),
           ],
         ),
       ),
@@ -264,16 +265,16 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             children: [
               const Icon(Icons.vpn_key, size: 20, color: AppColors.primary),
               const SizedBox(width: 8),
-              const Text(
-                'Codice Invito',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              Text(
+                context.l10n.inviteCodeTitle,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const Spacer(),
               if (_isAdmin)
                 IconButton(
                   icon: const Icon(Icons.refresh, size: 20),
                   color: AppColors.textMuted,
-                  tooltip: 'Rigenera codice',
+                  tooltip: context.l10n.regenerateCode,
                   onPressed: _regenerateInviteCode,
                 ),
             ],
@@ -320,7 +321,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                 child: OutlinedButton.icon(
                   onPressed: () => _copyInviteCode(code),
                   icon: const Icon(Icons.copy, size: 18),
-                  label: const Text('Copia'),
+                  label: Text(context.l10n.copy),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
                     side: const BorderSide(color: AppColors.primary),
@@ -333,7 +334,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                 child: ElevatedButton.icon(
                   onPressed: () => _shareInviteCode(code),
                   icon: const Icon(Icons.share, size: 18),
-                  label: const Text('Condividi'),
+                  label: Text(context.l10n.share),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -346,7 +347,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           
           const SizedBox(height: 8),
           Text(
-            'Condividi questo codice per invitare nuove persone al gruppo',
+            context.l10n.shareInviteCodeDesc,
             style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
         ],
@@ -358,17 +359,17 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Visibilità del gruppo',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        Text(
+          context.l10n.groupVisibility,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 12),
         _buildVisibilityTile(
           group: group,
           value: 'public',
           icon: Icons.public,
-          title: 'Pubblico',
-          subtitle: 'Visibile, chiunque può unirsi',
+          title: context.l10n.publicLabel,
+          subtitle: context.l10n.publicVisibilityDesc,
           color: AppColors.success,
         ),
         const SizedBox(height: 8),
@@ -376,8 +377,8 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           group: group,
           value: 'private',
           icon: Icons.lock_open,
-          title: 'Privato',
-          subtitle: 'Visibile, richiesta accesso',
+          title: context.l10n.privateLabel,
+          subtitle: context.l10n.privateVisibilityDesc,
           color: AppColors.primary,
         ),
         const SizedBox(height: 8),
@@ -385,8 +386,8 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           group: group,
           value: 'secret',
           icon: Icons.lock,
-          title: 'Segreto',
-          subtitle: 'Invisibile, solo codice invito',
+          title: context.l10n.secretLabel,
+          subtitle: context.l10n.secretVisibilityDesc,
           color: Colors.grey,
         ),
       ],
@@ -401,9 +402,9 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           children: [
             const Icon(Icons.person_add, size: 20, color: Colors.orange),
             const SizedBox(width: 8),
-            const Text(
-              'Richieste di accesso',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Text(
+              context.l10n.accessRequests,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(width: 8),
             Container(
@@ -435,11 +436,11 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     )
                   : null,
             ),
-            title: Text(req['username'] ?? 'Utente', style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(req['username'] ?? context.l10n.userLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(
               req['requestedAt'] != null
-                  ? 'Richiesta il ${_formatDate((req['requestedAt'] as Timestamp).toDate())}'
-                  : 'In attesa',
+                  ? context.l10n.requestedOnDate(_formatDate((req['requestedAt'] as Timestamp).toDate()))
+                  : context.l10n.pendingStatus,
               style: const TextStyle(fontSize: 12),
             ),
             trailing: Row(
@@ -452,7 +453,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     if (success && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('${req['username']} approvato!'),
+                          content: Text(context.l10n.userApproved(req['username'] ?? '')),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -466,8 +467,8 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     final success = await _repo.rejectJoinRequest(widget.groupId, req['uid']);
                     if (success && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Richiesta rifiutata'),
+                        SnackBar(
+                          content: Text(context.l10n.requestRejected),
                           backgroundColor: Colors.orange,
                         ),
                       );
@@ -543,10 +544,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
       await _loadGroup();
 
       if (mounted) {
-        final labels = {'public': 'Pubblico', 'private': 'Privato', 'secret': 'Segreto'};
+        final labels = {
+          'public': context.l10n.publicLabel,
+          'private': context.l10n.privateLabel,
+          'secret': context.l10n.secretLabel,
+        };
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gruppo ora è ${labels[newVisibility]}'),
+            content: Text(context.l10n.groupNowIs(labels[newVisibility] ?? '')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -563,8 +568,8 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
   void _copyInviteCode(String code) {
     Clipboard.setData(ClipboardData(text: code));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Codice copiato!'),
+      SnackBar(
+        content: Text(context.l10n.codeCopied),
         backgroundColor: AppColors.success,
         duration: Duration(seconds: 2),
       ),
@@ -574,10 +579,8 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
   void _shareInviteCode(String code) {
     final groupName = _group?.name ?? widget.groupName;
     Share.share(
-      'Unisciti al gruppo "$groupName" su TrailShare!\n\n'
-      'Usa il codice invito: $code\n\n'
-      'Scarica TrailShare e inserisci il codice nella sezione Community > Gruppi.',
-      subject: 'Invito gruppo TrailShare',
+      context.l10n.inviteShareText(groupName, code),
+      subject: context.l10n.inviteShareSubject,
     );
   }
 
@@ -585,14 +588,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rigenera codice'),
-        content: const Text(
-          'Il vecchio codice non funzionerà più. Vuoi generare un nuovo codice invito?',
+        title: Text(context.l10n.regenerateCodeTitle),
+        content: Text(
+          context.l10n.regenerateCodeDesc,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -600,7 +603,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Rigenera'),
+            child: Text(context.l10n.regenerateAction),
           ),
         ],
       ),
@@ -612,7 +615,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         _loadGroup(); // Ricarica per aggiornare il codice
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Nuovo codice: $newCode'),
+            content: Text(context.l10n.newCodeSnack(newCode)),
             backgroundColor: AppColors.success,
           ),
         );
@@ -674,14 +677,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      group.isPublic ? 'Pubblico' : group.isPrivate ? 'Privato' : 'Segreto',
+                      group.isPublic ? context.l10n.publicLabel : group.isPrivate ? context.l10n.privateLabel : context.l10n.secretLabel,
                       style: const TextStyle(color: AppColors.textMuted),
                     ),
                     const SizedBox(width: 16),
                     const Icon(Icons.people, size: 16, color: AppColors.textMuted),
                     const SizedBox(width: 4),
                     Text(
-                      '${group.memberCount} ${group.memberCount == 1 ? "membro" : "membri"}',
+                      context.l10n.memberCountPlural(group.memberCount),
                       style: const TextStyle(color: AppColors.textMuted),
                     ),
                   ],
@@ -694,15 +697,15 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Descrizione',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              Text(
+                context.l10n.descriptionLabel,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               if (_isAdmin)
                 IconButton(
                   icon: const Icon(Icons.edit, size: 20),
                   color: AppColors.primary,
-                  tooltip: 'Modifica',
+                  tooltip: context.l10n.editAction,
                   onPressed: () => _showEditGroupDialog(group),
                 ),
             ],
@@ -711,7 +714,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           Text(
             (group.description != null && group.description!.isNotEmpty)
                 ? group.description!
-                : 'Nessuna descrizione. Tocca modifica per aggiungerne una.',
+                : context.l10n.noDescriptionHint,
             style: TextStyle(
               color: (group.description != null && group.description!.isNotEmpty)
                   ? AppColors.textSecondary
@@ -753,16 +756,16 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           ],
 
           // Info dettagli
-          _buildInfoRow(Icons.calendar_today, 'Creato il', _formatDate(group.createdAt)),
+          _buildInfoRow(Icons.calendar_today, context.l10n.createdOnLabel, _formatDate(group.createdAt)),
           const SizedBox(height: 12),
           _buildInfoRow(
             Icons.admin_panel_settings,
-            'Il tuo ruolo',
-            _isAdmin ? 'Amministratore' : 'Membro',
+            context.l10n.yourRole,
+            _isAdmin ? context.l10n.administratorRole : context.l10n.memberRole,
           ),
           if (currentUserId == group.createdBy) ...[
             const SizedBox(height: 12),
-            _buildInfoRow(Icons.star, 'Fondatore', 'Tu hai creato questo gruppo'),
+            _buildInfoRow(Icons.star, context.l10n.founderLabel, context.l10n.youCreatedThisGroup),
           ],
         ],
       ),
@@ -776,25 +779,25 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Modifica gruppo'),
+        title: Text(context.l10n.editGroup),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nome gruppo',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: context.l10n.groupNameLabel,
+                border: const OutlineInputBorder(),
               ),
               maxLength: 30,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: descController,
-              decoration: const InputDecoration(
-                labelText: 'Descrizione',
-                hintText: 'Descrivi il tuo gruppo...',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: context.l10n.descriptionLabel,
+                hintText: context.l10n.descriptionHint,
+                border: const OutlineInputBorder(),
               ),
               maxLines: 4,
               maxLength: 200,
@@ -804,14 +807,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
               final newName = nameController.text.trim();
               if (newName.length < 3) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Il nome deve avere almeno 3 caratteri')),
+                  SnackBar(content: Text(context.l10n.nameMinThreeChars)),
                 );
                 return;
               }
@@ -828,7 +831,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Salva'),
+            child: Text(context.l10n.save),
           ),
         ],
       ),
@@ -856,7 +859,12 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
   }
 
   String _formatDate(DateTime date) {
-    final months = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+    final months = [
+      context.l10n.monthLowerGen, context.l10n.monthLowerFeb, context.l10n.monthLowerMar,
+      context.l10n.monthLowerApr, context.l10n.monthLowerMag, context.l10n.monthLowerGiu,
+      context.l10n.monthLowerLug, context.l10n.monthLowerAgo, context.l10n.monthLowerSet,
+      context.l10n.monthLowerOtt, context.l10n.monthLowerNov, context.l10n.monthLowerDic,
+    ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 }

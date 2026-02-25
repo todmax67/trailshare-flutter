@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../widgets/follow_button.dart';
 import '../profile/public_profile_page.dart';
@@ -52,8 +53,8 @@ class _FollowListPageState extends State<FollowListPage> {
   @override
   Widget build(BuildContext context) {
     final title = widget.listType == FollowListType.followers
-        ? 'Follower di ${widget.username}'
-        : 'Seguiti da ${widget.username}';
+        ? context.l10n.followersOf(widget.username)
+        : context.l10n.followedBy(widget.username);
 
     return Scaffold(
       appBar: AppBar(
@@ -107,7 +108,7 @@ class _FollowListPageState extends State<FollowListPage> {
             ),
             const SizedBox(height: 24),
             Text(
-              isFollowers ? 'Nessun follower ancora' : 'Non segue nessuno',
+              isFollowers ? context.l10n.noFollowersYet : context.l10n.notFollowingAnyone,
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -116,8 +117,8 @@ class _FollowListPageState extends State<FollowListPage> {
             const SizedBox(height: 8),
             Text(
               isFollowers
-                  ? 'Condividi le tue escursioni per farti conoscere!'
-                  : 'Esplora la community per trovare persone interessanti.',
+                  ? context.l10n.shareHikesToGetKnown
+                  : context.l10n.exploreCommunity,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -189,7 +190,7 @@ class _UserListItem extends StatelessWidget {
               style: TextStyle(color: Colors.grey[600], fontSize: 13),
             )
           : Text(
-              'Livello ${profile.level}',
+              context.l10n.levelLabel(profile.level),
               style: TextStyle(color: Colors.grey[600], fontSize: 13),
             ),
       trailing: isCurrentUser

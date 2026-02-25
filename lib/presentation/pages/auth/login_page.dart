@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/auth_service.dart';
 import 'register_page.dart';
 
@@ -106,18 +107,18 @@ class _LoginPageState extends State<LoginPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Recupera password'),
+        title: Text(context.l10n.resetPassword),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Inserisci la tua email per ricevere il link di reset.'),
+            Text(context.l10n.enterEmailForReset),
             const SizedBox(height: 16),
             TextField(
               controller: emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: context.l10n.emailLabel,
+                border: const OutlineInputBorder(),
               ),
             ),
           ],
@@ -125,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -136,15 +137,15 @@ class _LoginPageState extends State<LoginPage> {
                   SnackBar(
                     content: Text(
                       result.success 
-                          ? 'Email di reset inviata!' 
-                          : result.errorMessage ?? 'Errore',
+                          ? context.l10n.resetEmailSent 
+                          : result.errorMessage ?? context.l10n.genericError,
                     ),
                     backgroundColor: result.success ? AppColors.success : AppColors.danger,
                   ),
                 );
               }
             },
-            child: const Text('Invia'),
+            child: Text(context.l10n.sendAction),
           ),
         ],
       ),
@@ -178,9 +179,9 @@ class _LoginPageState extends State<LoginPage> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Traccia le tue avventure',
-                  style: TextStyle(color: AppColors.textSecondary),
+                Text(
+                  context.l10n.trackYourAdventures,
+                  style: const TextStyle(color: AppColors.textSecondary),
                   textAlign: TextAlign.center,
                 ),
                 
@@ -192,7 +193,7 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: anyLoading ? null : _signInWithApple,
                     isLoading: _isAppleLoading,
                     icon: Icons.apple,
-                    label: 'Continua con Apple',
+                    label: context.l10n.continueWithApple,
                     backgroundColor: Colors.black,
                     textColor: Colors.white,
                   ),
@@ -204,7 +205,7 @@ class _LoginPageState extends State<LoginPage> {
                   isLoading: _isGoogleLoading,
                   icon: null,
                   customIcon: _buildGoogleIcon(),
-                  label: 'Continua con Google',
+                  label: context.l10n.continueWithGoogle,
                   backgroundColor: Colors.white,
                   textColor: AppColors.textPrimary,
                   borderColor: AppColors.border,
@@ -219,7 +220,7 @@ class _LoginPageState extends State<LoginPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
-                        'oppure',
+                        context.l10n.orDivider,
                         style: TextStyle(color: AppColors.textMuted),
                       ),
                     ),
@@ -235,17 +236,17 @@ class _LoginPageState extends State<LoginPage> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   enabled: !anyLoading,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: context.l10n.emailLabel,
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Inserisci la tua email';
+                      return context.l10n.enterYourEmail;
                     }
                     if (!value.contains('@')) {
-                      return 'Email non valida';
+                      return context.l10n.invalidEmail;
                     }
                     return null;
                   },
@@ -261,7 +262,7 @@ class _LoginPageState extends State<LoginPage> {
                   enabled: !anyLoading,
                   onFieldSubmitted: (_) => _login(),
                   decoration: InputDecoration(
-                    labelText: 'Password',
+                    labelText: context.l10n.passwordLabel,
                     prefixIcon: const Icon(Icons.lock_outlined),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
@@ -275,7 +276,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Inserisci la password';
+                      return context.l10n.enterPassword;
                     }
                     return null;
                   },
@@ -288,7 +289,7 @@ class _LoginPageState extends State<LoginPage> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: anyLoading ? null : _showResetPasswordDialog,
-                    child: const Text('Password dimenticata?'),
+                    child: Text(context.l10n.forgotPassword),
                   ),
                 ),
 
@@ -338,7 +339,7 @@ class _LoginPageState extends State<LoginPage> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Accedi', style: TextStyle(fontSize: 16)),
+                      : Text(context.l10n.loginAction, style: const TextStyle(fontSize: 16)),
                 ),
 
                 const SizedBox(height: 24),
@@ -347,7 +348,7 @@ class _LoginPageState extends State<LoginPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Non hai un account?'),
+                    Text(context.l10n.noAccountQuestion),
                     TextButton(
                       onPressed: anyLoading 
                           ? null 
@@ -357,7 +358,7 @@ class _LoginPageState extends State<LoginPage> {
                                 MaterialPageRoute(builder: (_) => const RegisterPage()),
                               );
                             },
-                      child: const Text('Registrati'),
+                      child: Text(context.l10n.registerAction),
                     ),
                   ],
                 ),

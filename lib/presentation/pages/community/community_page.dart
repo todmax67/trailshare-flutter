@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../discover/community_track_detail_page.dart';
@@ -13,6 +14,7 @@ import '../groups/group_detail_page.dart';
 import '../follow/search_users_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/services/location_service.dart';
 
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key});
@@ -115,16 +117,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         return;
       }
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() => _isLoadingLocation = false);
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
+      final hasPermission = await LocationService().checkAndRequestPermission(context: context);
+      if (!hasPermission) {
         setState(() => _isLoadingLocation = false);
         return;
       }
@@ -271,19 +265,19 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         
         return StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: const Row(
+            title: Row(
               children: [
-                Icon(Icons.vpn_key, color: AppColors.primary),
-                SizedBox(width: 8),
-                Text('Unisciti con codice'),
+                const Icon(Icons.vpn_key, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(context.l10n.joinWithCode),
               ],
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Inserisci il codice invito ricevuto per unirti a un gruppo.',
-                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                Text(
+                  context.l10n.enterInviteCodeDesc,
+                  style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -319,7 +313,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             actions: [
               TextButton(
                 onPressed: isJoining ? null : () => Navigator.pop(context, false),
-                child: const Text('Annulla'),
+                child: Text(context.l10n.cancel),
               ),
               ElevatedButton(
                 onPressed: isJoining
@@ -327,7 +321,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     : () async {
                         final code = codeController.text.trim();
                         if (code.length < 6) {
-                          setDialogState(() => errorMessage = 'Il codice deve essere di 6 caratteri');
+                          setDialogState(() => errorMessage = context.l10n.codeMustBeSixChars);
                           return;
                         }
 
@@ -345,7 +339,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         } else {
                           setDialogState(() {
                             isJoining = false;
-                            errorMessage = result['error'] ?? 'Errore sconosciuto';
+                            errorMessage = result['error'] ?? context.l10n.unknownError;
                           });
                         }
                       },
@@ -359,7 +353,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text('Unisciti'),
+                    : Text(context.l10n.joinGroupAction),
               ),
             ],
           ),
@@ -371,8 +365,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       // Ricarica gruppi dopo l'unione
       _loadMyGroups();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ti sei unito al gruppo!'),
+        SnackBar(
+          content: Text(context.l10n.joinedGroupGeneric),
           backgroundColor: AppColors.success,
         ),
       );
@@ -420,7 +414,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Community'),
+        title: Text(context.l10n.community),
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
@@ -429,15 +423,15 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           tabs: [
             Tab(
               icon: const Icon(Icons.route),
-              text: 'Tracce (${_communityTracks.length})',
+              text: context.l10n.tracksTabCount(_communityTracks.length),
             ),
             Tab(
               icon: const Icon(Icons.groups),
-              text: 'Gruppi (${_myGroups.length})',
+              text: context.l10n.groupsTabCount(_myGroups.length),
             ),
             Tab(
               icon: const Icon(Icons.event),
-              text: 'Eventi (${_myEvents.length})',
+              text: context.l10n.eventsTabCount(_myEvents.length),
             ),
           ],
         ),
@@ -450,7 +444,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 MaterialPageRoute(builder: (_) => const SearchUsersPage()),
               );
             },
-            tooltip: 'Cerca utenti',
+            tooltip: context.l10n.searchUsers,
           ),
           // Toggle mappa/lista (solo per tab Tracce)
           if (_tabController.index == 0)
@@ -460,7 +454,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 _showMap = !_showMap;
                 _selectedCommunityTrack = null;
               }),
-              tooltip: _showMap ? 'Mostra lista' : 'Mostra mappa',
+              tooltip: _showMap ? context.l10n.showList : context.l10n.showMap,
             ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -510,7 +504,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             controller: _searchController,
             onChanged: _onSearchChanged,
             decoration: InputDecoration(
-              hintText: 'Cerca tracce o utenti...',
+              hintText: context.l10n.searchTracksOrUsers,
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
@@ -546,8 +540,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       return _buildEmptyState(
         icon: Icons.people_outline,
         message: _searchQuery.isEmpty
-            ? 'Nessuna traccia condivisa'
-            : 'Nessun risultato per "$_searchQuery"',
+            ? context.l10n.noSharedTracks
+            : context.l10n.noResultsForQuery(_searchQuery),
       );
     }
 
@@ -669,7 +663,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         Positioned(
           top: 8,
           left: 8,
-          child: _CounterBadge(count: tracks.length, label: 'tracce'),
+          child: _CounterBadge(count: tracks.length, label: context.l10n.tracksLabel),
         ),
 
         // Pulsante centra su utente
@@ -703,18 +697,18 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   ),
                   child: _isLoadingMore
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Row(
+                      : Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.add, size: 18, color: AppColors.primary),
-                            SizedBox(width: 4),
-                            Text('Carica altre', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13)),
+                            const Icon(Icons.add, size: 18, color: AppColors.primary),
+                            const SizedBox(width: 4),
+                            Text(context.l10n.loadMore, style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13)),
                           ],
                         ),
-                ),
-              ),
-            ),
-          ),  
+                ),              // chiude Container
+              ),                // chiude InkWell
+            ),                  // chiude Material
+          ),                    // chiude Positioned
       ],
     );
   }
@@ -736,7 +730,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     : TextButton.icon(
                         onPressed: _loadMoreCommunityTracks,
                         icon: const Icon(Icons.expand_more),
-                        label: const Text('Carica altre tracce'),
+                        label: Text(context.l10n.loadMoreTracks),
                       ),
               ),
             );
@@ -783,8 +777,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         },
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Nuovo Gruppo'),
+        icon: Icon(Icons.add),
+        label: Text(context.l10n.newGroup),
       ),
       body: Column(
         children: [
@@ -794,7 +788,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             child: Row(
               children: [
                 FilterChip(
-                  label: Text('I miei (${_myGroups.length})'),
+                  label: Text(context.l10n.myFilterCount(_myGroups.length)),
                   selected: !_showPublicGroups,
                   onSelected: (value) {
                     setState(() => _showPublicGroups = false);
@@ -803,7 +797,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
-                  label: const Text('Scopri'),
+                  label: Text(context.l10n.discoverFilter),
                   selected: _showPublicGroups,
                   onSelected: (value) {
                     setState(() => _showPublicGroups = true);
@@ -816,7 +810,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 TextButton.icon(
                   onPressed: _showJoinByCodeDialog,
                   icon: const Icon(Icons.vpn_key, size: 18),
-                  label: const Text('Codice'),
+                  label: Text(context.l10n.codeLabel),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.primary,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -851,13 +845,13 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             children: [
               Icon(Icons.groups_outlined, size: 80, color: Colors.grey[300]),
               const SizedBox(height: 24),
-              const Text(
-                'Nessun gruppo',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Text(
+                context.l10n.noGroups,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
-                'Crea un gruppo per organizzare uscite, lanciare sfide e chattare con i tuoi compagni di avventura!',
+                context.l10n.createGroupCTA,
                 style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 textAlign: TextAlign.center,
               ),
@@ -891,13 +885,13 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             children: [
               Icon(Icons.explore_outlined, size: 80, color: Colors.grey[300]),
               const SizedBox(height: 24),
-              const Text(
-                'Nessun gruppo disponibile',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Text(
+                context.l10n.noGroupsAvailable,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
-                'Non ci sono gruppi pubblici a cui unirti al momento. Creane uno tu!',
+                context.l10n.noPublicGroupsCTA,
                 style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 textAlign: TextAlign.center,
               ),
@@ -986,7 +980,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         Icon(Icons.people, size: 14, color: Colors.grey[500]),
                         const SizedBox(width: 4),
                         Text(
-                          '${group.memberCount} ${group.memberCount == 1 ? "membro" : "membri"}',
+                          context.l10n.memberCountPlural(group.memberCount),
                           style: TextStyle(color: Colors.grey[500], fontSize: 12),
                         ),
                         const SizedBox(width: 12),
@@ -996,7 +990,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          group.isPublic ? 'Pubblico' : group.isPrivate ? 'Privato' : 'Segreto',
+                          group.isPublic ? context.l10n.publicLabel : group.isPrivate ? context.l10n.privateLabel : context.l10n.secretLabel,
                           style: TextStyle(color: Colors.grey[500], fontSize: 12),
                         ),
                       ],
@@ -1015,7 +1009,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     if (success && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Ti sei unito a "${group.name}"!'),
+                          content: Text(context.l10n.joinedGroupSnack(group.name)),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -1029,7 +1023,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text('Unisciti', style: TextStyle(fontSize: 13)),
+                  child: Text(context.l10n.joinGroupAction, style: const TextStyle(fontSize: 13)),
                 )
               else if (group.isPrivate)
                 ElevatedButton(
@@ -1038,8 +1032,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     if (hasPending) {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Richiesta già inviata, attendi approvazione'),
+                          SnackBar(
+                            content: Text(context.l10n.requestAlreadySent),
                             backgroundColor: Colors.orange,
                           ),
                         );
@@ -1050,7 +1044,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     if (success && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Richiesta inviata a "${group.name}"!'),
+                          content: Text(context.l10n.requestSentSnack(group.name)),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -1062,7 +1056,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text('Richiedi', style: TextStyle(fontSize: 13)),
+                  child: Text(context.l10n.requestAction, style: const TextStyle(fontSize: 13)),
                 ),
             ],
           ),
@@ -1084,7 +1078,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           child: Row(
             children: [
               FilterChip(
-                label: Text('I miei (${_myEvents.length})'),
+                label: Text(context.l10n.myFilterCount(_myEvents.length)),
                 selected: !_showPublicEvents,
                 onSelected: (value) {
                   setState(() => _showPublicEvents = false);
@@ -1093,7 +1087,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               ),
               const SizedBox(width: 8),
               FilterChip(
-                label: const Text('Pubblici'),
+                label: Text(context.l10n.publicEventsFilter),
                 selected: _showPublicEvents,
                 onSelected: (value) {
                   setState(() => _showPublicEvents = true);
@@ -1136,7 +1130,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               const Text('🏆', style: TextStyle(fontSize: 18)),
               const SizedBox(width: 8),
               Text(
-                'Sfide attive (${_activeChallenges.length})',
+                context.l10n.activeChallengesCount(_activeChallenges.length),
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ],
@@ -1180,7 +1174,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '${item.challenge.endDate.difference(DateTime.now()).inDays}g',
+                    context.l10n.daysShort(item.challenge.endDate.difference(DateTime.now()).inDays),
                     style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                   ),
                 ],
@@ -1206,13 +1200,13 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             children: [
               Icon(Icons.event_busy, size: 64, color: Colors.grey[300]),
               const SizedBox(height: 16),
-              const Text(
-                'Nessun evento in programma',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                context.l10n.noEventsScheduled,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
-                'Gli eventi dei tuoi gruppi appariranno qui',
+                context.l10n.groupEventsWillAppear,
                 style: TextStyle(color: Colors.grey[600]),
                 textAlign: TextAlign.center,
               ),
@@ -1249,13 +1243,13 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             children: [
               Icon(Icons.public, size: 64, color: Colors.grey[300]),
               const SizedBox(height: 16),
-              const Text(
-                'Nessun evento pubblico',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                context.l10n.noPublicEvents,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
-                'Gli eventi dei gruppi pubblici appariranno qui',
+                context.l10n.publicEventsWillAppear,
                 style: TextStyle(color: Colors.grey[600]),
                 textAlign: TextAlign.center,
               ),
@@ -1324,7 +1318,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                           ),
                         ),
                         Text(
-                          _monthName(event.date.month),
+                          _monthName(context, event.date.month),
                           style: TextStyle(
                             fontSize: 11,
                             color: isPast ? Colors.grey : AppColors.primary,
@@ -1402,8 +1396,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         color: AppColors.success.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
-                        '✓ Partecipo',
+                      child: Text(
+                        context.l10n.participating,
                         style: TextStyle(fontSize: 10, color: AppColors.success, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -1470,7 +1464,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 _searchController.clear();
                 _onSearchChanged('');
               },
-              child: const Text('Cancella ricerca'),
+              child: Text(context.l10n.clearSearch),
             ),
           ],
         ],
@@ -1478,8 +1472,13 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     );
   }
 
-  String _monthName(int month) {
-    const months = ['GEN', 'FEB', 'MAR', 'APR', 'MAG', 'GIU', 'LUG', 'AGO', 'SET', 'OTT', 'NOV', 'DIC'];
+  String _monthName(BuildContext context, int month) {
+    final months = [
+      context.l10n.monthShortJan, context.l10n.monthShortFeb, context.l10n.monthShortMar,
+      context.l10n.monthShortApr, context.l10n.monthShortMay, context.l10n.monthShortJun,
+      context.l10n.monthShortJul, context.l10n.monthShortAug, context.l10n.monthShortSep,
+      context.l10n.monthShortOct, context.l10n.monthShortNov, context.l10n.monthShortDec,
+    ];
     return months[month - 1];
   }
 }

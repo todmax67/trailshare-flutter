@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/theme_service.dart';
 import 'privacy_policy_page.dart';
 import '../../../core/services/delete_account_service.dart';
@@ -71,34 +72,34 @@ class _SettingsPageState extends State<SettingsPage> {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Frequenza cardiaca massima'),
+        title: Text(context.l10n.maxHeartRate),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Inserisci la tua FC max se la conosci, oppure inserisci la tua età per stimarla (220 - età).',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            Text(
+              context.l10n.maxHRDescription,
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: hrController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'FC Max (BPM)',
-                hintText: 'Es: 185',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: context.l10n.maxHRLabel,
+                hintText: context.l10n.maxHRHint,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
-            const Text('oppure', style: TextStyle(color: AppColors.textMuted)),
+            Text(context.l10n.orLabel, style: const TextStyle(color: AppColors.textMuted)),
             const SizedBox(height: 12),
             TextField(
               controller: ageController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Età',
-                hintText: 'Es: 35',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: context.l10n.ageLabel,
+                hintText: context.l10n.ageHint,
+                border: const OutlineInputBorder(),
               ),
               onChanged: (val) {
                 final age = int.tryParse(val);
@@ -112,7 +113,7 @@ class _SettingsPageState extends State<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () async {
@@ -124,7 +125,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Navigator.pop(ctx);
               }
             },
-            child: const Text('Salva'),
+            child: Text(context.l10n.save),
           ),
         ],
       ),
@@ -148,7 +149,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Impostazioni'),
+        title: Text(context.l10n.settings),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -156,38 +157,38 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           // Sezione Account (solo se loggato)
           if (user != null) ...[
-            _buildSectionHeader('Account'),
+            _buildSectionHeader(context.l10n.accountSection),
             _buildListTile(
               icon: Icons.person_outline,
-              title: 'Email',
-              subtitle: user.email ?? 'Non disponibile',
+              title: context.l10n.emailLabel,
+              subtitle: user.email ?? context.l10n.notAvailable,
             ),
             _buildListTile(
               icon: Icons.logout,
-              title: 'Esci',
-              subtitle: 'Disconnetti il tuo account',
+              title: context.l10n.signOutTitle,
+              subtitle: context.l10n.signOutSubtitle,
               onTap: () => _signOut(context),
             ),
             const Divider(height: 32),
           ],
 
           // Sezione Aspetto
-          _buildSectionHeader('Aspetto'),
+          _buildSectionHeader(context.l10n.appearanceSection),
           _buildThemeTile(),
           const Divider(height: 32),
 
           // Sezione Salute
-          _buildSectionHeader('Connessione Salute'),
+          _buildSectionHeader(context.l10n.healthConnectionSection),
           SwitchListTile(
             secondary: Icon(
               Icons.favorite_outline,
               color: _healthSyncEnabled ? AppColors.danger : AppColors.textSecondary,
             ),
-            title: const Text('Sincronizza con Salute'),
+            title: Text(context.l10n.syncWithHealth),
             subtitle: Text(
               Platform.isIOS
-                  ? 'Salva le attività su Apple Salute'
-                  : 'Salva le attività su Health Connect',
+                  ? context.l10n.saveToAppleHealth
+                  : context.l10n.saveToHealthConnect,
             ),
             value: _healthSyncEnabled,
             activeColor: AppColors.primary,
@@ -200,23 +201,21 @@ class _SettingsPageState extends State<SettingsPage> {
                       showDialog(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          title: const Text('Health Connect necessario'),
-                          content: const Text(
-                            'Per sincronizzare le attività è necessario installare '
-                            'Health Connect dal Play Store.\n\n'
-                            'Vuoi installarlo ora?',
+                          title: Text(context.l10n.healthConnectRequired),
+                          content: Text(
+                            context.l10n.healthConnectInstallMessage,
                           ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Annulla'),
+                              child: Text(context.l10n.cancel),
                             ),
                             TextButton(
                               onPressed: () {
                                 Navigator.pop(ctx);
                                 Health().installHealthConnect();
                               },
-                              child: const Text('Installa'),
+                              child: Text(context.l10n.installAction),
                             ),
                           ],
                         ),
@@ -229,8 +228,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 debugPrint('[Settings] Permessi concessi: $granted');
                 if (!granted && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Permessi non concessi. Riprova o abilita dalle impostazioni del dispositivo.'),
+                    SnackBar(
+                      content: Text(context.l10n.permissionsNotGranted),
                       backgroundColor: AppColors.warning,
                     ),
                   );
@@ -244,17 +243,17 @@ class _SettingsPageState extends State<SettingsPage> {
           if (_healthSyncEnabled) ...[
             ListTile(
               leading: const Icon(Icons.monitor_heart, color: AppColors.danger),
-              title: const Text('Frequenza cardiaca massima'),
+              title: Text(context.l10n.maxHeartRate),
               subtitle: Text(
-                _maxHR > 0 ? '$_maxHR BPM' : 'Imposta per calcolare le zone cardio',
+                _maxHR > 0 ? '$_maxHR BPM' : context.l10n.setForCardioZones,
               ),
               trailing: const Icon(Icons.edit, size: 18),
               onTap: () => _showMaxHRDialog(),
             ),
             ListTile(
               leading: const Icon(Icons.dashboard, color: AppColors.primary),
-              title: const Text('Dashboard Salute'),
-              subtitle: const Text('Passi, battito, calorie settimanali'),
+              title: Text(context.l10n.healthDashboard),
+              subtitle: Text(context.l10n.healthDashboardSubtitle),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.push(
                 context,
@@ -265,33 +264,33 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(height: 32),
 
           // Sezione Legale
-          _buildSectionHeader('Legale'),
+          _buildSectionHeader(context.l10n.legalSection),
           _buildListTile(
             icon: Icons.privacy_tip_outlined,
-            title: 'Privacy Policy',
-            subtitle: 'Come gestiamo i tuoi dati',
+            title: context.l10n.privacyPolicy,
+            subtitle: context.l10n.privacyPolicySubtitle,
             onTap: () => _openPrivacyPolicy(context),
           ),
           _buildListTile(
             icon: Icons.description_outlined,
-            title: 'Termini di Servizio',
-            subtitle: 'Condizioni d\'uso dell\'app',
+            title: context.l10n.termsOfService,
+            subtitle: context.l10n.termsOfServiceSubtitle,
             onTap: () => _openTermsOfService(context),
           ),
           _buildListTile(
             icon: Icons.gavel_outlined,
-            title: 'Licenze Open Source',
-            subtitle: 'Librerie utilizzate',
+            title: context.l10n.openSourceLicenses,
+            subtitle: context.l10n.openSourceLicensesSubtitle,
             onTap: () => _openLicenses(context),
           ),
           const Divider(height: 32),
 
           // Sezione Supporto
-          _buildSectionHeader('Supporto'),
+          _buildSectionHeader(context.l10n.supportSection),
           _buildListTile(
             icon: Icons.help_outline,
-            title: 'Centro Assistenza',
-            subtitle: 'FAQ e guide',
+            title: context.l10n.helpCenter,
+            subtitle: context.l10n.helpCenterSubtitle,
             onTap: () {
               Navigator.push(
                 context,
@@ -301,20 +300,20 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           _buildListTile(
             icon: Icons.email_outlined,
-            title: 'Contattaci',
+            title: context.l10n.contactUs,
             subtitle: 'support@trailshare.app',
             onTap: () => _openEmail(context),
           ),
           _buildListTile(
             icon: Icons.star_outline,
-            title: 'Valuta l\'app',
-            subtitle: 'Lascia una recensione',
+            title: context.l10n.rateApp,
+            subtitle: context.l10n.rateAppSubtitle,
             onTap: () => _openAppStore(context),
           ),
           _buildListTile(
             icon: Icons.map_outlined,
-            title: 'Mappe Offline',
-            subtitle: 'Scarica mappe per uso senza connessione',
+            title: context.l10n.offlineMaps,
+            subtitle: context.l10n.offlineMapsSubtitle,
             onTap: () {
               Navigator.push(
                 context,
@@ -325,16 +324,16 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(height: 32),
 
           // Sezione Info
-          _buildSectionHeader('Informazioni'),
+          _buildSectionHeader(context.l10n.infoSection),
           _buildListTile(
             icon: Icons.info_outline,
-            title: 'Versione',
-            subtitle: _appVersion.isNotEmpty ? _appVersion : 'Caricamento...',
+            title: context.l10n.versionLabel,
+            subtitle: _appVersion.isNotEmpty ? _appVersion : context.l10n.loadingEllipsis,
           ),
           _buildListTile(
             icon: Icons.update,
-            title: 'Novità',
-            subtitle: 'Cosa c\'è di nuovo',
+            title: context.l10n.whatsNew,
+            subtitle: context.l10n.whatsNewSubtitle,
             onTap: () => _showChangelog(context),
           ),
 
@@ -342,11 +341,11 @@ class _SettingsPageState extends State<SettingsPage> {
           // TODO: In produzione, controllare se l'utente è admin
           if (_isAdmin(user)) ...[
             const Divider(height: 32),
-            _buildSectionHeader('Amministrazione', danger: false),
+            _buildSectionHeader(context.l10n.adminSection, danger: false),
             _buildListTile(
               icon: Icons.download,
-              title: 'Import Sentieri',
-              subtitle: 'Importa sentieri da Waymarked Trails',
+              title: context.l10n.importTrails,
+              subtitle: context.l10n.importTrailsSubtitle,
               onTap: () {
                 Navigator.push(
                   context,
@@ -356,8 +355,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             _buildListTile(
               icon: Icons.location_on,
-              title: 'Migrazione GeoHash',
-              subtitle: 'Gestisci indici geospaziali per i sentieri',
+              title: context.l10n.geohashMigration,
+              subtitle: context.l10n.geohashMigrationSubtitle,
               onTap: () {
                 Navigator.push(
                   context,
@@ -367,8 +366,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             _buildListTile(
               icon: Icons.analytics_outlined,
-              title: 'Statistiche Database',
-              subtitle: 'Visualizza metriche e utilizzo',
+              title: context.l10n.databaseStats,
+              subtitle: context.l10n.databaseStatsSubtitle,
               onTap: () {
                 Navigator.push(
                   context,
@@ -380,8 +379,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
           _buildListTile(
             icon: Icons.calculate,
-            title: 'Ricalcola Statistiche',
-            subtitle: 'Correggi dislivello e distanze dalle tracce GPS',
+            title: context.l10n.recalculateStats,
+            subtitle: context.l10n.recalculateStatsSubtitle,
             onTap: () {
               Navigator.push(
                 context,
@@ -393,11 +392,11 @@ class _SettingsPageState extends State<SettingsPage> {
           // Zona pericolosa (solo se loggato)
           if (user != null) ...[
             const Divider(height: 32),
-            _buildSectionHeader('Zona Pericolosa', danger: true),
+            _buildSectionHeader(context.l10n.dangerZone, danger: true),
             _buildListTile(
               icon: Icons.delete_forever,
-              title: 'Elimina Account',
-              subtitle: 'Elimina permanentemente tutti i tuoi dati',
+              title: context.l10n.deleteAccount,
+              subtitle: context.l10n.deleteAccountSubtitle,
               onTap: () => _deleteAccount(context),
               danger: true,
             ),
@@ -503,21 +502,21 @@ class _SettingsPageState extends State<SettingsPage> {
     switch (_themeService.themeMode) {
       case ThemeMode.system:
         icon = Icons.brightness_auto;
-        subtitle = 'Automatico';
+        subtitle = context.l10n.themeAutomatic;
         break;
       case ThemeMode.light:
         icon = Icons.light_mode;
-        subtitle = 'Chiaro';
+        subtitle = context.l10n.themeLight;
         break;
       case ThemeMode.dark:
         icon = Icons.dark_mode;
-        subtitle = 'Scuro';
+        subtitle = context.l10n.themeDark;
         break;
     }
 
     return ListTile(
       leading: Icon(icon),
-      title: const Text('Tema', style: TextStyle(fontWeight: FontWeight.w500)),
+      title: Text(context.l10n.themeLabel, style: const TextStyle(fontWeight: FontWeight.w500)),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 13)),
       trailing: const Icon(Icons.chevron_right),
       onTap: _showThemeDialog,
@@ -528,26 +527,26 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Seleziona tema'),
+        title: Text(context.l10n.selectTheme),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildThemeOption(
               icon: Icons.brightness_auto,
-              label: 'Automatico',
-              subtitle: 'Segue le impostazioni di sistema',
+              label: context.l10n.themeAutomatic,
+              subtitle: context.l10n.themeAutomaticSubtitle,
               mode: ThemeMode.system,
             ),
             _buildThemeOption(
               icon: Icons.light_mode,
-              label: 'Chiaro',
-              subtitle: 'Tema chiaro sempre attivo',
+              label: context.l10n.themeLight,
+              subtitle: context.l10n.themeLightSubtitle,
               mode: ThemeMode.light,
             ),
             _buildThemeOption(
               icon: Icons.dark_mode,
-              label: 'Scuro',
-              subtitle: 'Tema scuro sempre attivo',
+              label: context.l10n.themeDark,
+              subtitle: context.l10n.themeDarkSubtitle,
               mode: ThemeMode.dark,
             ),
           ],
@@ -586,16 +585,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Esci'),
-        content: const Text('Vuoi uscire dal tuo account?'),
+        title: Text(context.l10n.signOutTitle),
+        content: Text(context.l10n.signOutConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Esci'),
+            child: Text(context.l10n.signOutTitle),
           ),
         ],
       ),
@@ -625,7 +624,7 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossibile aprire il link')),
+          SnackBar(content: Text(context.l10n.cannotOpenLink)),
         );
       }
     }
@@ -652,7 +651,7 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossibile aprire il link')),
+          SnackBar(content: Text(context.l10n.cannotOpenLink)),
         );
       }
     }
@@ -667,7 +666,7 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossibile aprire il client email')),
+          SnackBar(content: Text(context.l10n.cannotOpenEmail)),
         );
       }
     }
@@ -675,7 +674,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _openAppStore(BuildContext context) async {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Grazie! L\'app sarà presto disponibile negli store.')),
+      SnackBar(content: Text(context.l10n.appComingSoon)),
     );
   }
 
@@ -683,22 +682,22 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Novità v1.0.0'),
-        content: const SingleChildScrollView(
+        title: Text(context.l10n.changelogTitle),
+        content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('🎉 Prima release!', style: TextStyle(fontWeight: FontWeight.bold)),
-              SizedBox(height: 12),
-              Text('• Registrazione tracce GPS'),
-              Text('• Tracking in background'),
-              Text('• LiveTrack - condividi posizione'),
-              Text('• Sistema social (follow, cheers)'),
-              Text('• Classifica settimanale'),
-              Text('• Wishlist percorsi'),
-              Text('• Dashboard statistiche'),
-              Text('• Import/Export GPX'),
+              Text(context.l10n.changelogFirstRelease, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Text('• ${context.l10n.changelogGpsTracking}'),
+              Text('• ${context.l10n.changelogBackground}'),
+              Text('• ${context.l10n.changelogLiveTrack}'),
+              Text('• ${context.l10n.changelogSocial}'),
+              Text('• ${context.l10n.changelogLeaderboard}'),
+              Text('• ${context.l10n.changelogWishlist}'),
+              Text('• ${context.l10n.changelogDashboard}'),
+              Text('• ${context.l10n.changelogGpx}'),
             ],
           ),
         ),
@@ -717,8 +716,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (result == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Account eliminato con successo'),
+        SnackBar(
+          content: Text(context.l10n.accountDeleted),
           backgroundColor: AppColors.success,
         ),
       );

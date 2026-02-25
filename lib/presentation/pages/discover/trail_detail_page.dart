@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/gpx_service.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/public_trails_repository.dart';
@@ -101,7 +102,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
                         : const Icon(Icons.delete_forever, color: Colors.white),
-                    tooltip: 'Elimina sentiero (Admin)',
+                    tooltip: context.l10n.deleteTrailAdmin,
                     onPressed: _isDeleting ? null : _confirmDeleteTrail,
                   ),
                 ),
@@ -145,11 +146,11 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                       },
                     ),
                     if (_isLoadingFull)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
                         child: Text(
-                          'Caricamento traccia completa...',
-                          style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          context.l10n.loadingFullTrack,
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -177,7 +178,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
     if (_displayPoints.isEmpty) {
       return Container(
         color: AppColors.background,
-        child: const Center(child: Text('Nessun dato GPS')),
+        child: Center(child: Text(context.l10n.noGpsData)),
       );
     }
 
@@ -301,7 +302,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                 ? '${trail.lengthKm.toStringAsFixed(1)}' 
                 : '--',
             unit: 'km',
-            label: 'Lunghezza',
+            label: context.l10n.lengthLabel,
             color: AppColors.primary,
           ),
         ),
@@ -313,7 +314,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                 ? '+${trail.elevationGain!.toStringAsFixed(0)}' 
                 : '--',
             unit: 'm',
-            label: 'Dislivello',
+            label: context.l10n.elevationLabel,
             color: AppColors.success,
           ),
         ),
@@ -323,7 +324,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
             icon: Icons.location_on,
             value: '${_displayPoints.length}',
             unit: _isLoadingFull ? '...' : '',
-            label: 'Punti GPS',
+            label: context.l10n.gpsPoints,
             color: AppColors.info,
           ),
         ),
@@ -340,23 +341,23 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Informazioni',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Text(
+              context.l10n.informationLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const Divider(height: 24),
             if (trail.ref != null)
-              _buildDetailRow(Icons.tag, 'Numero sentiero', trail.ref!),
-            _buildDetailRow(Icons.terrain, 'Difficoltà', trail.difficultyName),
+              _buildDetailRow(Icons.tag, context.l10n.trailNumber, trail.ref!),
+            _buildDetailRow(Icons.terrain, context.l10n.difficultyLabel, trail.difficultyName),
             if (trail.activityType != null)
-              _buildDetailRow(Icons.directions_walk, 'Attività', trail.activityType!),
+              _buildDetailRow(Icons.directions_walk, context.l10n.activityLabel, trail.activityType!),
             if (trail.operator != null)
-              _buildDetailRow(Icons.business, 'Gestore', trail.operator!),
+              _buildDetailRow(Icons.business, context.l10n.managerLabel, trail.operator!),
             if (trail.networkName.isNotEmpty)
-              _buildDetailRow(Icons.hub, 'Rete', trail.networkName),
+              _buildDetailRow(Icons.hub, context.l10n.networkLabel, trail.networkName),
             if (trail.region != null)
-              _buildDetailRow(Icons.map, 'Regione', trail.region!),
-            _buildDetailRow(Icons.source, 'Fonte', trail.source == 'community' ? 'Community' : 'OpenStreetMap'),
+              _buildDetailRow(Icons.map, context.l10n.regionLabel, trail.region!),
+            _buildDetailRow(Icons.source, context.l10n.sourceLabel, trail.source == 'community' ? context.l10n.communitySource : context.l10n.openStreetMapSource),
           ],
         ),
       ),
@@ -388,7 +389,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
           child: ElevatedButton.icon(
             onPressed: _displayPoints.length > 1 ? _followTrail : null,
             icon: const Icon(Icons.explore),
-            label: const Text('Segui la traccia'),
+            label: Text(context.l10n.followTrail),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -410,7 +411,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.download),
-            label: Text(_isExporting ? 'Esportazione...' : 'Scarica GPX'),
+            label: Text(_isExporting ? context.l10n.exporting : context.l10n.downloadGpx),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.info,
               foregroundColor: Colors.white,
@@ -425,7 +426,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
           child: OutlinedButton.icon(
             onPressed: _displayPoints.isNotEmpty ? _navigateToStart : null,
             icon: const Icon(Icons.navigation),
-            label: const Text('Naviga al punto di partenza'),
+            label: Text(context.l10n.navigateToStart),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -440,11 +441,11 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber, color: AppColors.danger),
-            SizedBox(width: 8),
-            Text('Elimina sentiero'),
+            const Icon(Icons.warning_amber, color: AppColors.danger),
+            const SizedBox(width: 8),
+            Text(context.l10n.deleteTrailTitle),
           ],
         ),
         content: Column(
@@ -452,7 +453,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Stai per eliminare definitivamente:',
+              context.l10n.deleteTrailConfirmIntro,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -460,21 +461,21 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
             const SizedBox(height: 4),
             Text('ID: ${widget.trail.id}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
             const SizedBox(height: 12),
-            const Text(
-              'Questa azione è irreversibile e rimuoverà il sentiero dalla mappa per tutti gli utenti.',
-              style: TextStyle(color: AppColors.danger),
+            Text(
+              context.l10n.deleteTrailIrreversible,
+              style: const TextStyle(color: AppColors.danger),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
             icon: const Icon(Icons.delete_forever, size: 18),
-            label: const Text('Elimina'),
+            label: Text(context.l10n.deleteAction),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.danger,
               foregroundColor: Colors.white,
@@ -503,7 +504,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ "${widget.trail.displayName}" eliminato'),
+            content: Text(context.l10n.trailDeletedName(widget.trail.displayName)),
             backgroundColor: AppColors.success,
           ),
         );
@@ -515,7 +516,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
         setState(() => _isDeleting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Errore eliminazione: $e'),
+            content: Text(context.l10n.deleteErrorWithDetails(e.toString())),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -530,7 +531,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
     // Se la geometria completa non è ancora caricata, avvisa
     if (_isLoadingFull) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Caricamento traccia in corso, attendi...')),
+        SnackBar(content: Text(context.l10n.loadingTrailWait)),
       );
       return;
     }
@@ -578,7 +579,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Impossibile aprire la navigazione: $e'),
+            content: Text(context.l10n.cannotOpenNavigation(e.toString())),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -589,14 +590,14 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
   Future<void> _exportGpx() async {
     if (_displayPoints.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nessun punto GPS da esportare')),
+        SnackBar(content: Text(context.l10n.noGpsPointsToExport)),
       );
       return;
     }
 
     if (_isLoadingFull) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Caricamento in corso, riprova tra un momento...')),
+        SnackBar(content: Text(context.l10n.loadingRetryLater)),
       );
       return;
     }
@@ -608,7 +609,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
       final track = Track(
         id: trail.id,
         name: trail.displayName,
-        description: 'Sentiero: ${trail.displayName}',
+        description: context.l10n.trailGpxName(trail.displayName),
         points: _displayPoints,
         activityType: ActivityType.trekking,
         createdAt: DateTime.now(),
@@ -619,13 +620,13 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
       await Share.shareXFiles(
         [XFile(filePath)],
         subject: widget.trail.displayName,
-        text: 'Sentiero GPX: ${widget.trail.displayName}',
+        text: context.l10n.trailGpxName(widget.trail.displayName),
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ GPX esportato!'),
+          SnackBar(
+            content: Text(context.l10n.gpxExported),
             backgroundColor: AppColors.success,
           ),
         );
@@ -634,7 +635,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Errore: $e'),
+            content: Text(context.l10n.errorWithDetails(e.toString())),
             backgroundColor: AppColors.danger,
           ),
         );

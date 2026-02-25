@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/auth_service.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -65,8 +66,8 @@ class _RegisterPageState extends State<RegisterPage> {
         // Registrazione riuscita, torna indietro
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Account creato con successo!'),
+          SnackBar(
+            content: Text(context.l10n.accountCreatedSuccess),
             backgroundColor: AppColors.success,
           ),
         );
@@ -120,7 +121,7 @@ class _RegisterPageState extends State<RegisterPage> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Crea account'),
+        title: Text(context.l10n.createAccount),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -131,18 +132,18 @@ class _RegisterPageState extends State<RegisterPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Header
-                const Text(
-                  'Unisciti a TrailShare',
-                  style: TextStyle(
+                Text(
+                  context.l10n.joinTrailShare,
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Crea un account per salvare le tue tracce',
-                  style: TextStyle(color: AppColors.textSecondary),
+                Text(
+                  context.l10n.createAccountToSaveTracks,
+                  style: const TextStyle(color: AppColors.textSecondary),
                   textAlign: TextAlign.center,
                 ),
                 
@@ -154,7 +155,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     onPressed: anyLoading ? null : _signInWithApple,
                     isLoading: _isAppleLoading,
                     icon: Icons.apple,
-                    label: 'Continua con Apple',
+                    label: context.l10n.continueWithApple,
                     backgroundColor: Colors.black,
                     textColor: Colors.white,
                   ),
@@ -170,7 +171,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   )),
-                  label: 'Continua con Google',
+                  label: context.l10n.continueWithGoogle,
                   backgroundColor: Colors.white,
                   textColor: AppColors.textPrimary,
                   borderColor: AppColors.border,
@@ -185,7 +186,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
-                        'oppure registrati con email',
+                        context.l10n.orRegisterWithEmail,
                         style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                       ),
                     ),
@@ -201,17 +202,17 @@ class _RegisterPageState extends State<RegisterPage> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   enabled: !anyLoading,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: context.l10n.emailLabel,
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Inserisci la tua email';
+                      return context.l10n.enterYourEmail;
                     }
                     if (!value.contains('@') || !value.contains('.')) {
-                      return 'Email non valida';
+                      return context.l10n.invalidEmail;
                     }
                     return null;
                   },
@@ -226,10 +227,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   textInputAction: TextInputAction.next,
                   enabled: !anyLoading,
                   decoration: InputDecoration(
-                    labelText: 'Password',
+                    labelText: context.l10n.passwordLabel,
                     prefixIcon: const Icon(Icons.lock_outlined),
                     border: const OutlineInputBorder(),
-                    helperText: 'Minimo 6 caratteri',
+                    helperText: context.l10n.passwordMinSixChars,
                     suffixIcon: IconButton(
                       icon: Icon(
                         _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
@@ -241,10 +242,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Inserisci una password';
+                      return context.l10n.enterAPassword;
                     }
                     if (value.length < 6) {
-                      return 'La password deve avere almeno 6 caratteri';
+                      return context.l10n.passwordTooShort;
                     }
                     return null;
                   },
@@ -259,17 +260,17 @@ class _RegisterPageState extends State<RegisterPage> {
                   textInputAction: TextInputAction.done,
                   enabled: !anyLoading,
                   onFieldSubmitted: (_) => _register(),
-                  decoration: const InputDecoration(
-                    labelText: 'Conferma password',
-                    prefixIcon: Icon(Icons.lock_outlined),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: context.l10n.confirmPassword,
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Conferma la password';
+                      return context.l10n.confirmYourPassword;
                     }
                     if (value != _passwordController.text) {
-                      return 'Le password non coincidono';
+                      return context.l10n.passwordsDoNotMatch;
                     }
                     return null;
                   },
@@ -321,14 +322,14 @@ class _RegisterPageState extends State<RegisterPage> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Crea account', style: TextStyle(fontSize: 16)),
+                      : Text(context.l10n.createAccount, style: const TextStyle(fontSize: 16)),
                 ),
 
                 const SizedBox(height: 16),
 
                 // Info privacy
                 Text(
-                  'Creando un account accetti i nostri Termini di servizio e la Privacy Policy',
+                  context.l10n.acceptTermsAndPrivacy,
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
@@ -342,10 +343,10 @@ class _RegisterPageState extends State<RegisterPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Hai già un account?'),
+                    Text(context.l10n.alreadyHaveAccount),
                     TextButton(
                       onPressed: anyLoading ? null : () => Navigator.pop(context),
-                      child: const Text('Accedi'),
+                      child: Text(context.l10n.loginAction),
                     ),
                   ],
                 ),

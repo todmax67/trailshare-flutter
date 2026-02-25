@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../../data/models/track.dart' hide ActivityType;
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Servizio per il tracking GPS con supporto background
 /// 
@@ -72,8 +74,14 @@ class LocationService {
     debugPrint('[LocationService] Inizializzato');
   }
 
-  /// Verifica e richiede permessi
-  Future<bool> checkAndRequestPermission() async {
+  /// Verifica e richiede permessi con Prominent Disclosure
+  /// Flag per evitare richieste multiple simultanee
+  static bool _disclosureShown = false;
+  static bool _permissionRequesting = false;
+  static final List<Completer<bool>> _pendingRequests = [];
+
+  /// Verifica e richiede permessi con Prominent Disclosure
+  Future<bool> checkAndRequestPermission({BuildContext? context}) async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       debugPrint('[LocationService] GPS disabilitato');
@@ -81,12 +89,11 @@ class LocationService {
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        debugPrint('[LocationService] Permesso negato');
-        return false;
-      }
+    
+    // Se già concesso, ritorna subito
+    if (permission == LocationPermission.always || 
+        permission == LocationPermission.whileInUse) {
+      return true;
     }
 
     if (permission == LocationPermission.deniedForever) {
@@ -94,18 +101,113 @@ class LocationService {
       return false;
     }
 
-    // Su iOS, richiedi "Always" per il background tracking
-    // Se l'utente ha solo "When In Use", il GPS si ferma in background
-    if (Platform.isIOS && permission == LocationPermission.whileInUse) {
-      debugPrint('[LocationService] iOS: richiedo permesso Always per background');
-      permission = await Geolocator.requestPermission();
-      // Se resta whileInUse, funziona comunque ma potrebbe fermarsi in background
-      if (permission == LocationPermission.whileInUse) {
-        debugPrint('[LocationService] iOS: solo WhileInUse - background limitato');
-      }
+    // Se un'altra richiesta è in corso, aspetta il risultato
+    if (_permissionRequesting) {
+      final completer = Completer<bool>();
+      _pendingRequests.add(completer);
+      return completer.future;
     }
 
-    return true;
+    _permissionRequesting = true;
+
+    try {
+      // ⚠️ Prominent Disclosure: mostra dialog prima della richiesta
+      if (!_disclosureShown && context != null && context.mounted) {
+        final prefs = await SharedPreferences.getInstance();
+        final alreadyShown = prefs.getBool('location_disclosure_shown') ?? false;
+        
+        if (!alreadyShown) {
+          final accepted = await _showLocationDisclosure(context);
+          if (!accepted) {
+            debugPrint('[LocationService] Utente ha rifiutato il disclosure');
+            _resolveAllPending(false);
+            return false;
+          }
+          await prefs.setBool('location_disclosure_shown', true);
+        }
+        _disclosureShown = true;
+      }
+
+      permission = await Geolocator.requestPermission();
+      
+      if (permission == LocationPermission.denied) {
+        debugPrint('[LocationService] Permesso negato');
+        _resolveAllPending(false);
+        return false;
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        debugPrint('[LocationService] Permesso negato permanentemente');
+        _resolveAllPending(false);
+        return false;
+      }
+
+      // Su iOS, richiedi "Always" per il background tracking
+      if (Platform.isIOS && permission == LocationPermission.whileInUse) {
+        debugPrint('[LocationService] iOS: richiedo permesso Always per background');
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.whileInUse) {
+          debugPrint('[LocationService] iOS: solo WhileInUse - background limitato');
+        }
+      }
+
+      _resolveAllPending(true);
+      return true;
+    } catch (e) {
+      debugPrint('[LocationService] Errore permessi: $e');
+      _resolveAllPending(false);
+      return false;
+    } finally {
+      _permissionRequesting = false;
+    }
+  }
+
+  /// Risolve tutte le richieste in attesa
+  void _resolveAllPending(bool result) {
+    for (final completer in _pendingRequests) {
+      completer.complete(result);
+    }
+    _pendingRequests.clear();
+  }
+
+  /// Dialog Prominent Disclosure richiesto da Google Play
+  Future<bool> _showLocationDisclosure(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.location_on, color: Colors.blue),
+            SizedBox(width: 8),
+            Expanded(child: Text('Accesso alla posizione')),
+          ],
+        ),
+        content: const Text(
+          'TrailShare utilizza la tua posizione per:\n\n'
+          '• Registrare le tracce GPS delle tue attività outdoor '
+          '(escursioni, corsa, ciclismo)\n'
+          '• Mostrarti i sentieri e i punti di interesse vicini a te\n'
+          '• Fornire statistiche accurate su distanza, velocità e percorso\n'
+          '• Permettere il tracciamento in background durante la registrazione '
+          'per garantire la continuità del percorso anche con lo schermo spento\n\n'
+          'La tua posizione non viene condivisa con terze parti, '
+          'salvo quando scegli volontariamente di pubblicare una traccia nella community.',
+          style: TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Non ora'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ho capito, continua'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   /// Ottieni posizione corrente

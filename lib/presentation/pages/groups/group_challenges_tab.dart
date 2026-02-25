@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_challenge_page.dart';
 
@@ -66,7 +67,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
             child: Row(
               children: [
                 FilterChip(
-                  label: const Text('Attive'),
+                  label: Text(context.l10n.activeFilter),
                   selected: !_showAll,
                   onSelected: (value) {
                     setState(() => _showAll = false);
@@ -76,7 +77,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
-                  label: const Text('Tutte'),
+                  label: Text(context.l10n.allChallengesFilter),
                   selected: _showAll,
                   onSelected: (value) {
                     setState(() => _showAll = true);
@@ -113,9 +114,9 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
         children: [
           Icon(Icons.emoji_events_outlined, size: 64, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          const Text('Nessuna sfida', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(context.l10n.noChallenges, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('Lancia una sfida al gruppo!', style: TextStyle(color: Colors.grey[600])),
+          Text(context.l10n.launchGroupChallenge, style: TextStyle(color: Colors.grey[600])),
         ],
       ),
     );
@@ -149,7 +150,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${challenge.typeLabel} • Obiettivo: ${challenge.targetFormatted}',
+                          context.l10n.typeAndGoal(challenge.typeLabel, challenge.targetFormatted),
                           style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ],
@@ -165,7 +166,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        daysLeft == 0 ? 'Ultimo giorno!' : '$daysLeft giorni',
+                        daysLeft == 0 ? context.l10n.lastDay : context.l10n.daysLeftCount(daysLeft),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -180,7 +181,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                         color: Colors.grey[200],
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text('Conclusa', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      child: Text(context.l10n.concludedFemale, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                     ),
                 ],
               ),
@@ -199,7 +200,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Creata da ${challenge.createdByName}',
+                context.l10n.createdByFemale(challenge.createdByName),
                 style: TextStyle(color: Colors.grey[500], fontSize: 11),
               ),
             ],
@@ -252,7 +253,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Obiettivo: ${challenge.targetFormatted}',
+                    context.l10n.goalColon(challenge.targetFormatted),
                     style: const TextStyle(color: AppColors.textMuted),
                   ),
                 ],
@@ -261,7 +262,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
             const Divider(height: 1),
             Expanded(
               child: standings.isEmpty
-                  ? const Center(child: Text('Nessun partecipante ancora'))
+                  ? Center(child: Text(context.l10n.noParticipantsYet))
                   : ListView.builder(
                       controller: scrollController,
                       itemCount: standings.length,
@@ -312,7 +313,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
       case 'distance': return '${(value / 1000).toStringAsFixed(1)} km';
       case 'elevation': return '${value.toStringAsFixed(0)} m';
       case 'tracks': return '${value.toStringAsFixed(0)}';
-      case 'streak': return '${value.toStringAsFixed(0)} gg';
+      case 'streak': return '${value.toStringAsFixed(0)} ${context.l10n.suffixDaysShort}';
       default: return value.toString();
     }
   }

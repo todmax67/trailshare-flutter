@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../dashboard/dashboard_page.dart';
 import '../wishlist/wishlist_page.dart';
@@ -113,7 +114,7 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       // Fallback username
-      _username ??= user.displayName ?? user.email?.split('@').first ?? 'Utente';
+      _username ??= user.displayName ?? user.email?.split('@').first;
       _avatarUrl ??= user.photoURL;
       
       _usernameController.text = _username ?? '';
@@ -150,13 +151,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Username aggiornato!'), backgroundColor: AppColors.success),
+          SnackBar(content: Text(context.l10n.usernameUpdated), backgroundColor: AppColors.success),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -180,13 +181,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bio aggiornata!'), backgroundColor: AppColors.success),
+          SnackBar(content: Text(context.l10n.bioUpdated), backgroundColor: AppColors.success),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -196,17 +197,17 @@ class _ProfilePageState extends State<ProfilePage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Esci'),
-        content: const Text('Vuoi uscire dal tuo account?'),
+        title: Text(context.l10n.logout),
+        content: Text(context.l10n.logoutConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Esci'),
+            child: Text(context.l10n.logout),
           ),
         ],
       ),
@@ -226,7 +227,7 @@ class _ProfilePageState extends State<ProfilePage> {
       MaterialPageRoute(
         builder: (_) => FollowListPage(
           userId: user.uid,
-          username: _username ?? 'Utente',
+          username: _username ?? context.l10n.defaultUser,
           listType: FollowListType.followers,
         ),
       ),
@@ -242,7 +243,7 @@ class _ProfilePageState extends State<ProfilePage> {
       MaterialPageRoute(
         builder: (_) => FollowListPage(
           userId: user.uid,
-          username: _username ?? 'Utente',
+          username: _username ?? context.l10n.defaultUser,
           listType: FollowListType.following,
         ),
       ),
@@ -255,7 +256,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profilo'),
+        title: Text(context.l10n.profile),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -362,14 +363,14 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             Icon(Icons.person_outline, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            const Text(
-              'Accedi per vedere il tuo profilo',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            Text(
+              context.l10n.loginToSeeProfile,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Salva le tue tracce, segui altri escursionisti e molto altro.',
+              context.l10n.loginProfileDescription,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -428,8 +429,8 @@ class _ProfilePageState extends State<ProfilePage> {
           TextField(
             controller: _usernameController,
             textAlign: TextAlign.center,
-            decoration: const InputDecoration(
-              hintText: 'Username',
+            decoration: InputDecoration(
+              hintText: context.l10n.username,
               border: OutlineInputBorder(),
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
@@ -440,13 +441,13 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               TextButton(
                 onPressed: () => setState(() => _isEditingUsername = false),
-                child: const Text('Annulla'),
+                child: Text(context.l10n.cancel),
               ),
               const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: _saveUsername,
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-                child: const Text('Salva'),
+                child: Text(context.l10n.save),
               ),
             ],
           ),
@@ -457,12 +458,12 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       children: [
         Text(
-          _username ?? 'Utente',
+          _username ?? context.l10n.defaultUser,
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
         ),
         TextButton(
           onPressed: () => setState(() => _isEditingUsername = true),
-          child: const Text('Modifica nickname', style: TextStyle(fontSize: 12)),
+          child: Text(context.l10n.editNickname, style: const TextStyle(fontSize: 12)),
         ),
       ],
     );
@@ -475,8 +476,8 @@ class _ProfilePageState extends State<ProfilePage> {
           TextField(
             controller: _bioController,
             maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Racconta qualcosa di te...',
+            decoration: InputDecoration(
+              hintText: context.l10n.bioHint,
               border: OutlineInputBorder(),
             ),
           ),
@@ -486,13 +487,13 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               TextButton(
                 onPressed: () => setState(() => _isEditingBio = false),
-                child: const Text('Annulla'),
+                child: Text(context.l10n.cancel),
               ),
               const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: _saveBio,
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-                child: const Text('Salva'),
+                child: Text(context.l10n.save),
               ),
             ],
           ),
@@ -511,7 +512,7 @@ class _ProfilePageState extends State<ProfilePage> {
         TextButton(
           onPressed: () => setState(() => _isEditingBio = true),
           child: Text(
-            _bio == null || _bio!.isEmpty ? 'Aggiungi una bio' : 'Modifica bio',
+            _bio == null || _bio!.isEmpty ? context.l10n.addBio : context.l10n.editBio,
             style: const TextStyle(fontSize: 12),
           ),
         ),
@@ -546,7 +547,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Livello $_level',
+                    context.l10n.levelNumber(_level),
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
                   ),
                 ],
@@ -587,19 +588,19 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               Expanded(
                 child: _StatItem(
-                  label: 'Tracce',
+                  label: context.l10n.tracks,
                   value: '$_totalTracks',
                 ),
               ),
               Expanded(
                 child: _StatItem(
-                  label: 'Distanza',
+                  label: context.l10n.distance,
                   value: '${(_totalDistance / 1000).toStringAsFixed(1)} km',
                 ),
               ),
               Expanded(
                 child: _StatItem(
-                  label: 'Dislivello',
+                  label: context.l10n.elevation,
                   value: '${_totalElevation.toStringAsFixed(0)} m',
                 ),
               ),
@@ -614,7 +615,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: GestureDetector(
                   onTap: _openFollowersList,
                   child: _StatItem(
-                    label: 'Follower',
+                    label: context.l10n.followers,
                     value: '$_followersCount',
                     isClickable: true,
                   ),
@@ -624,7 +625,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: GestureDetector(
                   onTap: _openFollowingList,
                   child: _StatItem(
-                    label: 'Following',
+                    label: context.l10n.following,
                     value: '$_followingCount',
                     isClickable: true,
                   ),
@@ -646,7 +647,7 @@ class _ProfilePageState extends State<ProfilePage> {
         label: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('I miei contatti'),
+            Text(context.l10n.myContacts),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -655,7 +656,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '$_followersCount follower · $_followingCount seguiti',
+                context.l10n.contactsSummary(_followersCount, _followingCount),
                 style: const TextStyle(fontSize: 11),
               ),
             ),
@@ -687,7 +688,7 @@ class _ProfilePageState extends State<ProfilePage> {
             );
           },
           icon: const Icon(Icons.admin_panel_settings),
-          label: const Text('Pannello Admin'),
+          label: Text(context.l10n.adminPanel),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.amber.shade700,
             foregroundColor: Colors.white,
@@ -710,7 +711,7 @@ class _ProfilePageState extends State<ProfilePage> {
           );
         },
         icon: const Icon(Icons.groups),
-        label: const Text('I miei Gruppi'),
+        label: Text(context.l10n.myGroups),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary.withOpacity(0.9),
           foregroundColor: Colors.white,
@@ -732,7 +733,7 @@ class _ProfilePageState extends State<ProfilePage> {
           );
         },
         icon: const Icon(Icons.bar_chart),
-        label: const Text('Vedi Dashboard'),
+        label: Text(context.l10n.viewDashboard),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
@@ -756,7 +757,7 @@ class _ProfilePageState extends State<ProfilePage> {
           );
         },
         icon: const Icon(Icons.bookmark_outline),
-        label: const Text('Percorsi Salvati'),
+        label: Text(context.l10n.savedRoutes),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -780,7 +781,7 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       },
       icon: const Icon(Icons.leaderboard),
-      label: const Text('Classifica Settimanale'),
+      label: Text(context.l10n.weeklyLeaderboard),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.warning,
         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -804,7 +805,7 @@ class _ProfilePageState extends State<ProfilePage> {
           );
         },
         icon: const Icon(Icons.emoji_events_outlined),
-        label: const Text('I Miei Badge'),
+        label: Text(context.l10n.myBadges),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.success,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -827,7 +828,7 @@ class _ProfilePageState extends State<ProfilePage> {
           );
         },
         icon: const Icon(Icons.emoji_events),
-        label: const Text('Sfide'),
+        label: Text(context.l10n.challenges),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.danger,
           padding: const EdgeInsets.symmetric(vertical: 16),

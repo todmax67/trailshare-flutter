@@ -4,6 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 
 class GroupChatTab extends StatefulWidget {
@@ -64,7 +65,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
 
       await _repo.sendMessage(
         widget.groupId,
-        '📷 Foto',
+        context.l10n.photoEmoji,
         type: 'image',
         imageUrl: url,
       );
@@ -73,7 +74,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Errore invio immagine: $e'),
+            content: Text(context.l10n.sendImageError(e.toString())),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -109,13 +110,13 @@ class _GroupChatTabState extends State<GroupChatTab> {
                       children: [
                         Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[300]),
                         const SizedBox(height: 16),
-                        const Text(
-                          'Nessun messaggio',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        Text(
+                          context.l10n.noMessages,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Inizia la conversazione!',
+                          context.l10n.startConversation,
                           style: TextStyle(color: Colors.grey[600]),
                         ),
                       ],
@@ -148,12 +149,12 @@ class _GroupChatTabState extends State<GroupChatTab> {
         if (_isUploading)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                SizedBox(width: 8),
-                Text('Invio immagine...', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 8),
+                Text(context.l10n.sendingImage, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
               ],
             ),
           ),
@@ -370,7 +371,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
               controller: _messageController,
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
-                hintText: 'Scrivi un messaggio...',
+                hintText: context.l10n.writeMessage,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
@@ -402,13 +403,14 @@ class _GroupChatTabState extends State<GroupChatTab> {
   String _formatTime(DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
+    final time = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
     if (diff.inDays == 0) {
-      return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      return time;
     } else if (diff.inDays == 1) {
-      return 'Ieri ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      return context.l10n.yesterdayAtTime(time);
     } else {
-      return '${date.day}/${date.month} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      return '${date.day}/${date.month} $time';
     }
   }
 }

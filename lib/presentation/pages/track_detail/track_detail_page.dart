@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/gpx_service.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -109,7 +110,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   activityName: _track.activityType.displayName,
                   onExportGpx: () => _exportGpx(context),
                 ),
-                tooltip: 'Condividi',
+                tooltip: context.l10n.shareTooltip,
               ),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert),
@@ -130,11 +131,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   }
                 },
                 itemBuilder: (context) => [
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'edit',
                     child: ListTile(
-                      leading: Icon(Icons.edit),
-                      title: Text('Modifica'),
+                      leading: const Icon(Icons.edit),
+                      title: Text(context.l10n.editMenu),
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
@@ -142,16 +143,16 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     value: _track.isPublic ? 'unpublish' : 'publish',
                     child: ListTile(
                       leading: Icon(_track.isPublic ? Icons.public_off : Icons.public),
-                      title: Text(_track.isPublic ? 'Rimuovi dalla community' : 'Pubblica nella community'),
+                      title: Text(_track.isPublic ? context.l10n.removeFromCommunity : context.l10n.publishToCommunity),
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
                   const PopupMenuDivider(),
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'delete',
                     child: ListTile(
-                      leading: Icon(Icons.delete, color: AppColors.danger),
-                      title: Text('Elimina', style: TextStyle(color: AppColors.danger)),
+                      leading: const Icon(Icons.delete, color: AppColors.danger),
+                      title: Text(context.l10n.deleteAction, style: const TextStyle(color: AppColors.danger)),
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
@@ -231,11 +232,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     final stats = _track.stats;
     return Row(
       children: [
-        _StatCard(icon: Icons.straighten, value: '${(stats.distance / 1000).toStringAsFixed(1)}', unit: 'km', label: 'Distanza', color: AppColors.primary),
+        _StatCard(icon: Icons.straighten, value: '${(stats.distance / 1000).toStringAsFixed(1)}', unit: 'km', label: context.l10n.distanceLabel, color: AppColors.primary),
         const SizedBox(width: 8),
-        _StatCard(icon: Icons.trending_up, value: '+${stats.elevationGain.toStringAsFixed(0)}', unit: 'm', label: 'Dislivello +', color: AppColors.success),
+        _StatCard(icon: Icons.trending_up, value: '+${stats.elevationGain.toStringAsFixed(0)}', unit: 'm', label: context.l10n.elevationGainLabel, color: AppColors.success),
         const SizedBox(width: 8),
-        _StatCard(icon: Icons.timer, value: _formatDuration(stats.duration), unit: '', label: 'Durata', color: AppColors.info),
+        _StatCard(icon: Icons.timer, value: _formatDuration(stats.duration), unit: '', label: context.l10n.durationStatLabel, color: AppColors.info),
       ],
     );
   }
@@ -257,7 +258,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 const Icon(Icons.photo_library, size: 20, color: AppColors.textSecondary),
                 const SizedBox(width: 8),
                 Text(
-                  'Foto (${_track.photos.length})',
+                  context.l10n.photosCount(_track.photos.length),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -314,7 +315,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           children: [
             Row(
               children: [
-                const Text('Dettagli', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(context.l10n.detailsHeader, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 const Spacer(),
                 if (_track.isPublic)
                   Container(
@@ -324,12 +325,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.success.withOpacity(0.3)),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.public, size: 14, color: AppColors.success),
-                        SizedBox(width: 4),
-                        Text('Pubblica', style: TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.w500)),
+                        const Icon(Icons.public, size: 14, color: AppColors.success),
+                        const SizedBox(width: 4),
+                        Text(context.l10n.publishedBadge, style: const TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.w500)),
                       ],
                     ),
                   ),
@@ -353,18 +354,18 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               const SizedBox(height: 12),
             ],
             _buildEditableActivityRow(),
-            _detailRow(Icons.calendar_today, 'Data', _formatDate(_track.createdAt)),
-            _detailRow(Icons.location_on, 'Punti GPS', '${_track.points.length}'),
+            _detailRow(Icons.calendar_today, context.l10n.dateLabel, _formatDate(_track.createdAt)),
+            _detailRow(Icons.location_on, context.l10n.gpsPoints, '${_track.points.length}'),
             if (stats.elevationLoss > 0)
-              _detailRow(Icons.trending_down, 'Dislivello -', '-${stats.elevationLoss.toStringAsFixed(0)} m'),
+              _detailRow(Icons.trending_down, context.l10n.elevationLossLabel, '-${stats.elevationLoss.toStringAsFixed(0)} m'),
             if (stats.maxElevation > 0)
-              _detailRow(Icons.landscape, 'Quota max', '${stats.maxElevation.toStringAsFixed(0)} m'),
+              _detailRow(Icons.landscape, context.l10n.maxElevation, '${stats.maxElevation.toStringAsFixed(0)} m'),
             if (stats.minElevation > 0)
-              _detailRow(Icons.terrain, 'Quota min', '${stats.minElevation.toStringAsFixed(0)} m'),
+              _detailRow(Icons.terrain, context.l10n.minElevation, '${stats.minElevation.toStringAsFixed(0)} m'),
             if (_track.healthCalories != null)
-              _detailRow(Icons.local_fire_department, 'Calorie', '${_track.healthCalories!.round()} kcal'),
+              _detailRow(Icons.local_fire_department, context.l10n.caloriesLabel, '${_track.healthCalories!.round()} kcal'),
             if (_track.healthSteps != null)
-              _detailRow(Icons.directions_walk, 'Passi', '${_track.healthSteps}'),  
+              _detailRow(Icons.directions_walk, context.l10n.stepsLabel, '${_track.healthSteps}'),  
           ],
         ),
       ),
@@ -382,7 +383,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           children: [
             Icon(Icons.sports, size: 20, color: Colors.grey[600]),
             const SizedBox(width: 12),
-            Text('Attività', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+            Text(context.l10n.activityLabel, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
             const Spacer(),
             Text(
               '${_track.activityType.icon} ${_track.activityType.displayName}',
@@ -404,12 +405,23 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       grouped.putIfAbsent(type.category, () => []).add(type);
     }
 
+    /// Mappa categoria Firestore → emoji
     String categoryIcon(String cat) {
       switch (cat) {
         case 'A piedi': return '🚶';
         case 'In bicicletta': return '🚴';
         case 'Sport invernali': return '❄️';
         default: return '🏃';
+      }
+    }
+
+    /// Mappa categoria Firestore → label localizzata
+    String categoryLabel(String cat) {
+      switch (cat) {
+        case 'A piedi': return context.l10n.onFoot;
+        case 'In bicicletta': return context.l10n.byBicycle;
+        case 'Sport invernali': return context.l10n.winterSports;
+        default: return cat;
       }
     }
 
@@ -435,11 +447,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               ),
             ),
             // Titolo
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
               child: Text(
-                'Cambia attività',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                context.l10n.changeActivity,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             // Lista sport per categoria
@@ -457,7 +469,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                           Text(categoryIcon(entry.key), style: const TextStyle(fontSize: 16)),
                           const SizedBox(width: 8),
                           Text(
-                            entry.key,
+                            categoryLabel(entry.key),
                             style: TextStyle(
                               fontSize: 13, fontWeight: FontWeight.w700,
                               color: Colors.grey[600], letterSpacing: 0.5,
@@ -509,7 +521,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Attività cambiata in ${type.displayName}'),
+                                  content: Text(context.l10n.activityChangedTo(type.displayName)),
                                   backgroundColor: const Color(0xFF388E3C),
                                   duration: const Duration(seconds: 2),
                                 ),
@@ -559,7 +571,6 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       ),
     );
   }
-
   Widget _detailRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -582,7 +593,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore export: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.exportError(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -627,25 +638,25 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Modifica traccia'),
+        title: Text(context.l10n.editTrack),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nome',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: context.l10n.nameLabel,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Descrizione',
-                  border: OutlineInputBorder(),
-                  hintText: 'Aggiungi una descrizione...',
+                decoration: InputDecoration(
+                  labelText: context.l10n.descriptionLabel,
+                  border: const OutlineInputBorder(),
+                  hintText: context.l10n.addDescription,
                 ),
                 maxLines: 4,
               ),
@@ -655,7 +666,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -664,7 +675,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               
               if (newName.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Il nome non può essere vuoto')),
+                  SnackBar(content: Text(context.l10n.nameCannotBeEmpty)),
                 );
                 return;
               }
@@ -687,19 +698,19 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('✅ Traccia aggiornata!'), backgroundColor: AppColors.success),
+                    SnackBar(content: Text(context.l10n.trackUpdated), backgroundColor: AppColors.success),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+                    SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
                   );
                 }
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            child: const Text('Salva'),
+            child: Text(context.l10n.save),
           ),
         ],
       ),
@@ -710,29 +721,29 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Pubblica nella community'),
+        title: Text(context.l10n.publishToCommunity),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('La tua traccia sarà visibile a tutti gli utenti nella sezione "Scopri".'),
+            Text(context.l10n.publishDialogContent),
             const SizedBox(height: 16),
-            _buildSummaryRow('Nome', _track.name),
-            _buildSummaryRow('Distanza', '${_track.stats.distanceKm.toStringAsFixed(1)} km'),
-            _buildSummaryRow('Dislivello', '+${_track.stats.elevationGain.toStringAsFixed(0)} m'),
+            _buildSummaryRow(context.l10n.nameLabel, _track.name),
+            _buildSummaryRow(context.l10n.distanceLabel, '${_track.stats.distanceKm.toStringAsFixed(1)} km'),
+            _buildSummaryRow(context.l10n.elevationGainLabel, '+${_track.stats.elevationGain.toStringAsFixed(0)} m'),
             if (_track.description != null && _track.description!.isNotEmpty)
-              _buildSummaryRow('Descrizione', _track.description!),
+              _buildSummaryRow(context.l10n.descriptionLabel, _track.description!),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => _publishTrack(),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            child: const Text('Pubblica'),
+            child: Text(context.l10n.publishAction),
           ),
         ],
       ),
@@ -755,13 +766,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Dati battito cardiaco',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    Text(
+                      context.l10n.heartRateDataTitle,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Tocca per cercare dati HR dal tuo smartwatch',
+                      context.l10n.tapToSearchHR,
                       style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                     ),
                   ],
@@ -779,7 +790,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     if (_track.id == null) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('🔍 Ricerca dati battito cardiaco...')),
+      SnackBar(content: Text(context.l10n.searchingHR)),
     );
 
     try {
@@ -827,15 +838,15 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('❤️ ${hrData.length} campioni HR trovati!')),
+            SnackBar(content: Text(context.l10n.hrSamplesFound(hrData.length))),
           );
         }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Nessun dato HR trovato. Assicurati che il tuo smartwatch abbia sincronizzato con Health Connect.'),
-              duration: Duration(seconds: 4),
+            SnackBar(
+              content: Text(context.l10n.noHRData),
+              duration: const Duration(seconds: 4),
             ),
           );
         }
@@ -844,7 +855,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       debugPrint('[TrackDetail] Errore refresh HR: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Errore nel recupero dati HR')),
+          SnackBar(content: Text(context.l10n.hrRetrievalError)),
         );
       }
     }
@@ -869,7 +880,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Devi essere loggato'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text(context.l10n.mustBeLoggedIn), backgroundColor: AppColors.danger),
       );
       return;
     }
@@ -897,16 +908,16 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('✅ Traccia pubblicata nella community!'), backgroundColor: AppColors.success),
+            SnackBar(content: Text(context.l10n.trackPublished), backgroundColor: AppColors.success),
           );
         }
       } else {
-        throw Exception('Pubblicazione fallita');
+        throw Exception(context.l10n.publishFailed);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -916,17 +927,17 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rimuovi dalla community'),
-        content: const Text('La traccia non sarà più visibile nella sezione "Scopri". Puoi ripubblicarla in qualsiasi momento.'),
+        title: Text(context.l10n.removeFromCommunity),
+        content: Text(context.l10n.unpublishContent),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => _unpublishTrack(),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning, foregroundColor: Colors.white),
-            child: const Text('Rimuovi'),
+            child: Text(context.l10n.removeAction),
           ),
         ],
       ),
@@ -947,14 +958,14 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Traccia rimossa dalla community'), backgroundColor: AppColors.info),
+            SnackBar(content: Text(context.l10n.trackUnpublished), backgroundColor: AppColors.info),
           );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -964,17 +975,17 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Elimina traccia'),
-        content: const Text('Questa azione è irreversibile. La traccia verrà eliminata definitivamente.'),
+        title: Text(context.l10n.deleteTrack),
+        content: Text(context.l10n.deleteTrackContent),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => _deleteTrack(),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.deleteAction),
           ),
         ],
       ),
@@ -994,14 +1005,14 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Traccia eliminata'), backgroundColor: AppColors.info),
+          SnackBar(content: Text(context.l10n.trackDeleted), backgroundColor: AppColors.info),
         );
         Navigator.pop(context); // Torna indietro
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -1013,9 +1024,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           .collection('user_profiles')
           .doc(uid)
           .get();
-      return doc.data()?['username'] ?? 'Utente';
+      return doc.data()?['username'] ?? context.l10n.userLabel;
     } catch (_) {
-      return 'Utente';
+      return context.l10n.userLabel;
     }
   }
 }
@@ -1115,12 +1126,12 @@ class _PhotoThumbnail extends StatelessWidget {
               errorBuilder: (context, error, stackTrace) {
                 return Container(
                   color: AppColors.background,
-                  child: const Column(
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.broken_image, color: AppColors.textMuted, size: 32),
-                      SizedBox(height: 4),
-                      Text('Errore', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                      const Icon(Icons.broken_image, color: AppColors.textMuted, size: 32),
+                      const SizedBox(height: 4),
+                      Text(context.l10n.errorLabel, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
                     ],
                   ),
                 );
@@ -1240,7 +1251,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
           // Scarica foto
           IconButton(
             icon: const Icon(Icons.download, color: Colors.white, size: 28),
-            tooltip: 'Scarica',
+            tooltip: context.l10n.downloadTooltip,
             onPressed: () => _downloadPhoto(widget.photos[_currentIndex].url),
           ),
         ],
@@ -1330,13 +1341,13 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           if (photo.elevation != null)
-            _metadataItem(Icons.terrain, '${photo.elevation!.toStringAsFixed(0)} m', 'Quota'),
+            _metadataItem(Icons.terrain, '${photo.elevation!.toStringAsFixed(0)} m', context.l10n.quotaMetadata),
           if (photo.latitude != null && photo.longitude != null)
-            _metadataItem(Icons.location_on, 'GPS', 'Posizione'),
+            _metadataItem(Icons.location_on, 'GPS', context.l10n.positionMetadata),
           _metadataItem(
             Icons.access_time,
             '${photo.timestamp.hour.toString().padLeft(2, '0')}:${photo.timestamp.minute.toString().padLeft(2, '0')}',
-            'Ora',
+            context.l10n.timeMetadata,
           ),
         ],
       ),
@@ -1368,25 +1379,25 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Informazioni Foto',
-              style: TextStyle(
+            Text(
+              context.l10n.photoInfoTitle,
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            _infoRow('Data', '${photo.timestamp.day}/${photo.timestamp.month}/${photo.timestamp.year}'),
-            _infoRow('Ora', '${photo.timestamp.hour.toString().padLeft(2, '0')}:${photo.timestamp.minute.toString().padLeft(2, '0')}'),
+            _infoRow(context.l10n.dateInfoLabel, '${photo.timestamp.day}/${photo.timestamp.month}/${photo.timestamp.year}'),
+            _infoRow(context.l10n.timeInfoLabel, '${photo.timestamp.hour.toString().padLeft(2, '0')}:${photo.timestamp.minute.toString().padLeft(2, '0')}'),
             if (photo.latitude != null)
-              _infoRow('Latitudine', photo.latitude!.toStringAsFixed(6)),
+              _infoRow(context.l10n.latitudeLabel, photo.latitude!.toStringAsFixed(6)),
             if (photo.longitude != null)
-              _infoRow('Longitudine', photo.longitude!.toStringAsFixed(6)),
+              _infoRow(context.l10n.longitudeLabel, photo.longitude!.toStringAsFixed(6)),
             if (photo.elevation != null)
-              _infoRow('Quota', '${photo.elevation!.toStringAsFixed(0)} m'),
+              _infoRow(context.l10n.elevationQuotaLabel, '${photo.elevation!.toStringAsFixed(0)} m'),
             if (photo.caption != null && photo.caption!.isNotEmpty)
-              _infoRow('Descrizione', photo.caption!),
+              _infoRow(context.l10n.captionLabel, photo.caption!),
             SizedBox(height: MediaQuery.of(context).padding.bottom),
           ],
         ),
@@ -1413,11 +1424,11 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
   Future<void> _downloadPhoto(String url) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Download in corso...')),
+        SnackBar(content: Text(context.l10n.downloadInProgress)),
       );
 
       final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) throw Exception('Errore download');
+      if (response.statusCode != 200) throw Exception(context.l10n.downloadError);
 
       final tempDir = await getTemporaryDirectory();
       final fileName = 'trailshare_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -1428,12 +1439,12 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'Foto da ${widget.trackName}',
+        text: context.l10n.photoFrom(widget.trackName),
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: Colors.red),
         );
       }
     }

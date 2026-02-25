@@ -11,9 +11,11 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/services/location_service.dart';
 
 /// Pagina per seguire una traccia in tempo reale
 ///
@@ -264,23 +266,16 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        setState(() => _gpsError = 'GPS disattivato');
+        setState(() => _gpsError = context.l10n.gpsDisabled);
         return;
       }
 
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-        if (perm == LocationPermission.denied) {
-          setState(() => _gpsError = 'Permesso GPS negato');
-          return;
-        }
-      }
-      if (perm == LocationPermission.deniedForever) {
-        setState(() => _gpsError = 'Permesso GPS negato permanentemente');
+      final hasPermission = await LocationService().checkAndRequestPermission(context: context);
+      if (!hasPermission) {
+        setState(() => _gpsError = context.l10n.gpsPermDenied);
         return;
       }
-
+      
       // Prima posizione
       try {
         final pos = await Geolocator.getCurrentPosition(
@@ -302,7 +297,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
         _onNewPosition,
         onError: (e) {
           debugPrint('[TrailFollow] GPS error: $e');
-          if (mounted) setState(() => _gpsError = 'Errore GPS');
+          if (mounted) setState(() => _gpsError = context.l10n.gpsError);
         },
       );
 
@@ -311,7 +306,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
         _gpsError = null;
       });
     } catch (e) {
-      setState(() => _gpsError = 'Errore: $e');
+      setState(() => _gpsError = context.l10n.errorWithDetails(e.toString()));
     }
   }
 
@@ -479,7 +474,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Troppo pochi punti per salvare')),
+          SnackBar(content: Text(context.l10n.tooFewPointsToSave)),
         );
       }
       return;
@@ -498,7 +493,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Devi essere loggato per salvare')),
+        SnackBar(content: Text(context.l10n.mustBeLoggedToSave)),
       );
       return;
     }
@@ -519,16 +514,16 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
       final discard = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Scartare registrazione?'),
-          content: Text('Hai registrato ${_recordedPoints.length} punti. Vuoi scartarli?'),
+          title: Text(context.l10n.discardRecording),
+          content: Text(context.l10n.recordedPointsDiscard(_recordedPoints.length)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('No, salva'),
+              child: Text(context.l10n.noSave),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Scarta', style: TextStyle(color: AppColors.danger)),
+              child: Text(context.l10n.discardAction, style: const TextStyle(color: AppColors.danger)),
             ),
           ],
         ),
@@ -569,7 +564,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Traccia "$name" salvata! (${_recordedPoints.length} punti)'),
+            content: Text(context.l10n.trackSavedWithCount(name, _recordedPoints.length)),
             backgroundColor: AppColors.success,
           ),
         );
@@ -581,7 +576,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Errore salvataggio: $e'),
+            content: Text(context.l10n.saveErrorWithDetails(e.toString())),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -687,13 +682,13 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
           if (_isSavingTrack)
             Container(
               color: Colors.black45,
-              child: const Center(
+              child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 16),
-                    Text('Salvataggio traccia...', style: TextStyle(color: Colors.white, fontSize: 16)),
+                    const CircularProgressIndicator(color: Colors.white),
+                    const SizedBox(height: 16),
+                    Text(context.l10n.savingTrack, style: const TextStyle(color: Colors.white, fontSize: 16)),
                   ],
                 ),
               ),
@@ -886,7 +881,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    _isGpsActive ? 'Navigazione attiva' : 'In attesa del GPS...',
+                    _isGpsActive ? context.l10n.navigationActive : context.l10n.waitingForGps,
                     style: TextStyle(
                       fontSize: 11,
                       color: _isGpsActive ? AppColors.success : AppColors.textMuted,
@@ -902,8 +897,8 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(_soundEnabled
-                        ? '🔊 Allarme sonoro attivato'
-                        : '🔇 Allarme sonoro disattivato'),
+                        ? context.l10n.soundAlertEnabled
+                        : context.l10n.soundAlertDisabled),
                     duration: const Duration(seconds: 1),
                   ),
                 );
@@ -964,8 +959,8 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
             Expanded(
               child: Text(
                 isSevere
-                    ? 'Sei a ${_distanceFromTrail.toStringAsFixed(0)}m dalla traccia!'
-                    : 'Fuori traccia (${_distanceFromTrail.toStringAsFixed(0)}m)',
+                    ? context.l10n.severeOffTrailDistance(_distanceFromTrail.toStringAsFixed(0))
+                    : context.l10n.offTrailDistance(_distanceFromTrail.toStringAsFixed(0)),
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -996,13 +991,13 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.emoji_events, color: Colors.white, size: 24),
-            SizedBox(width: 8),
+            const Icon(Icons.emoji_events, color: Colors.white, size: 24),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Sei arrivato alla fine del sentiero! 🎉',
+                context.l10n.arrivedAtEnd,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1144,7 +1139,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
           _MapBtn(
             icon: Icons.crop_free,
             onTap: _centerOnTrail,
-            tooltip: 'Vedi tutta la traccia',
+            tooltip: context.l10n.seeFullTrail,
           ),
           const SizedBox(height: 8),
           // Centra su utente (evidenziato se follow attivo)
@@ -1152,7 +1147,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
             icon: Icons.my_location,
             onTap: _centerOnUser,
             highlighted: _followUser,
-            tooltip: 'Centra su di me',
+            tooltip: context.l10n.centerOnMe,
           ),
         ],
       ),
@@ -1204,7 +1199,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '${(progressPercent * 100).toStringAsFixed(0)}% completato',
+                          context.l10n.percentCompleted((progressPercent * 100).toStringAsFixed(0)),
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -1244,25 +1239,25 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                     _StatTile(
                       icon: Icons.straighten,
                       value: _formatDistance(_distanceRemaining),
-                      label: 'Restante',
+                      label: context.l10n.remainingLabel,
                       color: AppColors.primary,
                     ),
                     _StatTile(
                       icon: Icons.trending_up,
                       value: '+${_elevationGainRemaining.toStringAsFixed(0)}m',
-                      label: 'Salita',
+                      label: context.l10n.ascentLabel,
                       color: AppColors.success,
                     ),
                     _StatTile(
                       icon: Icons.terrain,
                       value: '${_currentElevation.toStringAsFixed(0)}m',
-                      label: 'Quota',
+                      label: context.l10n.altitudeLabel,
                       color: AppColors.info,
                     ),
                     _StatTile(
                       icon: _isOffTrail ? Icons.warning_amber : Icons.near_me,
                       value: '${_distanceFromTrail.toStringAsFixed(0)}m',
-                      label: 'Dalla traccia',
+                      label: context.l10n.fromTrailLabel,
                       color: _isOffTrail ? AppColors.danger : AppColors.textMuted,
                     ),
                   ],
@@ -1324,23 +1319,22 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
       final action = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Registrazione attiva'),
+          title: Text(context.l10n.activeRecording),
           content: Text(
-            'Hai registrato ${_recordedPoints.length} punti in ${_formatRecDuration(_recordingDuration)}.\n'
-            'Cosa vuoi fare?',
+            context.l10n.recordedPointsInfo(_recordedPoints.length, _formatRecDuration(_recordingDuration)),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'continue'),
-              child: const Text('Continua'),
+              child: Text(context.l10n.continueAction),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'save_exit'),
-              child: const Text('Salva ed esci'),
+              child: Text(context.l10n.saveAndExit),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'discard_exit'),
-              child: const Text('Scarta ed esci', style: TextStyle(color: AppColors.danger)),
+              child: Text(context.l10n.discardAndExit, style: const TextStyle(color: AppColors.danger)),
             ),
           ],
         ),
@@ -1367,16 +1361,16 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
     final exit = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Interrompere navigazione?'),
-        content: const Text('Vuoi smettere di seguire questa traccia?'),
+        title: Text(context.l10n.stopNavigation),
+        content: Text(context.l10n.stopFollowingQuestion),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Continua'),
+            child: Text(context.l10n.continueAction),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Esci'),
+            child: Text(context.l10n.exitAction),
           ),
         ],
       ),
@@ -1691,11 +1685,11 @@ class _SaveRecordingDialogState extends State<_SaveRecordingDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
-          Icon(Icons.save, color: AppColors.primary),
-          SizedBox(width: 8),
-          Text('Salva traccia'),
+          const Icon(Icons.save, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Text(context.l10n.saveTrackTitle),
         ],
       ),
       content: SingleChildScrollView(
@@ -1714,15 +1708,15 @@ class _SaveRecordingDialogState extends State<_SaveRecordingDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _MiniStat(
-                    label: 'Distanza',
+                    label: context.l10n.distanceLabel,
                     value: '${(widget.distance / 1000).toStringAsFixed(1)} km',
                   ),
                   _MiniStat(
-                    label: 'Durata',
+                    label: context.l10n.durationStatLabel,
                     value: _formatDuration(widget.duration),
                   ),
                   _MiniStat(
-                    label: 'Punti',
+                    label: context.l10n.pointsLabel,
                     value: '${widget.pointsCount}',
                   ),
                 ],
@@ -1733,16 +1727,16 @@ class _SaveRecordingDialogState extends State<_SaveRecordingDialog> {
             // Nome traccia
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nome traccia',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.edit),
+              decoration: InputDecoration(
+                labelText: context.l10n.trackName,
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.edit),
               ),
             ),
             const SizedBox(height: 16),
 
             // Tipo attività
-            const Text('Tipo attività', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+            Text(context.l10n.activityTypeLabel, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -1765,7 +1759,7 @@ class _SaveRecordingDialogState extends State<_SaveRecordingDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, null),
-          child: const Text('Annulla'),
+          child: Text(context.l10n.cancel),
         ),
         ElevatedButton.icon(
           onPressed: () {
@@ -1776,7 +1770,7 @@ class _SaveRecordingDialogState extends State<_SaveRecordingDialog> {
             });
           },
           icon: const Icon(Icons.save, size: 18),
-          label: const Text('Salva'),
+          label: Text(context.l10n.save),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,

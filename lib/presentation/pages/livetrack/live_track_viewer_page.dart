@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/live_track_repository.dart';
 import '../../../core/services/offline_tile_provider.dart';
 
@@ -51,7 +52,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
       (session) {
         if (session == null) {
           setState(() {
-            _error = 'Sessione non trovata o scaduta';
+            _error = context.l10n.sessionNotFound;
             _isLoading = false;
           });
           return;
@@ -72,7 +73,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
       },
       onError: (e) {
         setState(() {
-          _error = 'Errore: $e';
+          _error = context.l10n.errorWithDetails(e.toString());
           _isLoading = false;
         });
       },
@@ -283,7 +284,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
                           ),
                         ),
                       Text(
-                        session.isActive ? 'IN DIRETTA' : 'TERMINATA',
+                        session.isActive ? context.l10n.inLive : context.l10n.ended,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -321,7 +322,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
             
             // Ultimo aggiornamento
             Text(
-              'Ultimo segnale: ${session.lastUpdateFormatted}',
+              context.l10n.lastSignal(session.lastUpdateFormatted),
               style: TextStyle(
                 color: Colors.grey[600],
                 fontSize: 12,
@@ -333,7 +334,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Durata: ${session.durationFormatted}',
+                  context.l10n.durationLabel(session.durationFormatted),
                   style: TextStyle(
                     color: Colors.grey[600],
                     fontSize: 12,
@@ -363,7 +364,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Torna indietro'),
+              child: Text(context.l10n.goBack),
             ),
           ],
         ),

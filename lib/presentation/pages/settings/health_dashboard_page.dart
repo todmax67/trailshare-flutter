@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/health_service.dart';
 
 /// Dashboard Salute — mostra dati aggregati da Health Connect
@@ -56,7 +57,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard Salute'),
+        title: Text(context.l10n.healthDashboard),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -79,13 +80,13 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
                     const SizedBox(height: 24),
 
                     // Grafico passi settimanali
-                    _buildSectionTitle('Passi — Ultimi 7 giorni'),
+                    _buildSectionTitle(context.l10n.stepsLast7Days),
                     const SizedBox(height: 8),
                     _buildWeeklyStepsChart(),
                     const SizedBox(height: 24),
 
                     // Grafico calorie settimanali
-                    _buildSectionTitle('Calorie — Ultimi 7 giorni'),
+                    _buildSectionTitle(context.l10n.caloriesLast7Days),
                     const SizedBox(height: 8),
                     _buildWeeklyCaloriesChart(),
                     const SizedBox(height: 24),
@@ -105,7 +106,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
         Expanded(
           child: _DashboardCard(
             icon: Icons.directions_walk,
-            title: 'Passi oggi',
+            title: context.l10n.stepsToday,
             value: _formatSteps(_todaySteps),
             subtitle: _stepsGoalText(),
             color: AppColors.primary,
@@ -116,9 +117,9 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
         Expanded(
           child: _DashboardCard(
             icon: Icons.favorite,
-            title: 'FC riposo',
+            title: context.l10n.restingHR,
             value: _restingHR != null ? '$_restingHR' : '--',
-            subtitle: _restingHR != null ? 'bpm' : 'Non disponibile',
+            subtitle: _restingHR != null ? 'bpm' : context.l10n.notAvailable,
             color: AppColors.danger,
           ),
         ),
@@ -135,8 +136,8 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
 
   String _stepsGoalText() {
     final pct = ((_todaySteps / 10000) * 100).round();
-    if (_todaySteps >= 10000) return '🎉 Obiettivo raggiunto!';
-    return '$pct% di 10.000';
+    if (_todaySteps >= 10000) return context.l10n.goalReached;
+    return context.l10n.percentOfGoal(pct);
   }
 
   Widget _buildSectionTitle(String title) {
@@ -151,7 +152,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
 
   Widget _buildWeeklyStepsChart() {
     if (_weeklySteps.isEmpty) {
-      return _buildEmptyChart('Nessun dato passi disponibile');
+      return _buildEmptyChart(context.l10n.noStepsData);
     }
 
     final entries = _weeklySteps.entries.toList();
@@ -174,7 +175,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
                   getTooltipItem: (group, groupIndex, rod, rodIndex) {
                     final key = entries[groupIndex].key;
                     return BarTooltipItem(
-                      '$key\n${entries[groupIndex].value} passi',
+                      '$key\n${entries[groupIndex].value} ${context.l10n.stepsUnit}',
                       TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.bold,
@@ -233,7 +234,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
 
   Widget _buildWeeklyCaloriesChart() {
     if (_weeklyCalories.isEmpty) {
-      return _buildEmptyChart('Nessun dato calorie disponibile');
+      return _buildEmptyChart(context.l10n.noCaloriesData);
     }
 
     final entries = _weeklyCalories.entries.toList();
@@ -345,8 +346,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'I dati provengono dal tuo smartwatch tramite Health Connect. '
-                'Assicurati che il dispositivo sia sincronizzato per dati aggiornati.',
+                context.l10n.healthDataInfo,
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
             ),

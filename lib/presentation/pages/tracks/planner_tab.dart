@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart' hide ActivityType;
 import 'package:latlong2/latlong.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/routing_service.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../data/models/track.dart';
@@ -180,13 +181,13 @@ class _PlannerTabState extends State<PlannerTab> {
         _routeResult = result;
         _isCalculating = false;
         if (result == null) {
-          _errorMessage = 'Impossibile calcolare il percorso. Riprova.';
+          _errorMessage = context.l10n.cannotCalculateRoute;
         }
       });
     } catch (e) {
       setState(() {
         _isCalculating = false;
-        _errorMessage = 'Errore: $e';
+        _errorMessage = context.l10n.errorWithDetails(e.toString());
       });
     }
   }
@@ -194,7 +195,7 @@ class _PlannerTabState extends State<PlannerTab> {
   Future<void> _saveRoute() async {
     if (_routeResult == null || _waypoints.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aggiungi almeno 2 punti al percorso')),
+        SnackBar(content: Text(context.l10n.addAtLeast2Points)),
       );
       return;
     }
@@ -202,7 +203,7 @@ class _PlannerTabState extends State<PlannerTab> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Devi effettuare il login per salvare')),
+        SnackBar(content: Text(context.l10n.loginToSave)),
       );
       return;
     }
@@ -255,8 +256,8 @@ class _PlannerTabState extends State<PlannerTab> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Percorso salvato! 🎉'),
+          SnackBar(
+            content: Text(context.l10n.routeSaved),
             backgroundColor: AppColors.success,
           ),
         );
@@ -267,7 +268,7 @@ class _PlannerTabState extends State<PlannerTab> {
       print('[Planner] Errore salvataggio: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -458,7 +459,9 @@ class _PlannerTabState extends State<PlannerTab> {
                         const CircularProgressIndicator(),
                         const SizedBox(height: 16),
                         Text(
-                          'Calcolo percorso ${_profile == RoutingProfile.hiking ? "hiking" : "cycling"}...',
+                          _profile == RoutingProfile.hiking 
+                              ? context.l10n.calculatingRouteHiking 
+                              : context.l10n.calculatingRouteCycling,
                           style: const TextStyle(fontSize: 14),
                         ),
                       ],
@@ -504,14 +507,16 @@ class _PlannerTabState extends State<PlannerTab> {
               children: [
                 Text(
                   _waypoints.isEmpty
-                      ? 'Tocca la mappa per iniziare'
-                      : '${_waypoints.length} ${_waypoints.length == 1 ? "punto" : "punti"}',
+                      ? context.l10n.tapMapToStart
+                      : _waypoints.length == 1 
+                          ? context.l10n.waypointSingle 
+                          : context.l10n.waypointCount(_waypoints.length),
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 ),
                 Text(
                   _waypoints.isEmpty
-                      ? 'Aggiungi punti per creare un percorso'
-                      : 'Tieni premuto per rimuovere',
+                      ? context.l10n.addPointsToCreate
+                      : context.l10n.longPressToRemove,
                   style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],
@@ -610,7 +615,7 @@ class _PlannerTabState extends State<PlannerTab> {
             backgroundColor: AppColors.primary,
             elevation: 4,
             icon: const Icon(Icons.save),
-            label: const Text('Salva'),
+            label: Text(context.l10n.save),
           ),
       ],
     );
@@ -655,24 +660,24 @@ class _PlannerTabState extends State<PlannerTab> {
                 _StatItem(
                   icon: Icons.straighten,
                   value: hasRoute ? '${_routeResult!.distanceKm.toStringAsFixed(1)} km' : '--',
-                  label: 'Distanza',
+                  label: context.l10n.distanceLabel,
                 ),
                 _StatItem(
                   icon: Icons.trending_up,
                   value: hasRoute ? '+${_routeResult!.elevationGain.toStringAsFixed(0)} m' : '--',
-                  label: 'Salita',
+                  label: context.l10n.ascentLabel,
                   valueColor: AppColors.success,
                 ),
                 _StatItem(
                   icon: Icons.trending_down,
                   value: hasRoute ? '-${_routeResult!.elevationLoss.toStringAsFixed(0)} m' : '--',
-                  label: 'Discesa',
+                  label: context.l10n.descentLabel,
                   valueColor: AppColors.danger,
                 ),
                 _StatItem(
                   icon: Icons.schedule,
                   value: hasRoute ? _routeResult!.durationFormatted : '--',
-                  label: 'Tempo',
+                  label: context.l10n.timeEstLabel,
                 ),
               ],
             ),
@@ -701,12 +706,12 @@ class _PlannerTabState extends State<PlannerTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancella percorso'),
-        content: const Text('Vuoi cancellare tutti i punti?'),
+        title: Text(context.l10n.clearRoute),
+        content: Text(context.l10n.clearRouteConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -714,7 +719,7 @@ class _PlannerTabState extends State<PlannerTab> {
               _clearAll();
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Cancella'),
+            child: Text(context.l10n.clearAction),
           ),
         ],
       ),
@@ -879,7 +884,7 @@ class _SaveRouteDialogState extends State<_SaveRouteDialog> {
   @override
   void initState() {
     super.initState();
-    final activity = widget.profile == RoutingProfile.hiking ? 'Escursione' : 'Giro in bici';
+    final activity = widget.profile == RoutingProfile.hiking ? context.l10n.hikeDefaultName : context.l10n.bikeDefaultName;
     final date = DateTime.now();
     _nameController.text = '$activity ${date.day}/${date.month}';
   }
@@ -894,7 +899,7 @@ class _SaveRouteDialogState extends State<_SaveRouteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Salva percorso'),
+      title: Text(context.l10n.saveRoute),
       content: Form(
         key: _formKey,
         child: Column(
@@ -913,14 +918,14 @@ class _SaveRouteDialogState extends State<_SaveRouteDialog> {
                     children: [
                       Text('${widget.distance.toStringAsFixed(1)} km',
                           style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const Text('Distanza', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                      Text(context.l10n.distanceLabel, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                     ],
                   ),
                   Column(
                     children: [
                       Text('+${widget.elevationGain.toStringAsFixed(0)} m',
                           style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
-                      const Text('Dislivello', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                      Text(context.l10n.elevationGainShort, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                     ],
                   ),
                 ],
@@ -929,21 +934,21 @@ class _SaveRouteDialogState extends State<_SaveRouteDialog> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nome percorso',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.edit),
+              decoration: InputDecoration(
+                labelText: context.l10n.routeName,
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.edit),
               ),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Inserisci un nome' : null,
+              validator: (v) => v == null || v.trim().isEmpty ? context.l10n.enterAName : null,
               textCapitalization: TextCapitalization.sentences,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _descController,
-              decoration: const InputDecoration(
-                labelText: 'Descrizione (opzionale)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.notes),
+              decoration: InputDecoration(
+                labelText: context.l10n.descriptionOptional,
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.notes),
               ),
               maxLines: 2,
               textCapitalization: TextCapitalization.sentences,
@@ -954,7 +959,7 @@ class _SaveRouteDialogState extends State<_SaveRouteDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Annulla'),
+          child: Text(context.l10n.cancel),
         ),
         ElevatedButton.icon(
           onPressed: () {
@@ -966,7 +971,7 @@ class _SaveRouteDialogState extends State<_SaveRouteDialog> {
             }
           },
           icon: const Icon(Icons.save),
-          label: const Text('Salva'),
+          label: Text(context.l10n.save),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,

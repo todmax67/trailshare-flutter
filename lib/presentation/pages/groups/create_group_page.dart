@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 
 class CreateGroupPage extends StatefulWidget {
@@ -42,16 +43,16 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
 
       if (groupId != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Gruppo creato!'),
+          SnackBar(
+            content: Text(context.l10n.groupCreated),
             backgroundColor: AppColors.success,
           ),
         );
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Errore nella creazione del gruppo'),
+          SnackBar(
+            content: Text(context.l10n.groupCreationError),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -63,7 +64,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nuovo Gruppo'),
+        title: Text(context.l10n.newGroup),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -94,24 +95,24 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
               const SizedBox(height: 32),
 
               // Nome
-              const Text(
-                'Nome del gruppo',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              Text(
+                context.l10n.groupNameLabel,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  hintText: 'Es. Escursionisti Orobie',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.group),
+                decoration: InputDecoration(
+                  hintText: context.l10n.groupNameHint,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.group),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Inserisci un nome per il gruppo';
+                    return context.l10n.enterGroupName;
                   }
                   if (value.trim().length < 3) {
-                    return 'Il nome deve avere almeno 3 caratteri';
+                    return context.l10n.nameMinThreeChars;
                   }
                   return null;
                 },
@@ -119,50 +120,50 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
               const SizedBox(height: 24),
 
               // Descrizione
-              const Text(
-                'Descrizione (opzionale)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              Text(
+                context.l10n.descriptionOptional,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _descriptionController,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Cosa fa il vostro gruppo?',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.description),
+                decoration: InputDecoration(
+                  hintText: context.l10n.whatDoesYourGroupDo,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.description),
                 ),
               ),
               const SizedBox(height: 24),
 
               // Visibilità — 3 opzioni
-              const Text(
-                'Visibilità',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              Text(
+                context.l10n.visibilityLabel,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               const SizedBox(height: 12),
 
               _buildVisibilityOption(
                 value: 'public',
                 icon: Icons.public,
-                title: 'Pubblico',
-                subtitle: 'Visibile a tutti, chiunque può unirsi',
+                title: context.l10n.publicLabel,
+                subtitle: context.l10n.publicVisibilityDescFull,
                 color: AppColors.success,
               ),
               const SizedBox(height: 8),
               _buildVisibilityOption(
                 value: 'private',
                 icon: Icons.lock_open,
-                title: 'Privato',
-                subtitle: 'Visibile a tutti, ma serve approvazione admin',
+                title: context.l10n.privateLabel,
+                subtitle: context.l10n.privateVisibilityDescFull,
                 color: AppColors.primary,
               ),
               const SizedBox(height: 8),
               _buildVisibilityOption(
                 value: 'secret',
                 icon: Icons.lock,
-                title: 'Segreto',
-                subtitle: 'Invisibile, accessibile solo tramite codice invito',
+                title: context.l10n.secretLabel,
+                subtitle: context.l10n.secretVisibilityDescFull,
                 color: Colors.grey,
               ),
 
@@ -189,9 +190,9 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text(
-                          'Crea Gruppo',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      : Text(
+                          context.l10n.createGroup,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                 ),
               ),

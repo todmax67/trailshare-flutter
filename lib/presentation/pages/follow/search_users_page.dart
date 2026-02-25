@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../widgets/follow_button.dart';
 import '../profile/public_profile_page.dart';
@@ -72,7 +73,7 @@ class _SearchUsersPageState extends State<SearchUsersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cerca utenti'),
+        title: Text(context.l10n.searchUsers),
       ),
       body: Column(
         children: [
@@ -84,7 +85,7 @@ class _SearchUsersPageState extends State<SearchUsersPage> {
               autofocus: true,
               onChanged: _search,
               decoration: InputDecoration(
-                hintText: 'Cerca per username...',
+                hintText: context.l10n.searchByUsername,
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -133,13 +134,13 @@ class _SearchUsersPageState extends State<SearchUsersPage> {
             Icon(Icons.person_search, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
             Text(
-              'Nessun utente trovato per "$_query"',
+              context.l10n.noUserFoundFor(_query),
               style: TextStyle(color: Colors.grey[600], fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Prova con un username diverso',
+              context.l10n.tryDifferentUsername,
               style: TextStyle(color: Colors.grey[400], fontSize: 14),
             ),
           ],
@@ -167,8 +168,8 @@ class _SearchUsersPageState extends State<SearchUsersPage> {
           children: [
             const Icon(Icons.people_outline, size: 20, color: AppColors.primary),
             const SizedBox(width: 8),
-            const Text(
-              'Persone che potresti conoscere',
+            Text(
+              context.l10n.peopleYouMayKnow,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -200,13 +201,13 @@ class _SearchUsersPageState extends State<SearchUsersPage> {
                 Icon(Icons.group_off, size: 48, color: Colors.grey[300]),
                 const SizedBox(height: 12),
                 Text(
-                  'Nessun suggerimento al momento',
+                  context.l10n.noSuggestionsNow,
                   style: TextStyle(color: Colors.grey[500]),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Cerca utenti con la barra in alto',
+                  context.l10n.searchUsersAbove,
                   style: TextStyle(color: Colors.grey[400], fontSize: 13),
                   textAlign: TextAlign.center,
                 ),
@@ -267,7 +268,7 @@ class _SearchUsersPageState extends State<SearchUsersPage> {
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               )
             : Text(
-                'Livello ${user.level}',
+                context.l10n.levelLabel(user.level),
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
         trailing: FollowButton(

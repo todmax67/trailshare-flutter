@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../community/community_page.dart';
 import '../record/record_page.dart';
 import '../tracks/tracks_page.dart';
@@ -37,31 +38,31 @@ class _HomePageState extends State<HomePage> {
             _currentIndex = index;
           });
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Scopri',
+            icon: const Icon(Icons.explore_outlined),
+            selectedIcon: const Icon(Icons.explore),
+            label: context.l10n.discover,
           ),
           NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'Community',
+            icon: const Icon(Icons.people_outline),
+            selectedIcon: const Icon(Icons.people),
+            label: context.l10n.community,
           ),
           NavigationDestination(
-            icon: Icon(Icons.radio_button_checked),
-            selectedIcon: Icon(Icons.radio_button_checked),
-            label: 'Registra',
+            icon: const Icon(Icons.radio_button_checked),
+            selectedIcon: const Icon(Icons.radio_button_checked),
+            label: context.l10n.recordLabel,
           ),
           NavigationDestination(
-            icon: Icon(Icons.route_outlined),
-            selectedIcon: Icon(Icons.route),
-            label: 'Tracce',
+            icon: const Icon(Icons.route_outlined),
+            selectedIcon: const Icon(Icons.route),
+            label: context.l10n.tracksNavLabel,
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profilo',
+            icon: const Icon(Icons.person_outline),
+            selectedIcon: const Icon(Icons.person),
+            label: context.l10n.profile,
           ),
         ],
       ),

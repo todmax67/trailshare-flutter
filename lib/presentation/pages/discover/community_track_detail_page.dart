@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/gpx_service.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../presentation/widgets/charts/elevation_chart.dart';
@@ -281,7 +282,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                   if (track.sharedAt != null) ...[
                     const SizedBox(height: 4),
                     Text(
-                      'Condiviso il ${_formatDate(track.sharedAt!)}',
+                      context.l10n.sharedOnDate(_formatDate(track.sharedAt!)),
                       style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     ),
                   ],
@@ -328,7 +329,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             icon: Icons.straighten,
             value: track.distanceKm.toStringAsFixed(1),
             unit: 'km',
-            label: 'Distanza',
+            label: context.l10n.distanceLabel,
             color: AppColors.primary,
           ),
         ),
@@ -338,7 +339,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             icon: Icons.trending_up,
             value: '+${track.elevationGain.toStringAsFixed(0)}',
             unit: 'm',
-            label: 'Dislivello',
+            label: context.l10n.elevationLabel,
             color: AppColors.success,
           ),
         ),
@@ -348,7 +349,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             icon: Icons.timer,
             value: _formatNormalizedDuration(track.duration, track.distance),
             unit: '',
-            label: 'Durata',
+            label: context.l10n.durationStatLabel,
             color: AppColors.info,
           ),
         ),
@@ -386,7 +387,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                 const Icon(Icons.photo_library, size: 20, color: AppColors.textSecondary),
                 const SizedBox(width: 8),
                 Text(
-                  'Foto (${photoUrls.length})',
+                  context.l10n.photosWithCount(photoUrls.length),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -439,9 +440,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Descrizione',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Text(
+              context.l10n.descriptionLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
@@ -463,16 +464,16 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Dettagli',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Text(
+              context.l10n.detailsLabel,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const Divider(height: 24),
-            _buildDetailRow(Icons.directions_walk, 'Attività', '${track.activityIcon} ${track.activityType}'),
+            _buildDetailRow(Icons.directions_walk, context.l10n.activityLabel, '${track.activityIcon} ${track.activityType}'),
             if (track.difficulty != null)
-              _buildDetailRow(Icons.signal_cellular_alt, 'Difficoltà', '${track.difficultyIcon} ${track.difficulty}'),
-            _buildDetailRow(Icons.location_on, 'Punti GPS', '${track.points.length}'),
-            _buildDetailRow(Icons.source, 'Fonte', 'Community'),
+              _buildDetailRow(Icons.signal_cellular_alt, context.l10n.difficultyLabel, '${track.difficultyIcon} ${track.difficulty}'),
+            _buildDetailRow(Icons.location_on, context.l10n.gpsPoints, '${track.points.length}'),
+            _buildDetailRow(Icons.source, context.l10n.sourceLabel, context.l10n.communitySource),
           ],
         ),
       ),
@@ -515,7 +516,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               onExportGpx: _exportGpx,
             ),
             icon: const Icon(Icons.share),
-            label: const Text('Condividi'),
+            label: Text(context.l10n.share),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
               foregroundColor: Colors.white,
@@ -536,7 +537,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.download),
-            label: Text(_isExporting ? 'Esportazione...' : 'Scarica GPX'),
+            label: Text(_isExporting ? context.l10n.exporting : context.l10n.downloadGpx),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -590,10 +591,10 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                         : Icon(_isAlreadyPromoted ? Icons.check_circle : Icons.arrow_upward),
                     label: Text(
                       _isAlreadyPromoted
-                          ? 'Già promossa a Sentiero ✓'
+                          ? context.l10n.alreadyPromoted
                           : _isPromoting
-                              ? 'Promozione in corso...'
-                              : 'Promuovi a Sentiero',
+                              ? context.l10n.promotionInProgress
+                              : context.l10n.promoteToTrail,
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isAlreadyPromoted
@@ -618,21 +619,21 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Promuovi a Sentiero'),
+        title: Text(context.l10n.promoteToTrail),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Questa traccia verrà aggiunta ai sentieri pubblici e sarà visibile a tutti gli utenti nella sezione Scopri.',
-              style: TextStyle(fontSize: 14),
+            Text(
+              context.l10n.promoteDialogDescription,
+              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 16),
-            _promoteInfoRow('Nome', track.name),
-            _promoteInfoRow('Autore', track.ownerUsername),
-            _promoteInfoRow('Distanza', '${track.distanceKm.toStringAsFixed(1)} km'),
-            _promoteInfoRow('Dislivello', '+${track.elevationGain.toStringAsFixed(0)} m'),
-            _promoteInfoRow('Punti GPS', '${track.points.length}'),
+            _promoteInfoRow(context.l10n.nameLabel, track.name),
+            _promoteInfoRow(context.l10n.authorLabel, track.ownerUsername),
+            _promoteInfoRow(context.l10n.distanceLabel, '${track.distanceKm.toStringAsFixed(1)} km'),
+            _promoteInfoRow(context.l10n.elevationLabel, '+${track.elevationGain.toStringAsFixed(0)} m'),
+            _promoteInfoRow(context.l10n.gpsPoints, '${track.points.length}'),
             const SizedBox(height: 12),
             // Warning qualità
             if (track.points.length < 50)
@@ -642,13 +643,13 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                   color: Colors.amber.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.warning_amber, size: 16, color: Colors.amber),
-                    SizedBox(width: 8),
+                    const Icon(Icons.warning_amber, size: 16, color: Colors.amber),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Pochi punti GPS — la traccia potrebbe essere imprecisa',
+                        context.l10n.fewGpsPointsWarning,
                         style: TextStyle(fontSize: 12, color: Colors.amber),
                       ),
                     ),
@@ -660,7 +661,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () {
@@ -671,7 +672,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               backgroundColor: Colors.orange[700],
               foregroundColor: Colors.white,
             ),
-            child: const Text('Promuovi'),
+            child: Text(context.l10n.promote),
           ),
         ],
       ),
@@ -717,20 +718,20 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         });
         trailsCacheService.invalidateAll();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Traccia promossa a sentiero pubblico!'),
-            backgroundColor: Color(0xFF388E3C),
+          SnackBar(
+            content: Text(context.l10n.trackPromotedSuccess),
+            backgroundColor: const Color(0xFF388E3C),
           ),
         );
       } else {
-        throw Exception('Promozione fallita');
+        throw Exception(context.l10n.promotionFailed);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isPromoting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Errore: $e'),
+            content: Text('❌ ${context.l10n.errorWithDetails(e.toString())}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -741,7 +742,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
   Future<void> _exportGpx() async {
     if (widget.track.points.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nessun punto GPS da esportare')),
+        SnackBar(content: Text(context.l10n.noGpsPointsToExport)),
       );
       return;
     }
@@ -755,13 +756,13 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
       await Share.shareXFiles(
         [XFile(filePath)],
         subject: widget.track.name,
-        text: 'Traccia GPX: ${widget.track.name}',
+        text: context.l10n.gpxTrackName(widget.track.name),
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ GPX esportato!'),
+          SnackBar(
+            content: Text(context.l10n.gpxExported),
             backgroundColor: AppColors.success,
           ),
         );
@@ -770,7 +771,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Errore: $e'),
+            content: Text(context.l10n.errorWithDetails(e.toString())),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -904,14 +905,14 @@ class _PhotoThumbnail extends StatelessWidget {
               errorBuilder: (context, error, stackTrace) {
                 return Container(
                   color: AppColors.background,
-                  child: const Column(
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.broken_image, color: AppColors.textMuted, size: 32),
-                      SizedBox(height: 4),
+                      const Icon(Icons.broken_image, color: AppColors.textMuted, size: 32),
+                      const SizedBox(height: 4),
                       Text(
-                        'Errore',
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+                        context.l10n.errorLabel,
+                        style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
                       ),
                     ],
                   ),
@@ -1010,13 +1011,13 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
           // Scarica foto
           IconButton(
             icon: const Icon(Icons.download, color: Colors.white, size: 28),
-            tooltip: 'Scarica',
+            tooltip: context.l10n.downloadTooltip,
             onPressed: () => _downloadPhoto(widget.photoUrls[_currentIndex]),
           ),
           // Condividi foto
           IconButton(
             icon: const Icon(Icons.share, color: Colors.white, size: 28),
-            tooltip: 'Condividi',
+            tooltip: context.l10n.shareTooltip,
             onPressed: () => _sharePhoto(widget.photoUrls[_currentIndex]),
           ),
         ],
@@ -1050,15 +1051,15 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                         ),
                       );
                     },
-                    errorBuilder: (_, error, __) {
-                      return const Column(
+                    errorBuilder: (context, error, __) {
+                      return Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.broken_image, color: Colors.white54, size: 64),
-                          SizedBox(height: 16),
+                          const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+                          const SizedBox(height: 16),
                           Text(
-                            'Impossibile caricare l\'immagine',
-                            style: TextStyle(color: Colors.white54),
+                            context.l10n.cannotLoadImage,
+                            style: const TextStyle(color: Colors.white54),
                           ),
                         ],
                       );
@@ -1100,19 +1101,19 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
 
   void _sharePhoto(String url) {
     Share.share(
-      'Foto da ${widget.trackName}\n$url',
-      subject: 'Foto escursione',
+      '${context.l10n.photoFrom(widget.trackName)}\n$url',
+      subject: context.l10n.hikePhoto,
     );
   }
 
   Future<void> _downloadPhoto(String url) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Download in corso...')),
+        SnackBar(content: Text(context.l10n.downloadInProgress)),
       );
 
       final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) throw Exception('Errore download');
+      if (response.statusCode != 200) throw Exception(context.l10n.downloadError);
 
       final tempDir = await getTemporaryDirectory();
       final fileName = 'trailshare_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -1123,12 +1124,12 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'Foto da ${widget.trackName}',
+        text: context.l10n.photoFrom(widget.trackName),
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: Colors.red),
         );
       }
     }

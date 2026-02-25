@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina Privacy Policy
 /// 
@@ -15,7 +16,7 @@ class PrivacyPolicyPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Privacy Policy'),
+        title: Text(context.l10n.privacyPolicy),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -26,19 +27,19 @@ class PrivacyPolicyPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            const Center(
+            Center(
               child: Column(
                 children: [
-                  Icon(Icons.privacy_tip_outlined, size: 48, color: AppColors.primary),
-                  SizedBox(height: 8),
+                  const Icon(Icons.privacy_tip_outlined, size: 48, color: AppColors.primary),
+                  const SizedBox(height: 8),
                   Text(
-                    'Privacy Policy',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    context.l10n.privacyPolicy,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    'Ultimo aggiornamento: Gennaio 2025',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    context.l10n.privacyLastUpdated,
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                   ),
                 ],
               ),
@@ -47,75 +48,53 @@ class PrivacyPolicyPage extends StatelessWidget {
 
             // Sezioni
             _buildSection(
-              'Introduzione',
-              'TrailShare ("noi", "nostro" o "app") rispetta la tua privacy. '
-              'Questa informativa descrive quali dati raccogliamo, come li utilizziamo '
-              'e i tuoi diritti in merito.',
+              context.l10n.privacyIntroTitle,
+              context.l10n.privacyIntroContent,
             ),
 
             _buildSection(
-              'Dati che raccogliamo',
-              '• **Dati di registrazione**: email, nome utente, foto profilo (opzionale)\n'
-              '• **Dati di posizione**: coordinate GPS durante la registrazione delle tracce\n'
-              '• **Dati delle attività**: tracce registrate, statistiche, dislivello, distanza\n'
-              '• **Dati social**: follower, following, "cheers" (like)\n'
-              '• **Dati del dispositivo**: modello, sistema operativo, per migliorare l\'app',
+              context.l10n.privacyDataCollectedTitle,
+              context.l10n.privacyDataCollectedContent,
             ),
 
             _buildSection(
-              'Come utilizziamo i tuoi dati',
-              '• Fornire e migliorare i servizi dell\'app\n'
-              '• Salvare e sincronizzare le tue tracce\n'
-              '• Abilitare funzionalità social (follow, cheers, classifica)\n'
-              '• Funzionalità LiveTrack per condividere la posizione in tempo reale\n'
-              '• Analisi aggregate per migliorare l\'esperienza utente',
+              context.l10n.privacyDataUsageTitle,
+              context.l10n.privacyDataUsageContent,
             ),
 
             _buildSection(
-              'Condivisione dei dati',
-              '• **Non vendiamo** i tuoi dati personali a terzi\n'
-              '• Le tracce pubblicate sono visibili ad altri utenti\n'
-              '• LiveTrack condivide la posizione solo con chi ha il link\n'
-              '• Utilizziamo Firebase (Google) per l\'archiviazione sicura dei dati',
+              context.l10n.privacyDataSharingTitle,
+              context.l10n.privacyDataSharingContent,
             ),
 
             _buildSection(
-              'Conservazione dei dati',
-              'I tuoi dati vengono conservati finché mantieni un account attivo. '
-              'Puoi eliminare il tuo account in qualsiasi momento dalla sezione '
-              'Impostazioni, e tutti i tuoi dati verranno rimossi entro 30 giorni.',
+              context.l10n.privacyRetentionTitle,
+              context.l10n.privacyRetentionContent,
             ),
 
             _buildSection(
-              'I tuoi diritti',
-              '• **Accesso**: puoi visualizzare tutti i tuoi dati nell\'app\n'
-              '• **Modifica**: puoi modificare il tuo profilo in qualsiasi momento\n'
-              '• **Eliminazione**: puoi eliminare il tuo account e tutti i dati associati\n'
-              '• **Esportazione**: puoi esportare le tue tracce in formato GPX',
+              context.l10n.privacyRightsTitle,
+              context.l10n.privacyRightsContent,
             ),
 
             _buildSection(
-              'Sicurezza',
-              'Utilizziamo Firebase Authentication e Firestore con crittografia '
-              'per proteggere i tuoi dati. Le connessioni sono protette tramite HTTPS.',
+              context.l10n.privacySecurityTitle,
+              context.l10n.privacySecurityContent,
             ),
 
             _buildSection(
-              'Minori',
-              'L\'app non è destinata a minori di 13 anni. Non raccogliamo '
-              'consapevolmente dati di bambini sotto questa età.',
+              context.l10n.privacyMinorsTitle,
+              context.l10n.privacyMinorsContent,
             ),
 
             _buildSection(
-              'Modifiche alla policy',
-              'Potremmo aggiornare questa privacy policy. Ti notificheremo '
-              'di eventuali modifiche significative tramite l\'app o email.',
+              context.l10n.privacyChangesTitle,
+              context.l10n.privacyChangesContent,
             ),
 
             _buildSection(
-              'Contatti',
-              'Per domande sulla privacy, contattaci a:\n'
-              '📧 privacy@trailshare.app',
+              context.l10n.privacyContactTitle,
+              context.l10n.privacyContactContent,
             ),
 
             const SizedBox(height: 24),
@@ -125,7 +104,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               child: TextButton.icon(
                 onPressed: () => _openPrivacyPolicyWeb(context),
                 icon: const Icon(Icons.open_in_new, size: 18),
-                label: const Text('Visualizza versione web'),
+                label: Text(context.l10n.viewWebVersion),
               ),
             ),
 
@@ -173,7 +152,7 @@ class PrivacyPolicyPage extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossibile aprire il link')),
+          SnackBar(content: Text(context.l10n.cannotOpenLink)),
         );
       }
     }

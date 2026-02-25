@@ -4,11 +4,13 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 // ⭐ Repository con cache e clustering
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../core/services/trails_cache_service.dart';
 import 'trail_detail_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/services/location_service.dart';
 
 class DiscoverPage extends StatefulWidget {
   const DiscoverPage({super.key});
@@ -75,17 +77,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
         return;
       }
 
-      // Verifica permessi
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() => _isLoadingLocation = false);
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
+      // Verifica permessi con Prominent Disclosure
+      final hasPermission = await LocationService().checkAndRequestPermission(context: context);
+      if (!hasPermission) {
         setState(() => _isLoadingLocation = false);
         return;
       }
@@ -323,8 +317,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
       appBar: AppBar(
         title: Text(
           _clusters.isNotEmpty 
-              ? 'Scopri (${_clusters.fold(0, (sum, c) => sum + c.count)})'
-              : 'Scopri (${_trails.length})',
+              ? context.l10n.discoverWithCount(_clusters.fold(0, (sum, c) => sum + c.count))
+              : context.l10n.discoverWithCount(_trails.length),
         ),
         actions: [
           // Toggle mappa/lista
@@ -334,7 +328,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
               _showMap = !_showMap;
               _selectedTrail = null;
             }),
-            tooltip: _showMap ? 'Mostra lista' : 'Mostra mappa',
+            tooltip: _showMap ? context.l10n.showList : context.l10n.showMap,
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -354,7 +348,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   controller: _searchController,
                   onChanged: _onSearchChanged,
                   decoration: InputDecoration(
-                    hintText: 'Cerca sentieri...',
+                    hintText: context.l10n.searchTrails,
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
@@ -397,15 +391,15 @@ class _DiscoverPageState extends State<DiscoverPage> {
     
     String message;
     if (_isLoadingTrails && _trails.isEmpty && _clusters.isEmpty) {
-      message = 'Caricamento sentieri...';
+      message = context.l10n.loadingTrails;
     } else if (_isLoadingTrails) {
-      message = '$totalCount sentieri · Aggiornamento...';
+      message = context.l10n.trailsUpdating(totalCount);
     } else if (_clusters.isNotEmpty) {
-      message = '$totalCount sentieri (zoom per dettagli)';
+      message = context.l10n.trailsZoomForDetails(totalCount);
     } else if (_trails.isEmpty) {
-      message = 'Sposta la mappa per esplorare i sentieri';
+      message = context.l10n.moveMapToExplore;
     } else {
-      message = '$totalCount sentieri in questa zona';
+      message = context.l10n.trailsInArea(totalCount);
     }
     
     return Container(
@@ -446,7 +440,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text('📍 Posizione', style: TextStyle(fontSize: 12)),
+              child: Text(context.l10n.positionBtn, style: const TextStyle(fontSize: 12)),
             ),
         ],
       ),
@@ -472,8 +466,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
       return _buildEmptyState(
         icon: Icons.hiking,
         message: _searchQuery.isEmpty 
-            ? 'Sposta la mappa per esplorare i sentieri'
-            : 'Nessun risultato per "$_searchQuery"',
+            ? context.l10n.moveMapToExplore
+            : context.l10n.noResultsFor(_searchQuery),
         showExpandRadius: false,
       );
     }
@@ -660,7 +654,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
             count: _clusters.isNotEmpty 
                 ? _clusters.fold(0, (sum, c) => sum + c.count)
                 : trails.length, 
-            label: 'sentieri',
+            label: context.l10n.trailsLabel,
             isCluster: _clusters.isNotEmpty,
           ),
         ),
@@ -684,16 +678,16 @@ class _DiscoverPageState extends State<DiscoverPage> {
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    SizedBox(width: 8),
-                    Text('Caricamento...', style: TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Text(context.l10n.loading, style: const TextStyle(fontSize: 12)),
                   ],
                 ),
               ),
@@ -727,13 +721,13 @@ class _DiscoverPageState extends State<DiscoverPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
-                          'Nessun sentiero in questa zona',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                        Text(
+                          context.l10n.noTrailInArea,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Sposta o zooma la mappa per esplorare altre aree',
+                          context.l10n.moveOrZoomMap,
                           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                         ),
                       ],
@@ -812,7 +806,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 _searchController.clear();
                 _onSearchChanged('');
               },
-              child: const Text('Cancella ricerca'),
+              child: Text(context.l10n.clearSearch),
             ),
           ],
         ],
@@ -964,7 +958,7 @@ class _TrailCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Anteprima mappa
-            _buildMapPreview(),
+            _buildMapPreview(context),
             
             // Contenuto
             Padding(
@@ -1100,7 +1094,7 @@ class _TrailCard extends StatelessWidget {
   }
 
   /// Anteprima mappa del sentiero
-  Widget _buildMapPreview() {
+  Widget _buildMapPreview(BuildContext context) {
     if (trail.points.isEmpty) {
       return Container(
         height: 120,
@@ -1112,7 +1106,7 @@ class _TrailCard extends StatelessWidget {
               const Icon(Icons.hiking, size: 32, color: AppColors.textMuted),
               const SizedBox(height: 4),
               Text(
-                trail.ref ?? 'Sentiero',
+                trail.ref ?? context.l10n.trailFallback,
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
             ],
@@ -1220,13 +1214,13 @@ class _TrailCard extends StatelessWidget {
                   color: Colors.white.withOpacity(0.9),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.loop, size: 14, color: AppColors.info),
-                    SizedBox(width: 4),
+                    const Icon(Icons.loop, size: 14, color: AppColors.info),
+                    const SizedBox(width: 4),
                     Text(
-                      'Circolare',
+                      context.l10n.circularBadge,
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
                     ),
                   ],

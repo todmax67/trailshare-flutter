@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 class ChooseUsernamePage extends StatefulWidget {
   final VoidCallback onUsernameChosen;
@@ -29,19 +30,19 @@ class _ChooseUsernamePageState extends State<ChooseUsernamePage> {
 
     // Validazione
     if (username.isEmpty) {
-      setState(() => _errorMessage = 'Inserisci un username');
+      setState(() => _errorMessage = context.l10n.enterUsername);
       return;
     }
     if (username.length < 3) {
-      setState(() => _errorMessage = 'Minimo 3 caratteri');
+      setState(() => _errorMessage = context.l10n.usernameMinChars);
       return;
     }
     if (username.length > 20) {
-      setState(() => _errorMessage = 'Massimo 20 caratteri');
+      setState(() => _errorMessage = context.l10n.usernameMaxChars);
       return;
     }
     if (!RegExp(r'^[a-zA-Z0-9._]+$').hasMatch(username)) {
-      setState(() => _errorMessage = 'Solo lettere, numeri, punti e underscore');
+      setState(() => _errorMessage = context.l10n.usernameInvalidChars);
       return;
     }
 
@@ -62,7 +63,7 @@ class _ChooseUsernamePageState extends State<ChooseUsernamePage> {
       // Se esiste ed è di un altro utente
       if (existing.docs.isNotEmpty && existing.docs.first.id != user?.uid) {
         setState(() {
-          _errorMessage = 'Username già in uso, scegline un altro';
+          _errorMessage = context.l10n.usernameAlreadyTakenChooseAnother;
           _isSaving = false;
         });
         return;
@@ -118,9 +119,9 @@ class _ChooseUsernamePageState extends State<ChooseUsernamePage> {
                       const SizedBox(height: 32),
 
                       // Titolo
-                      const Text(
-                        'Scegli il tuo username',
-                        style: TextStyle(
+                      Text(
+                        context.l10n.chooseYourUsername,
+                        style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
                         ),
@@ -128,7 +129,7 @@ class _ChooseUsernamePageState extends State<ChooseUsernamePage> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Questo nome sarà visibile agli altri utenti di TrailShare',
+                        context.l10n.usernameVisibleToOthers,
                         style: TextStyle(
                           fontSize: 15,
                           color: Colors.grey[600],
@@ -145,8 +146,8 @@ class _ChooseUsernamePageState extends State<ChooseUsernamePage> {
                         onSubmitted: (_) => _saveUsername(),
                         maxLength: 20,
                         decoration: InputDecoration(
-                          labelText: 'Username',
-                          hintText: 'es. mario_rossi',
+                          labelText: context.l10n.usernameLabel,
+                          hintText: context.l10n.usernameExampleHint,
                           prefixIcon: const Icon(Icons.alternate_email),
                           errorText: _errorMessage,
                           border: OutlineInputBorder(
@@ -171,7 +172,7 @@ class _ChooseUsernamePageState extends State<ChooseUsernamePage> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Text(
-                          '3-20 caratteri • Lettere, numeri, punti e underscore',
+                          context.l10n.usernameRules,
                           style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                         ),
                       ),
@@ -201,9 +202,9 @@ class _ChooseUsernamePageState extends State<ChooseUsernamePage> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Text(
-                                  'Conferma',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              : Text(
+                                  context.l10n.confirmAction,
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                 ),
                         ),
                       ),

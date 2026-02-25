@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina Onboarding
 /// 
@@ -20,36 +21,37 @@ class OnboardingPage extends StatefulWidget {
 class _OnboardingPageState extends State<OnboardingPage> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+  static const int _slideCount = 5;
 
-  final List<OnboardingSlide> _slides = [
+  List<OnboardingSlide> _getSlides(BuildContext context) => [
     OnboardingSlide(
       icon: Icons.terrain,
-      title: 'Benvenuto in TrailShare',
-      description: 'La tua app per registrare e condividere avventure outdoor. Traccia i tuoi percorsi, scopri nuovi sentieri e connettiti con altri escursionisti.',
+      title: context.l10n.onboardingWelcomeTitle,
+      description: context.l10n.onboardingWelcomeDesc,
       color: AppColors.primary,
     ),
     OnboardingSlide(
       icon: Icons.gps_fixed,
-      title: 'Traccia i tuoi percorsi',
-      description: 'Registra le tue escursioni con GPS preciso. Visualizza distanza, dislivello, velocità e tempo in tempo reale anche in background.',
+      title: context.l10n.onboardingTrackTitle,
+      description: context.l10n.onboardingTrackDesc,
       color: const Color(0xFF1976D2),
     ),
     OnboardingSlide(
       icon: Icons.explore,
-      title: 'Scopri nuovi sentieri',
-      description: 'Esplora percorsi pubblicati dalla community. Salva i tuoi preferiti nella wishlist e pianifica la tua prossima avventura.',
+      title: context.l10n.onboardingExploreTitle,
+      description: context.l10n.onboardingExploreDesc,
       color: const Color(0xFF388E3C),
     ),
     OnboardingSlide(
       icon: Icons.people,
-      title: 'Connettiti con altri',
-      description: 'Segui amici ed escursionisti, condividi i tuoi percorsi e scala la classifica settimanale. Guadagna XP e sblocca badge!',
+      title: context.l10n.onboardingConnectTitle,
+      description: context.l10n.onboardingConnectDesc,
       color: const Color(0xFFE64A19),
     ),
     OnboardingSlide(
       icon: Icons.offline_bolt,
-      title: 'Funziona anche offline',
-      description: 'Scarica le mappe per usarle senza connessione. Il tracking GPS funziona sempre, anche in modalità aereo.',
+      title: context.l10n.onboardingOfflineTitle,
+      description: context.l10n.onboardingOfflineDesc,
       color: const Color(0xFF7B1FA2),
     ),
   ];
@@ -61,7 +63,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   void _nextPage() {
-    if (_currentPage < _slides.length - 1) {
+    if (_currentPage < _slideCount - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -83,6 +85,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final slides = _getSlides(context);
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -93,7 +97,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               child: TextButton(
                 onPressed: _skipOnboarding,
                 child: Text(
-                  'Salta',
+                  context.l10n.skipAction,
                   style: TextStyle(
                     color: Colors.grey[600],
                     fontSize: 16,
@@ -106,12 +110,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
-                itemCount: _slides.length,
+                itemCount: slides.length,
                 onPageChanged: (index) {
                   setState(() => _currentPage = index);
                 },
                 itemBuilder: (context, index) {
-                  return _buildSlide(_slides[index]);
+                  return _buildSlide(slides[index]);
                 },
               ),
             ),
@@ -122,8 +126,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
-                  _slides.length,
-                  (index) => _buildDot(index),
+                  slides.length,
+                  (index) => _buildDot(index, slides),
                 ),
               ),
             ),
@@ -137,7 +141,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 child: ElevatedButton(
                   onPressed: _nextPage,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _slides[_currentPage].color,
+                    backgroundColor: slides[_currentPage].color,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -145,7 +149,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     elevation: 0,
                   ),
                   child: Text(
-                    _currentPage == _slides.length - 1 ? 'Inizia!' : 'Avanti',
+                    _currentPage == slides.length - 1 ? context.l10n.startAction : context.l10n.nextAction,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -209,7 +213,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
-  Widget _buildDot(int index) {
+  Widget _buildDot(int index, List<OnboardingSlide> slides) {
     final isActive = index == _currentPage;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -217,7 +221,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       width: isActive ? 24 : 8,
       height: 8,
       decoration: BoxDecoration(
-        color: isActive ? _slides[_currentPage].color : Colors.grey[300],
+        color: isActive ? slides[_currentPage].color : Colors.grey[300],
         borderRadius: BorderRadius.circular(4),
       ),
     );

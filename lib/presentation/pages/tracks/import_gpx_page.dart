@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/gpx_service.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -69,7 +70,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
 
       if (track == null) {
         setState(() {
-          _error = 'Impossibile leggere il file. Verifica che sia un file GPX o FIT valido.';
+          _error = context.l10n.cannotReadFile;
           _isLoading = false;
         });
         return;
@@ -83,7 +84,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Errore: $e';
+        _error = context.l10n.errorWithDetails(e.toString());
         _isLoading = false;
       });
     }
@@ -136,7 +137,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
 
       if (track == null) {
         setState(() {
-          _error = 'Impossibile leggere il file GPX. Verifica che sia un file valido.';
+          _error = context.l10n.cannotReadGpx;
           _isLoading = false;
         });
         return;
@@ -149,7 +150,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Errore: $e';
+        _error = context.l10n.errorWithDetails(e.toString());
         _isLoading = false;
       });
     }
@@ -172,8 +173,8 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Traccia importata con successo!'),
+          SnackBar(
+            content: Text(context.l10n.trackImported),
             backgroundColor: AppColors.success,
           ),
         );
@@ -184,7 +185,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Errore salvataggio: $e'),
+            content: Text(context.l10n.saveErrorWithDetails(e.toString())),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -195,7 +196,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Importa GPX')),
+      appBar: AppBar(title: Text(context.l10n.importGpx)),
       body: _parsedTrack == null ? _buildPickerView() : _buildPreviewView(),
     );
   }
@@ -217,9 +218,9 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
               child: Icon(Icons.upload_file, size: 48, color: AppColors.primary),
             ),
             const SizedBox(height: 24),
-            const Text('Importa un file GPX', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            Text(context.l10n.importGpxTitle, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text('Seleziona un file .gpx dal tuo dispositivo', 
+            Text(context.l10n.selectGpxFromDevice, 
                 style: TextStyle(color: AppColors.textSecondary), textAlign: TextAlign.center),
             const SizedBox(height: 32),
             if (_isLoading)
@@ -228,7 +229,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
               ElevatedButton.icon(
                 onPressed: _pickAndParseFile,
                 icon: const Icon(Icons.folder_open),
-                label: const Text('Seleziona file GPX'),
+                label: Text(context.l10n.selectGpxFile),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -274,13 +275,13 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
                 TextField(
                   controller: _nameController,
                   decoration: InputDecoration(
-                    labelText: 'Nome traccia',
+                    labelText: context.l10n.trackName,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     prefixIcon: const Icon(Icons.edit),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('Tipo di attività', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(context.l10n.activityTypeLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -296,7 +297,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
                   }).toList(),
                 ),
                 const SizedBox(height: 24),
-                const Text('Statistiche', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(context.l10n.statistics, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 12),
                 _buildStatsRow(stats),
                 const SizedBox(height: 16),
@@ -305,8 +306,8 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        _infoRow(Icons.location_on, 'Punti GPS', '${track.points.length}'),
-                        _infoRow(Icons.calendar_today, 'Data', _formatDate(track.createdAt)),
+                        _infoRow(Icons.location_on, context.l10n.gpsPoints, '${track.points.length}'),
+                        _infoRow(Icons.calendar_today, context.l10n.dateLabel, _formatDate(track.createdAt)),
                       ],
                     ),
                   ),
@@ -321,7 +322,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
                           _nameController.clear();
                         }),
                         icon: const Icon(Icons.refresh),
-                        label: const Text('Cambia'),
+                        label: Text(context.l10n.changeFile),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -333,7 +334,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
                             ? const SizedBox(width: 20, height: 20, 
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                             : const Icon(Icons.save),
-                        label: Text(_isSaving ? 'Salvataggio...' : 'Salva'),
+                        label: Text(_isSaving ? context.l10n.saving : context.l10n.save),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
@@ -354,7 +355,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
   Widget _buildMapPreview() {
     final track = _parsedTrack!;
     if (track.points.isEmpty) {
-      return Container(color: AppColors.background, child: const Center(child: Text('Nessun dato GPS')));
+      return Container(color: AppColors.background, child: Center(child: Text(context.l10n.noGpsData)));
     }
 
     final points = track.points.map((p) => LatLng(p.latitude, p.longitude)).toList();
@@ -393,11 +394,11 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
   Widget _buildStatsRow(TrackStats stats) {
     return Row(
       children: [
-        _statCard(Icons.straighten, '${(stats.distance / 1000).toStringAsFixed(1)}', 'km', 'Distanza', AppColors.primary),
+        _statCard(Icons.straighten, '${(stats.distance / 1000).toStringAsFixed(1)}', 'km', context.l10n.distanceLabel, AppColors.primary),
         const SizedBox(width: 8),
-        _statCard(Icons.trending_up, '+${stats.elevationGain.toStringAsFixed(0)}', 'm', 'Dislivello', AppColors.success),
+        _statCard(Icons.trending_up, '+${stats.elevationGain.toStringAsFixed(0)}', 'm', context.l10n.elevationGainShort, AppColors.success),
         const SizedBox(width: 8),
-        _statCard(Icons.timer, stats.duration.inMinutes > 0 ? _formatDuration(stats.duration) : '--', '', 'Durata', AppColors.info),
+        _statCard(Icons.timer, stats.duration.inMinutes > 0 ? _formatDuration(stats.duration) : '--', '', context.l10n.durationStatLabel, AppColors.info),
       ],
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/leaderboard_repository.dart';
 import '../profile/public_profile_page.dart';
 
@@ -58,7 +59,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Classifica Settimanale'),
+        title: Text(context.l10n.weeklyLeaderboard),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -176,9 +177,9 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'La tua posizione',
-                  style: TextStyle(
+                Text(
+                  context.l10n.yourPosition,
+                  style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
                   ),
@@ -186,8 +187,8 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                 const SizedBox(height: 4),
                 Text(
                   rank == 1
-                      ? '🏆 Sei in testa!'
-                      : 'Posizione $rank di $total',
+                      ? context.l10n.youAreLeading
+                      : context.l10n.positionOfTotal(rank, total),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -275,14 +276,14 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
           children: [
             Icon(Icons.leaderboard_outlined, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            const Text(
-              'Nessuna attività questa settimana',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            Text(
+              context.l10n.noActivityThisWeek,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Completa una traccia per apparire in classifica.\nSegui altri utenti per competere con loro!',
+              context.l10n.completeTrackForLeaderboard,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -290,7 +291,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
             ElevatedButton.icon(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.directions_walk),
-              label: const Text('Inizia un\'escursione'),
+              label: Text(context.l10n.startHike),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -311,13 +312,13 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
           children: [
             Icon(Icons.lock_outline, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            const Text(
-              'Accedi per vedere la classifica',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            Text(
+              context.l10n.loginToSeeLeaderboard,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Text(
-              'Competi con gli amici e scala la classifica settimanale!',
+              context.l10n.competeWithFriends,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -334,11 +335,11 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         children: [
           Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
-          Text(_error!, style: TextStyle(color: Colors.grey[600])),
+          Text(context.l10n.leaderboardLoadError, style: TextStyle(color: Colors.grey[600])),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loadLeaderboard,
-            child: const Text('Riprova'),
+            child: Text(context.l10n.retry),
           ),
         ],
       ),
@@ -486,8 +487,8 @@ class _LeaderboardItem extends StatelessWidget {
                                 color: AppColors.primary,
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: const Text(
-                                'TU',
+                              child: Text(
+                                context.l10n.youLabel,
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 10,
@@ -500,7 +501,7 @@ class _LeaderboardItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${entry.weeklyXp} XP questa settimana',
+                        context.l10n.xpThisWeek(entry.weeklyXp),
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 12,

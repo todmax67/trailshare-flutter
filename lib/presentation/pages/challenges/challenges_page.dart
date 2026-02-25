@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/challenges_service.dart';
 
 /// Pagina Sfide
@@ -52,7 +53,7 @@ class _ChallengesPageState extends State<ChallengesPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sfide'),
+        title: Text(context.l10n.challenges),
         backgroundColor: Colors.transparent,
         elevation: 0,
         bottom: TabBar(
@@ -61,8 +62,8 @@ class _ChallengesPageState extends State<ChallengesPage>
           unselectedLabelColor: Colors.grey,
           indicatorColor: Theme.of(context).colorScheme.primary,
           tabs: [
-            Tab(text: 'Attive (${_activeChallenges.length})'),
-            Tab(text: 'Le mie (${_myChallenges.length})'),
+            Tab(text: context.l10n.activeTabCount(_activeChallenges.length)),
+            Tab(text: context.l10n.myChallengesTabCount(_myChallenges.length)),
           ],
         ),
       ),
@@ -79,7 +80,7 @@ class _ChallengesPageState extends State<ChallengesPage>
         onPressed: _showCreateDialog,
         backgroundColor: Theme.of(context).colorScheme.primary,
         icon: const Icon(Icons.add),
-        label: const Text('Crea Sfida'),
+        label: Text(context.l10n.createChallengeBtn),
       ),
     );
   }
@@ -121,14 +122,14 @@ class _ChallengesPageState extends State<ChallengesPage>
             const Text('🏆', style: TextStyle(fontSize: 64)),
             const SizedBox(height: 16),
             Text(
-              isActivePage ? 'Nessuna sfida attiva' : 'Non partecipi a nessuna sfida',
+              isActivePage ? context.l10n.noActiveChallenges : context.l10n.notInAnyChallenges,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               isActivePage
-                  ? 'Crea la prima sfida e sfida la community!'
-                  : 'Unisciti a una sfida dalla tab "Attive"',
+                  ? context.l10n.createFirstChallenge
+                  : context.l10n.joinFromActiveTab,
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
@@ -142,16 +143,16 @@ class _ChallengesPageState extends State<ChallengesPage>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Partecipa a "${challenge.title}"'),
+        title: Text(context.l10n.joinChallengeTitle(challenge.title)),
         content: Text(
-          'Obiettivo: ${challenge.formattedGoal}\n'
-          'Scadenza: ${challenge.daysLeft} giorni\n\n'
-          'Vuoi partecipare a questa sfida?',
+          '${context.l10n.goalLabel}: ${challenge.formattedGoal}\n'
+          '${context.l10n.deadlineLabel}: ${context.l10n.daysCount(challenge.daysLeft)}\n\n'
+          '${context.l10n.joinChallengeConfirm}',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -159,7 +160,7 @@ class _ChallengesPageState extends State<ChallengesPage>
               backgroundColor: AppColors.success,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Partecipa'),
+            child: Text(context.l10n.joinAction),
           ),
         ],
       ),
@@ -170,16 +171,16 @@ class _ChallengesPageState extends State<ChallengesPage>
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('🎉 Ti sei unito alla sfida!'),
+            SnackBar(
+              content: Text(context.l10n.joinedChallenge),
               backgroundColor: AppColors.success,
             ),
           );
           _loadChallenges();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Errore durante l\'iscrizione'),
+            SnackBar(
+              content: Text(context.l10n.joinError),
               backgroundColor: AppColors.danger,
             ),
           );
@@ -296,7 +297,7 @@ class _ChallengeCardState extends State<_ChallengeCard> {
                           ),
                         ),
                         Text(
-                          'Obiettivo: ${challenge.formattedGoal}',
+                          context.l10n.goalPrefix(challenge.formattedGoal),
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey[600],
@@ -347,7 +348,7 @@ class _ChallengeCardState extends State<_ChallengeCard> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Il tuo progresso',
+                      context.l10n.yourProgress,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -383,7 +384,7 @@ class _ChallengeCardState extends State<_ChallengeCard> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${challenge.participantCount} partecipanti',
+                    context.l10n.participantsCount(challenge.participantCount),
                     style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
                   if (widget.showJoinButton && _loaded)
@@ -397,8 +398,8 @@ class _ChallengeCardState extends State<_ChallengeCard> {
                               color: Colors.grey[200],
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: const Text(
-                              '✓ Iscritto',
+                            child: Text(
+                              context.l10n.enrolled,
                               style: TextStyle(fontSize: 12),
                             ),
                           )
@@ -414,7 +415,7 @@ class _ChallengeCardState extends State<_ChallengeCard> {
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: const Text('Partecipa'),
+                            child: Text(context.l10n.joinAction),
                           ),
                 ],
               ),
@@ -482,56 +483,56 @@ class _CreateChallengeSheetState extends State<_CreateChallengeSheet> {
                 ),
                 const SizedBox(height: 20),
 
-                const Text(
-                  'Crea una nuova sfida',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Text(
+                  context.l10n.createNewChallenge,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 20),
 
                 // Titolo
                 TextFormField(
                   controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Titolo sfida',
-                    hintText: 'Es: 100km in una settimana',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: context.l10n.challengeTitle,
+                    hintText: context.l10n.challengeHint,
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (v) =>
-                      v?.trim().isEmpty == true ? 'Inserisci un titolo' : null,
+                      v?.trim().isEmpty == true ? context.l10n.enterTitle : null,
                 ),
                 const SizedBox(height: 16),
 
                 // Descrizione
                 TextFormField(
                   controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Descrizione (opzionale)',
-                    hintText: 'Descrivi la sfida...',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: context.l10n.descriptionOptional,
+                    hintText: context.l10n.describeChallenge,
+                    border: const OutlineInputBorder(),
                   ),
                   maxLines: 2,
                 ),
                 const SizedBox(height: 16),
 
                 // Tipo sfida
-                const Text('Tipo di sfida', style: TextStyle(fontWeight: FontWeight.w500)),
+                Text(context.l10n.challengeTypeLabel, style: const TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
                 SegmentedButton<String>(
-                  segments: const [
+                  segments: [
                     ButtonSegment(
                       value: ChallengesService.TYPE_DISTANCE,
-                      label: Text('Distanza'),
-                      icon: Icon(Icons.straighten),
+                      label: Text(context.l10n.distance),
+                      icon: const Icon(Icons.straighten),
                     ),
                     ButtonSegment(
                       value: ChallengesService.TYPE_ELEVATION,
-                      label: Text('Dislivello'),
-                      icon: Icon(Icons.terrain),
+                      label: Text(context.l10n.elevation),
+                      icon: const Icon(Icons.terrain),
                     ),
                     ButtonSegment(
                       value: ChallengesService.TYPE_TRACKS,
-                      label: Text('Tracce'),
-                      icon: Icon(Icons.route),
+                      label: Text(context.l10n.tracks),
+                      icon: const Icon(Icons.route),
                     ),
                   ],
                   selected: {_selectedType},
@@ -543,29 +544,29 @@ class _CreateChallengeSheetState extends State<_CreateChallengeSheet> {
                 TextFormField(
                   controller: _goalController,
                   decoration: InputDecoration(
-                    labelText: 'Obiettivo',
+                    labelText: context.l10n.goalLabel,
                     suffixText: _getUnitLabel(),
                     border: const OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
                   validator: (v) {
-                    if (v?.trim().isEmpty == true) return 'Inserisci un obiettivo';
+                    if (v?.trim().isEmpty == true) return context.l10n.enterGoal;
                     final num = double.tryParse(v!);
-                    if (num == null || num <= 0) return 'Inserisci un numero valido';
+                    if (num == null || num <= 0) return context.l10n.enterValidNumber;
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
 
                 // Durata
-                const Text('Durata', style: TextStyle(fontWeight: FontWeight.w500)),
+                Text(context.l10n.duration, style: const TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   children: [7, 14, 30].map((days) {
                     final isSelected = _durationDays == days;
                     return ChoiceChip(
-                      label: Text('$days giorni'),
+                      label: Text(context.l10n.daysCount(days)),
                       selected: isSelected,
                       onSelected: (_) => setState(() => _durationDays = days),
                     );
@@ -592,7 +593,7 @@ class _CreateChallengeSheetState extends State<_CreateChallengeSheet> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Crea Sfida'),
+                        : Text(context.l10n.createChallengeBtn),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -611,7 +612,7 @@ class _CreateChallengeSheetState extends State<_CreateChallengeSheet> {
       case ChallengesService.TYPE_ELEVATION:
         return 'm';
       case ChallengesService.TYPE_TRACKS:
-        return 'tracce';
+        return context.l10n.tracksUnit;
       default:
         return '';
     }
@@ -643,16 +644,16 @@ class _CreateChallengeSheetState extends State<_CreateChallengeSheet> {
 
       if (id != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🎉 Sfida creata!'),
+          SnackBar(
+            content: Text(context.l10n.challengeCreated),
             backgroundColor: AppColors.success,
           ),
         );
         widget.onCreated();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Errore durante la creazione'),
+          SnackBar(
+            content: Text(context.l10n.creationError),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -712,7 +713,7 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dettaglio Sfida'),
+        title: Text(context.l10n.challengeDetail),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -744,7 +745,7 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
                                     ),
                                   ),
                                   Text(
-                                    'Creata da ${challenge.creatorName}',
+                                    context.l10n.createdBy(challenge.creatorName),
                                     style: TextStyle(color: Colors.grey[600]),
                                   ),
                                 ],
@@ -760,9 +761,9 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _buildStat('Obiettivo', challenge.formattedGoal),
-                            _buildStat('Scadenza', '${challenge.daysLeft} giorni'),
-                            _buildStat('Partecipanti', '${challenge.participantCount}'),
+                            _buildStat(context.l10n.goalLabel, challenge.formattedGoal),
+                            _buildStat(context.l10n.deadlineLabel, context.l10n.daysCount(challenge.daysLeft)),
+                            _buildStat(context.l10n.participants, '${challenge.participantCount}'),
                           ],
                         ),
                       ],
@@ -779,8 +780,8 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Il tuo progresso',
+                          Text(
+                            context.l10n.yourProgress,
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -831,17 +832,17 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
 
                 // Classifica
                 const SizedBox(height: 16),
-                const Text(
-                  'Classifica',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Text(
+                  context.l10n.leaderboard,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
 
                 if (_leaderboard.isEmpty)
-                  const Card(
+                  Card(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: Text('Nessun partecipante ancora')),
+                      padding: const EdgeInsets.all(24),
+                      child: Center(child: Text(context.l10n.noParticipants)),
                     ),
                   )
                 else

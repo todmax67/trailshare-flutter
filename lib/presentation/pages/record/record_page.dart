@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/location_service.dart';
 import '../../../presentation/blocs/tracking_bloc.dart';
 import '../../../data/models/track.dart';
@@ -110,24 +111,24 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Row(children: [Icon(Icons.restore, color: AppColors.warning), SizedBox(width: 8), Text('Registrazione trovata')]),
+        title: Row(children: [const Icon(Icons.restore, color: AppColors.warning), const SizedBox(width: 8), Text(context.l10n.recordingFound)]),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('È stata trovata una registrazione non salvata:'),
+            Text(context.l10n.unsavedRecordingFound),
             const SizedBox(height: 12),
             _buildBackupInfo(backup),
             const SizedBox(height: 12),
-            const Text('Vuoi recuperarla?', style: TextStyle(fontWeight: FontWeight.w500)),
+            Text(context.l10n.wantToRecover, style: const TextStyle(fontWeight: FontWeight.w500)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Elimina')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.deleteLabel)),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            child: const Text('Recupera'),
+            child: Text(context.l10n.recover),
           ),
         ],
       ),
@@ -150,10 +151,10 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('📍 ${backup.points.length} punti GPS'),
+          Text(context.l10n.gpsPointsCount(backup.points.length)),
           Text('📏 ${(distance / 1000).toStringAsFixed(2)} km'),
           Text('⏱️ ${duration.inHours > 0 ? "${duration.inHours}h ${duration.inMinutes.remainder(60)}m" : "${duration.inMinutes}m ${duration.inSeconds.remainder(60)}s"}'),
-          if (backup.photos.isNotEmpty) Text('📸 ${backup.photos.length} foto'),
+          if (backup.photos.isNotEmpty) Text(context.l10n.photosCount(backup.photos.length)),
         ],
       ),
     );
@@ -177,11 +178,11 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ Recuperati ${backup.points.length} punti GPS'), backgroundColor: AppColors.success),
+          SnackBar(content: Text(context.l10n.recoveredGpsPoints(backup.points.length)), backgroundColor: AppColors.success),
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger));
     } finally {
       setState(() => _isRestoringState = false);
     }
@@ -219,10 +220,10 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         _lowBatteryWarningShown = true;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ Batteria bassa! La traccia verrà salvata automaticamente al 5%'),
+            SnackBar(
+              content: Text(context.l10n.lowBatteryWarning),
               backgroundColor: AppColors.warning,
-              duration: Duration(seconds: 5),
+              duration: const Duration(seconds: 5),
             ),
           );
         }
@@ -233,8 +234,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         debugPrint('[RecordPage] Batteria critica! Salvataggio automatico...');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('🔋 Batteria critica! Salvataggio traccia in corso...'),
+            SnackBar(
+              content: Text(context.l10n.criticalBatteryWarning),
               backgroundColor: AppColors.danger,
             ),
           );
@@ -260,7 +261,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       
       final now = DateTime.now();
       final activityName = track.activityType.displayName;
-      final trackToSave = track.copyWith(name: '$activityName ${now.day}/${now.month}/${now.year} (auto-salvato)');
+      final trackToSave = track.copyWith(name: '$activityName ${now.day}/${now.month}/${now.year} ${context.l10n.autoSaved}');
       
       await _repository.saveTrack(trackToSave);
       await _trackingBloc.stopForegroundService();
@@ -270,7 +271,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Traccia salvata automaticamente!'), backgroundColor: AppColors.success),
+          SnackBar(content: Text(context.l10n.trackAutoSaved), backgroundColor: AppColors.success),
         );
       }
     } catch (e) {
@@ -305,15 +306,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           if (!state.isIdle) _buildStatsHeader(state),
           _buildControls(state),
           if (state.errorMessage != null)
-            Positioned(top: MediaQuery.of(context).padding.top + 100, left: 16, right: 16, child: _buildErrorBanner(state.errorMessage!)),
+            Positioned(top: MediaQuery.of(context).padding.top + 100, left: 16, right: 16, child: _buildErrorBanner(_localizeError(state.errorMessage!))),
           if (_isSaving) Container(color: Colors.black54, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             const CircularProgressIndicator(color: Colors.white), const SizedBox(height: 16),
-            const Text('Salvataggio traccia...', style: TextStyle(color: Colors.white)),
-            if (_photos.isNotEmpty) Text('Upload di ${_photos.length} foto...', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            Text(context.l10n.savingTrack, style: const TextStyle(color: Colors.white)),
+            if (_photos.isNotEmpty) Text(context.l10n.uploadingPhotos(_photos.length), style: const TextStyle(color: Colors.white70, fontSize: 12)),
           ])),
-          if (_isRestoringState) Container(color: Colors.black54, child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            CircularProgressIndicator(color: Colors.white), SizedBox(height: 16),
-            Text('Ripristino registrazione...', style: TextStyle(color: Colors.white)),
+          if (_isRestoringState) Container(color: Colors.black54, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const CircularProgressIndicator(color: Colors.white), const SizedBox(height: 16),
+            Text(context.l10n.restoringRecording, style: const TextStyle(color: Colors.white)),
           ])),
         ],
       ),
@@ -324,12 +325,12 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   Future<void> _takePhoto() async {
     final state = _trackingBloc.state;
-    if (state.points.isEmpty) { _showSnackBar('GPS non disponibile', isError: true); return; }
+    if (state.points.isEmpty) { _showSnackBar(context.l10n.gpsNotAvailable, isError: true); return; }
     await _saveStateToBackup();
     final lastPoint = state.points.last;
     final photo = await _photosService.takePhoto(latitude: lastPoint.latitude, longitude: lastPoint.longitude, elevation: lastPoint.elevation);
     if (!mounted) return;
-    if (photo != null) { setState(() => _photos.add(photo)); _showSnackBar('📸 Foto aggiunta!'); await _saveStateToBackup(); }
+    if (photo != null) { setState(() => _photos.add(photo)); _showSnackBar(context.l10n.photoAdded); await _saveStateToBackup(); }
   }
 
   Future<void> _pickPhotos() async {
@@ -338,15 +339,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     await _saveStateToBackup();
     final photos = await _photosService.pickFromGallery(latitude: lastPoint?.latitude, longitude: lastPoint?.longitude, elevation: lastPoint?.elevation);
     if (!mounted) return;
-    if (photos.isNotEmpty) { setState(() => _photos.addAll(photos)); _showSnackBar('📸 ${photos.length} foto aggiunte!'); await _saveStateToBackup(); }
+    if (photos.isNotEmpty) { setState(() => _photos.addAll(photos)); _showSnackBar(context.l10n.photosAdded(photos.length)); await _saveStateToBackup(); }
   }
 
-  void _deletePhoto(int index) { setState(() => _photos.removeAt(index)); _showSnackBar('Foto eliminata'); _saveStateToBackup(); }
+  void _deletePhoto(int index) { setState(() => _photos.removeAt(index)); _showSnackBar(context.l10n.photoDeleted); _saveStateToBackup(); }
 
   void _showPhotoOptions() {
     showModalBottomSheet(context: context, builder: (context) => SafeArea(child: Wrap(children: [
-      ListTile(leading: const Icon(Icons.camera_alt, color: AppColors.primary), title: const Text('Scatta foto'), onTap: () { Navigator.pop(context); _takePhoto(); }),
-      ListTile(leading: const Icon(Icons.photo_library, color: AppColors.info), title: const Text('Scegli dalla galleria'), onTap: () { Navigator.pop(context); _pickPhotos(); }),
+      ListTile(leading: const Icon(Icons.camera_alt, color: AppColors.primary), title: Text(context.l10n.takePhoto), onTap: () { Navigator.pop(context); _takePhoto(); }),
+      ListTile(leading: const Icon(Icons.photo_library, color: AppColors.info), title: Text(context.l10n.pickFromGallery), onTap: () { Navigator.pop(context); _pickPhotos(); }),
     ])));
   }
 
@@ -357,12 +358,12 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   void _showCancelDialog() {
     showDialog(context: context, builder: (context) => AlertDialog(
-      title: const Text('Annullare registrazione?'),
-      content: Text(_photos.isEmpty ? 'I dati della traccia corrente verranno persi.' : 'I dati della traccia e le ${_photos.length} foto verranno persi.'),
+      title: Text(context.l10n.cancelRecording),
+      content: Text(_photos.isEmpty ? context.l10n.trackDataWillBeLost : context.l10n.trackAndPhotosWillBeLost(_photos.length)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Continua')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.continueBtn)),
         TextButton(onPressed: () { Navigator.pop(context); setState(() => _photos.clear()); _trackingBloc.cancelRecording(); _persistence.clearState(); LiveTrackService().stop(); },
-          child: const Text('Annulla', style: TextStyle(color: AppColors.danger))),
+          child: Text(context.l10n.cancel, style: const TextStyle(color: AppColors.danger))),
       ],
     ));
   }
@@ -375,7 +376,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     if (state.points.isEmpty) {
       await _trackingBloc.cancelRecording();
       await _trackingBloc.stopForegroundService();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nessun punto registrato')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.noPointsRecorded)));
       return;
     }
     if (!mounted) return;
@@ -391,19 +392,19 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Salva traccia'),
+        title: Text(context.l10n.saveTrackTitle),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Nome traccia', border: OutlineInputBorder())),
+          TextField(controller: nameController, decoration: InputDecoration(labelText: context.l10n.trackName, border: const OutlineInputBorder())),
           const SizedBox(height: 16),
-          _buildSummaryRow('Distanza', '${state.stats.distanceKm.toStringAsFixed(2)} km'),
-          _buildSummaryRow('Dislivello', '+${state.stats.elevationGain.toStringAsFixed(0)} m'),
-          _buildSummaryRow('Durata', state.stats.durationFormatted),
-          _buildSummaryRow('Punti GPS', '${state.points.length}'),
-          if (_photos.isNotEmpty) _buildSummaryRow('Foto', '${_photos.length}'),
+          _buildSummaryRow(context.l10n.distanceLabel, '${state.stats.distanceKm.toStringAsFixed(2)} km'),
+          _buildSummaryRow(context.l10n.elevationLabel, '+${state.stats.elevationGain.toStringAsFixed(0)} m'),
+          _buildSummaryRow(context.l10n.durationStatLabel, state.stats.durationFormatted),
+          _buildSummaryRow(context.l10n.gpsPoints, '${state.points.length}'),
+          if (_photos.isNotEmpty) _buildSummaryRow(context.l10n.photosLabel, '${_photos.length}'),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white), child: const Text('Salva')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white), child: Text(context.l10n.save)),
         ],
       ),
     );
@@ -418,7 +419,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     setState(() => _isSaving = true);
     try {
       final track = await _trackingBloc.stopRecording();
-      if (track == null) throw Exception('Errore nel fermare la registrazione');
+      if (track == null) throw Exception(context.l10n.stopRecordingError);
       
       final trackToSave = track.copyWith(name: nameController.text.trim());
       final trackId = await _repository.saveTrack(trackToSave);
@@ -430,7 +431,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           await _repository.updateTrackPhotos(trackId, photoMetadata);
         }
         if (result.hasFailures && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('⚠️ ${result.failed.length} foto non caricate'), backgroundColor: AppColors.warning));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.photosNotUploaded(result.failed.length)), backgroundColor: AppColors.warning));
         }
       }
 
@@ -494,9 +495,17 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       }
     } catch (e) {
       debugPrint('[RecordPage] Errore salvataggio: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger));
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  String _localizeError(String code) {
+    switch (code) {
+      case 'gps_access_error': return context.l10n.gpsAccessError;
+      case 'gps_resume_error': return context.l10n.gpsResumeError;
+      default: return code;
     }
   }
 
@@ -529,21 +538,21 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(state.isRecording ? Icons.fiber_manual_record : Icons.pause, color: Colors.white, size: 12),
             const SizedBox(width: 4),
-            Text(state.isRecording ? 'REGISTRAZIONE' : 'IN PAUSA', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+            Text(state.isRecording ? context.l10n.recording : context.l10n.paused, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
           ]),
           const HeartRateWidget(), // ❤️ HEART RATE
         ]),
         const SizedBox(height: 12),
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _buildStat('Distanza', '${state.stats.distanceKm.toStringAsFixed(2)} km'),
-          _buildStat('Tempo', state.stats.durationFormatted),
+          _buildStat(context.l10n.distanceLabel, '${state.stats.distanceKm.toStringAsFixed(2)} km'),
+          _buildStat(context.l10n.timeLabel, state.stats.durationFormatted),
           _buildStat('D+', '${state.stats.elevationGain.toStringAsFixed(0)} m'),
         ]),
         const SizedBox(height: 8),
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _buildStat('Vel.', '${(state.stats.currentSpeed * 3.6).toStringAsFixed(1)} km/h', small: true),
-          _buildStat('Media', '${(state.stats.avgSpeed * 3.6).toStringAsFixed(1)} km/h', small: true),
-          _buildStat('Passo', _formatPace(state.stats.avgSpeed), small: true),
+          _buildStat(context.l10n.speedLabel, '${(state.stats.currentSpeed * 3.6).toStringAsFixed(1)} km/h', small: true),
+          _buildStat(context.l10n.avgSpeedLabel, '${(state.stats.avgSpeed * 3.6).toStringAsFixed(1)} km/h', small: true),
+          _buildStat(context.l10n.paceLabel, _formatPace(state.stats.avgSpeed), small: true),
         ]),
       ]),
     ));
@@ -641,9 +650,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   Widget _buildRecordingControls(TrackingState state) => Column(mainAxisSize: MainAxisSize.min, children: [
     const Padding(padding: EdgeInsets.only(bottom: 12), child: LiveTrackButton()),
     Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-      _buildControlButton(icon: Icons.close, label: 'Annulla', color: AppColors.textMuted, onTap: _showCancelDialog),
-      _buildControlButton(icon: state.isRecording ? Icons.pause : Icons.play_arrow, label: state.isRecording ? 'Pausa' : 'Riprendi', color: AppColors.warning, onTap: () { if (state.isRecording) _trackingBloc.pauseRecording(); else _trackingBloc.resumeRecording(); }, large: true),
-      _buildControlButton(icon: Icons.stop, label: 'Salva', color: AppColors.danger, onTap: _showSaveDialog),
+      _buildControlButton(icon: Icons.close, label: context.l10n.cancelLabel, color: AppColors.textMuted, onTap: _showCancelDialog),
+      _buildControlButton(icon: state.isRecording ? Icons.pause : Icons.play_arrow, label: state.isRecording ? context.l10n.pauseLabel : context.l10n.resumeLabel, color: AppColors.warning, onTap: () { if (state.isRecording) _trackingBloc.pauseRecording(); else _trackingBloc.resumeRecording(); }, large: true),
+      _buildControlButton(icon: Icons.stop, label: context.l10n.saveLabel, color: AppColors.danger, onTap: _showSaveDialog),
     ])),
   ]);
 
@@ -661,13 +670,13 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
     // Messaggi motivazionali casuali
     final messages = [
-      'Ottimo lavoro! 💪',
-      'Grande escursione! 🏔️',
-      'Fantastico percorso! 🥾',
-      'Che avventura! 🌟',
-      'Sei un vero esploratore! 🧭',
-      'Trail completato! 🎯',
-      'Complimenti, continua così! 🔥',
+      context.l10n.motivational1,
+      context.l10n.motivational2,
+      context.l10n.motivational3,
+      context.l10n.motivational4,
+      context.l10n.motivational5,
+      context.l10n.motivational6,
+      context.l10n.motivational7,
     ];
     final message = messages[DateTime.now().millisecond % messages.length];
 
@@ -701,7 +710,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               children: [
                 _buildStatColumn('🏃', km, 'km'),
                 Container(width: 1, height: 40, color: Colors.grey[300]),
-                _buildStatColumn('⬆️', elev, 'm D+'),
+                _buildStatColumn('⬆️', elev, context.l10n.metersDPlus),
                 Container(width: 1, height: 40, color: Colors.grey[300]),
                 _buildStatColumn('⏱️', duration, ''),
               ],
@@ -719,7 +728,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Continua', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Text(context.l10n.continueBtn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -790,10 +799,10 @@ class _ActivityPickerSheet extends StatelessWidget {
           ),
 
           // Titolo
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
             child: Text(
-              'Scegli attività',
+              context.l10n.chooseActivity,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,

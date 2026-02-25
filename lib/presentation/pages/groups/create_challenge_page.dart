@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 
 class CreateChallengePage extends StatefulWidget {
@@ -28,22 +29,22 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
     super.dispose();
   }
 
-  String get _targetHint {
+  String _targetHint(BuildContext context) {
     switch (_type) {
-      case 'distance': return 'Es. 50 (km)';
-      case 'elevation': return 'Es. 2000 (metri)';
-      case 'tracks': return 'Es. 10 (tracce)';
-      case 'streak': return 'Es. 7 (giorni)';
+      case 'distance': return context.l10n.distanceHint;
+      case 'elevation': return context.l10n.elevationHint;
+      case 'tracks': return context.l10n.tracksHint;
+      case 'streak': return context.l10n.streakHint;
       default: return '';
     }
   }
 
-  String get _targetSuffix {
+  String _targetSuffix(BuildContext context) {
     switch (_type) {
       case 'distance': return 'km';
       case 'elevation': return 'm';
-      case 'tracks': return 'tracce';
-      case 'streak': return 'giorni';
+      case 'tracks': return context.l10n.suffixTracks;
+      case 'streak': return context.l10n.suffixDays;
       default: return '';
     }
   }
@@ -54,7 +55,7 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
     final targetValue = double.tryParse(_targetController.text);
     if (targetValue == null || targetValue <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inserisci un obiettivo valido'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text(context.l10n.enterValidGoal), backgroundColor: AppColors.danger),
       );
       return;
     }
@@ -82,12 +83,12 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
 
       if (challengeId != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sfida creata!'), backgroundColor: AppColors.success),
+          SnackBar(content: Text(context.l10n.challengeCreatedShort), backgroundColor: AppColors.success),
         );
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Errore nella creazione'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.challengeCreationError), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -97,7 +98,7 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nuova Sfida'),
+        title: Text(context.l10n.newChallenge),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
@@ -126,58 +127,58 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
               const SizedBox(height: 32),
 
               // Titolo
-              const Text('Titolo sfida *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.challengeTitleRequired, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(
-                  hintText: 'Es. Chi fa più km questa settimana?',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.emoji_events),
+                decoration: InputDecoration(
+                  hintText: context.l10n.challengeTitleHint,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.emoji_events),
                 ),
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) return 'Inserisci un titolo';
+                  if (value == null || value.trim().isEmpty) return context.l10n.enterTitle;
                   return null;
                 },
               ),
               const SizedBox(height: 24),
 
               // Tipo sfida
-              const Text('Tipo di sfida *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.challengeTypeRequired, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               _buildTypeSelector(),
               const SizedBox(height: 24),
 
               // Obiettivo
-              const Text('Obiettivo *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.goalRequired, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _targetController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  hintText: _targetHint,
-                  suffixText: _targetSuffix,
+                  hintText: _targetHint(context),
+                  suffixText: _targetSuffix(context),
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.flag),
                 ),
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) return 'Inserisci un obiettivo';
-                  if (double.tryParse(value) == null) return 'Inserisci un numero valido';
+                  if (value == null || value.trim().isEmpty) return context.l10n.enterGoal;
+                  if (double.tryParse(value) == null) return context.l10n.enterValidNumber;
                   return null;
                 },
               ),
               const SizedBox(height: 24),
 
               // Durata
-              const Text('Durata *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(context.l10n.durationRequired, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 children: [
-                  {'days': 3, 'label': '3 giorni'},
-                  {'days': 7, 'label': '1 settimana'},
-                  {'days': 14, 'label': '2 settimane'},
-                  {'days': 30, 'label': '1 mese'},
+                  {'days': 3, 'label': context.l10n.threeDays},
+                  {'days': 7, 'label': context.l10n.oneWeek},
+                  {'days': 14, 'label': context.l10n.twoWeeks},
+                  {'days': 30, 'label': context.l10n.oneMonth},
                 ].map((option) {
                   final days = option['days'] as int;
                   final label = option['label'] as String;
@@ -205,8 +206,7 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'La sfida inizia oggi e dura $_durationDays giorni. '
-                        'I progressi vengono calcolati automaticamente dalle tracce registrate.',
+                        context.l10n.challengeInfoText(_durationDays),
                         style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
                     ),
@@ -231,9 +231,9 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
                           width: 20, height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text(
-                          'Lancia la Sfida!',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      : Text(
+                          context.l10n.launchChallenge,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                 ),
               ),
@@ -247,10 +247,10 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
 
   Widget _buildTypeSelector() {
     final types = [
-      {'type': 'distance', 'icon': '🏃', 'label': 'Distanza', 'desc': 'Chi percorre più km'},
-      {'type': 'elevation', 'icon': '⛰️', 'label': 'Dislivello', 'desc': 'Chi accumula più metri'},
-      {'type': 'tracks', 'icon': '🗺️', 'label': 'Tracce', 'desc': 'Chi registra più uscite'},
-      {'type': 'streak', 'icon': '🔥', 'label': 'Costanza', 'desc': 'Più giorni consecutivi'},
+      {'type': 'distance', 'icon': '🏃', 'label': context.l10n.distanceLabel, 'desc': context.l10n.distanceDesc},
+      {'type': 'elevation', 'icon': '⛰️', 'label': context.l10n.elevationLabel, 'desc': context.l10n.elevationDesc},
+      {'type': 'tracks', 'icon': '🗺️', 'label': context.l10n.tracksLabel, 'desc': context.l10n.tracksDesc},
+      {'type': 'streak', 'icon': '🔥', 'label': context.l10n.consistencyLabel, 'desc': context.l10n.consistencyDesc},
     ];
 
     return Column(

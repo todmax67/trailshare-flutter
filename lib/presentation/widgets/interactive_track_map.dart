@@ -7,6 +7,7 @@ import '../../data/models/track.dart';
 import '../../data/repositories/community_tracks_repository.dart';
 import '../pages/map/track_map_page.dart';
 import '../../core/services/offline_tile_provider.dart';
+import '../../core/services/location_service.dart';
 
 /// Widget mappa interattiva per visualizzare tracce GPS
 /// 
@@ -88,9 +89,10 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
     setState(() => _isLoadingLocation = true);
     
     try {
-      final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        await Geolocator.requestPermission();
+      final hasPermission = await LocationService().checkAndRequestPermission();
+      if (!hasPermission) {
+        setState(() => _isLoadingLocation = false);
+        return;
       }
       
       final position = await Geolocator.getCurrentPosition(

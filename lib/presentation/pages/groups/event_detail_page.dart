@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 
 class EventDetailPage extends StatefulWidget {
@@ -110,7 +111,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore upload: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.uploadError(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     } finally {
@@ -127,7 +128,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final success = await _repo.addEventPost(
       widget.groupId,
       widget.eventId,
-      text: text.isNotEmpty ? text : '📷 Foto',
+      text: text.isNotEmpty ? text : context.l10n.photoEmoji,
       imageUrl: imageUrl,
     );
 
@@ -161,7 +162,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore upload: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.uploadError(e.toString())), backgroundColor: AppColors.danger),
         );
         setState(() => _isPostingUpdate = false);
       }
@@ -172,13 +173,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Elimina post'),
-        content: const Text('Vuoi eliminare questo post?'),
+        title: Text(context.l10n.deletePost),
+        content: Text(context.l10n.deletePostConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Elimina', style: TextStyle(color: AppColors.danger)),
+            child: Text(context.l10n.deleteAction, style: const TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -193,13 +194,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Elimina evento'),
-        content: const Text('Vuoi eliminare questo evento? L\'azione è irreversibile.'),
+        title: Text(context.l10n.deleteEvent),
+        content: Text(context.l10n.deleteEventConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Elimina', style: TextStyle(color: AppColors.danger)),
+            child: Text(context.l10n.deleteAction, style: const TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -219,7 +220,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     if (_isLoading || _event == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Evento'),
+          title: Text(context.l10n.eventLabel),
           backgroundColor: Colors.transparent,
           elevation: 0,
           foregroundColor: AppColors.textPrimary,
@@ -275,10 +276,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
               if (value == 'delete') _deleteEvent();
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(value: 'cover', child: Text('Cambia copertina')),
-              const PopupMenuItem(
+              PopupMenuItem(value: 'cover', child: Text(context.l10n.changeCover)),
+              PopupMenuItem(
                 value: 'delete',
-                child: Text('Elimina evento', style: TextStyle(color: AppColors.danger)),
+                child: Text(context.l10n.deleteEventMenu, style: const TextStyle(color: AppColors.danger)),
               ),
             ],
           ),
@@ -345,7 +346,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
               TextButton.icon(
                 onPressed: _uploadCoverImage,
                 icon: const Icon(Icons.add_photo_alternate, color: Colors.white70, size: 18),
-                label: const Text('Aggiungi copertina', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                label: Text(context.l10n.addCover, style: const TextStyle(color: Colors.white70, fontSize: 13)),
               ),
           ],
         ),
@@ -355,8 +356,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
   // ─── INFO EVENTO ───
   Widget _buildEventInfo(GroupEvent event) {
-    final months = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-                     'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+    final months = [
+      context.l10n.monthFullJan, context.l10n.monthFullFeb, context.l10n.monthFullMar,
+      context.l10n.monthFullApr, context.l10n.monthFullMay, context.l10n.monthFullJun,
+      context.l10n.monthFullJul, context.l10n.monthFullAug, context.l10n.monthFullSep,
+      context.l10n.monthFullOct, context.l10n.monthFullNov, context.l10n.monthFullDec,
+    ];
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -413,14 +418,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
                               color: Colors.grey[200],
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Text('Concluso', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            child: Text(context.l10n.concluded, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                           ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Organizzato da ${event.createdByName}',
+                      context.l10n.organizedBy(event.createdByName),
                       style: TextStyle(color: Colors.grey[600], fontSize: 13),
                     ),
                   ],
@@ -516,7 +521,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
               const Icon(Icons.people, size: 20, color: AppColors.primary),
               const SizedBox(width: 8),
               Text(
-                'Partecipanti (${event.participants.length}${event.maxParticipants != null ? "/${event.maxParticipants}" : ""})',
+                event.maxParticipants != null
+                    ? context.l10n.participantsWithMax(
+                        event.participants.length.toString(),
+                        event.maxParticipants.toString(),
+                      )
+                    : context.l10n.participantsOnly(event.participants.length.toString()),
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
@@ -524,13 +534,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
           const SizedBox(height: 12),
 
           if (event.participants.isEmpty)
-            Text('Nessun partecipante ancora', style: TextStyle(color: Colors.grey[500]))
+            Text(context.l10n.noParticipantsYet, style: TextStyle(color: Colors.grey[500]))
           else
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: event.participants.map((uid) {
-                final name = _participantNames[uid] ?? 'Utente';
+                final name = _participantNames[uid] ?? context.l10n.userLabel;
                 final isCreator = uid == event.createdBy;
                 return Chip(
                   avatar: CircleAvatar(
@@ -572,10 +582,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
           icon: Icon(_isParticipating ? Icons.check_circle : Icons.add_circle_outline),
           label: Text(
             _isParticipating
-                ? 'Sei iscritto — Ritirati'
+                ? context.l10n.enrolledWithdraw
                 : event.isFull
-                    ? 'Evento al completo'
-                    : 'Partecipa',
+                    ? context.l10n.eventFull
+                    : context.l10n.participate,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           style: ElevatedButton.styleFrom(
@@ -596,13 +606,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.dynamic_feed, size: 20, color: AppColors.primary),
-              SizedBox(width: 8),
+              const Icon(Icons.dynamic_feed, size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
               Text(
-                'Aggiornamenti',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                context.l10n.updatesLabel,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -621,10 +631,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   controller: _postController,
                   maxLines: 3,
                   minLines: 1,
-                  decoration: const InputDecoration(
-                    hintText: 'Scrivi un aggiornamento...',
+                  decoration: InputDecoration(
+                    hintText: context.l10n.writeUpdate,
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                   ),
                 ),
                 Row(
@@ -633,7 +643,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     IconButton(
                       onPressed: _isPostingUpdate ? null : _addPostWithImage,
                       icon: const Icon(Icons.image, color: AppColors.primary),
-                      tooltip: 'Aggiungi foto',
+                      tooltip: context.l10n.addPhoto,
                     ),
                     Padding(
                       padding: const EdgeInsets.only(right: 4),
@@ -644,7 +654,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                 width: 16, height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Text('Pubblica', style: TextStyle(fontWeight: FontWeight.bold)),
+                            : Text(context.l10n.publish, style: const TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -665,12 +675,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     Icon(Icons.article_outlined, size: 40, color: Colors.grey[300]),
                     const SizedBox(height: 8),
                     Text(
-                      'Nessun aggiornamento',
+                      context.l10n.noUpdates,
                       style: TextStyle(color: Colors.grey[500]),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Condividi info, novità o foto dell\'evento!',
+                      context.l10n.shareEventPhotos,
                       style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     ),
                   ],
@@ -688,7 +698,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }
 
   Widget _buildPostCard(Map<String, dynamic> post) {
-    final authorName = post['authorName'] ?? 'Utente';
+    final authorName = post['authorName'] ?? context.l10n.userLabel;
     final text = post['text'] ?? '';
     final imageUrl = post['imageUrl'] as String?;
     final createdAt = (post['createdAt'] as Timestamp?)?.toDate();
@@ -810,10 +820,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final now = DateTime.now();
     final diff = now.difference(date);
 
-    if (diff.inMinutes < 1) return 'Ora';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} min fa';
-    if (diff.inHours < 24) return '${diff.inHours} ore fa';
-    if (diff.inDays < 7) return '${diff.inDays} giorni fa';
+    if (diff.inMinutes < 1) return context.l10n.justNow;
+    if (diff.inMinutes < 60) return context.l10n.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return context.l10n.hoursAgo(diff.inHours);
+    if (diff.inDays < 7) return context.l10n.daysAgo(diff.inDays);
     return '${date.day}/${date.month}/${date.year}';
   }
 }

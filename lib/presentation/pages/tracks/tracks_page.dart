@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../track_detail/track_detail_page.dart';
@@ -112,7 +113,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     if (user == null) {
       setState(() {
         _isLoading = false;
-        _error = 'Effettua il login per vedere le tue tracce';
+        _error = context.l10n.loginToSeeTracks;
       });
       return;
     }
@@ -140,7 +141,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
       });
     } catch (e) {
       setState(() {
-        _error = 'Errore caricamento: $e';
+        _error = context.l10n.loadingErrorWithDetails(e.toString());
         _isLoading = false;
       });
     }
@@ -181,17 +182,17 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Elimina traccia'),
-        content: Text('Sei sicuro di voler eliminare "${track.name}"?'),
+        title: Text(context.l10n.deleteTrack),
+        content: Text(context.l10n.deleteTrackConfirmName(track.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.deleteAction),
           ),
         ],
       ),
@@ -203,13 +204,13 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
         _loadTracks();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Traccia eliminata'), backgroundColor: AppColors.success),
+            SnackBar(content: Text(context.l10n.trackDeleted), backgroundColor: AppColors.success),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+            SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
           );
         }
       }
@@ -257,12 +258,12 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Le mie tracce'),
+        title: Text(context.l10n.myTracks),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.list), text: 'Lista'),
-            Tab(icon: Icon(Icons.edit_location_alt), text: 'Pianifica'),
+          tabs: [
+            Tab(icon: const Icon(Icons.list), text: context.l10n.listTab),
+            Tab(icon: const Icon(Icons.edit_location_alt), text: context.l10n.planTab),
           ],
         ),
         actions: [
@@ -270,7 +271,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
           IconButton(
             icon: const Icon(Icons.upload_file),
             onPressed: _openImportPage,
-            tooltip: 'Importa GPX',
+            tooltip: context.l10n.importGpx,
           ),
         ],
       ),
@@ -294,8 +295,8 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
   }
 
   Widget _buildLoginRequired() {
-    return const Center(
-      child: Text('Accedi per pianificare tracce'),
+    return Center(
+      child: Text(context.l10n.loginToPlan),
     );
   }
 
@@ -315,7 +316,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadTracks,
-              child: const Text('Riprova'),
+              child: Text(context.l10n.retry),
             ),
           ],
         ),
@@ -334,13 +335,13 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
                 children: [
                   Icon(Icons.hiking, size: 80, color: AppColors.primary.withOpacity(0.3)),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Nessuna traccia salvata',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                  Text(
+                    context.l10n.noTracksSaved,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Inizia a registrare le tue avventure!',
+                    context.l10n.startRecordingAdventures,
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ],
@@ -495,7 +496,7 @@ class _TrackCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          _formatDate(track.createdAt),
+                          _formatDate(context, track.createdAt),
                           style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 12,
@@ -533,9 +534,9 @@ class _TrackCard extends StatelessWidget {
                         color: AppColors.warning.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text(
-                        'PIANIFICATA',
-                        style: TextStyle(fontSize: 10, color: AppColors.warning, fontWeight: FontWeight.bold),
+                      child: Text(
+                        context.l10n.plannedBadge,
+                        style: const TextStyle(fontSize: 10, color: AppColors.warning, fontWeight: FontWeight.bold),
                       ),
                     ),
                 ],
@@ -577,7 +578,7 @@ class _TrackCard extends StatelessWidget {
                 children: [
                   TextButton.icon(
                     icon: const Icon(Icons.map, size: 18),
-                    label: const Text('Mappa'),
+                    label: Text(context.l10n.mapAction),
                     onPressed: onMapTap,
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.primary,
@@ -586,7 +587,7 @@ class _TrackCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   TextButton.icon(
                     icon: const Icon(Icons.delete_outline, size: 18),
-                    label: const Text('Elimina'),
+                    label: Text(context.l10n.deleteAction),
                     onPressed: onDelete,
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.danger,
@@ -601,16 +602,17 @@ class _TrackCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(BuildContext context, DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
     
     if (diff.inDays == 0) {
-      return 'Oggi ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      final time = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      return context.l10n.todayAtTime(time);
     } else if (diff.inDays == 1) {
-      return 'Ieri';
+      return context.l10n.yesterday;
     } else if (diff.inDays < 7) {
-      return '${diff.inDays} giorni fa';
+      return context.l10n.daysAgo(diff.inDays);
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }

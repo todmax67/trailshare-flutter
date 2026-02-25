@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../follow/follow_list_page.dart';
@@ -148,7 +149,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.error ?? 'Errore'),
+            content: Text(result.error ?? context.l10n.error),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -280,7 +281,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
               )
             : Icon(_isFollowing ? Icons.person_remove : Icons.person_add),
-        label: Text(_isFollowing ? 'Smetti di seguire' : 'Segui'),
+        label: Text(_isFollowing ? context.l10n.unfollow : context.l10n.follow),
         style: ElevatedButton.styleFrom(
           backgroundColor: _isFollowing ? Colors.grey[600] : AppColors.primary,
           foregroundColor: Colors.white,
@@ -319,7 +320,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Livello $_level',
+                    context.l10n.levelNumber(_level),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -361,16 +362,16 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         children: [
           Row(
             children: [
-              Expanded(child: _buildStatItem('Tracce', '$_totalTracks')),
+              Expanded(child: _buildStatItem(context.l10n.tracks, '$_totalTracks')),
               Expanded(
                 child: _buildStatItem(
-                  'Distanza',
+                  context.l10n.distance,
                   '${(_totalDistance / 1000).toStringAsFixed(1)} km',
                 ),
               ),
               Expanded(
                 child: _buildStatItem(
-                  'Dislivello',
+                  context.l10n.elevation,
                   '${_totalElevation.toStringAsFixed(0)} m',
                 ),
               ),
@@ -383,13 +384,13 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
               Expanded(
                 child: GestureDetector(
                   onTap: () => _openFollowList(FollowListType.followers),
-                  child: _buildStatItem('Follower', '$_followersCount'),
+                  child: _buildStatItem(context.l10n.followers, '$_followersCount'),
                 ),
               ),
               Expanded(
                 child: GestureDetector(
                   onTap: () => _openFollowList(FollowListType.following),
-                  child: _buildStatItem('Seguiti', '$_followingCount'),
+                  child: _buildStatItem(context.l10n.following, '$_followingCount'),
                 ),
               ),
             ],
@@ -426,9 +427,9 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Tracce condivise',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Text(
+          context.l10n.sharedTracks,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         ..._communityTracks.map((track) => Card(
