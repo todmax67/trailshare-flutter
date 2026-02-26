@@ -68,6 +68,11 @@ class PrivacyPolicyPage extends StatelessWidget {
             ),
 
             _buildSection(
+              context.l10n.privacyHealthDataTitle,
+              context.l10n.privacyHealthDataContent,
+            ),
+
+            _buildSection(
               context.l10n.privacyRetentionTitle,
               context.l10n.privacyRetentionContent,
             ),

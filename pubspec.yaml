@@ -2,7 +2,7 @@ name: trailshare_flutter
 description: "TrailShare - GPS Tracking per escursioni e trail running"
 publish_to: 'none'
 
-version: 1.5.2+40
+version: 1.5.3+41
 
 environment:
   sdk: ^3.10.4
