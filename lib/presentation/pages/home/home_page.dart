@@ -5,6 +5,8 @@ import '../record/record_page.dart';
 import '../tracks/tracks_page.dart';
 import '../profile/profile_page.dart';
 import '../discover/discover_page.dart';
+import 'dart:async';
+import '../../../core/services/garmin_sync_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,6 +25,51 @@ class _HomePageState extends State<HomePage> {
     const TracksPage(),         // 3 - Tracce
     const ProfilePage(),        // 4 - Profilo
   ];
+
+  StreamSubscription? _garminSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _garminSub = GarminSyncService().syncEvents.listen((event) {
+      if (!mounted) return;
+      switch (event.type) {
+        case 'started':
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⌚ Garmin: ricezione traccia (${event.totalPoints} punti)...'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          break;
+        case 'completed':
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Traccia Garmin importata! (${event.totalPoints} punti)'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          // Vai alla tab Tracce per mostrare la nuova traccia
+          setState(() => _currentIndex = 3);
+          break;
+        case 'error':
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('❌ Errore Garmin: ${event.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          break;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _garminSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

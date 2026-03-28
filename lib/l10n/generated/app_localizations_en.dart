@@ -1770,7 +1770,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeAction => 'Close';
 
   @override
-  String get privacyLastUpdated => 'Last updated: January 2025';
+  String get privacyLastUpdated => 'Last updated: February 2026';
 
   @override
   String get privacyIntroTitle => 'Introduction';
@@ -1799,6 +1799,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get privacyDataSharingContent =>
       '• **We do not sell** your personal data to third parties\n• Published tracks are visible to other users\n• LiveTrack shares your position only with those who have the link\n• We use Firebase (Google) for secure data storage';
+
+  @override
+  String get privacyHealthDataTitle =>
+      'Health Data (Health Connect / Apple Health)';
+
+  @override
+  String get privacyHealthDataContent =>
+      'If you enable synchronization with Health Connect (Android) or Apple Health (iOS), TrailShare accesses the following data from your wearable device:\n\n• **Heart rate**: to display heart rate during recorded activities and calculate cardio zones\n• **Steps**: to count steps during activities and show daily totals in the Health Dashboard\n• **Calories burned**: to show energy expenditure during activities and weekly summaries\n• **Workouts**: to synchronize activities recorded with TrailShare to Health Connect/Apple Health\n\nThis data is:\n• Used exclusively for the app features described above\n• Stored in your personal account on Firebase (Google Cloud)\n• Shown only to you, the authenticated user\n• Never sold, shared with third parties, or used for advertising\n• Deleted from our servers when you delete your account\n\nSynchronization is disabled by default. You can enable or disable it at any time from the app Settings.';
 
   @override
   String get privacyRetentionTitle => 'Data retention';

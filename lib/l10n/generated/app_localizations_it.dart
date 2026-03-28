@@ -1772,7 +1772,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get closeAction => 'Chiudi';
 
   @override
-  String get privacyLastUpdated => 'Ultimo aggiornamento: Gennaio 2025';
+  String get privacyLastUpdated => 'Ultimo aggiornamento: Febbraio 2026';
 
   @override
   String get privacyIntroTitle => 'Introduzione';
@@ -1801,6 +1801,14 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get privacyDataSharingContent =>
       '• **Non vendiamo** i tuoi dati personali a terzi\n• Le tracce pubblicate sono visibili ad altri utenti\n• LiveTrack condivide la posizione solo con chi ha il link\n• Utilizziamo Firebase (Google) per l\'archiviazione sicura dei dati';
+
+  @override
+  String get privacyHealthDataTitle =>
+      'Dati sulla salute (Health Connect / Apple Salute)';
+
+  @override
+  String get privacyHealthDataContent =>
+      'Se attivi la sincronizzazione con Health Connect (Android) o Apple Salute (iOS), TrailShare accede ai seguenti dati dal tuo dispositivo wearable:\n\n• **Frequenza cardiaca**: per mostrare il battito durante le attività e calcolare le zone cardio\n• **Passi**: per contare i passi durante le attività e mostrare il totale giornaliero nella Dashboard Salute\n• **Calorie bruciate**: per mostrare il dispendio energetico durante le attività e il riepilogo settimanale\n• **Allenamenti**: per sincronizzare le attività registrate con TrailShare su Health Connect/Apple Salute\n\nQuesti dati vengono:\n• Utilizzati esclusivamente per le funzionalità dell\'app descritte sopra\n• Salvati nel tuo account personale su Firebase (Google Cloud)\n• Mostrati solo a te, l\'utente autenticato\n• Mai venduti, condivisi con terze parti o utilizzati per pubblicità\n• Eliminati dal nostro server quando elimini il tuo account\n\nLa sincronizzazione è disattivata per impostazione predefinita. Puoi attivarla o disattivarla in qualsiasi momento dalle Impostazioni.';
 
   @override
   String get privacyRetentionTitle => 'Conservazione dei dati';

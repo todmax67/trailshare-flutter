@@ -601,7 +601,7 @@
   "@tileProgress": { "placeholders": { "downloaded": {"type": "int"}, "total": {"type": "int"} } },
   "closeAction": "Chiudi",
 
-  "privacyLastUpdated": "Ultimo aggiornamento: Gennaio 2025",
+  "privacyLastUpdated": "Ultimo aggiornamento: Febbraio 2026",
   "privacyIntroTitle": "Introduzione",
   "privacyIntroContent": "TrailShare (\"noi\", \"nostro\" o \"app\") rispetta la tua privacy. Questa informativa descrive quali dati raccogliamo, come li utilizziamo e i tuoi diritti in merito.",
   "privacyDataCollectedTitle": "Dati che raccogliamo",
