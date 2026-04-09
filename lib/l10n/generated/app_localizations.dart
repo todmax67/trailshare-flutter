@@ -6907,6 +6907,12 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Ho capito, continua'**
   String get locationDisclosureAccept;
+
+  /// No description provided for @searchStartPoint.
+  ///
+  /// In it, this message translates to:
+  /// **'Cerca punto di partenza...'**
+  String get searchStartPoint;
 }
 
 class _AppLocalizationsDelegate

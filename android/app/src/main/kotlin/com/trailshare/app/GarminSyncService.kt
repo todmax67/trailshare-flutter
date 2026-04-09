@@ -6,15 +6,11 @@ import com.garmin.android.connectiq.ConnectIQ
 import com.garmin.android.connectiq.IQApp
 import com.garmin.android.connectiq.IQDevice
 import io.flutter.plugin.common.EventChannel
-import io.flutter.plugin.common.MethodChannel
-import org.json.JSONArray
-import org.json.JSONObject
 
 class GarminSyncService(private val context: Context) {
 
     companion object {
         private const val TAG = "GarminSync"
-        // L'ID della tua app TrailShare sull'orologio (dal manifest.xml)
         private const val WATCH_APP_ID = "b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2"
     }
 
@@ -23,7 +19,6 @@ class GarminSyncService(private val context: Context) {
     private var isInitialized = false
     private var eventSink: EventChannel.EventSink? = null
 
-    // Buffer per ricostruire la traccia dai chunk
     private var trackHeader: Map<String, Any>? = null
     private var trackPoints: MutableList<Map<String, Any>> = mutableListOf()
     private var expectedChunks = 0
@@ -70,9 +65,7 @@ class GarminSyncService(private val context: Context) {
                 }
             }
 
-            if (connectedDevice == null) {
-                Log.d(TAG, "Nessun dispositivo Garmin connesso")
-            }
+
         } catch (e: Exception) {
             Log.e(TAG, "Errore ricerca dispositivi: ${e.message}")
         }
@@ -83,6 +76,7 @@ class GarminSyncService(private val context: Context) {
             val app = IQApp(WATCH_APP_ID)
 
             connectIQ?.registerForAppEvents(device, app) { _, _, data, _ ->
+                Log.d(TAG, "Dati ricevuti! Size: ${data?.size}")
                 if (data != null && data.isNotEmpty()) {
                     handleIncomingData(data[0])
                 }
@@ -97,32 +91,31 @@ class GarminSyncService(private val context: Context) {
     @Suppress("UNCHECKED_CAST")
     private fun handleIncomingData(data: Any?) {
         if (data !is Map<*, *>) {
-            Log.w(TAG, "Dati ricevuti non validi: $data")
+            Log.w(TAG, "Dati non validi: ${data?.javaClass?.name}")
             return
         }
 
         val dataMap = data as Map<String, Any>
         val type = dataMap["type"] as? String ?: return
 
-        Log.d(TAG, "Ricevuto messaggio tipo: $type")
+        Log.d(TAG, "Messaggio tipo: $type")
 
         when (type) {
             "trailshare_track" -> {
-                // Header della traccia
                 trackHeader = dataMap
                 trackPoints.clear()
-                expectedChunks = (dataMap["chunks"] as? Number)?.toInt() ?: 0
+                expectedChunks = (dataMap["ch"] as? Number)?.toInt() ?: 0
                 receivedChunks = 0
-                Log.d(TAG, "Header traccia ricevuto: ${dataMap["totalPoints"]} punti, $expectedChunks chunks")
-                notifyFlutter("sync_started", dataMap)
+                val totalPoints = (dataMap["tp"] as? Number)?.toInt() ?: 0
+                Log.d(TAG, "Header: $totalPoints punti, $expectedChunks chunks")
+                notifyFlutter("sync_started", mapOf("totalPoints" to totalPoints))
             }
 
             "trailshare_chunk" -> {
-                // Chunk di punti GPS
-                val points = dataMap["points"] as? List<Map<String, Any>> ?: return
+                val points = dataMap["p"] as? List<Map<String, Any>> ?: return
                 trackPoints.addAll(points)
                 receivedChunks++
-                Log.d(TAG, "Chunk $receivedChunks/$expectedChunks ricevuto (${points.size} punti)")
+                Log.d(TAG, "Chunk $receivedChunks/$expectedChunks (${points.size} punti)")
                 notifyFlutter("sync_progress", mapOf(
                     "received" to receivedChunks,
                     "total" to expectedChunks,
@@ -131,13 +124,9 @@ class GarminSyncService(private val context: Context) {
             }
 
             "trailshare_end" -> {
-                // Fine trasmissione - assembla la traccia completa
-                Log.d(TAG, "Traccia completa: ${trackPoints.size} punti GPS")
-                
-                val completeTrack = mutableMapOf<String, Any>()
-                trackHeader?.let { completeTrack.putAll(it) }
-                
-                // Converti punti da formato compatto a coordinate
+                Log.d(TAG, "Traccia completa: ${trackPoints.size} punti")
+
+                val header = trackHeader ?: return
                 val decodedPoints = trackPoints.map { point ->
                     mapOf(
                         "latitude" to ((point["la"] as? Number)?.toDouble() ?: 0.0) / 100000.0,
@@ -145,13 +134,19 @@ class GarminSyncService(private val context: Context) {
                         "altitude" to ((point["al"] as? Number)?.toDouble() ?: 0.0)
                     )
                 }
-                
-                completeTrack["points"] = decodedPoints
+
+                val completeTrack = HashMap<String, Any>()
                 completeTrack["type"] = "trailshare_complete"
+                completeTrack["name"] = header["n"] as? String ?: "TrailShare"
+                completeTrack["sport"] = header["s"] as? String ?: "hiking"
+                completeTrack["distance"] = (header["d"] as? Number)?.toDouble() ?: 0.0
+                completeTrack["ascent"] = (header["a"] as? Number)?.toDouble() ?: 0.0
+                completeTrack["duration"] = (header["t"] as? Number)?.toLong() ?: 0L
+                completeTrack["totalPoints"] = trackPoints.size
+                completeTrack["points"] = decodedPoints
 
                 notifyFlutter("sync_complete", completeTrack)
 
-                // Reset
                 trackHeader = null
                 trackPoints.clear()
                 expectedChunks = 0
@@ -166,9 +161,9 @@ class GarminSyncService(private val context: Context) {
             payload["event"] = event
             payload.putAll(data)
 
-            // Invia tramite EventChannel al main thread
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 eventSink?.success(payload)
+                Log.d(TAG, "Notificato Flutter: $event")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Errore notifica Flutter: ${e.message}")
@@ -177,6 +172,7 @@ class GarminSyncService(private val context: Context) {
 
     fun setEventSink(sink: EventChannel.EventSink?) {
         eventSink = sink
+        Log.d(TAG, "EventSink ${if (sink != null) "registrato" else "rimosso"}")
     }
 
     fun getStatus(): Map<String, Any> {

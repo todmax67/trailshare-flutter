@@ -3727,4 +3727,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get locationDisclosureAccept => 'Got it, continue';
+
+  @override
+  String get searchStartPoint => 'Search starting point...';
 }

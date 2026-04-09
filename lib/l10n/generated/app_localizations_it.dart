@@ -3741,4 +3741,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get locationDisclosureAccept => 'Ho capito, continua';
+
+  @override
+  String get searchStartPoint => 'Cerca punto di partenza...';
 }

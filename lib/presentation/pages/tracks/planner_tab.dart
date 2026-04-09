@@ -10,6 +10,9 @@ import '../../../core/services/routing_service.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../data/models/track.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'dart:async';
 
 
 /// Tab per pianificare nuovi percorsi con routing ORS
@@ -39,6 +42,13 @@ class _PlannerTabState extends State<PlannerTab> {
   RoutingProfile _profile = RoutingProfile.hiking;
   bool _showElevationProfile = true;
   LatLng? _userPosition;
+
+  // Ricerca punto di partenza
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearching = false;
+  bool _showSearchResults = false;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -396,7 +406,120 @@ class _PlannerTabState extends State<PlannerTab> {
           top: 8,
           left: 8,
           right: 8,
-          child: _buildHeader(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 🔍 Barra di ricerca punto di partenza
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search, color: AppColors.textMuted, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: context.l10n.searchStartPoint,
+                          hintStyle: TextStyle(fontSize: 14, color: AppColors.textMuted),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        style: const TextStyle(fontSize: 14),
+                        onChanged: (query) {
+                          _searchDebounce?.cancel();
+                          _searchDebounce = Timer(const Duration(milliseconds: 600), () {
+                            _searchPlace(query);
+                          });
+                        },
+                        onSubmitted: _searchPlace,
+                      ),
+                    ),
+                    if (_isSearching)
+                      const SizedBox(
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else if (_searchController.text.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchResults = [];
+                            _showSearchResults = false;
+                          });
+                        },
+                        child: Icon(Icons.clear, color: AppColors.textMuted, size: 20),
+                      ),
+                  ],
+                ),
+              ),
+
+              // Risultati ricerca
+              if (_showSearchResults)
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: _searchResults.map((result) {
+                      final name = result['name'] as String;
+                      final parts = name.split(',');
+                      return InkWell(
+                        onTap: () => _selectSearchResult(result),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          child: Row(
+                            children: [
+                              Icon(Icons.location_on, color: AppColors.primary, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      parts.first.trim(),
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (parts.length > 1)
+                                      Text(
+                                        parts.sublist(1).join(',').trim(),
+                                        style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+
+              const SizedBox(height: 8),
+              _buildHeader(),
+            ],
+          ),
         ),
 
         if (_errorMessage != null)
@@ -473,6 +596,81 @@ class _PlannerTabState extends State<PlannerTab> {
           ),
       ],
     );
+  }
+
+  /// Cerca luoghi con Nominatim
+  Future<void> _searchPlace(String query) async {
+    if (query.trim().length < 3) {
+      setState(() {
+        _searchResults = [];
+        _showSearchResults = false;
+      });
+      return;
+    }
+
+    setState(() => _isSearching = true);
+
+    try {
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/search'
+        '?q=${Uri.encodeComponent(query)}'
+        '&format=json&limit=5&addressdetails=1'
+        '&viewbox=6.6,47.8,12.5,44.5&bounded=0'
+        '&accept-language=it',
+      );
+
+      final response = await http.get(url, headers: {
+        'User-Agent': 'TrailShare/1.0 (https://trailshare.app)',
+      }).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200 && mounted) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _searchResults = data.map((item) => {
+            'name': item['display_name'] as String,
+            'lat': double.parse(item['lat']),
+            'lon': double.parse(item['lon']),
+          }).toList();
+          _showSearchResults = _searchResults.isNotEmpty;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Planner] Errore ricerca: $e');
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  /// Seleziona un risultato di ricerca come punto di partenza
+  void _selectSearchResult(Map<String, dynamic> result) {
+    final point = LatLng(result['lat'] as double, result['lon'] as double);
+
+    setState(() {
+      _showSearchResults = false;
+      _searchController.text = (result['name'] as String).split(',').first;
+
+      // Se non ci sono waypoint, aggiungi come primo
+      // Se ci sono, sostituisci il primo
+      if (_waypoints.isEmpty) {
+        _waypoints.add(point);
+      } else {
+        _waypoints[0] = point;
+      }
+    });
+
+    // Centra la mappa sul punto
+    _mapController.move(point, 15);
+
+    // Ricalcola percorso se ci sono almeno 2 punti
+    if (_waypoints.length >= 2) {
+      _calculateRoute();
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Widget _buildHeader() {

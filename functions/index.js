@@ -781,7 +781,7 @@ exports.processGpxUpload = onDocumentCreated("pending_gpx_uploads/{uploadId}", a
             distance: stats.distance,
             elevationGain: stats.elevationGain,
             startPoint: startPoint,
-            isPublic: false, duration: 0, waypoints: [], photos: [],
+            isPublic: false, duration: 0, waypoints: [], heartRateData: heartRateData, photos: [],
             originalOwnerId: userId // Salva l'ID dell'utente che ha caricato
         };
 
@@ -1444,4 +1444,162 @@ exports.backfillOwnerUsername = functions.https.onRequest(async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+// ===================================================================
+
+// ===================================================================
+// SYNC TRACCE DA GARMIN WATCH
+// ===================================================================
+
+function haversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+exports.syncGarminTrack = onRequest(async (req, res) => {
+    if (req.method !== 'POST') {
+        res.status(405).send('Method not allowed');
+        return;
+    }
+
+    try {
+        const data = req.body;
+
+        if (!data || !data.userId || !data.points || !Array.isArray(data.points)) {
+            logger.warn('[GarminSync] Dati invalidi ricevuti');
+            res.status(400).json({ error: 'Dati invalidi' });
+            return;
+        }
+
+        const userId = data.userId;
+        const points = data.points;
+        const name = data.name || 'Garmin TrailShare';
+        const sport = data.sport || 'trekking';
+        const durationMs = data.duration || 0;
+
+        logger.info(`[GarminSync] Ricevuta traccia da ${userId}: ${points.length} punti`);
+
+        // Calcola stats dai punti reali
+        const heartRateData = {};
+        let totalDistance = 0;
+        let elevationGain = 0;
+        let elevationLoss = 0;
+        let maxElevation = -Infinity;
+        let minElevation = Infinity;
+        let lastLat = null, lastLon = null, lastEle = null;
+
+        const startTime = new Date(Date.now() - durationMs);
+
+        const decodedPoints = points.map((p, i) => {
+            const lat = (p.la || 0) / 100000;
+            const lon = (p.lo || 0) / 100000;
+            const ele = p.al || 0;
+            const hr = p.hr || 0;
+            const timestamp = new Date(startTime.getTime() + (i * durationMs / Math.max(points.length - 1, 1)));
+
+            // HR
+            if (hr > 0) {
+                heartRateData[timestamp.toISOString()] = hr;
+            }
+
+            // Elevazione
+            if (ele > maxElevation) maxElevation = ele;
+            if (ele < minElevation) minElevation = ele;
+
+            // Distanza e dislivello
+            if (lastLat !== null && lastLon !== null) {
+                const dist = haversineDistance(lastLat, lastLon, lat, lon);
+                if (dist > 2) {
+                    totalDistance += dist;
+                }
+
+                if (lastEle !== null) {
+                    const eleDiff = ele - lastEle;
+                    if (eleDiff > 3) {
+                        elevationGain += eleDiff;
+                        lastEle = ele;
+                    } else if (eleDiff < -3) {
+                        elevationLoss += Math.abs(eleDiff);
+                        lastEle = ele;
+                    }
+                } else {
+                    lastEle = ele;
+                }
+            } else {
+                lastEle = ele;
+            }
+
+            lastLat = lat;
+            lastLon = lon;
+
+            return {
+                lat: lat,
+                lng: lon,
+                ele: ele,
+                time: timestamp.toISOString(),
+                speed: null,
+                accuracy: null,
+                heading: null,
+            };
+        });
+
+        if (maxElevation === -Infinity) maxElevation = 0;
+        if (minElevation === Infinity) minElevation = 0;
+
+        const durationSecs = durationMs / 1000;
+        const distanceKm = totalDistance / 1000;
+        const avgSpeed = durationSecs > 0 ? (distanceKm / (durationSecs / 3600)) : 0;
+
+        logger.info(`[GarminSync] Stats: ${totalDistance.toFixed(0)}m, D+${elevationGain.toFixed(0)}m, ${durationSecs}s, HR: ${Object.keys(heartRateData).length} campioni`);
+
+        const trackData = {
+            name: name,
+            description: 'Registrata con TrailShare su Garmin',
+            activityType: sport,
+            points: decodedPoints,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            recordedAt: startTime,
+            userId: userId,
+            isPublic: false,
+            isPlanned: false,
+            source: 'garmin',
+            heartRateData: heartRateData,
+            stats: {
+                distance: totalDistance,
+                elevationGain: elevationGain,
+                elevationLoss: elevationLoss,
+                maxElevation: maxElevation,
+                minElevation: minElevation,
+                duration: durationMs,
+                movingTime: durationMs,
+                currentSpeed: 0,
+                avgSpeed: avgSpeed,
+                maxSpeed: 0,
+            },
+            photos: [],
+        };
+
+        const docRef = await db.collection('users').doc(userId).collection('tracks').add(trackData);
+
+        logger.info(`[GarminSync] Traccia salvata: ${docRef.id}`);
+
+        res.status(200).json({
+            success: true,
+            trackId: docRef.id,
+            points: decodedPoints.length,
+            distance: totalDistance,
+            elevationGain: elevationGain,
+            hrSamples: Object.keys(heartRateData).length,
+        });
+
+    } catch (error) {
+        logger.error('[GarminSync] Errore:', error);
+        res.status(500).json({ error: 'Errore interno' });
+    }
 });

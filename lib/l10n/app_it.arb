@@ -1317,5 +1317,6 @@
   "locationDisclosureTitle": "Accesso alla posizione",
   "locationDisclosureBody": "TrailShare utilizza la tua posizione per:\n\n• Registrare le tracce GPS delle tue attività outdoor (escursioni, corsa, ciclismo)\n• Mostrarti i sentieri e i punti di interesse vicini a te\n• Fornire statistiche accurate su distanza, velocità e percorso\n• Permettere il tracciamento in background durante la registrazione per garantire la continuità del percorso anche con lo schermo spento\n\nLa tua posizione non viene condivisa con terze parti, salvo quando scegli volontariamente di pubblicare una traccia nella community.",
   "locationDisclosureDecline": "Non ora",
-  "locationDisclosureAccept": "Ho capito, continua"
+  "locationDisclosureAccept": "Ho capito, continua",
+  "searchStartPoint": "Cerca punto di partenza..."
 }
