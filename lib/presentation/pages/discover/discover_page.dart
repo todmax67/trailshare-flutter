@@ -11,6 +11,8 @@ import '../../../core/services/trails_cache_service.dart';
 import 'trail_detail_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
+import '../../../data/models/track.dart';
+import 'dart:ui' as ui;
 
 class DiscoverPage extends StatefulWidget {
   const DiscoverPage({super.key});
@@ -177,6 +179,46 @@ class _DiscoverPageState extends State<DiscoverPage> {
     } else {
       _initializeLocation();
     }
+  }
+
+ /// Colore per tipo attività
+  Color _activityColor(String? type) {
+    if (type == null) return AppColors.primary;
+    final t = type.toLowerCase();
+    if (t.contains('cycl') || t.contains('bike') || t.contains('mtb')) {
+      return const Color(0xFF1565C0); // Blu
+    }
+    if (t.contains('run') || t.contains('trail')) {
+      return const Color(0xFF2E7D32); // Verde
+    }
+    if (t.contains('ski') || t.contains('snow')) {
+      return const Color(0xFF5E35B1); // Viola
+    }
+    return AppColors.primary; // Arancione hiking/walking/default
+  }
+
+  /// Icona per tipo attività
+  IconData _activityIcon(String? type) {
+    if (type == null) return Icons.hiking;
+    final t = type.toLowerCase();
+    if (t.contains('cycl') || t.contains('bike') || t.contains('mtb')) {
+      return Icons.directions_bike;
+    }
+    if (t.contains('run') || t.contains('trail')) {
+      return Icons.directions_run;
+    }
+    if (t.contains('ski') || t.contains('snow')) {
+      return Icons.downhill_skiing;
+    }
+    return Icons.hiking;
+  }
+
+  /// Formatta distanza breve per badge
+  String _shortDistance(double? meters) {
+    if (meters == null) return '';
+    final km = meters / 1000;
+    if (km >= 10) return '${km.round()}km';
+    return '${km.toStringAsFixed(1)}km';
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -498,15 +540,22 @@ class _DiscoverPageState extends State<DiscoverPage> {
               tileProvider: OfflineFallbackTileProvider(),
             ),
             
-            // ⭐ NUOVO: Mostra polylines SOLO se NON ci sono cluster
-            if (_clusters.isEmpty)
+            // Polyline: zoom medio = tratteggio, zoom alto = completo
+            if (_clusters.isEmpty && _currentZoom >= 13)
               PolylineLayer(
                 polylines: trails.map((trail) {
                   final isSelected = trail.id == _selectedTrail?.id;
+                  final color = _activityColor(trail.activityType);
+                  final isHighZoom = _currentZoom >= 15;
                   return Polyline(
                     points: trail.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
-                    strokeWidth: isSelected ? 5 : 3,
-                    color: isSelected ? AppColors.primary : AppColors.info.withOpacity(0.7),
+                    strokeWidth: isSelected ? 5 : (isHighZoom ? 3.5 : 2),
+                    color: isSelected
+                        ? color
+                        : color.withOpacity(isHighZoom ? 0.85 : 0.4),
+                    pattern: (!isHighZoom && !isSelected)
+                        ? StrokePattern.dashed(segments: [8, 6])
+                        : const StrokePattern.solid(),
                   );
                 }).toList(),
               ),
@@ -560,45 +609,77 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 )).toList(),
               ),
 
-            // Markers dei sentieri (solo quando NON ci sono cluster)
+            // Marker punto di partenza con icona attività
             if (_clusters.isEmpty)
               MarkerLayer(
                 markers: trails.map((trail) {
                   if (trail.points.isEmpty) return null;
                   final start = trail.points.first;
                   final isSelected = trail.id == _selectedTrail?.id;
-                  
+                  final color = _activityColor(trail.activityType);
+                  final icon = _activityIcon(trail.activityType);
+                  final isLowZoom = _currentZoom < 13;
+                  final size = isSelected ? 44.0 : (isLowZoom ? 40.0 : 28.0);
+
                   return Marker(
                     point: LatLng(start.latitude, start.longitude),
-                    width: isSelected ? 40 : 30,
-                    height: isSelected ? 40 : 30,
+                    width: isLowZoom ? 100 : size,
+                    height: isLowZoom ? 44 : size,
                     child: GestureDetector(
                       onTap: () => _selectTrail(trail),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppColors.primary : AppColors.info,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
-                          ],
-                        ),
-                        child: Center(
-                          child: Text(
-                            trail.ref ?? '•',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: isSelected ? 12 : 10,
-                              fontWeight: FontWeight.bold,
+                      child: isLowZoom
+                          // Zoom basso: marker grande con icona + badge distanza
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: color, width: 2.5),
+                                    boxShadow: [
+                                      BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                                    ],
+                                  ),
+                                  child: Icon(icon, color: color, size: 20),
+                                ),
+                                if (trail.length != null)
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 2),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: color,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      _shortDistance(trail.length),
+                                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                              ],
+                            )
+                          // Zoom medio/alto: marker piccolo colorato
+                          : Container(
+                              decoration: BoxDecoration(
+                                color: isSelected ? color : Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: isSelected ? Colors.white : color, width: 2),
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 3),
+                                ],
+                              ),
+                              child: Icon(
+                                icon,
+                                color: isSelected ? Colors.white : color,
+                                size: isSelected ? 20 : 14,
+                              ),
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
                     ),
                   );
                 }).whereType<Marker>().toList(),
-              ),
+              ),  
 
             // Marker posizione utente
             if (_userPosition != null)
@@ -860,67 +941,151 @@ class _TrailInfoCard extends StatelessWidget {
 
   const _TrailInfoCard({required this.trail, required this.onTap, required this.onClose});
 
+  Color _getColor() {
+    final t = (trail.activityType ?? '').toLowerCase();
+    if (t.contains('cycl') || t.contains('bike') || t.contains('mtb')) {
+      return const Color(0xFF1565C0);
+    }
+    if (t.contains('run') || t.contains('trail')) {
+      return const Color(0xFF2E7D32);
+    }
+    if (t.contains('ski') || t.contains('snow')) {
+      return const Color(0xFF5E35B1);
+    }
+    return AppColors.primary;
+  }
+
+  IconData _getIcon() {
+    final t = (trail.activityType ?? '').toLowerCase();
+    if (t.contains('cycl') || t.contains('bike') || t.contains('mtb')) {
+      return Icons.directions_bike;
+    }
+    if (t.contains('run') || t.contains('trail')) {
+      return Icons.directions_run;
+    }
+    if (t.contains('ski') || t.contains('snow')) {
+      return Icons.downhill_skiing;
+    }
+    return Icons.hiking;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final color = _getColor();
+
     return Container(
-      margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, spreadRadius: 2)],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 16, offset: const Offset(0, -4))],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(20, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                // Handle bar
                 Container(
-                  width: 50,
-                  height: 50,
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: AppColors.info.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  child: Center(child: Text(trail.difficultyIcon, style: const TextStyle(fontSize: 24))),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(trail.displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Row(
+
+                // Contenuto
+                Row(
+                  children: [
+                    // Icona attività
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(_getIcon(), color: color, size: 26),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (trail.distanceFromUser != null) ...[
-                            Icon(Icons.near_me, size: 14, color: AppColors.primary),
-                            const SizedBox(width: 4),
-                            Text(trail.distanceFromUserFormatted, style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
-                            const SizedBox(width: 12),
-                          ],
-                          if (trail.length != null) ...[
-                            Icon(Icons.straighten, size: 14, color: AppColors.textMuted),
-                            const SizedBox(width: 4),
-                            Text('${trail.lengthKm.toStringAsFixed(1)} km', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                            const SizedBox(width: 12),
-                          ],
-                          if (trail.elevationGain != null) ...[
-                            Icon(Icons.trending_up, size: 14, color: AppColors.textMuted),
-                            const SizedBox(width: 4),
-                            Text('+${trail.elevationGain!.toStringAsFixed(0)} m', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                          ],
+                          Text(
+                            trail.displayName,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              if (trail.length != null) ...[
+                                Icon(Icons.straighten, size: 14, color: color),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${trail.lengthKm.toStringAsFixed(1)} km',
+                                  style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(width: 14),
+                              ],
+                              if (trail.elevationGain != null) ...[
+                                Icon(Icons.trending_up, size: 14, color: AppColors.textMuted),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '+${trail.elevationGain!.toStringAsFixed(0)} m',
+                                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                ),
+                              ],
+                            ],
+                          ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: onClose,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.grey[100],
+                        padding: const EdgeInsets.all(6),
+                        minimumSize: const Size(32, 32),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                  ],
                 ),
-                IconButton(icon: const Icon(Icons.close), onPressed: onClose, iconSize: 20),
-                const Icon(Icons.chevron_right, color: AppColors.textMuted),
+
+                // Mini profilo altimetrico
+                if (trail.points.length >= 4 && trail.points.any((p) => p.elevation != null))
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    height: 36,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return CustomPaint(
+                          size: Size(constraints.maxWidth, 36),
+                          painter: _MiniElevationPainter(
+                            points: trail.points,
+                            color: color,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
               ],
             ),
           ),
@@ -928,6 +1093,60 @@ class _TrailInfoCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Painter per mini profilo altimetrico nella card
+class _MiniElevationPainter extends CustomPainter {
+  final List<TrackPoint> points;
+  final Color color;
+
+  _MiniElevationPainter({required this.points, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+
+    final elevations = points
+        .where((p) => p.elevation != null)
+        .map((p) => p.elevation!)
+        .toList();
+
+    if (elevations.length < 2) return;
+
+    final minEle = elevations.reduce((a, b) => a < b ? a : b);
+    final maxEle = elevations.reduce((a, b) => a > b ? a : b);
+    final range = maxEle - minEle;
+    if (range < 1) return;
+
+    final path = ui.Path();
+    final fillPath = ui.Path();
+
+    for (int i = 0; i < elevations.length; i++) {
+      final x = (i / (elevations.length - 1)) * size.width;
+      final y = size.height - ((elevations[i] - minEle) / range) * (size.height - 4) - 2;
+
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, Paint()..color = color.withOpacity(0.08));
+    canvas.drawPath(path, Paint()
+      ..color = color.withOpacity(0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// ⭐ Card migliorata per sentieri OSM con anteprima mappa

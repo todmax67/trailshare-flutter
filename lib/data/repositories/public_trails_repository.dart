@@ -73,6 +73,7 @@ class PublicTrailsRepository {
       minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
       limit: limit,
       simplified: zoom < _simplifiedZoomThreshold,
+      metadataOnly: zoom <= 12,
     );
     
     // Salva in cache (in background)
@@ -255,6 +256,7 @@ class PublicTrailsRepository {
     required double maxLng,
     required int limit,
     required bool simplified,
+    bool metadataOnly = false,
   }) async {
     try {
       // Calcola geohash ranges
@@ -297,7 +299,7 @@ class PublicTrailsRepository {
           if (seenIds.contains(doc.id)) continue;
           seenIds.add(doc.id);
           
-          final trail = _docToTrail(doc, simplified: simplified);
+        final trail = _docToTrail(doc, simplified: simplified, metadataOnly: metadataOnly);
           if (trail != null) {
             // Margine 50% per includere sentieri ai bordi del viewport
             final latMargin = (maxLat - minLat) * 0.5;
@@ -372,13 +374,16 @@ class PublicTrailsRepository {
   // DOCUMENT PARSING
   // ═══════════════════════════════════════════════════════════════════════════
 
-  PublicTrail? _docToTrail(DocumentSnapshot<Map<String, dynamic>> doc, {bool simplified = true}) {
+  PublicTrail? _docToTrail(DocumentSnapshot<Map<String, dynamic>> doc, {bool simplified = true, bool metadataOnly = false}) {
     try {
       final data = doc.data();
       if (data == null) return null;
 
       List<TrackPoint> points = [];
       
+      if (metadataOnly) {
+        // Solo metadati: skip parsing coordinate per velocità
+      } else {
       final geometry = data['geometry'];
       if (geometry != null && geometry is Map) {
         final coordsJsonStr = geometry['coordinatesJson'];
@@ -439,8 +444,9 @@ class PublicTrailsRepository {
           print('[PublicTrails] Errore parsing geometry string: $e');
         }
       }
+    } // chiude if (!metadataOnly)
 
-      if (points.isEmpty) return null;
+      if (points.isEmpty && !metadataOnly) return null;
 
       String name = data['name']?.toString() ?? '';
       final ref = data['ref']?.toString();
@@ -458,8 +464,12 @@ class PublicTrailsRepository {
           startLng = (sp['lng'] ?? sp['lon'] ?? sp['longitude'] as num?)?.toDouble();
         }
       }
-      startLat ??= points.first.latitude;
-      startLng ??= points.first.longitude;
+      if (startLat == null && points.isNotEmpty) {
+        startLat = points.first.latitude;
+        startLng = points.first.longitude;
+      }
+      // Se non c'è né startPoint né points, scarta
+      if (startLat == null || startLng == null) return null;
 
       return PublicTrail(
         id: doc.id,
