@@ -517,7 +517,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   : null,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               filled: true,
-              fillColor: AppColors.background,
+              fillColor: Theme.of(context).colorScheme.surface,
               contentPadding: const EdgeInsets.symmetric(vertical: 0),
             ),
           ),
@@ -692,7 +692,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: _isLoadingMore
@@ -1277,7 +1277,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: isPast ? Colors.grey[50] : null,
+      color: isPast ? Theme.of(context).colorScheme.surfaceContainerHighest : null,
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -1498,7 +1498,7 @@ class _CounterBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
       ),
@@ -1519,7 +1519,7 @@ class _CommunityTrackInfoCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, spreadRadius: 2)],
       ),

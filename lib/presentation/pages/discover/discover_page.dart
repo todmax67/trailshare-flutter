@@ -405,7 +405,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     filled: true,
-                    fillColor: AppColors.background,
+                    fillColor: Theme.of(context).colorScheme.surface,
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   ),
                 ),
@@ -613,8 +613,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
             if (_clusters.isEmpty)
               MarkerLayer(
                 markers: trails.map((trail) {
-                  if (trail.points.isEmpty) return null;
-                  final start = trail.points.first;
+                  final startLat = trail.startLat;
+                  final startLng = trail.startLng;
+                  if (startLat == 0 && startLng == 0) return null;
                   final isSelected = trail.id == _selectedTrail?.id;
                   final color = _activityColor(trail.activityType);
                   final icon = _activityIcon(trail.activityType);
@@ -622,7 +623,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   final size = isSelected ? 44.0 : (isLowZoom ? 40.0 : 28.0);
 
                   return Marker(
-                    point: LatLng(start.latitude, start.longitude),
+                    point: LatLng(startLat, startLng),
                     width: isLowZoom ? 100 : size,
                     height: isLowZoom ? 44 : size,
                     child: GestureDetector(
@@ -750,7 +751,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
@@ -784,7 +785,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
@@ -916,7 +917,7 @@ class _CounterBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
       ),
@@ -972,10 +973,11 @@ class _TrailInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _getColor();
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 16, offset: const Offset(0, -4))],
       ),
@@ -995,7 +997,7 @@ class _TrailInfoCard extends StatelessWidget {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1054,7 +1056,7 @@ class _TrailInfoCard extends StatelessWidget {
                       icon: const Icon(Icons.close, size: 20),
                       onPressed: onClose,
                       style: IconButton.styleFrom(
-                        backgroundColor: Colors.grey[100],
+                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                         padding: const EdgeInsets.all(6),
                         minimumSize: const Size(32, 32),
                       ),
@@ -1070,7 +1072,7 @@ class _TrailInfoCard extends StatelessWidget {
                     height: 36,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: Colors.grey[50],
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     clipBehavior: Clip.antiAlias,

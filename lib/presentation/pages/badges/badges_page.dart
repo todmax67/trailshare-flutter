@@ -193,7 +193,6 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
         title: Text(context.l10n.badges),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
@@ -362,16 +361,18 @@ class _BadgeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isUnlocked ? Colors.white : Colors.grey[100],
+        color: isUnlocked ? colorScheme.surface : colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isUnlocked 
               ? AppColors.primary.withOpacity(0.3)
-              : Colors.grey[300]!,
+              : colorScheme.outlineVariant,
         ),
         boxShadow: isUnlocked
             ? [
@@ -390,7 +391,7 @@ class _BadgeCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: isUnlocked 
                   ? AppColors.primary.withOpacity(0.1)
-                  : Colors.grey[200],
+                  : colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
@@ -398,7 +399,7 @@ class _BadgeCard extends StatelessWidget {
                 badge.icon,
                 style: TextStyle(
                   fontSize: 24,
-                  color: isUnlocked ? null : Colors.grey,
+                  color: isUnlocked ? null : colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -412,7 +413,7 @@ class _BadgeCard extends StatelessWidget {
                   badge.name,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: isUnlocked ? AppColors.textPrimary : Colors.grey,
+                    color: isUnlocked ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -420,7 +421,7 @@ class _BadgeCard extends StatelessWidget {
                   badge.description,
                   style: TextStyle(
                     fontSize: 12,
-                    color: isUnlocked ? AppColors.textSecondary : Colors.grey[400],
+                    color: isUnlocked ? colorScheme.onSurfaceVariant : colorScheme.outline,
                   ),
                 ),
                 if (badge.requirement != null)
@@ -430,7 +431,7 @@ class _BadgeCard extends StatelessWidget {
                       badge.requirement!,
                       style: TextStyle(
                         fontSize: 11,
-                        color: isUnlocked ? AppColors.primary : Colors.grey[400],
+                        color: isUnlocked ? AppColors.primary : colorScheme.outline,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -452,7 +453,7 @@ class _BadgeCard extends StatelessWidget {
           if (isUnlocked)
             const Icon(Icons.check_circle, color: AppColors.success, size: 24)
           else
-            Icon(Icons.lock_outline, color: Colors.grey[400], size: 24),
+            Icon(Icons.lock_outline, color: colorScheme.outline, size: 24),
         ],
       ),
     );

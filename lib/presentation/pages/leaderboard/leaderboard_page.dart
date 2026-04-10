@@ -62,7 +62,6 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         title: Text(context.l10n.weeklyLeaderboard),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -215,11 +214,13 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   }
 
   Widget _buildSkeletonItem() {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -228,14 +229,14 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
             width: 30,
             height: 20,
             decoration: BoxDecoration(
-              color: Colors.grey[300],
+              color: colorScheme.outlineVariant,
               borderRadius: BorderRadius.circular(4),
             ),
           ),
           const SizedBox(width: 12),
           CircleAvatar(
             radius: 24,
-            backgroundColor: Colors.grey[300],
+            backgroundColor: colorScheme.outlineVariant,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -246,7 +247,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                   height: 16,
                   width: 100,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -255,7 +256,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                   height: 12,
                   width: 60,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -399,17 +400,19 @@ class _LeaderboardItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: isCurrentUser 
             ? AppColors.primary.withOpacity(0.08)
-            : Colors.white,
+            : colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isCurrentUser 
               ? AppColors.primary.withOpacity(0.3)
-              : Colors.grey[200]!,
+              : colorScheme.outlineVariant,
           width: isCurrentUser ? 2 : 1,
         ),
         boxShadow: [
@@ -471,7 +474,7 @@ class _LeaderboardItem extends StatelessWidget {
                                 fontSize: 15,
                                 color: isCurrentUser 
                                     ? AppColors.primary 
-                                    : AppColors.textPrimary,
+                                    : colorScheme.onSurface,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),

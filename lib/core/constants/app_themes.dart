@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 /// Definizione dei temi dell'app
 class AppThemes {
-  // Colori brand
-  static const Color primaryColor = Color(0xFF2E7D32);
-  static const Color primaryLight = Color(0xFF60AD5E);
-  static const Color primaryDark = Color(0xFF005005);
+  // Colori brand (allineati con AppColors - Arancione TrailShare)
+  static const Color primaryColor = Color(0xFFE07B4C);    // Arancione TrailShare
+  static const Color primaryLight = Color(0xFFF5A67E);    // Arancione chiaro
+  static const Color primaryDark = Color(0xFFC4683F);     // Arancione scuro
 
   // ============================================
   // TEMA CHIARO
@@ -19,20 +19,20 @@ class AppThemes {
       colorScheme: ColorScheme.light(
         primary: primaryColor,
         primaryContainer: primaryLight,
-        secondary: const Color(0xFF4CAF50),
+        secondary: const Color(0xFF2E7D32),           // Verde - accento successo
         secondaryContainer: const Color(0xFFC8E6C9),
         surface: Colors.white,
-        background: const Color(0xFFF5F5F5),
+        background: const Color(0xFFFAF9F7),          // Sfondo caldo (da AppColors)
         error: const Color(0xFFD32F2F),
         onPrimary: Colors.white,
         onSecondary: Colors.white,
-        onSurface: const Color(0xFF1A1A1A),
-        onBackground: const Color(0xFF1A1A1A),
+        onSurface: const Color(0xFF2D3436),            // Testo (da AppColors)
+        onBackground: const Color(0xFF2D3436),
         onError: Colors.white,
       ),
 
       // Scaffold
-      scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+      scaffoldBackgroundColor: const Color(0xFFFAF9F7),
 
       // AppBar
       appBarTheme: const AppBarTheme(
@@ -165,9 +165,9 @@ class AppThemes {
 
       // Colori principali
       colorScheme: ColorScheme.dark(
-        primary: primaryLight,
+        primary: primaryLight,                          // Arancione chiaro su sfondo scuro
         primaryContainer: primaryColor,
-        secondary: const Color(0xFF81C784),
+        secondary: const Color(0xFF81C784),             // Verde chiaro - accento successo
         secondaryContainer: const Color(0xFF2E7D32),
         surface: const Color(0xFF1E1E1E),
         background: const Color(0xFF121212),

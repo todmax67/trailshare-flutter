@@ -58,15 +58,21 @@ class PublicTrailsRepository {
       minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
     );
 
+    final needsPoints = zoom > 12;
     if (cached != null && cached.isNotEmpty) {
-      stopwatch.stop();
-      print('[PublicTrails] ⚡ Cache hit in ${stopwatch.elapsedMilliseconds}ms (${cached.length} sentieri)');
-      return TrailsResult(
-        clusters: [],
-        trails: cached.map((c) => _cachedToPublicTrail(c)).toList(),
-        fromCache: true,
-      );
+      // Se serve punti, verifica che la cache li abbia
+      final cacheHasPoints = cached.any((c) => c.simplifiedCoords.isNotEmpty);
+      if (!needsPoints || cacheHasPoints) {
+        stopwatch.stop();
+        print('[PublicTrails] ⚡ Cache hit in ${stopwatch.elapsedMilliseconds}ms (${cached.length} sentieri)');
+          return TrailsResult(
+          clusters: [],
+          trails: cached.map((c) => _cachedToPublicTrail(c)).toList(),
+          fromCache: true,
+        );
+      }
     }
+
     
     // Cache miss: carica da Firestore
     final trails = await _loadFromFirestore(
@@ -76,8 +82,10 @@ class PublicTrailsRepository {
       metadataOnly: zoom <= 12,
     );
     
-    // Salva in cache (in background)
-    _cacheTrailsAsync(minLat, maxLat, minLng, maxLng, trails);
+    // Salva in cache solo se ha punti (non metadataOnly)
+    if (zoom > 12) {
+      _cacheTrailsAsync(minLat, maxLat, minLng, maxLng, trails);
+    }
     
     stopwatch.stop();
     print('[PublicTrails] 🌐 Firestore in ${stopwatch.elapsedMilliseconds}ms (${trails.length} sentieri)');

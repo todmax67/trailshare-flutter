@@ -8,6 +8,58 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>TrailShare</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>gpx</string>
+			</array>
+			<key>CFBundleTypeName</key>
+			<string>GPX File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.xml</string>
+				<string>com.topografix.gpx</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>fit</string>
+			</array>
+			<key>CFBundleTypeName</key>
+			<string>FIT File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>tcx</string>
+			</array>
+			<key>CFBundleTypeName</key>
+			<string>TCX File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.xml</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -47,6 +99,10 @@
 	<string>TrailShare usa il Bluetooth per connettersi alla fascia cardio</string>
 	<key>NSCameraUsageDescription</key>
 	<string>TrailShare ha bisogno della fotocamera per scattare foto durante le escursioni</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>TrailShare legge i dati di salute per arricchire le tue attività con battito cardiaco, passi e calorie dal tuo smartwatch.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>TrailShare salva le tue attività outdoor su Apple Salute per tenere traccia dei tuoi allenamenti.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Per registrare i percorsi anche con schermo bloccato</string>
 	<key>NSLocationAlwaysUsageDescription</key>
@@ -55,6 +111,27 @@
 	<string>TrailShare ha bisogno della tua posizione per mostrare dove ti trovi sulla mappa.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>TrailShare ha bisogno di accedere alle foto per aggiungere immagini alle tracce</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
@@ -87,61 +164,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>GPX File</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>public.xml</string>
-				<string>com.topografix.gpx</string>
-			</array>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>gpx</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>FIT File</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>public.data</string>
-			</array>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>fit</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>TCX File</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>public.xml</string>
-			</array>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>tcx</string>
-			</array>
-		</dict>
-	</array>
-	<key>NSHealthShareUsageDescription</key>
-	<string>TrailShare legge i dati di salute per arricchire le tue attività con battito cardiaco, passi e calorie dal tuo smartwatch.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>TrailShare salva le tue attività outdoor su Apple Salute per tenere traccia dei tuoi allenamenti.</string>
 </dict>
 </plist>
