@@ -120,7 +120,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   /// Refresh manuale - ricarica sentieri per viewport corrente
   Future<void> _refreshTrails() async {
-    _lastLoadedBounds = null; // Reset per forzare ricaricamento
+    _lastLoadedBounds = null;
+    _trails.clear();
+    _clusters.clear();
+    await _trailsRepository.invalidateCache();
     await _loadTrailsForViewport();
   }
 
@@ -346,11 +349,17 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   /// Verifica se due bounding box sono simili (per evitare ricaricamenti inutili)
   bool _areBoundsSimilar(LatLngBounds a, LatLngBounds b) {
-    const threshold = 0.005; // ~500m - più sensibile per esplorazione
+    // Soglia proporzionale alla dimensione dell'area visibile
+    // A zoom basso tollera più movimento, a zoom alto è più sensibile
+    final latSpan = (a.north - a.south).abs();
+    final lngSpan = (a.east - a.west).abs();
+    final threshold = latSpan * 0.15; // 15% dell'area visibile
+    final lngThreshold = lngSpan * 0.15;
+    
     return (a.north - b.north).abs() < threshold &&
            (a.south - b.south).abs() < threshold &&
-           (a.east - b.east).abs() < threshold &&
-           (a.west - b.west).abs() < threshold;
+           (a.east - b.east).abs() < lngThreshold &&
+           (a.west - b.west).abs() < lngThreshold;
   }
 
   @override

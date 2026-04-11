@@ -307,7 +307,7 @@ class PublicTrailsRepository {
           if (seenIds.contains(doc.id)) continue;
           seenIds.add(doc.id);
           
-        final trail = _docToTrail(doc, simplified: simplified, metadataOnly: metadataOnly);
+          final trail = _docToTrail(doc, simplified: simplified, metadataOnly: metadataOnly);
           if (trail != null) {
             // Margine 50% per includere sentieri ai bordi del viewport
             final latMargin = (maxLat - minLat) * 0.5;
@@ -348,6 +348,7 @@ class PublicTrailsRepository {
         startLat: t.startLat,
         startLng: t.startLng,
         network: t.network,
+        activityType: t.activityType,
         simplifiedCoords: t.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
       )).toList();
       
@@ -370,6 +371,7 @@ class PublicTrailsRepository {
       startLat: cached.startLat,
       startLng: cached.startLng,
       network: cached.network,
+      activityType: cached.activityType,
       points: cached.simplifiedCoords.map((c) => TrackPoint(
         latitude: c.latitude,
         longitude: c.longitude,
@@ -477,7 +479,9 @@ class PublicTrailsRepository {
         startLng = points.first.longitude;
       }
       // Se non c'è né startPoint né points, scarta
-      if (startLat == null || startLng == null) return null;
+      if (startLat == null || startLng == null) {
+        return null;
+      }
 
       return PublicTrail(
         id: doc.id,

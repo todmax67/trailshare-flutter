@@ -10,8 +10,8 @@ class TrailsCacheService {
   static const String _boxName = 'trails_cache';
   static const String _metaBoxName = 'trails_cache_meta';
   
-  // Durata cache: 24 ore
-  static const Duration _cacheDuration = Duration(hours: 24);
+  // Durata cache: 7 giorni
+   static const Duration _cacheDuration = Duration(days: 7);
   
   Box<String>? _box;
   Box<String>? _metaBox;
@@ -195,6 +195,7 @@ class CachedTrail {
   final double startLat;
   final double startLng;
   final String? network;
+  final String? activityType;
   
   /// Coordinate semplificate per polyline su mappa (max 30 punti)
   final List<LatLng> simplifiedCoords;
@@ -210,6 +211,7 @@ class CachedTrail {
     required this.startLat,
     required this.startLng,
     this.network,
+    this.activityType,
     required this.simplifiedCoords,
   });
   
@@ -224,6 +226,7 @@ class CachedTrail {
     'startLat': startLat,
     'startLng': startLng,
     'network': network,
+    'activityType': activityType,
     'coords': simplifiedCoords.map((c) => [c.latitude, c.longitude]).toList(),
   };
   
@@ -242,6 +245,7 @@ class CachedTrail {
       startLat: (json['startLat'] as num?)?.toDouble() ?? 0,
       startLng: (json['startLng'] as num?)?.toDouble() ?? 0,
       network: json['network'] as String?,
+      activityType: json['activityType'] as String?,
       simplifiedCoords: coords,
     );
   }

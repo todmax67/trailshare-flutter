@@ -1603,3 +1603,130 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
         res.status(500).json({ error: 'Errore interno' });
     }
 });
+
+// ===================================================================
+// MIGRAZIONE GEOHASH per public_trails
+// ===================================================================
+
+function encodeGeohash(lat, lng, precision = 7) {
+  const base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+  let minLat = -90, maxLat = 90;
+  let minLng = -180, maxLng = 180;
+  let hash = '';
+  let bit = 0;
+  let ch = 0;
+  let isLon = true;
+
+  while (hash.length < precision) {
+    if (isLon) {
+      const mid = (minLng + maxLng) / 2;
+      if (lng >= mid) { ch |= 1 << (4 - bit); minLng = mid; } else { maxLng = mid; }
+    } else {
+      const mid = (minLat + maxLat) / 2;
+      if (lat >= mid) { ch |= 1 << (4 - bit); minLat = mid; } else { maxLat = mid; }
+    }
+    isLon = !isLon;
+    if (bit < 4) { bit++; } else { hash += base32[ch]; bit = 0; ch = 0; }
+  }
+  return hash;
+}
+
+exports.migrateGeoHash = onRequest({ timeoutSeconds: 540, memory: '1GiB' }, async (req, res) => {
+  const batch_size = 500;
+  let updated = 0;
+  let skipped = 0;
+  let failed = 0;
+  let lastDoc = null;
+
+  while (true) {
+    let query = db.collection('public_trails')
+      .limit(batch_size);
+
+    if (lastDoc) {
+      query = query.startAfter(lastDoc);
+    }
+
+    const snapshot = await query.get();
+    if (snapshot.empty) break;
+
+    const batch = db.batch();
+    let batchCount = 0;
+
+    for (const doc of snapshot.docs) {
+      lastDoc = doc;
+      const data = doc.data();
+
+      // Skip se ha già geoHash E startPoint
+      if (data.geoHash && typeof data.geoHash === 'string' && data.geoHash.length >= 4 && data.startPoint) {
+        skipped++;
+        continue;
+      }
+
+      // Trova coordinate
+      let lat = null, lng = null;
+
+      // 1. Da startPoint
+      if (data.startPoint) {
+        if (data.startPoint.latitude !== undefined) {
+          lat = data.startPoint.latitude;
+          lng = data.startPoint.longitude;
+        } else if (data.startPoint.lat !== undefined) {
+          lat = data.startPoint.lat;
+          lng = data.startPoint.lng || data.startPoint.lon;
+        }
+      }
+
+      // 2. Da geometry
+      if (lat === null && data.geometry) {
+        try {
+          let coords = null;
+          if (typeof data.geometry === 'string') {
+            const geo = JSON.parse(data.geometry);
+            coords = geo.coordinates;
+          } else if (data.geometry.coordinatesJson) {
+            coords = JSON.parse(data.geometry.coordinatesJson);
+          }
+
+          if (coords && coords.length > 0) {
+            const first = coords[0];
+            if (Array.isArray(first) && first.length >= 2) {
+              lng = first[0]; // GeoJSON: [lon, lat]
+              lat = first[1];
+            }
+          }
+        } catch (e) {
+          // Skip
+        }
+      }
+
+      if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        failed++;
+        continue;
+      }
+
+      const geoHash = encodeGeohash(lat, lng, 7);
+      const updateData = { geoHash };
+
+      // Aggiungi startPoint se mancante
+      if (!data.startPoint) {
+        updateData.startPoint = new GeoPoint(lat, lng);
+      }
+
+      batch.update(doc.ref, updateData);
+      batchCount++;
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
+      updated += batchCount;
+    }
+
+    logger.info(`Progresso: ${updated} aggiornati, ${skipped} già ok, ${failed} falliti`);
+
+    if (snapshot.docs.length < batch_size) break;
+  }
+
+  const result = { updated, skipped, failed, total: updated + skipped + failed };
+  logger.info('Migrazione completata:', result);
+  res.json(result);
+});
