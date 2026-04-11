@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart' hide ActivityType;
 import 'package:latlong2/latlong.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/location_service.dart';
@@ -45,6 +48,13 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   final Battery _battery = Battery();
   StreamSubscription<BatteryState>? _batterySubscription;
   bool _lowBatteryWarningShown = false;
+  LatLng? _userPosition;
+
+  // Quick stats per schermata idle
+  Track? _lastTrack;
+  double _weeklyDistanceKm = 0;
+  double _weeklyElevation = 0;
+  int _weeklyTracks = 0;
 
   @override
   void initState() {
@@ -54,9 +64,79 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _trackingBloc.addListener(_onTrackingUpdate);
     _checkForBackup();
     _startBatteryMonitoring();
+    _initUserPosition();
+    _loadQuickStats();
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) AppTips.showFirstTrackTip(context);
     });
+  }
+
+  /// Centra la mappa sulla posizione utente all'avvio
+  Future<void> _initUserPosition() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _userPosition = LatLng(position.latitude, position.longitude);
+      });
+      _mapController.move(_userPosition!, 16);
+    } catch (e) {
+      debugPrint('[RecordPage] Errore posizione iniziale: $e');
+    }
+  }
+
+  /// Carica statistiche rapide per la schermata idle
+  Future<void> _loadQuickStats() async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return;
+
+      // Ultima traccia
+      final result = await _repository.getMyTracksPaginated(limit: 1);
+      if (result.tracks.isNotEmpty && mounted) {
+        setState(() => _lastTrack = result.tracks.first);
+      }
+
+      // Stats settimanali
+      final now = DateTime.now();
+      final monday = now.subtract(Duration(days: now.weekday - 1));
+      final weekStart = DateTime(monday.year, monday.month, monday.day);
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('tracks')
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(weekStart))
+          .get();
+
+      if (!mounted) return;
+
+      double dist = 0;
+      double elev = 0;
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        dist += (data['distance'] as num?)?.toDouble() ?? 0;
+        elev += (data['elevationGain'] as num?)?.toDouble() ?? 0;
+      }
+
+      setState(() {
+        _weeklyDistanceKm = dist / 1000;
+        _weeklyElevation = elev;
+        _weeklyTracks = snapshot.docs.length;
+      });
+    } catch (e) {
+      debugPrint('[RecordPage] Errore quick stats: $e');
+    }
   }
 
   @override
@@ -304,6 +384,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               child: PhotoGalleryWidget(photos: _photos, isRecording: !state.isIdle, onAddPhoto: state.isIdle ? null : _showPhotoOptions, onDeletePhoto: _deletePhoto),
             ),
           if (!state.isIdle) _buildStatsHeader(state),
+          if (state.isIdle) _buildIdleOverlay(),
           _buildControls(state),
           if (state.errorMessage != null)
             Positioned(top: MediaQuery.of(context).padding.top + 100, left: 16, right: 16, child: _buildErrorBanner(_localizeError(state.errorMessage!))),
@@ -513,7 +594,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   Widget _buildErrorBanner(String message) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.danger, borderRadius: BorderRadius.circular(8)), child: Row(children: [const Icon(Icons.error_outline, color: Colors.white), const SizedBox(width: 8), Expanded(child: Text(message, style: const TextStyle(color: Colors.white)))]));
 
   Widget _buildMap(TrackingState state) {
-    final center = state.points.isNotEmpty ? LatLng(state.points.last.latitude, state.points.last.longitude) : const LatLng(45.9, 9.9);
+    final center = state.points.isNotEmpty ? LatLng(state.points.last.latitude, state.points.last.longitude) : (_userPosition ?? const LatLng(45.9, 9.9));
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(initialCenter: center, initialZoom: 16, minZoom: 4, maxZoom: 18, onPositionChanged: (position, hasGesture) { if (hasGesture) _followUser = false; }),
@@ -524,6 +605,25 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           Marker(point: LatLng(state.points.first.latitude, state.points.first.longitude), width: 24, height: 24, child: Container(decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)), child: const Icon(Icons.flag, color: Colors.white, size: 14))),
           Marker(point: LatLng(state.points.last.latitude, state.points.last.longitude), width: 32, height: 32, child: Container(decoration: BoxDecoration(color: state.isRecording ? AppColors.trackRecording : AppColors.primary, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3), boxShadow: [BoxShadow(color: (state.isRecording ? AppColors.trackRecording : AppColors.primary).withOpacity(0.4), blurRadius: 8, spreadRadius: 2)]), child: const Icon(Icons.navigation, color: Colors.white, size: 18))),
         ]),
+        // Marker posizione utente (solo quando idle)
+        if (state.isIdle && _userPosition != null)
+          MarkerLayer(markers: [
+            Marker(
+              point: _userPosition!,
+              width: 24,
+              height: 24,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8, spreadRadius: 2),
+                  ],
+                ),
+              ),
+            ),
+          ]),
       ],
     );
   }
@@ -561,6 +661,121 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   Widget _buildStat(String label, String value, {bool small = false}) => Column(children: [Text(value, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: small ? 16 : 22)), Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: small ? 10 : 11))]);
   String _formatPace(double avgSpeed) { if (avgSpeed <= 0) return '--:--'; final paceSeconds = 1000 / avgSpeed; final minutes = (paceSeconds / 60).floor(); final seconds = (paceSeconds % 60).floor(); return '$minutes:${seconds.toString().padLeft(2, '0')}'; }
 
+  /// Overlay per schermata idle: stats settimanali + ultima attività
+  Widget _buildIdleOverlay() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasWeeklyData = _weeklyTracks > 0;
+    final hasLastTrack = _lastTrack != null;
+
+    if (!hasWeeklyData && !hasLastTrack) return const SizedBox.shrink();
+
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 12,
+      left: 12,
+      right: 12,
+      child: Column(
+        children: [
+          // Stats settimanali
+          if (hasWeeklyData)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    context.l10n.thisWeek,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: colorScheme.onSurfaceVariant),
+                  ),
+                  const Spacer(),
+                  _buildMiniStat('📏', '${_weeklyDistanceKm.toStringAsFixed(1)} km'),
+                  const SizedBox(width: 16),
+                  _buildMiniStat('⬆️', '+${_weeklyElevation.toStringAsFixed(0)} m'),
+                  const SizedBox(width: 16),
+                  _buildMiniStat('🗺️', '$_weeklyTracks'),
+                ],
+              ),
+            ),
+
+          // Ultima attività
+          if (hasLastTrack) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: Text(_lastTrack!.activityType.icon, style: const TextStyle(fontSize: 18)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _lastTrack!.name,
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: colorScheme.onSurface),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_lastTrack!.stats.distanceKm.toStringAsFixed(1)} km · +${_lastTrack!.stats.elevationGain.toStringAsFixed(0)} m · ${_lastTrack!.stats.durationFormatted}',
+                          style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    _formatTrackDate(_lastTrack!.createdAt),
+                    style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(String emoji, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 4),
+        Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
+      ],
+    );
+  }
+
+  String _formatTrackDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays == 0) return context.l10n.today;
+    if (diff.inDays == 1) return context.l10n.yesterday;
+    return '${date.day}/${date.month}';
+  }
+
   Widget _buildControls(TrackingState state) {
     return Positioned(bottom: 24, left: 16, right: 16, child: Column(children: [
       if (!state.isIdle) Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.only(bottom: 16), child: FloatingActionButton.small(heroTag: 'center', onPressed: () { _followUser = true; if (state.points.isNotEmpty) _mapController.move(LatLng(state.points.last.latitude, state.points.last.longitude), 16); }, backgroundColor: _followUser ? AppColors.primary : Colors.white, child: Icon(Icons.my_location, color: _followUser ? Colors.white : AppColors.textPrimary)))),
@@ -579,7 +794,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             margin: const EdgeInsets.only(bottom: 20),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(25),
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)],
             ),
@@ -590,14 +805,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                 const SizedBox(width: 8),
                 Text(
                   _selectedActivity.displayName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: Color(0xFF1A2E1A),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(width: 6),
-                Icon(Icons.expand_more, size: 20, color: Colors.grey[600]),
+                Icon(Icons.expand_more, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ],
             ),
           ),
@@ -606,20 +821,29 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         GestureDetector(
           onTap: () => _trackingBloc.startRecording(activityType: _selectedActivity),
           child: Container(
-            width: 100,
-            height: 100,
+            width: 110,
+            height: 110,
             decoration: BoxDecoration(
-              color: AppColors.primary,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFE07B4C),
+                  Color(0xFFC4683F),
+                ],
+              ),
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 20, spreadRadius: 5)],
+              boxShadow: [
+                BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 24, spreadRadius: 4),
+              ],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.play_arrow, color: Colors.white, size: 40),
+                const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 44),
                 Text(
                   _selectedActivity.displayName.toUpperCase(),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.5),
                 ),
               ],
             ),
@@ -649,7 +873,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   Widget _buildRecordingControls(TrackingState state) => Column(mainAxisSize: MainAxisSize.min, children: [
     const Padding(padding: EdgeInsets.only(bottom: 12), child: LiveTrackButton()),
-    Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+    Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
       _buildControlButton(icon: Icons.close, label: context.l10n.cancelLabel, color: AppColors.textMuted, onTap: _showCancelDialog),
       _buildControlButton(icon: state.isRecording ? Icons.pause : Icons.play_arrow, label: state.isRecording ? context.l10n.pauseLabel : context.l10n.resumeLabel, color: AppColors.warning, onTap: () { if (state.isRecording) _trackingBloc.pauseRecording(); else _trackingBloc.resumeRecording(); }, large: true),
       _buildControlButton(icon: Icons.stop, label: context.l10n.saveLabel, color: AppColors.danger, onTap: _showSaveDialog),
@@ -780,9 +1004,9 @@ class _ActivityPickerSheet extends StatelessWidget {
     }
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -793,7 +1017,7 @@ class _ActivityPickerSheet extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey[300],
+              color: Theme.of(context).colorScheme.outlineVariant,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -806,7 +1030,7 @@ class _ActivityPickerSheet extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1A2E1A),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -832,7 +1056,7 @@ class _ActivityPickerSheet extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: Colors.grey[600],
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -853,12 +1077,12 @@ class _ActivityPickerSheet extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? const Color(0xFF4CAF50)
-                                  : const Color(0xFFF5F7F2),
+                                  : Theme.of(context).colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: isSelected
                                     ? const Color(0xFF388E3C)
-                                    : const Color(0xFFE0E4DA),
+                                    : Theme.of(context).colorScheme.outlineVariant,
                                 width: 1.5,
                               ),
                             ),
@@ -872,7 +1096,7 @@ class _ActivityPickerSheet extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                    color: isSelected ? Colors.white : const Color(0xFF1A2E1A),
+                                    color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
                                   ),
                                 ),
                               ],

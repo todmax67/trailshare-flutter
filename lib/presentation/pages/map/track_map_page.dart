@@ -452,7 +452,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
               ),
@@ -479,7 +479,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
       ),
@@ -529,9 +529,11 @@ class _TrackMapPageState extends State<TrackMapPage> {
   }
 
   Widget _buildInfoPanel(List<double> elevations) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
@@ -550,7 +552,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey[300],
+              color: colorScheme.outlineVariant,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -642,7 +644,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                 margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: CustomPaint(

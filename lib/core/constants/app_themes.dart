@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Definizione dei temi dell'app
 class AppThemes {
@@ -7,6 +8,25 @@ class AppThemes {
   static const Color primaryLight = Color(0xFFF5A67E);    // Arancione chiaro
   static const Color primaryDark = Color(0xFFC4683F);     // Arancione scuro
 
+  /// TextTheme con Outfit per titoli, sistema per body
+  static TextTheme _buildTextTheme(TextTheme base) {
+    return base.copyWith(
+      // Display - titoli molto grandi
+      displayLarge: GoogleFonts.outfit(textStyle: base.displayLarge),
+      displayMedium: GoogleFonts.outfit(textStyle: base.displayMedium),
+      displaySmall: GoogleFonts.outfit(textStyle: base.displaySmall),
+      // Headline - titoli sezioni
+      headlineLarge: GoogleFonts.outfit(textStyle: base.headlineLarge),
+      headlineMedium: GoogleFonts.outfit(textStyle: base.headlineMedium),
+      headlineSmall: GoogleFonts.outfit(textStyle: base.headlineSmall),
+      // Title - AppBar, card titles, ecc.
+      titleLarge: GoogleFonts.outfit(textStyle: base.titleLarge),
+      titleMedium: GoogleFonts.outfit(textStyle: base.titleMedium),
+      titleSmall: GoogleFonts.outfit(textStyle: base.titleSmall),
+      // Body e Label - restano font di sistema per leggibilità
+    );
+  }
+
   // ============================================
   // TEMA CHIARO
   // ============================================
@@ -14,6 +34,9 @@ class AppThemes {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+
+      // Tipografia: Outfit per titoli, sistema per body
+      textTheme: _buildTextTheme(ThemeData.light().textTheme),
 
       // Colori principali
       colorScheme: ColorScheme.light(
@@ -162,6 +185,9 @@ class AppThemes {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+
+      // Tipografia: Outfit per titoli, sistema per body
+      textTheme: _buildTextTheme(ThemeData.dark().textTheme),
 
       // Colori principali
       colorScheme: ColorScheme.dark(

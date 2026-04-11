@@ -343,7 +343,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.background,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -430,9 +430,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -442,7 +442,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               margin: const EdgeInsets.only(top: 12),
               width: 40, height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: Theme.of(context).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -472,7 +472,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                             categoryLabel(entry.key),
                             style: TextStyle(
                               fontSize: 13, fontWeight: FontWeight.w700,
-                              color: Colors.grey[600], letterSpacing: 0.5,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant, letterSpacing: 0.5,
                             ),
                           ),
                         ],
@@ -534,12 +534,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? const Color(0xFF4CAF50)
-                                  : const Color(0xFFF5F7F2),
+                                  : Theme.of(context).colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: isSelected
                                     ? const Color(0xFF388E3C)
-                                    : const Color(0xFFE0E4DA),
+                                    : Theme.of(context).colorScheme.outlineVariant,
                                 width: 1.5,
                               ),
                             ),
@@ -553,7 +553,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                    color: isSelected ? Colors.white : const Color(0xFF1A2E1A),
+                                    color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
                                   ),
                                 ),
                               ],
@@ -1112,7 +1112,7 @@ class _PhotoThumbnail extends StatelessWidget {
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
                 return Container(
-                  color: AppColors.background,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   child: Center(
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
@@ -1125,7 +1125,7 @@ class _PhotoThumbnail extends StatelessWidget {
               },
               errorBuilder: (context, error, stackTrace) {
                 return Container(
-                  color: AppColors.background,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

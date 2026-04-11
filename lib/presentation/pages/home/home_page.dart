@@ -78,38 +78,202 @@ class _HomePageState extends State<HomePage> {
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.explore_outlined),
-            selectedIcon: const Icon(Icons.explore),
-            label: context.l10n.discover,
+      bottomNavigationBar: _buildBottomNavBar(context),
+    );
+  }
+
+  Widget _buildBottomNavBar(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final primaryColor = colorScheme.primary;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.people_outline),
-            selectedIcon: const Icon(Icons.people),
-            label: context.l10n.community,
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // Scopri
+              _NavItem(
+                icon: Icons.explore_outlined,
+                activeIcon: Icons.explore,
+                label: context.l10n.discover,
+                isSelected: _currentIndex == 0,
+                primaryColor: primaryColor,
+                onTap: () => setState(() => _currentIndex = 0),
+              ),
+              // Community
+              _NavItem(
+                icon: Icons.people_outline,
+                activeIcon: Icons.people,
+                label: context.l10n.community,
+                isSelected: _currentIndex == 1,
+                primaryColor: primaryColor,
+                onTap: () => setState(() => _currentIndex = 1),
+              ),
+              // Registra (prominente)
+              _RecordButton(
+                label: context.l10n.recordLabel,
+                isSelected: _currentIndex == 2,
+                onTap: () => setState(() => _currentIndex = 2),
+              ),
+              // Tracce
+              _NavItem(
+                icon: Icons.route_outlined,
+                activeIcon: Icons.route,
+                label: context.l10n.tracksNavLabel,
+                isSelected: _currentIndex == 3,
+                primaryColor: primaryColor,
+                onTap: () => setState(() => _currentIndex = 3),
+              ),
+              // Profilo
+              _NavItem(
+                icon: Icons.person_outline,
+                activeIcon: Icons.person,
+                label: context.l10n.profile,
+                isSelected: _currentIndex == 4,
+                primaryColor: primaryColor,
+                onTap: () => setState(() => _currentIndex = 4),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.radio_button_checked),
-            selectedIcon: const Icon(Icons.radio_button_checked),
-            label: context.l10n.recordLabel,
+        ),
+      ),
+    );
+  }
+}
+
+/// Tab normale della navigation bar
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool isSelected;
+  final Color primaryColor;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.isSelected,
+    required this.primaryColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 64,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Indicatore attivo
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: 3,
+              width: isSelected ? 24 : 0,
+              margin: const EdgeInsets.only(bottom: 4),
+              decoration: BoxDecoration(
+                color: primaryColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Icon(
+              isSelected ? activeIcon : icon,
+              color: isSelected ? primaryColor : colorScheme.onSurfaceVariant,
+              size: 24,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? primaryColor : colorScheme.onSurfaceVariant,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Pulsante Registra prominente al centro
+class _RecordButton extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _RecordButton({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFE07B4C),  // AppColors.primary
+                  Color(0xFFC4683F),  // AppColors.primaryDark
+                ],
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFE07B4C).withOpacity(0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              color: Colors.white,
+              size: 26,
+            ),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.route_outlined),
-            selectedIcon: const Icon(Icons.route),
-            label: context.l10n.tracksNavLabel,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.person_outline),
-            selectedIcon: const Icon(Icons.person),
-            label: context.l10n.profile,
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected
+                  ? const Color(0xFFE07B4C)
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
