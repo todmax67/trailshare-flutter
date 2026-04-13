@@ -239,10 +239,10 @@ class CommunityTracksRepository {
         }
       }
 
-      print('[CommunityTracks] Caricate ${tracks.length} tracce');
+      debugPrint('[CommunityTracks] Caricate ${tracks.length} tracce');
       return tracks;
     } catch (e) {
-      print('[CommunityTracks] Errore: $e');
+      debugPrint('[CommunityTracks] Errore: $e');
       return [];
     }
   }
@@ -295,7 +295,7 @@ class CommunityTracksRepository {
           .cast<CommunityTrack>()
           .toList();
     } catch (e) {
-      print('[CommunityTracks] Errore: $e');
+      debugPrint('[CommunityTracks] Errore: $e');
       return [];
     }
   }
@@ -447,7 +447,7 @@ class CommunityTracksRepository {
         photoUrls: photoUrls,
       );
     } catch (e) {
-      print('[CommunityTracks] Errore parsing ${doc.id}: $e');
+      debugPrint('[CommunityTracks] Errore parsing ${doc.id}: $e');
       return null;
     }
   }

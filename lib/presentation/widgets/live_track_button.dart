@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
@@ -24,9 +25,10 @@ class LiveTrackButton extends StatefulWidget {
 class _LiveTrackButtonState extends State<LiveTrackButton>
     with SingleTickerProviderStateMixin {
   final LiveTrackService _service = LiveTrackService();
-  
+
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  StreamSubscription? _stateSubscription;
   bool _isLoading = false;
 
   @override
@@ -43,7 +45,7 @@ class _LiveTrackButtonState extends State<LiveTrackButton>
     );
 
     // Ascolta stato
-    _service.stateStream.listen((state) {
+    _stateSubscription = _service.stateStream.listen((state) {
       if (mounted) {
         setState(() {});
         if (state.isActive) {
@@ -63,6 +65,7 @@ class _LiveTrackButtonState extends State<LiveTrackButton>
 
   @override
   void dispose() {
+    _stateSubscription?.cancel();
     _pulseController.dispose();
     super.dispose();
   }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -49,7 +50,7 @@ class PublicTrailsRepository {
         minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
       );
       stopwatch.stop();
-      print('[PublicTrails] ⚡ Cluster in ${stopwatch.elapsedMilliseconds}ms');
+      debugPrint('[PublicTrails] ⚡ Cluster in ${stopwatch.elapsedMilliseconds}ms');
       return TrailsResult(clusters: clusters, trails: [], fromCache: false);
     }
     
@@ -64,7 +65,7 @@ class PublicTrailsRepository {
       final cacheHasPoints = cached.any((c) => c.simplifiedCoords.isNotEmpty);
       if (!needsPoints || cacheHasPoints) {
         stopwatch.stop();
-        print('[PublicTrails] ⚡ Cache hit in ${stopwatch.elapsedMilliseconds}ms (${cached.length} sentieri)');
+        debugPrint('[PublicTrails] ⚡ Cache hit in ${stopwatch.elapsedMilliseconds}ms (${cached.length} sentieri)');
           return TrailsResult(
           clusters: [],
           trails: cached.map((c) => _cachedToPublicTrail(c)).toList(),
@@ -88,7 +89,7 @@ class PublicTrailsRepository {
     }
     
     stopwatch.stop();
-    print('[PublicTrails] 🌐 Firestore in ${stopwatch.elapsedMilliseconds}ms (${trails.length} sentieri)');
+    debugPrint('[PublicTrails] 🌐 Firestore in ${stopwatch.elapsedMilliseconds}ms (${trails.length} sentieri)');
     
     return TrailsResult(clusters: [], trails: trails, fromCache: false);
   }
@@ -152,13 +153,13 @@ class PublicTrailsRepository {
             }).whereType<TrackPoint>().toList();
           }
         } catch (e) {
-          print('[PublicTrails] Errore parsing geometry string in getFullGeometry: $e');
+          debugPrint('[PublicTrails] Errore parsing geometry string in getFullGeometry: $e');
         }
       }
 
       return null;
     } catch (e) {
-      print('[PublicTrails] Errore getFullGeometry: $e');
+      debugPrint('[PublicTrails] Errore getFullGeometry: $e');
       return null;
     }
   }
@@ -201,7 +202,7 @@ class PublicTrailsRepository {
       
       return clusters;
     } catch (e) {
-      print('[PublicTrails] Errore clustering: $e');
+      debugPrint('[PublicTrails] Errore clustering: $e');
       return [];
     }
   }
@@ -278,8 +279,8 @@ class PublicTrailsRepository {
         precision: precision,
       );
 
-      print('[PublicTrails] 📍 Query area: $minLat,$minLng → $maxLat,$maxLng (${areaSizeKm.toStringAsFixed(0)}km, precision: $precision)');
-      print('[PublicTrails] 🔍 ${ranges.length} geohash ranges: ${ranges.take(5).map((r) => "${r.start}-${r.end}").join(", ")}');
+      debugPrint('[PublicTrails] 📍 Query area: $minLat,$minLng → $maxLat,$maxLng (${areaSizeKm.toStringAsFixed(0)}km, precision: $precision)');
+      debugPrint('[PublicTrails] 🔍 ${ranges.length} geohash ranges: ${ranges.take(5).map((r) => "${r.start}-${r.end}").join(", ")}');
       
       final trails = <PublicTrail>[];
       final seenIds = <String>{};
@@ -300,7 +301,7 @@ class PublicTrailsRepository {
       
       final results = await Future.wait(futures);
       final totalDocs = results.fold<int>(0, (sum, docs) => sum + docs.length);
-      print('[PublicTrails] 📦 Risultati: $totalDocs documenti da ${results.length} query');
+      debugPrint('[PublicTrails] 📦 Risultati: $totalDocs documenti da ${results.length} query');
       
       for (final docs in results) {
         for (final doc in docs) {
@@ -325,7 +326,7 @@ class PublicTrailsRepository {
       
       return trails;
     } catch (e) {
-      print('[PublicTrails] Errore Firestore: $e');
+      debugPrint('[PublicTrails] Errore Firestore: $e');
       return [];
     }
   }
@@ -451,7 +452,7 @@ class PublicTrailsRepository {
             )).toList();
           }
         } catch (e) {
-          print('[PublicTrails] Errore parsing geometry string: $e');
+          debugPrint('[PublicTrails] Errore parsing geometry string: $e');
         }
       }
     } // chiude if (!metadataOnly)
@@ -504,7 +505,7 @@ class PublicTrailsRepository {
         source: data['source']?.toString(),
       );
     } catch (e) {
-      print('[PublicTrails] Errore parsing ${doc.id}: $e');
+      debugPrint('[PublicTrails] Errore parsing ${doc.id}: $e');
       return null;
     }
   }
@@ -534,7 +535,7 @@ class PublicTrailsRepository {
         withoutGeohash: totalCount - withGh,
       );
     } catch (e) {
-      print('[PublicTrails] Errore checkGeohashCoverage: $e');
+      debugPrint('[PublicTrails] Errore checkGeohashCoverage: $e');
       return GeohashCoverage(withGeohash: 0, withoutGeohash: 0);
     }
   }
@@ -552,7 +553,7 @@ class PublicTrailsRepository {
           .whereType<PublicTrail>()
           .toList();
     } catch (e) {
-      print('[PublicTrails] Errore getTrailsWithoutGeohash: $e');
+      debugPrint('[PublicTrails] Errore getTrailsWithoutGeohash: $e');
       return [];
     }
   }
@@ -565,7 +566,7 @@ class PublicTrailsRepository {
         'geoHashes': geohashes,
       });
     } catch (e) {
-      print('[PublicTrails] Errore updateTrailGeohash: $e');
+      debugPrint('[PublicTrails] Errore updateTrailGeohash: $e');
       rethrow;
     }
   }
@@ -663,10 +664,10 @@ class PublicTrailsRepository {
       };
 
       final docRef = await _trailsCollection.add(docData);
-      print('[PublicTrails] Traccia promossa: ${docRef.id} (da $communityTrackId)');
+      debugPrint('[PublicTrails] Traccia promossa: ${docRef.id} (da $communityTrackId)');
       return docRef.id;
     } catch (e) {
-      print('[PublicTrails] Errore promozione: $e');
+      debugPrint('[PublicTrails] Errore promozione: $e');
       return null;
     }
   }

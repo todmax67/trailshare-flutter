@@ -105,10 +105,10 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         _isFollowing = await _followRepo.isFollowing(widget.userId);
       }
 
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      print('[PublicProfile] Errore caricamento: $e');
-      setState(() => _isLoading = false);
+      debugPrint('[PublicProfile] Errore caricamento: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -119,7 +119,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         setState(() => _communityTracks = tracks);
       }
     } catch (e) {
-      print('[PublicProfile] Errore caricamento tracce: $e');
+      debugPrint('[PublicProfile] Errore caricamento tracce: $e');
     }
   }
 

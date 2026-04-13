@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -153,7 +154,7 @@ class GamificationService {
         newLevel: leveledUp ? newLevel : null,
       );
     } catch (e) {
-      print('[Gamification] Errore grant XP: $e');
+      debugPrint('[Gamification] Errore grant XP: $e');
       return XpRewardResult(success: false, error: e.toString());
     }
   }
@@ -346,7 +347,7 @@ class GamificationService {
         );
       }).toList();
     } catch (e) {
-      print('[Gamification] Errore get badges: $e');
+      debugPrint('[Gamification] Errore get badges: $e');
       return [];
     }
   }
@@ -370,7 +371,7 @@ class GamificationService {
 
       return true;
     } catch (e) {
-      print('[Gamification] Errore unlock badge: $e');
+      debugPrint('[Gamification] Errore unlock badge: $e');
       return false;
     }
   }

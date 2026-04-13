@@ -59,7 +59,7 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
         totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
       }
 
-      print('[BadgesPage] Totali: $totalTracks tracce, ${totalDistance.toStringAsFixed(0)}m distanza, +${totalElevation.toStringAsFixed(0)}m dislivello');
+      debugPrint('[BadgesPage] Totali: $totalTracks tracce, ${totalDistance.toStringAsFixed(0)}m distanza, +${totalElevation.toStringAsFixed(0)}m dislivello');
 
       // ⭐ STEP 2: Ottieni followers count dal profilo
       int followersCount = 0;
@@ -90,7 +90,7 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
         cheersReceived += c1 > c2 ? c1 : c2; // Prende il valore più alto
       }
 
-      print('[BadgesPage] Social: $followersCount followers, $cheersReceived cheers ricevuti');
+      debugPrint('[BadgesPage] Social: $followersCount followers, $cheersReceived cheers ricevuti');
 
       // ⭐ STEP 4: Controlla e sblocca badge maturati
       // (currentStreak = 0 per ora, richiede calcolo separato)
@@ -104,7 +104,7 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
       );
 
       if (newBadges.isNotEmpty) {
-        print('[BadgesPage] 🎉 Nuovi badge sbloccati: ${newBadges.map((b) => b.name).join(', ')}');
+        debugPrint('[BadgesPage] 🎉 Nuovi badge sbloccati: ${newBadges.map((b) => b.name).join(', ')}');
       }
 
       // ⭐ STEP 5: Ricarica badge aggiornati
@@ -124,7 +124,7 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
         }
       }
     } catch (e) {
-      print('[BadgesPage] Errore: $e');
+      debugPrint('[BadgesPage] Errore: $e');
       // Fallback: carica solo badge esistenti
       final badges = await _gamification.getUnlockedBadges(user.uid);
       if (mounted) {

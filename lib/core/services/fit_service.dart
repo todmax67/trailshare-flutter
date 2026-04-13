@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -17,7 +18,7 @@ class FitService {
       final bytes = await file.readAsBytes();
       return parseFitBytes(bytes, fileName: file.path.split('/').last);
     } catch (e) {
-      print('[FitService] Errore lettura file: $e');
+      debugPrint('[FitService] Errore lettura file: $e');
       return null;
     }
   }
@@ -137,7 +138,7 @@ class FitService {
       }
 
       if (points.isEmpty) {
-        print('[FitService] Nessun punto GPS trovato nel file FIT');
+        debugPrint('[FitService] Nessun punto GPS trovato nel file FIT');
         return null;
       }
 
@@ -152,7 +153,7 @@ class FitService {
       // Statistiche
       final stats = _calculateStats(points);
 
-      print('[FitService] Parsati ${points.length} punti da "$trackName" (sport: $sport)');
+      debugPrint('[FitService] Parsati ${points.length} punti da "$trackName" (sport: $sport)');
 
       return Track(
         id: 'imported_fit_${DateTime.now().millisecondsSinceEpoch}',

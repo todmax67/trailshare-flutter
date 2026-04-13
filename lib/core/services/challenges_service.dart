@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -31,7 +32,7 @@ class ChallengesService {
         return Challenge.fromFirestore(doc);
       }).toList();
     } catch (e) {
-      print('[Challenges] Errore caricamento sfide: $e');
+      debugPrint('[Challenges] Errore caricamento sfide: $e');
       return [];
     }
   }
@@ -51,7 +52,7 @@ class ChallengesService {
 
       return snapshot.docs.map((doc) => Challenge.fromFirestore(doc)).toList();
     } catch (e) {
-      print('[Challenges] Errore caricamento mie sfide: $e');
+      debugPrint('[Challenges] Errore caricamento mie sfide: $e');
       return [];
     }
   }
@@ -129,7 +130,7 @@ class ChallengesService {
       await batch.commit();
       return true;
     } catch (e) {
-      print('[Challenges] Errore partecipazione: $e');
+      debugPrint('[Challenges] Errore partecipazione: $e');
       return false;
     }
   }
@@ -161,7 +162,7 @@ class ChallengesService {
       await batch.commit();
       return true;
     } catch (e) {
-      print('[Challenges] Errore abbandono: $e');
+      debugPrint('[Challenges] Errore abbandono: $e');
       return false;
     }
   }
@@ -194,7 +195,7 @@ class ChallengesService {
 
       return docRef.id;
     } catch (e) {
-      print('[Challenges] Errore creazione: $e');
+      debugPrint('[Challenges] Errore creazione: $e');
       return null;
     }
   }
@@ -240,7 +241,7 @@ class ChallengesService {
         }
       }
     } catch (e) {
-      print('[Challenges] Errore aggiornamento progresso: $e');
+      debugPrint('[Challenges] Errore aggiornamento progresso: $e');
     }
   }
 
@@ -265,7 +266,7 @@ class ChallengesService {
         );
       }).toList();
     } catch (e) {
-      print('[Challenges] Errore classifica: $e');
+      debugPrint('[Challenges] Errore classifica: $e');
       return [];
     }
   }

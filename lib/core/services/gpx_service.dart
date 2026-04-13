@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:math';
 import 'package:xml/xml.dart';
@@ -14,7 +15,7 @@ class GpxService {
       final content = await file.readAsString();
       return parseGpxString(content, fileName: file.path.split('/').last);
     } catch (e) {
-      print('[GpxService] Errore lettura file: $e');
+      debugPrint('[GpxService] Errore lettura file: $e');
       return null;
     }
   }
@@ -79,11 +80,11 @@ class GpxService {
       }
 
       if (points.isEmpty) {
-        print('[GpxService] Nessun punto trovato nel GPX');
+        debugPrint('[GpxService] Nessun punto trovato nel GPX');
         return null;
       }
 
-      print('[GpxService] Parsati ${points.length} punti da "$name"');
+      debugPrint('[GpxService] Parsati ${points.length} punti da "$name"');
 
       final stats = _calculateStats(points);
 
@@ -97,7 +98,7 @@ class GpxService {
         stats: stats,
       );
     } catch (e) {
-      print('[GpxService] Errore parsing GPX: $e');
+      debugPrint('[GpxService] Errore parsing GPX: $e');
       return null;
     }
   }

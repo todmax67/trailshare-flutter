@@ -112,7 +112,7 @@ class DeleteAccountService {
         }
       }
     } catch (e) {
-      print('[DeleteAccount] Errore rimozione follow lists: $e');
+      debugPrint('[DeleteAccount] Errore rimozione follow lists: $e');
     }
   }
 
@@ -128,7 +128,7 @@ class DeleteAccountService {
         await doc.reference.delete();
       }
     } catch (e) {
-      print('[DeleteAccount] Errore eliminazione live sessions: $e');
+      debugPrint('[DeleteAccount] Errore eliminazione live sessions: $e');
     }
   }
 
@@ -139,7 +139,7 @@ class DeleteAccountService {
       // Per semplicità, li lasciamo (verranno ignorati)
       // In produzione, potresti usare una Cloud Function per pulirli
     } catch (e) {
-      print('[DeleteAccount] Errore eliminazione cheers: $e');
+      debugPrint('[DeleteAccount] Errore eliminazione cheers: $e');
     }
   }
 

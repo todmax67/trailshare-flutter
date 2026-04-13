@@ -283,7 +283,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       await _checkBatteryLevel();
     });
     // Check iniziale
-    _checkBatteryLevel();
+    unawaited(_checkBatteryLevel());
   }
 
   Future<void> _checkBatteryLevel() async {
@@ -423,7 +423,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     if (photos.isNotEmpty) { setState(() => _photos.addAll(photos)); _showSnackBar(context.l10n.photosAdded(photos.length)); await _saveStateToBackup(); }
   }
 
-  void _deletePhoto(int index) { setState(() => _photos.removeAt(index)); _showSnackBar(context.l10n.photoDeleted); _saveStateToBackup(); }
+  Future<void> _deletePhoto(int index) async { setState(() => _photos.removeAt(index)); _showSnackBar(context.l10n.photoDeleted); await _saveStateToBackup(); }
 
   void _showPhotoOptions() {
     showModalBottomSheet(context: context, builder: (context) => SafeArea(child: Wrap(children: [

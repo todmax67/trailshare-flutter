@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:path_provider/path_provider.dart';
@@ -66,7 +67,7 @@ class OfflineMapsService {
       totalTiles += tiles.length;
     }
 
-    print('[OfflineMaps] Scaricamento $totalTiles tile per "$regionName"');
+    debugPrint('[OfflineMaps] Scaricamento $totalTiles tile per "$regionName"');
 
     // Scarica i tile per ogni livello di zoom
     for (int z = minZoom; z <= maxZoom; z++) {
@@ -144,7 +145,7 @@ class OfflineMapsService {
       }
       return false;
     } catch (e) {
-      print('[OfflineMaps] Errore download tile $z/$x/$y: $e');
+      debugPrint('[OfflineMaps] Errore download tile $z/$x/$y: $e');
       return false;
     }
   }
@@ -239,7 +240,7 @@ class OfflineMapsService {
           ));
         }
       } catch (e) {
-        print('[OfflineMaps] Errore parsing regione: $e');
+        debugPrint('[OfflineMaps] Errore parsing regione: $e');
       }
     }
 

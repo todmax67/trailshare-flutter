@@ -157,7 +157,7 @@ class ElevationProcessor {
   /// ```dart
   /// final tracker = ElevationProcessor.forActivity('trekking').createTracker();
   /// tracker.addPoint(altitude); // ad ogni punto GPS
-  /// print('Gain: ${tracker.elevationGain}');
+  /// debugPrint('Gain: ${tracker.elevationGain}');
   /// ```
   ElevationTracker createTracker() {
     return ElevationTracker(

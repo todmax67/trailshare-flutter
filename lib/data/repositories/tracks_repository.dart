@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/track.dart';
@@ -47,10 +48,10 @@ class TracksRepository {
       final data = _trackToFirestore(track, user.uid);
       final docRef = await _tracksCollection(user.uid).add(data);
 
-      print('[TracksRepository] Traccia salvata con ID: ${docRef.id}');
+      debugPrint('[TracksRepository] Traccia salvata con ID: ${docRef.id}');
       return docRef.id;
     } catch (e) {
-      print('[TracksRepository] Errore saveTrack: $e');
+      debugPrint('[TracksRepository] Errore saveTrack: $e');
       rethrow;
     }
   }
@@ -80,7 +81,7 @@ class TracksRepository {
 
       final snapshot = await query.get();
 
-      print('[TracksRepository] Paginazione: ${snapshot.docs.length} tracce caricate');
+      debugPrint('[TracksRepository] Paginazione: ${snapshot.docs.length} tracce caricate');
 
       final tracks = snapshot.docs.map((doc) {
         return _trackFromFirestore(doc.id, doc.data());
@@ -92,7 +93,7 @@ class TracksRepository {
         hasMore: snapshot.docs.length == limit,
       );
     } catch (e) {
-      print('[TracksRepository] Errore getUserTracksPaginated: $e');
+      debugPrint('[TracksRepository] Errore getUserTracksPaginated: $e');
       return PaginatedTracksResult(tracks: [], hasMore: false);
     }
   }
@@ -105,14 +106,14 @@ class TracksRepository {
           .limit(20) // ⚠️ LIMITE per evitare OutOfMemory
           .get();
 
-      print('[TracksRepository] Trovate ${snapshot.docs.length} tracce per utente $userId');
+      debugPrint('[TracksRepository] Trovate ${snapshot.docs.length} tracce per utente $userId');
 
       return snapshot.docs.map((doc) {
         final data = doc.data();
         return _trackFromFirestore(doc.id, data);
       }).toList();
     } catch (e) {
-      print('[TracksRepository] Errore getUserTracks: $e');
+      debugPrint('[TracksRepository] Errore getUserTracks: $e');
       return [];
     }
   }
@@ -157,7 +158,7 @@ class TracksRepository {
       if (!doc.exists || doc.data() == null) return null;
       return _trackFromFirestore(doc.id, doc.data()!);
     } catch (e) {
-      print('[TracksRepository] Errore getTrackById: $e');
+      debugPrint('[TracksRepository] Errore getTrackById: $e');
       return null;
     }
   }
@@ -195,7 +196,7 @@ class TracksRepository {
     await _tracksCollection(userId).doc(trackId).update({
       'photos': photos.map((p) => p.toMap()).toList(),
     });
-    print('[TracksRepository] ${photos.length} foto aggiornate per traccia $trackId');
+    debugPrint('[TracksRepository] ${photos.length} foto aggiornate per traccia $trackId');
   }
 
   /// ❤️ Aggiorna i dati battito cardiaco di una traccia
@@ -210,7 +211,7 @@ class TracksRepository {
     await _tracksCollection(userId).doc(trackId).update({
       'heartRateData': serialized,
     });
-    print('[TracksRepository] ${heartRateData.length} campioni HR salvati per traccia $trackId');
+    debugPrint('[TracksRepository] ${heartRateData.length} campioni HR salvati per traccia $trackId');
   }
 
   /// Aggiorna un singolo campo di una traccia
@@ -221,7 +222,7 @@ class TracksRepository {
     await _tracksCollection(userId).doc(trackId).update({
       field: value,
     });
-    print('[TracksRepository] Campo "$field" aggiornato per traccia $trackId');
+    debugPrint('[TracksRepository] Campo "$field" aggiornato per traccia $trackId');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -235,9 +236,9 @@ class TracksRepository {
 
     try {
       await _tracksCollection(userId).doc(trackId).delete();
-      print('[TracksRepository] Traccia eliminata: $trackId');
+      debugPrint('[TracksRepository] Traccia eliminata: $trackId');
     } catch (e) {
-      print('[TracksRepository] Errore deleteTrack: $e');
+      debugPrint('[TracksRepository] Errore deleteTrack: $e');
       rethrow;
     }
   }
@@ -276,13 +277,13 @@ class TracksRepository {
     final eleResult = elevationProcessor.process(rawElevations);
 
     // Log per debug
-    print('[TracksRepository] ═══ RICALCOLO STATS DAI PUNTI ═══');
-    print('[TracksRepository] Punti: ${points.length}');
-    print('[TracksRepository] Distanza: ${(originalStats.distance / 1000).toStringAsFixed(2)}km → ${(distance / 1000).toStringAsFixed(2)}km');
-    print('[TracksRepository] Dislivello+: ${originalStats.elevationGain.toStringAsFixed(0)}m → ${eleResult.elevationGain.toStringAsFixed(0)}m');
-    print('[TracksRepository] Dislivello-: ${originalStats.elevationLoss.toStringAsFixed(0)}m → ${eleResult.elevationLoss.toStringAsFixed(0)}m');
-    print('[TracksRepository] Quota max: ${originalStats.maxElevation.toStringAsFixed(0)}m → ${eleResult.maxElevation.toStringAsFixed(0)}m');
-    print('[TracksRepository] Quota min: ${originalStats.minElevation.toStringAsFixed(0)}m → ${eleResult.minElevation.toStringAsFixed(0)}m');
+    debugPrint('[TracksRepository] ═══ RICALCOLO STATS DAI PUNTI ═══');
+    debugPrint('[TracksRepository] Punti: ${points.length}');
+    debugPrint('[TracksRepository] Distanza: ${(originalStats.distance / 1000).toStringAsFixed(2)}km → ${(distance / 1000).toStringAsFixed(2)}km');
+    debugPrint('[TracksRepository] Dislivello+: ${originalStats.elevationGain.toStringAsFixed(0)}m → ${eleResult.elevationGain.toStringAsFixed(0)}m');
+    debugPrint('[TracksRepository] Dislivello-: ${originalStats.elevationLoss.toStringAsFixed(0)}m → ${eleResult.elevationLoss.toStringAsFixed(0)}m');
+    debugPrint('[TracksRepository] Quota max: ${originalStats.maxElevation.toStringAsFixed(0)}m → ${eleResult.maxElevation.toStringAsFixed(0)}m');
+    debugPrint('[TracksRepository] Quota min: ${originalStats.minElevation.toStringAsFixed(0)}m → ${eleResult.minElevation.toStringAsFixed(0)}m');
 
     return TrackStats(
       distance: distance,
@@ -419,7 +420,7 @@ class TracksRepository {
             ));
           }
         } catch (e) {
-          print('[TracksRepository] Errore parsing punto: $e');
+          debugPrint('[TracksRepository] Errore parsing punto: $e');
         }
       }
     }
@@ -434,7 +435,7 @@ class TracksRepository {
             photos.add(TrackPhotoMetadata.fromMap(Map<String, dynamic>.from(p)));
           }
         } catch (e) {
-          print('[TracksRepository] Errore parsing foto: $e');
+          debugPrint('[TracksRepository] Errore parsing foto: $e');
         }
       }
     }

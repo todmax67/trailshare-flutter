@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -33,7 +34,7 @@ class LiveTrackRepository {
         batteryLevel: batteryLevel ?? 100,
       );
     } catch (e) {
-      print('[LiveTrackRepo] Errore creazione sessione: $e');
+      debugPrint('[LiveTrackRepo] Errore creazione sessione: $e');
       return null;
     }
   }
@@ -61,7 +62,7 @@ class LiveTrackRepository {
       await _firestore.collection('live_sessions').doc(sessionId).update(updateData);
       return true;
     } catch (e) {
-      print('[LiveTrackRepo] Errore aggiornamento posizione: $e');
+      debugPrint('[LiveTrackRepo] Errore aggiornamento posizione: $e');
       return false;
     }
   }
@@ -75,7 +76,7 @@ class LiveTrackRepository {
       });
       return true;
     } catch (e) {
-      print('[LiveTrackRepo] Errore chiusura sessione: $e');
+      debugPrint('[LiveTrackRepo] Errore chiusura sessione: $e');
       return false;
     }
   }
@@ -87,7 +88,7 @@ class LiveTrackRepository {
       if (!doc.exists) return null;
       return LiveSession.fromFirestore(doc);
     } catch (e) {
-      print('[LiveTrackRepo] Errore get sessione: $e');
+      debugPrint('[LiveTrackRepo] Errore get sessione: $e');
       return null;
     }
   }
@@ -118,7 +119,7 @@ class LiveTrackRepository {
 
       return snapshot.docs.map((doc) => LiveSession.fromFirestore(doc)).toList();
     } catch (e) {
-      print('[LiveTrackRepo] Errore get sessioni attive: $e');
+      debugPrint('[LiveTrackRepo] Errore get sessioni attive: $e');
       return [];
     }
   }

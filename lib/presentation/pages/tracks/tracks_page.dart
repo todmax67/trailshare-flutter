@@ -131,7 +131,8 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
         user.uid,
         limit: 10, // Carica solo 10 alla volta
       );
-      
+      if (!mounted) return;
+
       setState(() {
         _tracks = result.tracks;
         _lastDocument = result.lastDocument;
@@ -139,6 +140,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = context.l10n.loadingErrorWithDetails(e.toString());
         _isLoading = false;
@@ -162,6 +164,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
         limit: 10,
         lastDocument: _lastDocument,
       );
+      if (!mounted) return;
 
       setState(() {
         _tracks = [...?_tracks, ...result.tracks];
@@ -169,11 +172,11 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
         _hasMore = result.hasMore;
         _isLoadingMore = false;
       });
-      
-      print('[TracksPage] Caricate altre ${result.tracks.length} tracce. Totale: ${_tracks?.length}');
+
+      debugPrint('[TracksPage] Caricate altre ${result.tracks.length} tracce. Totale: ${_tracks?.length}');
     } catch (e) {
-      print('[TracksPage] Errore caricamento altre tracce: $e');
-      setState(() => _isLoadingMore = false);
+      debugPrint('[TracksPage] Errore caricamento altre tracce: $e');
+      if (mounted) setState(() => _isLoadingMore = false);
     }
   }
 

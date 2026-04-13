@@ -83,6 +83,7 @@ class _CheerButtonState extends State<CheerButton> with SingleTickerProviderStat
     _animationController.forward().then((_) => _animationController.reverse());
 
     final result = await _repository.toggleCheer(widget.trackId);
+    if (!mounted) return;
 
     if (result.success) {
       setState(() {
@@ -92,17 +93,15 @@ class _CheerButtonState extends State<CheerButton> with SingleTickerProviderStat
       });
     } else {
       // Errore - mostra messaggio
-      if (mounted) {
-        if (result.error?.contains('login') == true) {
-          widget.onAuthRequired?.call();
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.error ?? 'Errore'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
+      if (result.error?.contains('login') == true) {
+        widget.onAuthRequired?.call();
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.error ?? 'Errore'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     }
 
     setState(() => _isLoading = false);

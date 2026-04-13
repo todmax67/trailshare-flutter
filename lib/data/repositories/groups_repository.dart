@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:math';
@@ -376,10 +377,10 @@ class GroupsRepository {
         'joinedAt': FieldValue.serverTimestamp(),
       });
 
-      print('[Groups] Gruppo creato: ${docRef.id}');
+      debugPrint('[Groups] Gruppo creato: ${docRef.id}');
       return docRef.id;
     } catch (e) {
-      print('[Groups] Errore creazione: $e');
+      debugPrint('[Groups] Errore creazione: $e');
       return null;
     }
   }
@@ -397,7 +398,7 @@ class GroupsRepository {
 
       return snapshot.docs.map((doc) => Group.fromFirestore(doc)).toList();
     } catch (e) {
-      print('[Groups] Errore caricamento gruppi: $e');
+      debugPrint('[Groups] Errore caricamento gruppi: $e');
       return [];
     }
   }
@@ -431,7 +432,7 @@ class GroupsRepository {
           .toList();
 
     } catch (e) {
-      print('[Groups] Errore caricamento gruppi pubblici: $e');
+      debugPrint('[Groups] Errore caricamento gruppi pubblici: $e');
       return [];
     }
   }
@@ -443,7 +444,7 @@ class GroupsRepository {
       if (!doc.exists) return null;
       return Group.fromFirestore(doc);
     } catch (e) {
-      print('[Groups] Errore caricamento gruppo: $e');
+      debugPrint('[Groups] Errore caricamento gruppo: $e');
       return null;
     }
   }
@@ -457,10 +458,10 @@ class GroupsRepository {
       if (updates.isEmpty) return false;
 
       await _groupDoc(groupId).update(updates);
-      print('[Groups] Gruppo $groupId aggiornato');
+      debugPrint('[Groups] Gruppo $groupId aggiornato');
       return true;
     } catch (e) {
-      print('[Groups] Errore aggiornamento gruppo: $e');
+      debugPrint('[Groups] Errore aggiornamento gruppo: $e');
       return false;
     }
   }
@@ -475,10 +476,10 @@ class GroupsRepository {
       if (groupDoc.data()?['createdBy'] != user.uid) return false;
 
       await _groupDoc(groupId).delete();
-      print('[Groups] Gruppo eliminato: $groupId');
+      debugPrint('[Groups] Gruppo eliminato: $groupId');
       return true;
     } catch (e) {
-      print('[Groups] Errore eliminazione: $e');
+      debugPrint('[Groups] Errore eliminazione: $e');
       return false;
     }
   }
@@ -497,7 +498,7 @@ class GroupsRepository {
 
       return snapshot.docs.map((doc) => GroupMember.fromFirestore(doc)).toList();
     } catch (e) {
-      print('[Groups] Errore caricamento membri: $e');
+      debugPrint('[Groups] Errore caricamento membri: $e');
       return [];
     }
   }
@@ -529,10 +530,10 @@ class GroupsRepository {
         });
       });
 
-      print('[Groups] Utente ${user.uid} entrato in $groupId');
+      debugPrint('[Groups] Utente ${user.uid} entrato in $groupId');
       return true;
     } catch (e) {
-      print('[Groups] Errore join: $e');
+      debugPrint('[Groups] Errore join: $e');
       return false;
     }
   }
@@ -554,10 +555,10 @@ class GroupsRepository {
         });
       });
 
-      print('[Groups] Utente ${user.uid} uscito da $groupId');
+      debugPrint('[Groups] Utente ${user.uid} uscito da $groupId');
       return true;
     } catch (e) {
-      print('[Groups] Errore leave: $e');
+      debugPrint('[Groups] Errore leave: $e');
       return false;
     }
   }
@@ -588,7 +589,7 @@ class GroupsRepository {
 
       return true;
     } catch (e) {
-      print('[Groups] Errore aggiunta membro: $e');
+      debugPrint('[Groups] Errore aggiunta membro: $e');
       return false;
     }
   }
@@ -609,7 +610,7 @@ class GroupsRepository {
 
       return true;
     } catch (e) {
-      print('[Groups] Errore rimozione membro: $e');
+      debugPrint('[Groups] Errore rimozione membro: $e');
       return false;
     }
   }
@@ -663,7 +664,7 @@ class GroupsRepository {
 
       return true;
     } catch (e) {
-      print('[Groups] Errore invio messaggio: $e');
+      debugPrint('[Groups] Errore invio messaggio: $e');
       return false;
     }
   }
@@ -686,7 +687,7 @@ class GroupsRepository {
       final snapshot = await query.get();
       return snapshot.docs.map((doc) => GroupEvent.fromFirestore(doc)).toList();
     } catch (e) {
-      print('[Groups] Errore caricamento eventi: $e');
+      debugPrint('[Groups] Errore caricamento eventi: $e');
       return [];
     }
   }
@@ -742,7 +743,7 @@ class GroupsRepository {
 
       return docRef.id;
     } catch (e) {
-      print('[Groups] Errore creazione evento: $e');
+      debugPrint('[Groups] Errore creazione evento: $e');
       return null;
     }
   }
@@ -771,7 +772,7 @@ class GroupsRepository {
 
       return true;
     } catch (e) {
-      print('[Groups] Errore toggle partecipazione: $e');
+      debugPrint('[Groups] Errore toggle partecipazione: $e');
       return false;
     }
   }
@@ -782,7 +783,7 @@ class GroupsRepository {
       await _groupDoc(groupId).collection('events').doc(eventId).update(data);
       return true;
     } catch (e) {
-      print('[Groups] Errore aggiornamento evento: $e');
+      debugPrint('[Groups] Errore aggiornamento evento: $e');
       return false;
     }
   }
@@ -794,7 +795,7 @@ class GroupsRepository {
       if (!doc.exists) return null;
       return GroupEvent.fromFirestore(doc);
     } catch (e) {
-      print('[Groups] Errore caricamento evento: $e');
+      debugPrint('[Groups] Errore caricamento evento: $e');
       return null;
     }
   }
@@ -805,7 +806,7 @@ class GroupsRepository {
       await _groupDoc(groupId).collection('events').doc(eventId).delete();
       return true;
     } catch (e) {
-      print('[Groups] Errore eliminazione evento: $e');
+      debugPrint('[Groups] Errore eliminazione evento: $e');
       return false;
     }
   }
@@ -835,7 +836,7 @@ class GroupsRepository {
       });
       return true;
     } catch (e) {
-      print('[Groups] Errore aggiunta post evento: $e');
+      debugPrint('[Groups] Errore aggiunta post evento: $e');
       return false;
     }
   }
@@ -856,7 +857,7 @@ class GroupsRepository {
         return data;
       }).toList();
     } catch (e) {
-      print('[Groups] Errore caricamento post evento: $e');
+      debugPrint('[Groups] Errore caricamento post evento: $e');
       return [];
     }
   }
@@ -872,7 +873,7 @@ class GroupsRepository {
           .delete();
       return true;
     } catch (e) {
-      print('[Groups] Errore eliminazione post: $e');
+      debugPrint('[Groups] Errore eliminazione post: $e');
       return false;
     }
   }
@@ -911,7 +912,7 @@ class GroupsRepository {
 
       return challenges;
     } catch (e) {
-      print('[Groups] Errore caricamento sfide: $e');
+      debugPrint('[Groups] Errore caricamento sfide: $e');
       return [];
     }
   }
@@ -952,7 +953,7 @@ class GroupsRepository {
 
       return docRef.id;
     } catch (e) {
-      print('[Groups] Errore creazione sfida: $e');
+      debugPrint('[Groups] Errore creazione sfida: $e');
       return null;
     }
   }
@@ -969,7 +970,7 @@ class GroupsRepository {
 
       return snapshot.docs.map((doc) => ChallengeStanding.fromFirestore(doc)).toList();
     } catch (e) {
-      print('[Groups] Errore caricamento classifica: $e');
+      debugPrint('[Groups] Errore caricamento classifica: $e');
       return [];
     }
   }
@@ -994,7 +995,7 @@ class GroupsRepository {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
-      print('[Groups] Errore aggiornamento standing: $e');
+      debugPrint('[Groups] Errore aggiornamento standing: $e');
     }
   }
 
@@ -1013,7 +1014,7 @@ class GroupsRepository {
       if (snapshot.docs.isEmpty) return null;
       return Group.fromFirestore(snapshot.docs.first);
     } catch (e) {
-      print('[Groups] Errore ricerca codice invito: $e');
+      debugPrint('[Groups] Errore ricerca codice invito: $e');
       return null;
     }
   }
@@ -1043,7 +1044,7 @@ class GroupsRepository {
         return {'success': false, 'error': 'Errore nell\'unirsi al gruppo'};
       }
     } catch (e) {
-      print('[Groups] Errore join con codice: $e');
+      debugPrint('[Groups] Errore join con codice: $e');
       return {'success': false, 'error': 'Errore: $e'};
     }
   }
@@ -1060,10 +1061,10 @@ class GroupsRepository {
 
       final newCode = _generateInviteCode();
       await _groupDoc(groupId).update({'inviteCode': newCode});
-      print('[Groups] Codice invito rigenerato per $groupId: $newCode');
+      debugPrint('[Groups] Codice invito rigenerato per $groupId: $newCode');
       return newCode;
     } catch (e) {
-      print('[Groups] Errore rigenerazione codice: $e');
+      debugPrint('[Groups] Errore rigenerazione codice: $e');
       return null;
     }
   }
@@ -1082,10 +1083,10 @@ class GroupsRepository {
 
       final newCode = _generateInviteCode();
       await _groupDoc(groupId).update({'inviteCode': newCode});
-      print('[Groups] Codice invito generato per gruppo esistente $groupId: $newCode');
+      debugPrint('[Groups] Codice invito generato per gruppo esistente $groupId: $newCode');
       return newCode;
     } catch (e) {
-      print('[Groups] Errore ensureInviteCode: $e');
+      debugPrint('[Groups] Errore ensureInviteCode: $e');
       return null;
     }
   }
@@ -1111,7 +1112,7 @@ class GroupsRepository {
           ));
         }
       } catch (e) {
-        print('[Groups] Errore caricamento eventi per ${group.name}: $e');
+        debugPrint('[Groups] Errore caricamento eventi per ${group.name}: $e');
       }
     }
 
@@ -1136,7 +1137,7 @@ class GroupsRepository {
           ));
         }
       } catch (e) {
-        print('[Groups] Errore caricamento sfide per ${group.name}: $e');
+        debugPrint('[Groups] Errore caricamento sfide per ${group.name}: $e');
       }
     }
 
@@ -1160,7 +1161,7 @@ class GroupsRepository {
           ));
         }
       } catch (e) {
-        print('[Groups] Errore caricamento eventi pubblici per ${group.name}: $e');
+        debugPrint('[Groups] Errore caricamento eventi pubblici per ${group.name}: $e');
       }
     }
 
@@ -1188,10 +1189,10 @@ class GroupsRepository {
         'status': 'pending',
       });
 
-      print('[Groups] Richiesta accesso inviata per $groupId');
+      debugPrint('[Groups] Richiesta accesso inviata per $groupId');
       return true;
     } catch (e) {
-      print('[Groups] Errore richiesta accesso: $e');
+      debugPrint('[Groups] Errore richiesta accesso: $e');
       return false;
     }
   }
@@ -1227,7 +1228,7 @@ class GroupsRepository {
         return data;
       }).toList();
     } catch (e) {
-      print('[Groups] Errore caricamento richieste: $e');
+      debugPrint('[Groups] Errore caricamento richieste: $e');
       return [];
     }
   }
@@ -1256,10 +1257,10 @@ class GroupsRepository {
         'approvedAt': FieldValue.serverTimestamp(),
       });
 
-      print('[Groups] Richiesta approvata: $userId in $groupId');
+      debugPrint('[Groups] Richiesta approvata: $userId in $groupId');
       return true;
     } catch (e) {
-      print('[Groups] Errore approvazione: $e');
+      debugPrint('[Groups] Errore approvazione: $e');
       return false;
     }
   }
@@ -1272,10 +1273,10 @@ class GroupsRepository {
         'rejectedAt': FieldValue.serverTimestamp(),
       });
 
-      print('[Groups] Richiesta rifiutata: $userId in $groupId');
+      debugPrint('[Groups] Richiesta rifiutata: $userId in $groupId');
       return true;
     } catch (e) {
-      print('[Groups] Errore rifiuto: $e');
+      debugPrint('[Groups] Errore rifiuto: $e');
       return false;
     }
   }

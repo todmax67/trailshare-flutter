@@ -34,14 +34,14 @@ class _WishlistPageState extends State<WishlistPage> {
   Future<void> _loadWishlistTracks() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      setState(() {
+      if (mounted) setState(() {
         _isLoading = false;
         _error = 'login_required';
       });
       return;
     }
 
-    setState(() {
+    if (mounted) setState(() {
       _isLoading = true;
       _error = null;
     });
@@ -49,6 +49,7 @@ class _WishlistPageState extends State<WishlistPage> {
     try {
       // 1. Ottieni gli ID dalla wishlist
       final trackIds = await _wishlistRepository.getWishlistIds();
+      if (!mounted) return;
 
       if (trackIds.isEmpty) {
         setState(() {
@@ -61,11 +62,11 @@ class _WishlistPageState extends State<WishlistPage> {
       // 2. Carica le tracce da published_tracks
       // Firestore limita "whereIn" a 30 elementi
       final List<CommunityTrack> loadedTracks = [];
-      
+
       // Dividi in batch da 30
       for (int i = 0; i < trackIds.length; i += 30) {
         final batchIds = trackIds.skip(i).take(30).toList();
-        
+
         final snapshot = await _firestore
             .collection('published_tracks')
             .where(FieldPath.documentId, whereIn: batchIds)
@@ -79,13 +80,13 @@ class _WishlistPageState extends State<WishlistPage> {
         }
       }
 
-      setState(() {
+      if (mounted) setState(() {
         _tracks = loadedTracks;
         _isLoading = false;
       });
     } catch (e) {
-      print('[WishlistPage] Errore: $e');
-      setState(() {
+      debugPrint('[WishlistPage] Errore: $e');
+      if (mounted) setState(() {
         _error = e.toString();
         _isLoading = false;
       });
@@ -111,7 +112,7 @@ class _WishlistPageState extends State<WishlistPage> {
         sharedAt: (data['sharedAt'] as Timestamp?)?.toDate(),
       );
     } catch (e) {
-      print('[WishlistPage] Errore parsing track: $e');
+      debugPrint('[WishlistPage] Errore parsing track: $e');
       return null;
     }
   }

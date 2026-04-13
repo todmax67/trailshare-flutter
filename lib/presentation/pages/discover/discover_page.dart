@@ -99,7 +99,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
         _isLoadingLocation = false;
       });
 
-      print('[DiscoverPage] Posizione utente: ${_userPosition!.latitude}, ${_userPosition!.longitude}');
+      debugPrint('[DiscoverPage] Posizione utente: ${_userPosition!.latitude}, ${_userPosition!.longitude}');
 
       // Centra mappa sulla posizione utente
       if (mounted) {
@@ -111,7 +111,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       }
       
     } catch (e) {
-      print('[DiscoverPage] Errore geolocalizzazione: $e');
+      debugPrint('[DiscoverPage] Errore geolocalizzazione: $e');
       setState(() => _isLoadingLocation = false);
       // Carica comunque i sentieri per il viewport di default
       _loadTrailsForViewport();
@@ -232,7 +232,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   void _onMapEvent(MapEvent event) {
     // Log temporaneo per debug
     if (event is! MapEventMove) {
-      print('[DiscoverPage] 🗺️ MapEvent: ${event.runtimeType}');
+      debugPrint('[DiscoverPage] 🗺️ MapEvent: ${event.runtimeType}');
     }
     
     if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd || event is MapEventRotateEnd) {
@@ -257,7 +257,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
     if (_isLoadingTrails) {
       _pendingBounds = bounds;
       _pendingZoom = zoom;
-      print('[DiscoverPage] ⏳ Pending (già in caricamento)');
+      debugPrint('[DiscoverPage] ⏳ Pending (già in caricamento)');
       return;
     }
     
@@ -265,11 +265,11 @@ class _DiscoverPageState extends State<DiscoverPage> {
     if (_lastLoadedBounds != null && 
         _areBoundsSimilar(bounds, _lastLoadedBounds!) &&
         (_currentZoom - zoom).abs() < 0.5) {
-      print('[DiscoverPage] ⏭️ Skip (bounds simili, zoom diff: ${(_currentZoom - zoom).abs().toStringAsFixed(2)})');
+      debugPrint('[DiscoverPage] ⏭️ Skip (bounds simili, zoom diff: ${(_currentZoom - zoom).abs().toStringAsFixed(2)})');
       return;
     }
     
-    print('[DiscoverPage] 🚀 Caricamento per zoom: ${zoom.toStringAsFixed(1)}, bounds: ${bounds.south.toStringAsFixed(3)},${bounds.west.toStringAsFixed(3)} → ${bounds.north.toStringAsFixed(3)},${bounds.east.toStringAsFixed(3)}');
+    debugPrint('[DiscoverPage] 🚀 Caricamento per zoom: ${zoom.toStringAsFixed(1)}, bounds: ${bounds.south.toStringAsFixed(3)},${bounds.west.toStringAsFixed(3)} → ${bounds.north.toStringAsFixed(3)},${bounds.east.toStringAsFixed(3)}');
     
     if (mounted) {
       setState(() {
@@ -310,10 +310,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
       
       final source = result.fromCache ? '⚡ cache' : '🌐 server';
       final type = result.hasClusters ? 'cluster' : 'trails';
-      print('[DiscoverPage] $source: ${result.totalCount} $type (zoom: ${zoom.toStringAsFixed(1)})');
+      debugPrint('[DiscoverPage] $source: ${result.totalCount} $type (zoom: ${zoom.toStringAsFixed(1)})');
       
     } catch (e) {
-      print('[DiscoverPage] Errore caricamento: $e');
+      debugPrint('[DiscoverPage] Errore caricamento: $e');
       if (mounted) {
         setState(() => _isLoadingTrails = false);
       }
@@ -343,7 +343,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       final zoom = _mapController.camera.zoom;
       await _loadTrailsForBounds(bounds, zoom);
     } catch (e) {
-      print('[DiscoverPage] Errore _loadTrailsForViewport: $e');
+      debugPrint('[DiscoverPage] Errore _loadTrailsForViewport: $e');
     }
   }
 

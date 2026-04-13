@@ -274,7 +274,7 @@ class _PlannerTabState extends State<PlannerTab> {
         widget.onTrackSaved?.call();
       }
     } catch (e) {
-      print('[Planner] Errore salvataggio: $e');
+      debugPrint('[Planner] Errore salvataggio: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),

@@ -112,12 +112,14 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!mounted) return;
       if (!serviceEnabled) {
         setState(() => _isLoadingLocation = false);
         return;
       }
 
       final hasPermission = await LocationService().checkAndRequestPermission(context: context);
+      if (!mounted) return;
       if (!hasPermission) {
         setState(() => _isLoadingLocation = false);
         return;
@@ -129,14 +131,15 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           timeLimit: Duration(seconds: 10),
         ),
       );
+      if (!mounted) return;
 
       setState(() {
         _userPosition = LatLng(position.latitude, position.longitude);
         _isLoadingLocation = false;
       });
     } catch (e) {
-      print('[CommunityPage] Errore geolocalizzazione: $e');
-      setState(() => _isLoadingLocation = false);
+      debugPrint('[CommunityPage] Errore geolocalizzazione: $e');
+      if (mounted) setState(() => _isLoadingLocation = false);
     }
   }
 
@@ -167,7 +170,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
   Future<void> _loadMoreCommunityTracks() async {
     if (_isLoadingMore || !_hasMoreTracks || _lastDocument == null) return;
-    setState(() => _isLoadingMore = true);
+    if (mounted) setState(() => _isLoadingMore = true);
     final result = await _communityRepo.getRecentTracksPaginated(
       limit: 20,
       startAfterDoc: _lastDocument,

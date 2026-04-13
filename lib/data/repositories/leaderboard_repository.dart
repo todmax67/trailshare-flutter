@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -62,7 +63,7 @@ class LeaderboardRepository {
         weekStart: weekStartDate,
       );
     } catch (e) {
-      print('[LeaderboardRepo] Errore: $e');
+      debugPrint('[LeaderboardRepo] Errore: $e');
       return LeaderboardData(entries: [], currentUserRank: null);
     }
   }
@@ -102,7 +103,7 @@ class LeaderboardRepository {
           .collection('tracks')
           .get();
 
-      print('[LeaderboardRepo] Utente $userId: ${allTracksSnapshot.docs.length} tracce totali, weekStart: $weekStart');
+      debugPrint('[LeaderboardRepo] Utente $userId: ${allTracksSnapshot.docs.length} tracce totali, weekStart: $weekStart');
 
       double weeklyDistance = 0;
       double weeklyElevation = 0;
@@ -117,11 +118,11 @@ class LeaderboardRepository {
         final rawCreatedAt = data['createdAt'];
         DateTime? trackDate = _parseDate(rawRecordedAt) ?? _parseDate(rawCreatedAt);
         
-        print('[LeaderboardRepo]   Traccia ${doc.id}: recordedAt=${rawRecordedAt?.runtimeType}:$rawRecordedAt, createdAt=${rawCreatedAt?.runtimeType}:$rawCreatedAt → parsed=$trackDate');
+        debugPrint('[LeaderboardRepo]   Traccia ${doc.id}: recordedAt=${rawRecordedAt?.runtimeType}:$rawRecordedAt, createdAt=${rawCreatedAt?.runtimeType}:$rawCreatedAt → parsed=$trackDate');
         
         // Filtra solo tracce della settimana corrente
         if (trackDate == null || trackDate.isBefore(weekStart)) {
-          print('[LeaderboardRepo]   → SKIP (fuori settimana o data null)');
+          debugPrint('[LeaderboardRepo]   → SKIP (fuori settimana o data null)');
           continue;
         }
         
@@ -136,10 +137,10 @@ class LeaderboardRepository {
         weeklyXp += dist ~/ 100;
         weeklyXp += ele ~/ 10;
         
-        print('[LeaderboardRepo]   → INCLUSA! dist=${dist.toStringAsFixed(0)}m, ele=${ele.toStringAsFixed(0)}m');
+        debugPrint('[LeaderboardRepo]   → INCLUSA! dist=${dist.toStringAsFixed(0)}m, ele=${ele.toStringAsFixed(0)}m');
       }
       
-      print('[LeaderboardRepo] Risultato $username: $weeklyTracks tracce, ${weeklyDistance.toStringAsFixed(0)}m, +${weeklyElevation.toStringAsFixed(0)}m, $weeklyXp XP');
+      debugPrint('[LeaderboardRepo] Risultato $username: $weeklyTracks tracce, ${weeklyDistance.toStringAsFixed(0)}m, +${weeklyElevation.toStringAsFixed(0)}m, $weeklyXp XP');
 
       return LeaderboardEntry(
         userId: userId,
@@ -154,7 +155,7 @@ class LeaderboardRepository {
         rank: 0, // Verrà assegnato dopo
       );
     } catch (e) {
-      print('[LeaderboardRepo] Errore calcolo stats per $userId: $e');
+      debugPrint('[LeaderboardRepo] Errore calcolo stats per $userId: $e');
       return null;
     }
   }
@@ -171,7 +172,7 @@ class LeaderboardRepository {
   /// Ottiene la classifica - sempre calcolo real-time
   /// (La versione precalcolata richiede Cloud Functions non ancora attive)
   Future<LeaderboardData> getPrecomputedLeaderboard() async {
-    print('[LeaderboardRepo] Uso calcolo real-time');
+    debugPrint('[LeaderboardRepo] Uso calcolo real-time');
     return getWeeklyLeaderboard();
   }
 }

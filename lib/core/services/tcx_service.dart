@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:math';
 import 'package:xml/xml.dart';
@@ -13,7 +14,7 @@ class TcxService {
       final content = await file.readAsString();
       return parseTcxString(content, fileName: file.path.split('/').last);
     } catch (e) {
-      print('[TcxService] Errore lettura file: $e');
+      debugPrint('[TcxService] Errore lettura file: $e');
       return null;
     }
   }
@@ -83,14 +84,14 @@ class TcxService {
       }
 
       if (points.isEmpty) {
-        print('[TcxService] Nessun punto trovato nel TCX');
+        debugPrint('[TcxService] Nessun punto trovato nel TCX');
         return null;
       }
 
       final activityType = _mapSportToActivityType(sport);
       final stats = _calculateStats(points);
 
-      print('[TcxService] Parsati ${points.length} punti da "$name" (sport: $sport)');
+      debugPrint('[TcxService] Parsati ${points.length} punti da "$name" (sport: $sport)');
 
       return Track(
         id: 'imported_tcx_${DateTime.now().millisecondsSinceEpoch}',
@@ -102,7 +103,7 @@ class TcxService {
         stats: stats,
       );
     } catch (e) {
-      print('[TcxService] Errore parsing TCX: $e');
+      debugPrint('[TcxService] Errore parsing TCX: $e');
       return null;
     }
   }

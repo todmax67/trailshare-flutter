@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -20,7 +21,7 @@ class CheersRepository {
 
       return cheerDoc.exists;
     } catch (e) {
-      print('[CheersRepository] Errore hasUserCheered: $e');
+      debugPrint('[CheersRepository] Errore hasUserCheered: $e');
       return false;
     }
   }
@@ -37,7 +38,7 @@ class CheersRepository {
 
       return cheersSnapshot.count ?? 0;
     } catch (e) {
-      print('[CheersRepository] Errore getCheersCount: $e');
+      debugPrint('[CheersRepository] Errore getCheersCount: $e');
       return 0;
     }
   }
@@ -73,7 +74,7 @@ class CheersRepository {
 
       return CheerStatus(count: count, hasCheered: hasCheered);
     } catch (e) {
-      print('[CheersRepository] Errore getCheerStatus: $e');
+      debugPrint('[CheersRepository] Errore getCheerStatus: $e');
       return CheerStatus(count: 0, hasCheered: false);
     }
   }
@@ -134,7 +135,7 @@ class CheersRepository {
         );
       }
     } catch (e) {
-      print('[CheersRepository] Errore toggleCheer: $e');
+      debugPrint('[CheersRepository] Errore toggleCheer: $e');
       return CheerResult(
         success: false,
         error: 'Errore durante l\'operazione. Riprova.',
@@ -153,7 +154,7 @@ class CheersRepository {
       });
     } catch (e) {
       // Non critico se fallisce, il conteggio può essere ricalcolato
-      print('[CheersRepository] Errore aggiornamento contatore: $e');
+      debugPrint('[CheersRepository] Errore aggiornamento contatore: $e');
     }
   }
 

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -21,7 +22,7 @@ class WishlistRepository {
       final wishlist = List<String>.from(profileDoc.data()?['wishlist'] ?? []);
       return wishlist.contains(trackId);
     } catch (e) {
-      print('[WishlistRepository] Errore isInWishlist: $e');
+      debugPrint('[WishlistRepository] Errore isInWishlist: $e');
       return false;
     }
   }
@@ -41,7 +42,7 @@ class WishlistRepository {
 
       return List<String>.from(profileDoc.data()?['wishlist'] ?? []);
     } catch (e) {
-      print('[WishlistRepository] Errore getWishlistIds: $e');
+      debugPrint('[WishlistRepository] Errore getWishlistIds: $e');
       return [];
     }
   }
@@ -86,7 +87,7 @@ class WishlistRepository {
         );
       }
     } catch (e) {
-      print('[WishlistRepository] Errore toggleWishlist: $e');
+      debugPrint('[WishlistRepository] Errore toggleWishlist: $e');
       return WishlistResult(
         success: false,
         error: 'Operazione non riuscita. Riprova.',
@@ -111,7 +112,7 @@ class WishlistRepository {
       });
       return true;
     } catch (e) {
-      print('[WishlistRepository] Errore removeFromWishlist: $e');
+      debugPrint('[WishlistRepository] Errore removeFromWishlist: $e');
       return false;
     }
   }

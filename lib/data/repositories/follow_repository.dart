@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -21,7 +22,7 @@ class FollowRepository {
       final following = List<String>.from(doc.data()?['following'] ?? []);
       return following.contains(targetUserId);
     } catch (e) {
-      print('[FollowRepo] Errore isFollowing: $e');
+      debugPrint('[FollowRepo] Errore isFollowing: $e');
       return false;
     }
   }
@@ -92,7 +93,7 @@ class FollowRepository {
         message: isNowFollowing ? 'Ora segui questo utente' : 'Hai smesso di seguire',
       );
     } catch (e) {
-      print('[FollowRepo] Errore toggleFollow: $e');
+      debugPrint('[FollowRepo] Errore toggleFollow: $e');
       return FollowResult(
         success: false,
         error: 'Errore durante l\'operazione. Riprova.',
@@ -107,7 +108,7 @@ class FollowRepository {
       if (!doc.exists) return [];
       return List<String>.from(doc.data()?['followers'] ?? []);
     } catch (e) {
-      print('[FollowRepo] Errore getFollowers: $e');
+      debugPrint('[FollowRepo] Errore getFollowers: $e');
       return [];
     }
   }
@@ -119,7 +120,7 @@ class FollowRepository {
       if (!doc.exists) return [];
       return List<String>.from(doc.data()?['following'] ?? []);
     } catch (e) {
-      print('[FollowRepo] Errore getFollowing: $e');
+      debugPrint('[FollowRepo] Errore getFollowing: $e');
       return [];
     }
   }
@@ -136,7 +137,7 @@ class FollowRepository {
         following: (data['following'] as List?)?.length ?? 0,
       );
     } catch (e) {
-      print('[FollowRepo] Errore getFollowCounts: $e');
+      debugPrint('[FollowRepo] Errore getFollowCounts: $e');
       return const FollowCounts(followers: 0, following: 0);
     }
   }
@@ -164,7 +165,7 @@ class FollowRepository {
 
       return profiles;
     } catch (e) {
-      print('[FollowRepo] Errore getUserProfiles: $e');
+      debugPrint('[FollowRepo] Errore getUserProfiles: $e');
       return [];
     }
   }
@@ -205,7 +206,7 @@ class FollowRepository {
           .where((u) => u.username != 'Utente') // Escludi senza username
           .toList();
     } catch (e) {
-      print('[FollowRepo] Errore searchUsers: $e');
+      debugPrint('[FollowRepo] Errore searchUsers: $e');
       return [];
     }
   }
@@ -235,7 +236,7 @@ class FollowRepository {
           .take(limit)
           .toList();
     } catch (e) {
-      print('[FollowRepo] Errore suggeriti: $e');
+      debugPrint('[FollowRepo] Errore suggeriti: $e');
       
       // Fallback: carica per username
       try {
@@ -259,7 +260,7 @@ class FollowRepository {
             .take(limit)
             .toList();
       } catch (e2) {
-        print('[FollowRepo] Errore fallback suggeriti: $e2');
+        debugPrint('[FollowRepo] Errore fallback suggeriti: $e2');
         return [];
       }
     }

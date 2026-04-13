@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
@@ -28,7 +29,7 @@ class TrailImportService {
       final response = await http.get(Uri.parse(url), headers: {'Accept': 'application/json'});
       
       if (response.statusCode != 200) {
-        print('[TrailImport] Errore ricerca "$searchTerm": ${response.statusCode}');
+        debugPrint('[TrailImport] Errore ricerca "$searchTerm": ${response.statusCode}');
         return [];
       }
       
@@ -36,7 +37,7 @@ class TrailImportService {
       final results = data['results'] as List? ?? [];
       return results.map((r) => WaymarkedRoute.fromJson(r)).where((r) => r.name.isNotEmpty).toList();
     } catch (e) {
-      print('[TrailImport] Errore searchWaymarkedTrails: $e');
+      debugPrint('[TrailImport] Errore searchWaymarkedTrails: $e');
       return [];
     }
   }
@@ -53,21 +54,21 @@ class TrailImportService {
       // API Waymarked: bbox=minLng,minLat,maxLng,maxLat
       final bbox = "$minLng,$minLat,$maxLng,$maxLat";
       final url = "$_waymarkedApiBase/list/by_bbox?bbox=$bbox&limit=$limit";
-      print("[TrailImport] Ricerca bbox: $bbox");
+      debugPrint("[TrailImport] Ricerca bbox: $bbox");
       
       final response = await http.get(Uri.parse(url), headers: {"Accept": "application/json"});
       
       if (response.statusCode != 200) {
-        print("[TrailImport] Errore bbox: ${response.statusCode}");
+        debugPrint("[TrailImport] Errore bbox: ${response.statusCode}");
         return [];
       }
       
       final data = jsonDecode(response.body);
       final results = data["results"] as List? ?? [];
-      print("[TrailImport] Trovati ${results.length} percorsi nel bbox");
+      debugPrint("[TrailImport] Trovati ${results.length} percorsi nel bbox");
       return results.map((r) => WaymarkedRoute.fromJson(r)).where((r) => r.name.isNotEmpty).toList();
     } catch (e) {
-      print("[TrailImport] Errore searchByBbox: $e");
+      debugPrint("[TrailImport] Errore searchByBbox: $e");
       return [];
     }
   }
@@ -77,7 +78,7 @@ class TrailImportService {
   Future<Map<String, double>?> getBboxFromPlaceName(String placeName) async {
     try {
       final url = "https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(placeName)}&format=json&limit=1";
-      print("[TrailImport] Geocoding: $placeName");
+      debugPrint("[TrailImport] Geocoding: $placeName");
       
       final response = await http.get(
         Uri.parse(url),
@@ -85,13 +86,13 @@ class TrailImportService {
       );
       
       if (response.statusCode != 200) {
-        print("[TrailImport] Errore Nominatim: ${response.statusCode}");
+        debugPrint("[TrailImport] Errore Nominatim: ${response.statusCode}");
         return null;
       }
       
       final List<dynamic> data = jsonDecode(response.body);
       if (data.isEmpty) {
-        print("[TrailImport] Nessun risultato per: $placeName");
+        debugPrint("[TrailImport] Nessun risultato per: $placeName");
         return null;
       }
       
@@ -105,10 +106,10 @@ class TrailImportService {
       final minLng = double.tryParse(bbox[2].toString()) ?? 0;
       final maxLng = double.tryParse(bbox[3].toString()) ?? 0;
       
-      print("[TrailImport] Bbox per $placeName: $minLat,$maxLat,$minLng,$maxLng");
+      debugPrint("[TrailImport] Bbox per $placeName: $minLat,$maxLat,$minLng,$maxLng");
       return {"minLat": minLat, "maxLat": maxLat, "minLng": minLng, "maxLng": maxLng};
     } catch (e) {
-      print("[TrailImport] Errore getBboxFromPlaceName: $e");
+      debugPrint("[TrailImport] Errore getBboxFromPlaceName: $e");
       return null;
     }
   }
@@ -122,7 +123,7 @@ class TrailImportService {
       if (response.statusCode != 200) return null;
       return WaymarkedRouteDetails.fromJson(jsonDecode(response.body));
     } catch (e) {
-      print('[TrailImport] Errore getWaymarkedRouteDetails: $e');
+      debugPrint('[TrailImport] Errore getWaymarkedRouteDetails: $e');
       return null;
     }
   }
@@ -251,7 +252,7 @@ class TrailImportService {
         allRoutes.putIfAbsent(route.id, () => route);
       }
     }
-    print("[TrailImport] Trovati ${allRoutes.length} percorsi unici");
+    debugPrint("[TrailImport] Trovati ${allRoutes.length} percorsi unici");
     // 2. Processa percorsi
     final routesList = allRoutes.values.toList();
     
@@ -355,11 +356,11 @@ class TrailImportService {
           distance: distance, 
           elevationGain: elevationStats.gain,
         ));
-        print('[TrailImport] ✅ ${route.name} - ${(distance/1000).toStringAsFixed(1)}km, +${elevationStats.gain.round()}m');
+        debugPrint('[TrailImport] ✅ ${route.name} - ${(distance/1000).toStringAsFixed(1)}km, +${elevationStats.gain.round()}m');
         
       } catch (e) {
         errors.add(ImportError(name: route.name, error: e.toString()));
-        print('[TrailImport] ❌ ${route.name}: $e');
+        debugPrint('[TrailImport] ❌ ${route.name}: $e');
       }
       
       await Future.delayed(_apiDelay);

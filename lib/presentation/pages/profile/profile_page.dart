@@ -127,10 +127,10 @@ class _ProfilePageState extends State<ProfilePage> {
       _usernameController.text = _username ?? '';
       _bioController.text = _bio ?? '';
 
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      print('[ProfilePage] Errore caricamento: $e');
-      setState(() => _isLoading = false);
+      debugPrint('[ProfilePage] Errore caricamento: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

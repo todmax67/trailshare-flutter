@@ -80,15 +80,16 @@ class _WishlistButtonState extends State<WishlistButton> with SingleTickerProvid
     _animationController.forward().then((_) => _animationController.reverse());
 
     final result = await _repository.toggleWishlist(widget.trackId);
+    if (!mounted) return;
 
     if (result.success) {
       setState(() {
         _isInWishlist = result.isNowInWishlist ?? false;
       });
-      
+
       widget.onChanged?.call(_isInWishlist);
 
-      if (mounted && result.message != null) {
+      if (result.message != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.message!),
@@ -98,20 +99,18 @@ class _WishlistButtonState extends State<WishlistButton> with SingleTickerProvid
         );
       }
     } else {
-      if (mounted) {
-        if (result.error?.contains('login') == true) {
-          widget.onAuthRequired?.call();
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.error ?? 'Errore'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
+      if (result.error?.contains('login') == true) {
+        widget.onAuthRequired?.call();
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.error ?? 'Errore'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
@@ -198,10 +197,11 @@ class _WishlistIconButtonState extends State<WishlistIconButton> {
     HapticFeedback.lightImpact();
 
     final result = await _repository.toggleWishlist(widget.trackId);
-    
-    if (result.success && mounted) {
+    if (!mounted) return;
+
+    if (result.success) {
       setState(() => _isInWishlist = result.isNowInWishlist ?? false);
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result.message ?? (_isInWishlist ? 'Salvato!' : 'Rimosso')),

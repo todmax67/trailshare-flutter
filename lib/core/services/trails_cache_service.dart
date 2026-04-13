@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:latlong2/latlong.dart';
@@ -27,9 +28,9 @@ class TrailsCacheService {
       _box = await Hive.openBox<String>(_boxName);
       _metaBox = await Hive.openBox<String>(_metaBoxName);
       _isInitialized = true;
-      print('[TrailsCache] ✅ Inizializzato');
+      debugPrint('[TrailsCache] ✅ Inizializzato');
     } catch (e) {
-      print('[TrailsCache] ❌ Errore inizializzazione: $e');
+      debugPrint('[TrailsCache] ❌ Errore inizializzazione: $e');
     }
   }
   
@@ -60,9 +61,9 @@ class TrailsCacheService {
       // Salva timestamp
       await _metaBox!.put('${key}_timestamp', DateTime.now().toIso8601String());
       
-      print('[TrailsCache] 💾 Salvati ${trails.length} sentieri per $key');
+      debugPrint('[TrailsCache] 💾 Salvati ${trails.length} sentieri per $key');
     } catch (e) {
-      print('[TrailsCache] Errore salvataggio: $e');
+      debugPrint('[TrailsCache] Errore salvataggio: $e');
     }
   }
   
@@ -83,7 +84,7 @@ class TrailsCacheService {
       if (timestampStr != null) {
         final timestamp = DateTime.parse(timestampStr);
         if (DateTime.now().difference(timestamp) > _cacheDuration) {
-          print('[TrailsCache] ⏰ Cache scaduta per $key');
+          debugPrint('[TrailsCache] ⏰ Cache scaduta per $key');
           return null;
         }
       }
@@ -94,10 +95,10 @@ class TrailsCacheService {
       final List<dynamic> jsonList = jsonDecode(data);
       final trails = jsonList.map((j) => CachedTrail.fromJson(j)).toList();
       
-      print('[TrailsCache] ⚡ Cache hit: ${trails.length} sentieri per $key');
+      debugPrint('[TrailsCache] ⚡ Cache hit: ${trails.length} sentieri per $key');
       return trails;
     } catch (e) {
-      print('[TrailsCache] Errore lettura: $e');
+      debugPrint('[TrailsCache] Errore lettura: $e');
       return null;
     }
   }
@@ -109,9 +110,9 @@ class TrailsCacheService {
     try {
       await _box?.clear();
       await _metaBox?.clear();
-      print('[TrailsCache] 🗑️ Cache invalidata');
+      debugPrint('[TrailsCache] 🗑️ Cache invalidata');
     } catch (e) {
-      print('[TrailsCache] Errore invalidazione: $e');
+      debugPrint('[TrailsCache] Errore invalidazione: $e');
     }
   }
   

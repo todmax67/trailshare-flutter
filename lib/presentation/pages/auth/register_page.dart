@@ -34,7 +34,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _checkAppleSignIn() async {
     if (Platform.isIOS) {
       final available = await _authService.isAppleSignInAvailable();
-      setState(() => _appleSignInAvailable = available);
+      if (mounted) setState(() => _appleSignInAvailable = available);
     }
   }
 

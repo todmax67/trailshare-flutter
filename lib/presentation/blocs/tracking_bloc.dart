@@ -328,13 +328,13 @@ class TrackingBloc extends ChangeNotifier {
   void _onNewPoint(TrackPoint point) {
     // Filtro accuracy
     if (point.accuracy != null && point.accuracy! > _minAccuracy) {
-      print('Punto ignorato: accuracy ${point.accuracy}m > $_minAccuracy m');
+      debugPrint('Punto ignorato: accuracy ${point.accuracy}m > $_minAccuracy m');
       return;
     }
 
     // Filtro velocità assurda
     if (point.speed != null && point.speed! > _maxSpeed) {
-      print('Punto ignorato: speed ${point.speed}m/s > $_maxSpeed m/s');
+      debugPrint('Punto ignorato: speed ${point.speed}m/s > $_maxSpeed m/s');
       return;
     }
 
