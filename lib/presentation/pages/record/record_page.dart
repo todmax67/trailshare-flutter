@@ -443,7 +443,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       content: Text(_photos.isEmpty ? context.l10n.trackDataWillBeLost : context.l10n.trackAndPhotosWillBeLost(_photos.length)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.continueBtn)),
-        TextButton(onPressed: () { Navigator.pop(context); setState(() => _photos.clear()); _trackingBloc.cancelRecording(); _persistence.clearState(); LiveTrackService().stop(); },
+        TextButton(onPressed: () async { Navigator.pop(context); setState(() => _photos.clear()); await _trackingBloc.cancelRecording(); await _persistence.clearState(); await LiveTrackService().stop(); },
           child: Text(context.l10n.cancel, style: const TextStyle(color: AppColors.danger))),
       ],
     ));
@@ -451,7 +451,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   void _showSaveDialog() async {
     // 1. Prima PAUSA per mostrare il dialog con i dati ancora disponibili
-    _trackingBloc.pauseRecording();
+    await _trackingBloc.pauseRecording();
     
     final state = _trackingBloc.state;
     if (state.points.isEmpty) {

@@ -367,10 +367,10 @@ class LocationService {
   }
 
   /// Cleanup
-  void dispose() {
+  Future<void> dispose() async {
     _positionSubscription?.cancel();
     _positionController.close();
-    stopForegroundService();
+    await stopForegroundService();
   }
 }
 
