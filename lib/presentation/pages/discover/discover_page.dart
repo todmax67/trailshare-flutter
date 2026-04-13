@@ -11,6 +11,8 @@ import '../../../core/services/trails_cache_service.dart';
 import 'trail_detail_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/constants/map_styles.dart';
+import '../../widgets/map_layer_button.dart';
 import '../../../data/models/track.dart';
 import 'dart:ui' as ui;
 
@@ -39,6 +41,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   double? _pendingZoom;
 
   // UI
+  int _currentMapStyle = 0;
   bool _showMap = true;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -544,11 +547,12 @@ class _DiscoverPageState extends State<DiscoverPage> {
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate: mapStyles[_currentMapStyle].urlTemplate,
+              subdomains: mapStyles[_currentMapStyle].subdomains,
               userAgentPackageName: 'com.trailshare.app',
               tileProvider: OfflineFallbackTileProvider(),
             ),
-            
+
             // Polyline: zoom medio = tratteggio, zoom alto = completo
             if (_clusters.isEmpty && _currentZoom >= 13)
               PolylineLayer(
@@ -736,6 +740,16 @@ class _DiscoverPageState extends State<DiscoverPage> {
               onClose: () => setState(() => _selectedTrail = null),
             ),
           ),
+
+        // Bottone cambio stile mappa
+        Positioned(
+          top: 8,
+          right: 8,
+          child: MapLayerButton(
+            currentIndex: _currentMapStyle,
+            onChanged: (i) => setState(() => _currentMapStyle = i),
+          ),
+        ),
 
         // ⭐ NUOVO: Badge contatore aggiornato
         Positioned(

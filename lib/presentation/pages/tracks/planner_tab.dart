@@ -11,6 +11,8 @@ import '../../../core/services/routing_service.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../data/models/track.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/constants/map_styles.dart';
+import '../../widgets/map_layer_button.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:async';
@@ -41,6 +43,7 @@ class _PlannerTabState extends State<PlannerTab> {
   RoutingProfile _profile = RoutingProfile.hiking;
   bool _showElevationProfile = true;
   LatLng? _userPosition;
+  int _currentMapStyle = 0;
 
   // Ricerca punto di partenza
   final TextEditingController _searchController = TextEditingController();
@@ -298,7 +301,8 @@ class _PlannerTabState extends State<PlannerTab> {
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate: mapStyles[_currentMapStyle].urlTemplate,
+              subdomains: mapStyles[_currentMapStyle].subdomains,
               userAgentPackageName: 'com.trailshare.app',
               tileProvider: OfflineFallbackTileProvider(),
             ),
@@ -399,6 +403,16 @@ class _PlannerTabState extends State<PlannerTab> {
                 ],
               ),
           ],
+        ),
+
+        // Bottone cambio stile mappa
+        Positioned(
+          top: 8,
+          right: 8,
+          child: MapLayerButton(
+            currentIndex: _currentMapStyle,
+            onChanged: (i) => setState(() => _currentMapStyle = i),
+          ),
         ),
 
         Positioned(
