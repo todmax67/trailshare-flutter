@@ -45,7 +45,8 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isLoading = true;
   bool _isEditingUsername = false;
   bool _isEditingBio = false;
-  
+  bool _isAdminUser = false;
+
   final _usernameController = TextEditingController();
   final _bioController = TextEditingController();
 
@@ -53,6 +54,12 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadProfile();
+    _loadAdminStatus();
+  }
+
+  Future<void> _loadAdminStatus() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted) setState(() => _isAdminUser = isAdmin);
   }
 
   @override
@@ -673,8 +680,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildAdminButton() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (!AdminRepository.isSuperAdmin(uid)) return const SizedBox.shrink();
+    if (!_isAdminUser) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),

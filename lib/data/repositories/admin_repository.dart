@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-// UID Super Admin
-const String superAdminUid = 'g4uPvD3VQcMiYb4dDTWs7kJgm4u1';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 /// Modello utente per admin panel
 class AppUser {
@@ -15,6 +14,7 @@ class AppUser {
   final int level;
   final int xp;
   final bool isSuspended;
+  final bool isAdmin;
 
   const AppUser({
     required this.uid,
@@ -27,6 +27,7 @@ class AppUser {
     this.level = 1,
     this.xp = 0,
     this.isSuspended = false,
+    this.isAdmin = false,
   });
 
   factory AppUser.fromFirestore(DocumentSnapshot doc) {
@@ -42,6 +43,7 @@ class AppUser {
       level: (data['level'] as num?)?.toInt() ?? 1,
       xp: (data['xp'] as num?)?.toInt() ?? 0,
       isSuspended: data['isSuspended'] ?? false,
+      isAdmin: data['admin'] == true,
     );
   }
 }
@@ -62,8 +64,39 @@ class AppStats {
 class AdminRepository {
   final _firestore = FirebaseFirestore.instance;
 
-  /// Verifica se l'utente corrente è super admin
-  static bool isSuperAdmin(String? uid) => uid == superAdminUid;
+  /// Cache del flag admin per evitare letture ripetute
+  static bool? _cachedIsAdmin;
+  static String? _cachedUid;
+
+  /// Verifica se l'utente corrente è admin leggendo il campo 'admin' (boolean) da Firestore.
+  /// Il risultato è cachato in memoria per la sessione corrente.
+  static Future<bool> isCurrentUserAdmin() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+
+    // Se l'UID è lo stesso, usa la cache
+    if (_cachedUid == uid && _cachedIsAdmin != null) return _cachedIsAdmin!;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(uid)
+          .get();
+      final data = doc.data();
+      _cachedIsAdmin = data?['admin'] == true;
+      _cachedUid = uid;
+      return _cachedIsAdmin!;
+    } catch (e) {
+      debugPrint('[Admin] Errore verifica ruolo: $e');
+      return false;
+    }
+  }
+
+  /// Invalida la cache (da chiamare al logout)
+  static void clearCache() {
+    _cachedIsAdmin = null;
+    _cachedUid = null;
+  }
 
   // ─────────────────────────────────────────────────────────────────────
   // STATISTICHE
@@ -83,7 +116,7 @@ class AdminRepository {
         totalGroups: results[2].count ?? 0,
       );
     } catch (e) {
-      print('[Admin] Errore caricamento statistiche: $e');
+      debugPrint('[Admin] Errore caricamento statistiche: $e');
       return const AppStats();
     }
   }
@@ -122,7 +155,7 @@ class AdminRepository {
 
       return users;
     } catch (e) {
-      print('[Admin] Errore caricamento utenti: $e');
+      debugPrint('[Admin] Errore caricamento utenti: $e');
       return [];
     }
   }
@@ -143,7 +176,7 @@ class AdminRepository {
 
       return snapshot.docs.map((doc) => AppUser.fromFirestore(doc)).toList();
     } catch (e) {
-      print('[Admin] Errore ricerca utenti: $e');
+      debugPrint('[Admin] Errore ricerca utenti: $e');
       // Fallback: carica tutti e filtra
       return getUsers(searchQuery: query);
     }
@@ -174,7 +207,7 @@ class AdminRepository {
         }).toList(),
       };
     } catch (e) {
-      print('[Admin] Errore dettaglio utente: $e');
+      debugPrint('[Admin] Errore dettaglio utente: $e');
       return {};
     }
   }
@@ -190,10 +223,10 @@ class AdminRepository {
         'isSuspended': suspend,
         'suspendedAt': suspend ? FieldValue.serverTimestamp() : FieldValue.delete(),
       });
-      print('[Admin] Utente $uid ${suspend ? "sospeso" : "riattivato"}');
+      debugPrint('[Admin] Utente $uid ${suspend ? "sospeso" : "riattivato"}');
       return true;
     } catch (e) {
-      print('[Admin] Errore sospensione utente: $e');
+      debugPrint('[Admin] Errore sospensione utente: $e');
       return false;
     }
   }
@@ -202,10 +235,10 @@ class AdminRepository {
   Future<bool> deleteCommunityTrack(String trackId) async {
     try {
       await _firestore.collection('community_tracks').doc(trackId).delete();
-      print('[Admin] Traccia community eliminata: $trackId');
+      debugPrint('[Admin] Traccia community eliminata: $trackId');
       return true;
     } catch (e) {
-      print('[Admin] Errore eliminazione traccia: $e');
+      debugPrint('[Admin] Errore eliminazione traccia: $e');
       return false;
     }
   }
@@ -214,10 +247,10 @@ class AdminRepository {
   Future<bool> deleteGroup(String groupId) async {
     try {
       await _firestore.collection('groups').doc(groupId).delete();
-      print('[Admin] Gruppo eliminato: $groupId');
+      debugPrint('[Admin] Gruppo eliminato: $groupId');
       return true;
     } catch (e) {
-      print('[Admin] Errore eliminazione gruppo: $e');
+      debugPrint('[Admin] Errore eliminazione gruppo: $e');
       return false;
     }
   }

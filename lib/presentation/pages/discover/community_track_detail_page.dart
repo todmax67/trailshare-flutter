@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/share_card_widget.dart';
+import '../../../data/repositories/admin_repository.dart';
 
 class CommunityTrackDetailPage extends StatefulWidget {
   final CommunityTrack track;
@@ -44,11 +45,13 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     _checkAdmin();
   }
 
-  void _checkAdmin() {
-    final email = FirebaseAuth.instance.currentUser?.email;
-    _isAdmin = email == 'admin@trailshare.app' || email == 'todde.massimiliano@gmail.com';
-    if (_isAdmin) {
-      _checkIfPromoted();
+  Future<void> _checkAdmin() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted) {
+      setState(() => _isAdmin = isAdmin);
+      if (_isAdmin) {
+        _checkIfPromoted();
+      }
     }
   }
 

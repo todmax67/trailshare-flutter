@@ -26,13 +26,13 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   @override
   void initState() {
     super.initState();
+    _initAdmin();
+  }
 
-    // Verifica accesso
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (!AdminRepository.isSuperAdmin(uid)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pop(context);
-      });
+  Future<void> _initAdmin() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (!isAdmin) {
+      if (mounted) Navigator.pop(context);
       return;
     }
 
@@ -312,7 +312,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   Widget _buildUserTile(AppUser user) {
-    final isSuperAdmin = user.uid == superAdminUid;
+    final isSuperAdmin = user.isAdmin;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -456,7 +456,7 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final user = widget.user;
-    final isSuperAdmin = user.uid == superAdminUid;
+    final isSuperAdmin = user.isAdmin;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.7,

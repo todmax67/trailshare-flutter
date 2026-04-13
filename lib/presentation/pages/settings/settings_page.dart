@@ -18,6 +18,7 @@ import 'package:health/health.dart';
 import '../../../core/services/health_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'health_dashboard_page.dart';
+import '../../../data/repositories/admin_repository.dart';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -33,12 +34,19 @@ class _SettingsPageState extends State<SettingsPage> {
   final HealthService _healthService = HealthService();
   bool _healthSyncEnabled = false;
   int _maxHR = 0;
+  bool _isAdminUser = false;
 
   @override
   void initState() {
     super.initState();
     _loadAppVersion();
     _loadHealthSync();
+    _loadAdminStatus();
+  }
+
+  Future<void> _loadAdminStatus() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted) setState(() => _isAdminUser = isAdmin);
   }
 
   Future<void> _loadAppVersion() async {
@@ -132,16 +140,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  bool _isAdmin(User? user) {
-    if (user == null) return false;
-    
-    const adminEmails = [
-      'admin@trailshare.app',
-      'todde.massimiliano@gmail.com',  // ← Metti la tua email!
-    ];
-    
-    return adminEmails.contains(user.email?.toLowerCase());
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -337,9 +335,8 @@ class _SettingsPageState extends State<SettingsPage> {
             onTap: () => _showChangelog(context),
           ),
 
-          // Sezione Admin (solo per admin/sviluppatori)
-          // TODO: In produzione, controllare se l'utente è admin
-          if (_isAdmin(user)) ...[
+          // Sezione Admin (solo per admin)
+          if (_isAdminUser) ...[
             const Divider(height: 32),
             _buildSectionHeader(context.l10n.adminSection, danger: false),
             _buildListTile(

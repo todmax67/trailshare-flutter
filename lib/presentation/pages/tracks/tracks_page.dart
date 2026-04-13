@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/config/app_config.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -285,7 +284,6 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
           // Tab 2: Pianifica
           user != null
               ? PlannerTab(
-                  orsApiKey: AppConfig.orsApiKey,
                   onTrackSaved: _onTrackSaved,
                 )
               : _buildLoginRequired(),

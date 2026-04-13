@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/services/routing_service.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../data/models/track.dart';
@@ -17,12 +18,10 @@ import 'dart:async';
 
 /// Tab per pianificare nuovi percorsi con routing ORS
 class PlannerTab extends StatefulWidget {
-  final String orsApiKey;
   final VoidCallback? onTrackSaved;
 
   const PlannerTab({
     super.key,
-    required this.orsApiKey,
     this.onTrackSaved,
   });
 
@@ -53,7 +52,7 @@ class _PlannerTabState extends State<PlannerTab> {
   @override
   void initState() {
     super.initState();
-    _routingService = RoutingService(apiKey: widget.orsApiKey);
+    _routingService = RoutingService(proxyBaseUrl: AppConfig.orsProxyBaseUrl);
     _initUserPosition();
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 /// Servizio per connessione a fasce cardio Bluetooth Low Energy
@@ -15,6 +16,8 @@ class HeartRateService {
   BluetoothCharacteristic? _heartRateCharacteristic;
   StreamSubscription? _heartRateSubscription;
   StreamSubscription? _connectionSubscription;
+  StreamSubscription? _scanResultsSubscription;
+  StreamSubscription? _isScanningSubscription;
 
   final _heartRateController = StreamController<HeartRateData>.broadcast();
   final _connectionStateController = StreamController<HRConnectionState>.broadcast();
@@ -57,17 +60,19 @@ class HeartRateService {
         timeout: timeout,
       );
 
-      FlutterBluePlus.scanResults.listen((results) {
+      await _scanResultsSubscription?.cancel();
+      _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
         _scanResultsController.add(results);
       });
 
-      FlutterBluePlus.isScanning.listen((isScanning) {
+      await _isScanningSubscription?.cancel();
+      _isScanningSubscription = FlutterBluePlus.isScanning.listen((isScanning) {
         if (!isScanning && _connectedDevice == null) {
           _connectionStateController.add(HRConnectionState.disconnected);
         }
       });
     } catch (e) {
-      print('[HeartRate] Errore scansione: $e');
+      debugPrint('[HeartRate] Errore scansione: $e');
       _connectionStateController.add(HRConnectionState.error);
     }
   }
@@ -75,8 +80,12 @@ class HeartRateService {
   Future<void> stopScan() async {
     try {
       await FlutterBluePlus.stopScan();
+      await _scanResultsSubscription?.cancel();
+      _scanResultsSubscription = null;
+      await _isScanningSubscription?.cancel();
+      _isScanningSubscription = null;
     } catch (e) {
-      print('[HeartRate] Errore stop scan: $e');
+      debugPrint('[HeartRate] Errore stop scan: $e');
     }
   }
 
@@ -107,7 +116,7 @@ class HeartRateService {
       }
 
       if (hrService == null) {
-        print('[HeartRate] Servizio Heart Rate non trovato');
+        debugPrint('[HeartRate] Servizio Heart Rate non trovato');
         await disconnect();
         return false;
       }
@@ -120,7 +129,7 @@ class HeartRateService {
       }
 
       if (_heartRateCharacteristic == null) {
-        print('[HeartRate] Caratteristica Heart Rate non trovata');
+        debugPrint('[HeartRate] Caratteristica Heart Rate non trovata');
         await disconnect();
         return false;
       }
@@ -135,11 +144,11 @@ class HeartRateService {
       });
 
       _connectionStateController.add(HRConnectionState.connected);
-      print('[HeartRate] Connesso a ${device.platformName}');
+      debugPrint('[HeartRate] Connesso a ${device.platformName}');
 
       return true;
     } catch (e) {
-      print('[HeartRate] Errore connessione: $e');
+      debugPrint('[HeartRate] Errore connessione: $e');
       _connectionStateController.add(HRConnectionState.error);
       await disconnect();
       return false;
@@ -168,12 +177,12 @@ class HeartRateService {
 
       _connectionStateController.add(HRConnectionState.disconnected);
     } catch (e) {
-      print('[HeartRate] Errore disconnessione: $e');
+      debugPrint('[HeartRate] Errore disconnessione: $e');
     }
   }
 
   void _handleDisconnection() {
-    print('[HeartRate] Dispositivo disconnesso');
+    debugPrint('[HeartRate] Dispositivo disconnesso');
     _connectedDevice = null;
     _heartRateCharacteristic = null;
     _heartRateSubscription?.cancel();
@@ -216,7 +225,7 @@ class HeartRateService {
         rrIntervals: rrIntervals,
       );
     } catch (e) {
-      print('[HeartRate] Errore parsing: $e');
+      debugPrint('[HeartRate] Errore parsing: $e');
       return null;
     }
   }
@@ -224,6 +233,8 @@ class HeartRateService {
   void dispose() {
     _heartRateSubscription?.cancel();
     _connectionSubscription?.cancel();
+    _scanResultsSubscription?.cancel();
+    _isScanningSubscription?.cancel();
     _heartRateController.close();
     _connectionStateController.close();
     _scanResultsController.close();

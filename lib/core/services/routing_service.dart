@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../utils/elevation_processor.dart';
@@ -55,12 +56,11 @@ enum RoutingProfile {
   cycling,
 }
 
-/// Servizio per calcolare percorsi tramite OpenRouteService
+/// Servizio per calcolare percorsi tramite Cloud Function proxy ORS
 class RoutingService {
-  final String apiKey;
-  static const String _baseUrl = 'https://api.openrouteservice.org/v2';
+  final String proxyBaseUrl;
 
-  RoutingService({required this.apiKey});
+  RoutingService({required this.proxyBaseUrl});
 
   /// Calcola un percorso tra waypoint
   /// [waypoints] - Lista di punti (minimo 2)
@@ -70,13 +70,13 @@ class RoutingService {
     RoutingProfile profile = RoutingProfile.hiking,
   }) async {
     if (waypoints.length < 2) {
-      print('[RoutingService] Servono almeno 2 waypoint');
+      debugPrint('[RoutingService] Servono almeno 2 waypoint');
       return null;
     }
 
     try {
       final profileString = _getProfileString(profile);
-      final url = Uri.parse('$_baseUrl/directions/$profileString/geojson');
+      final url = Uri.parse('$proxyBaseUrl/v2/directions/$profileString/geojson');
 
       // Costruisci il body della richiesta
       final coordinates = waypoints
@@ -90,26 +90,25 @@ class RoutingService {
         'geometry_simplify': false,
       });
 
-      print('[RoutingService] Richiesta routing: ${waypoints.length} waypoint, profilo: $profileString');
+      debugPrint('[RoutingService] Richiesta routing: ${waypoints.length} waypoint, profilo: $profileString');
 
       final response = await http.post(
         url,
         headers: {
-          'Authorization': apiKey,
           'Content-Type': 'application/json',
         },
         body: body,
       );
 
       if (response.statusCode != 200) {
-        print('[RoutingService] Errore API: ${response.statusCode} - ${response.body}');
+        debugPrint('[RoutingService] Errore API: ${response.statusCode} - ${response.body}');
         return null;
       }
 
       final data = jsonDecode(response.body);
       return _parseRouteResponse(data);
     } catch (e) {
-      print('[RoutingService] Errore: $e');
+      debugPrint('[RoutingService] Errore: $e');
       return null;
     }
   }
@@ -188,7 +187,7 @@ class RoutingService {
         elevationLoss = eleResult.elevationLoss;
       }
 
-      print('[RoutingService] Route calcolata: ${points.length} punti, ${(distance/1000).toStringAsFixed(1)} km, +${elevationGain.toStringAsFixed(0)}m');
+      debugPrint('[RoutingService] Route calcolata: ${points.length} punti, ${(distance/1000).toStringAsFixed(1)} km, +${elevationGain.toStringAsFixed(0)}m');
 
       return RouteResult(
         points: points,
@@ -199,7 +198,7 @@ class RoutingService {
         elevationProfile: elevationProfile,
       );
     } catch (e) {
-      print('[RoutingService] Errore parsing: $e');
+      debugPrint('[RoutingService] Errore parsing: $e');
       return null;
     }
   }

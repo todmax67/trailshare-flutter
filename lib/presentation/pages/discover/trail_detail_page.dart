@@ -12,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io' show Platform;
 import 'trail_follow_page.dart';
+import '../../../data/repositories/admin_repository.dart';
 
 class TrailDetailPage extends StatefulWidget {
   final PublicTrail trail;
@@ -35,22 +36,18 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
   /// Indice punto selezionato (sync mappa↔grafico)
   int? _selectedPointIndex;
 
-  /// Check admin (stessa lista di settings_page.dart)
-  bool get _isAdmin {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return false;
-    const adminEmails = [
-      'admin@trailshare.app',
-      'todde.massimiliano@gmail.com',
-    ];
-    return adminEmails.contains(user.email?.toLowerCase());
-  }
+  bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
     _loadFullGeometry();
-    debugPrint('[TrailDetail] isAdmin: $_isAdmin, email: ${FirebaseAuth.instance.currentUser?.email}');
+    _loadAdminStatus();
+  }
+
+  Future<void> _loadAdminStatus() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted) setState(() => _isAdmin = isAdmin);
   }
 
   /// Carica geometria completa dal database (790 punti con elevazione)
