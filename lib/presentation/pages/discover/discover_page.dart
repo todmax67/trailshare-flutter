@@ -741,16 +741,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
             ),
           ),
 
-        // Bottone cambio stile mappa
-        Positioned(
-          top: 8,
-          right: 8,
-          child: MapLayerButton(
-            currentIndex: _currentMapStyle,
-            onChanged: (i) => setState(() => _currentMapStyle = i),
-          ),
-        ),
-
         // ⭐ NUOVO: Badge contatore aggiornato
         Positioned(
           top: 8,
@@ -843,18 +833,29 @@ class _DiscoverPageState extends State<DiscoverPage> {
             ),
           ),
 
-        // Pulsante centra su utente
-        if (_userPosition != null)
-          Positioned(
-            bottom: _selectedTrail != null ? 180 : 16,
-            right: 16,
-            child: FloatingActionButton.small(
-              heroTag: 'center_user_trails',
-              onPressed: _centerOnUser,
-              backgroundColor: Colors.white,
-              child: const Icon(Icons.my_location, color: AppColors.primary),
-            ),
+        // Bottone cambio stile mappa
+        Positioned(
+          bottom: _selectedTrail != null ? 180 : 16,
+          right: 16,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MapLayerButton(
+                currentIndex: _currentMapStyle,
+                onChanged: (i) => setState(() => _currentMapStyle = i),
+              ),
+              const SizedBox(height: 8),
+              // Pulsante centra su utente
+              if (_userPosition != null)
+                FloatingActionButton.small(
+                  heroTag: 'center_user_trails',
+                  onPressed: _centerOnUser,
+                  backgroundColor: Colors.white,
+                  child: const Icon(Icons.my_location, color: AppColors.primary),
+                ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -1340,6 +1341,47 @@ class _TrailCard extends StatelessWidget {
   /// Anteprima mappa del sentiero
   Widget _buildMapPreview(BuildContext context) {
     if (trail.points.isEmpty) {
+      // Nessun punto disponibile (metadataOnly) — mostra mappa centrata su startPoint
+      if (trail.startLat != 0 && trail.startLng != 0) {
+        return SizedBox(
+          height: 120,
+          child: IgnorePointer(
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: LatLng(trail.startLat, trail.startLng),
+                initialZoom: 14,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.none,
+                ),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.trailshare.app',
+                  tileProvider: OfflineFallbackTileProvider(),
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: LatLng(trail.startLat, trail.startLng),
+                      width: 24,
+                      height: 24,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Icon(Icons.hiking, size: 14, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }
       return Container(
         height: 120,
         color: AppColors.background,

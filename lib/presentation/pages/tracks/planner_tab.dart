@@ -405,16 +405,6 @@ class _PlannerTabState extends State<PlannerTab> {
           ],
         ),
 
-        // Bottone cambio stile mappa
-        Positioned(
-          top: 8,
-          right: 8,
-          child: MapLayerButton(
-            currentIndex: _currentMapStyle,
-            onChanged: (i) => setState(() => _currentMapStyle = i),
-          ),
-        ),
-
         Positioned(
           top: 8,
           left: 8,
@@ -771,6 +761,14 @@ class _PlannerTabState extends State<PlannerTab> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Cambio stile mappa
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: MapLayerButton(
+            currentIndex: _currentMapStyle,
+            onChanged: (i) => setState(() => _currentMapStyle = i),
+          ),
+        ),
         // Centra su percorso (se c'è una route o waypoints)
         if (_routeResult != null || _waypoints.length >= 2)
           Padding(
