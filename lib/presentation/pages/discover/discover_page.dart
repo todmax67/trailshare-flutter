@@ -13,6 +13,8 @@ import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../widgets/map_layer_button.dart';
+import 'models/discover_filters.dart';
+import 'widgets/discover_filter_sheet.dart';
 import '../../../data/models/track.dart';
 import 'dart:ui' as ui;
 
@@ -43,6 +45,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   // UI
   int _currentMapStyle = 0;
   bool _showMap = true;
+  DiscoverFilters _filters = const DiscoverFilters.empty();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -135,11 +138,117 @@ class _DiscoverPageState extends State<DiscoverPage> {
   }
 
   List<PublicTrail> get _filteredTrails {
-    if (_searchQuery.isEmpty) return _trails;
-    return _trails.where((trail) =>
-        trail.name.toLowerCase().contains(_searchQuery) ||
-        (trail.ref?.toLowerCase().contains(_searchQuery) ?? false)
-    ).toList();
+    var list = _trails.where((trail) {
+      // Ricerca testuale
+      if (_searchQuery.isNotEmpty) {
+        final matchName = trail.name.toLowerCase().contains(_searchQuery);
+        final matchRef = trail.ref?.toLowerCase().contains(_searchQuery) ?? false;
+        if (!matchName && !matchRef) return false;
+      }
+
+      // Difficoltà
+      if (_filters.difficulties.isNotEmpty) {
+        final diff = trail.difficulty?.toLowerCase();
+        if (diff == null || !_filters.difficulties.contains(diff)) return false;
+      }
+
+      // Lunghezza
+      if (_filters.lengthKm != null) {
+        final km = (trail.length ?? 0) / 1000;
+        if (km < _filters.lengthKm!.start || km > _filters.lengthKm!.end) return false;
+      }
+
+      // Dislivello
+      if (_filters.elevation != null) {
+        final ele = trail.elevationGain ?? 0;
+        if (ele < _filters.elevation!.start || ele > _filters.elevation!.end) return false;
+      }
+
+      // Categoria attività
+      if (_filters.categories.isNotEmpty &&
+          !_matchesCategory(trail.activityType, _filters.categories)) {
+        return false;
+      }
+
+      // Solo circolari
+      if (_filters.onlyCircular && !trail.isCircular) return false;
+
+      return true;
+    }).toList();
+
+    // Ordinamento
+    switch (_filters.sortBy) {
+      case TrailSortBy.defaultOrder:
+        break;
+      case TrailSortBy.distance:
+        list.sort((a, b) => (a.distanceFromUser ?? double.infinity)
+            .compareTo(b.distanceFromUser ?? double.infinity));
+        break;
+      case TrailSortBy.lengthAsc:
+        list.sort((a, b) => (a.length ?? 0).compareTo(b.length ?? 0));
+        break;
+      case TrailSortBy.lengthDesc:
+        list.sort((a, b) => (b.length ?? 0).compareTo(a.length ?? 0));
+        break;
+      case TrailSortBy.elevationAsc:
+        list.sort((a, b) => (a.elevationGain ?? 0).compareTo(b.elevationGain ?? 0));
+        break;
+      case TrailSortBy.elevationDesc:
+        list.sort((a, b) => (b.elevationGain ?? 0).compareTo(a.elevationGain ?? 0));
+        break;
+      case TrailSortBy.difficultyAsc:
+        list.sort((a, b) => _difficultyRank(a.difficulty).compareTo(_difficultyRank(b.difficulty)));
+        break;
+    }
+
+    return list;
+  }
+
+  /// Mappa l'activityType OSM alle categorie raggruppate
+  bool _matchesCategory(String? type, Set<ActivityCategory> categories) {
+    if (type == null) {
+      return categories.contains(ActivityCategory.foot);
+    }
+    final t = type.toLowerCase();
+    if (t.contains('cycl') || t.contains('bike') || t.contains('mtb')) {
+      return categories.contains(ActivityCategory.bike);
+    }
+    if (t.contains('ski') || t.contains('snow')) {
+      return categories.contains(ActivityCategory.snow);
+    }
+    // foot: trekking, walking, running, trail, hiking e default
+    return categories.contains(ActivityCategory.foot);
+  }
+
+  /// Rank difficoltà per ordinamento (più alto = più difficile)
+  int _difficultyRank(String? difficulty) {
+    switch (difficulty?.toLowerCase()) {
+      case 't':
+        return 1;
+      case 'e':
+        return 2;
+      case 'ee':
+        return 3;
+      case 'eea':
+        return 4;
+      default:
+        return 5;
+    }
+  }
+
+  void _openFilters() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => DiscoverFilterSheet(
+        initial: _filters,
+        onApply: (filters) => setState(() => _filters = filters),
+      ),
+    );
   }
 
   void _selectTrail(PublicTrail trail) {
@@ -370,11 +479,44 @@ class _DiscoverPageState extends State<DiscoverPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _clusters.isNotEmpty 
+          _clusters.isNotEmpty
               ? context.l10n.discoverWithCount(_clusters.fold(0, (sum, c) => sum + c.count))
-              : context.l10n.discoverWithCount(_trails.length),
+              : context.l10n.discoverWithCount(_filteredTrails.length),
         ),
         actions: [
+          // Filtri avanzati
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.tune),
+                onPressed: _openFilters,
+                tooltip: 'Filtri',
+              ),
+              if (_filters.activeCount > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      '${_filters.activeCount}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           // Toggle mappa/lista
           IconButton(
             icon: Icon(_showMap ? Icons.list : Icons.map),
