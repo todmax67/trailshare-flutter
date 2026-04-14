@@ -6,6 +6,7 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
+import '../../widgets/weather_forecast_card.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -130,9 +131,17 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                   
                   // Stats principali
                   _buildMainStats(),
-                  
+
                   const SizedBox(height: 16),
-                  
+
+                  // Previsioni meteo per il punto di partenza del sentiero
+                  WeatherForecastCard(
+                    lat: widget.trail.startLat,
+                    lng: widget.trail.startLng,
+                  ),
+
+                  const SizedBox(height: 16),
+
                   // Grafici (elevazione, velocità, combinato) con sync mappa
                   if (_displayPoints.length > 1) ...[
                     TrackChartsWidget(
