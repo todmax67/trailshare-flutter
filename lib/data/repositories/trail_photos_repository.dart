@@ -20,8 +20,37 @@ class TrailPhotosRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  /// Cache statica in memoria delle prime foto per trail.
+  /// `null` come valore significa "già cercato, nessuna foto presente".
+  static final Map<String, String?> _firstPhotoCache = {};
+
   CollectionReference<Map<String, dynamic>> _itemsCollection(String trailId) =>
       _firestore.collection('trail_photos').doc(trailId).collection('items');
+
+  /// Restituisce la URL della prima foto di un sentiero, o `null` se non esistono.
+  /// Risultato cachato staticamente per tutta la sessione.
+  Future<String?> getFirstPhotoUrl(String trailId) async {
+    if (_firstPhotoCache.containsKey(trailId)) {
+      return _firstPhotoCache[trailId];
+    }
+    try {
+      // Niente orderBy: evitiamo l'esclusione di doc con serverTimestamp ancora pending
+      final snapshot = await _itemsCollection(trailId).limit(1).get();
+      final url = snapshot.docs.isEmpty
+          ? null
+          : (snapshot.docs.first.data()['photoUrl'] as String?);
+      _firstPhotoCache[trailId] = url;
+      return url;
+    } catch (e) {
+      debugPrint('[TrailPhotos] Errore getFirstPhotoUrl: $e');
+      return null;
+    }
+  }
+
+  /// Invalida la cache per un trail (dopo upload/delete per riflettere il cambio).
+  static void invalidatePreviewCache(String trailId) {
+    _firstPhotoCache.remove(trailId);
+  }
 
   /// Carica tutte le foto di un sentiero, dalle più recenti.
   Future<List<TrailPhoto>> getPhotosForTrail(String trailId) async {
@@ -94,6 +123,9 @@ class TrailPhotosRepository {
       );
       await docRef.set(photo.toFirestoreCreate());
 
+      // Invalida la cache della preview per mostrare subito la nuova foto
+      invalidatePreviewCache(trailId);
+
       debugPrint('[TrailPhotos] Upload ok per trail $trailId, id $photoId');
       return PhotoUploadResult.ok(photo);
     } catch (e) {
@@ -122,6 +154,9 @@ class TrailPhotosRepository {
       } catch (e) {
         debugPrint('[TrailPhotos] Warning: delete storage fallito: $e');
       }
+
+      // Invalida la cache preview così la prossima query rileva la nuova prima foto
+      invalidatePreviewCache(photo.trailId);
 
       return PhotoUploadResult.ok();
     } catch (e) {

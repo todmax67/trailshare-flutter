@@ -15,6 +15,7 @@ import '../../../core/constants/map_styles.dart';
 import '../../widgets/map_layer_button.dart';
 import 'models/discover_filters.dart';
 import 'widgets/discover_filter_sheet.dart';
+import '../../../data/repositories/trail_photos_repository.dart';
 import '../../../data/models/track.dart';
 import 'dart:ui' as ui;
 
@@ -1480,8 +1481,75 @@ class _TrailCard extends StatelessWidget {
     );
   }
 
-  /// Anteprima mappa del sentiero
+  /// Anteprima del sentiero: mostra la prima foto community se presente,
+  /// altrimenti cade sulla mini-mappa (polyline / startPoint / placeholder).
   Widget _buildMapPreview(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: TrailPhotosRepository().getFirstPhotoUrl(trail.id),
+      builder: (context, snapshot) {
+        final photoUrl = snapshot.data;
+        if (photoUrl != null && photoUrl.isNotEmpty) {
+          return SizedBox(
+            height: 120,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.network(
+                  photoUrl,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return Container(
+                      color: Colors.grey[200],
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stack) => _buildMapFallback(context),
+                ),
+                // Badge foto community
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.photo_camera, size: 12, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'Community',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        return _buildMapFallback(context);
+      },
+    );
+  }
+
+  /// Fallback quando non ci sono foto community: mini-mappa o placeholder.
+  Widget _buildMapFallback(BuildContext context) {
     if (trail.points.isEmpty) {
       // Nessun punto disponibile (metadataOnly) — mostra mappa centrata su startPoint
       if (trail.startLat != 0 && trail.startLng != 0) {
