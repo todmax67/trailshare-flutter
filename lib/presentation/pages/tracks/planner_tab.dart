@@ -13,6 +13,7 @@ import '../../../data/models/track.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../widgets/map_layer_button.dart';
+import '../navigation/navigation_page.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:async';
@@ -817,7 +818,18 @@ class _PlannerTabState extends State<PlannerTab> {
               child: const Icon(Icons.delete_outline, color: AppColors.danger),
             ),
           ),
-        if (_routeResult != null)
+        if (_routeResult != null) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: FloatingActionButton.small(
+              heroTag: 'navigate',
+              onPressed: _startNavigation,
+              backgroundColor: AppColors.info,
+              elevation: 4,
+              tooltip: 'Naviga',
+              child: const Icon(Icons.navigation, color: Colors.white),
+            ),
+          ),
           FloatingActionButton.extended(
             heroTag: 'save',
             onPressed: _saveRoute,
@@ -826,7 +838,18 @@ class _PlannerTabState extends State<PlannerTab> {
             icon: const Icon(Icons.save),
             label: Text(context.l10n.save),
           ),
+        ],
       ],
+    );
+  }
+
+  void _startNavigation() {
+    if (_routeResult == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NavigationPage(route: _routeResult!),
+      ),
     );
   }
 

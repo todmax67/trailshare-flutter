@@ -41,6 +41,9 @@ dependencies:
   # Audioplayer
   audioplayers: ^6.1.0
 
+  # Text-to-Speech (turn-by-turn voice guidance)
+  flutter_tts: ^4.2.0
+
   # Social Auth
   google_sign_in: ^6.2.2
   sign_in_with_apple: ^6.1.4

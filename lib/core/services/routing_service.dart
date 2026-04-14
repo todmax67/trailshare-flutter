@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../utils/elevation_processor.dart';
+import '../../data/models/navigation_step.dart';
 
 /// Punto con elevazione per il routing
 class RoutePoint {
@@ -30,6 +31,7 @@ class RouteResult {
   final double elevationLoss; // metri
   final double estimatedDuration; // secondi
   final List<double> elevationProfile; // elevazioni lungo il percorso
+  final List<NavigationStep> steps; // istruzioni turn-by-turn (opzionale)
 
   const RouteResult({
     required this.points,
@@ -38,6 +40,7 @@ class RouteResult {
     required this.elevationLoss,
     required this.estimatedDuration,
     required this.elevationProfile,
+    this.steps = const [],
   });
 
   double get distanceKm => distance / 1000;
@@ -86,7 +89,7 @@ class RoutingService {
       final body = jsonEncode({
         'coordinates': coordinates,
         'elevation': true,
-        'instructions': false,
+        'instructions': true,
         'geometry_simplify': false,
       });
 
@@ -187,7 +190,10 @@ class RoutingService {
         elevationLoss = eleResult.elevationLoss;
       }
 
-      debugPrint('[RoutingService] Route calcolata: ${points.length} punti, ${(distance/1000).toStringAsFixed(1)} km, +${elevationGain.toStringAsFixed(0)}m');
+      // Parse navigation steps (turn-by-turn)
+      final steps = _parseSteps(properties);
+
+      debugPrint('[RoutingService] Route calcolata: ${points.length} punti, ${(distance/1000).toStringAsFixed(1)} km, +${elevationGain.toStringAsFixed(0)}m, ${steps.length} istruzioni');
 
       return RouteResult(
         points: points,
@@ -196,10 +202,54 @@ class RoutingService {
         elevationLoss: elevationLoss,
         estimatedDuration: duration,
         elevationProfile: elevationProfile,
+        steps: steps,
       );
     } catch (e) {
       debugPrint('[RoutingService] Errore parsing: $e');
       return null;
+    }
+  }
+
+  /// Estrae la lista di [NavigationStep] dalle properties di ORS
+  List<NavigationStep> _parseSteps(Map<String, dynamic> properties) {
+    try {
+      final segments = properties['segments'] as List?;
+      if (segments == null) return [];
+
+      final List<NavigationStep> result = [];
+      int stepIndex = 0;
+
+      for (final seg in segments) {
+        final segMap = seg as Map<String, dynamic>;
+        final steps = segMap['steps'] as List?;
+        if (steps == null) continue;
+
+        for (final s in steps) {
+          final stepMap = s as Map<String, dynamic>;
+          final type = (stepMap['type'] as num?)?.toInt();
+          final distance = (stepMap['distance'] as num?)?.toDouble() ?? 0;
+          final wayPoints = stepMap['way_points'] as List?;
+          if (wayPoints == null || wayPoints.length < 2) continue;
+
+          final wpStart = (wayPoints[0] as num).toInt();
+          final wpEnd = (wayPoints[1] as num).toInt();
+          final name = stepMap['name'] as String?;
+
+          result.add(NavigationStep(
+            index: stepIndex++,
+            maneuver: ManeuverType.fromOrsType(type),
+            distance: distance,
+            wayPointStart: wpStart,
+            wayPointEnd: wpEnd,
+            streetName: (name == null || name == '-') ? null : name,
+          ));
+        }
+      }
+
+      return result;
+    } catch (e) {
+      debugPrint('[RoutingService] Errore parsing steps: $e');
+      return [];
     }
   }
 
