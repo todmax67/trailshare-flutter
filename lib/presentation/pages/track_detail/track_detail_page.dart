@@ -221,7 +221,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   // Segmenti creati da questa traccia
                   if (_track.id != null && _track.points.length > 1) ...[
                     const SizedBox(height: 16),
-                    TrackSegmentsSection(track: _track),
+                    TrackSegmentsSection(
+                      trackId: _track.id!,
+                      trackPoints: _track.points,
+                      trackOwnerId: _track.userId,
+                      activityType: _track.activityType.name,
+                    ),
                   ],
 
                   const SizedBox(height: 24),

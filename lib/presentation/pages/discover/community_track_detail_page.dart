@@ -9,6 +9,7 @@ import '../../../presentation/widgets/charts/elevation_chart.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../../presentation/widgets/lap_splits_widget.dart';
+import '../../../presentation/widgets/track_segments_section.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/services/trails_cache_service.dart';
@@ -212,6 +213,14 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     ),
                     const SizedBox(height: 16),
                   ],
+
+                  // Segmenti cronometrati (solo pubblici, read-only)
+                  TrackSegmentsSection(
+                    trackId: track.id,
+                    readOnly: true,
+                  ),
+
+                  const SizedBox(height: 16),
 
                   // Dettagli
                   _buildDetails(),

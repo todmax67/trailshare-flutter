@@ -75,12 +75,20 @@ class SegmentsRepository {
     }
   }
 
-  /// Segmenti creati da una specifica traccia personale dell'utente.
-  Future<List<Segment>> getSegmentsCreatedFromTrack(String sourceTrackId) async {
+  /// Segmenti creati da una specifica traccia personale.
+  /// Se [publicOnly] è true, filtra ulteriormente per `isPublic: true`
+  /// (usato nelle view community).
+  Future<List<Segment>> getSegmentsCreatedFromTrack(
+    String sourceTrackId, {
+    bool publicOnly = false,
+  }) async {
     try {
-      final snap = await _segmentsCol
-          .where('sourceTrackId', isEqualTo: sourceTrackId)
-          .get();
+      Query<Map<String, dynamic>> q =
+          _segmentsCol.where('sourceTrackId', isEqualTo: sourceTrackId);
+      if (publicOnly) {
+        q = q.where('isPublic', isEqualTo: true);
+      }
+      final snap = await q.get();
       return snap.docs.map((d) => Segment.fromFirestore(d)).toList();
     } catch (e) {
       debugPrint('[Segments] Errore getSegmentsCreatedFromTrack: $e');

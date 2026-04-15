@@ -7,15 +7,43 @@ import '../../data/repositories/segments_repository.dart';
 import '../pages/segments/segment_detail_page.dart';
 import '../pages/segments/segment_editor_page.dart';
 
-/// Sezione "I miei segmenti" visibile nella pagina dettaglio di una traccia
-/// personale.
+/// Sezione segmenti per una traccia specifica.
 ///
-/// Mostra i segmenti user-created ritagliati da questa specifica traccia.
-/// Il proprietario della traccia può crearne di nuovi e eliminare i propri.
+/// Usata in due modalità:
+/// - **Editable** (default): nella `track_detail_page` della propria traccia
+///   personale. Mostra tutti i segmenti (pubblici + privati) creati dalla
+///   traccia, con bottone "+" per crearne di nuovi e delete inline.
+/// - **Read-only**: nella `community_track_detail_page` o quando un altro
+///   utente visualizza la pagina. Mostra solo i segmenti pubblici, senza
+///   bottoni di modifica.
 class TrackSegmentsSection extends StatefulWidget {
-  final Track track;
+  final String trackId;
 
-  const TrackSegmentsSection({super.key, required this.track});
+  /// Punti della traccia sorgente, necessari per aprire l'editor.
+  /// Richiesto solo se non `readOnly`.
+  final List<TrackPoint>? trackPoints;
+
+  /// UID del proprietario della traccia sorgente (per check ownership).
+  final String? trackOwnerId;
+
+  /// Tipo attività default per nuovi segmenti.
+  final String? activityType;
+
+  /// Se true, nasconde "+" e delete e filtra solo segmenti pubblici.
+  final bool readOnly;
+
+  /// Titolo override (default: "I miei segmenti" o "Segmenti" in readOnly).
+  final String? title;
+
+  const TrackSegmentsSection({
+    super.key,
+    required this.trackId,
+    this.trackPoints,
+    this.trackOwnerId,
+    this.activityType,
+    this.readOnly = false,
+    this.title,
+  });
 
   @override
   State<TrackSegmentsSection> createState() => _TrackSegmentsSectionState();
@@ -27,12 +55,16 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
   Map<String, SegmentEffort?> _champions = {};
   bool _loading = true;
 
-  String? get _trackId => widget.track.id;
+  String get _trackId => widget.trackId;
 
   bool get _isOwner {
+    if (widget.readOnly) return false;
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    return uid != null && uid == widget.track.userId;
+    return uid != null && uid == widget.trackOwnerId;
   }
+
+  bool get _canCreate =>
+      _isOwner && widget.trackPoints != null && widget.trackPoints!.length >= 2;
 
   @override
   void initState() {
@@ -41,14 +73,12 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
   }
 
   Future<void> _load() async {
-    final trackId = _trackId;
-    if (trackId == null) {
-      setState(() => _loading = false);
-      return;
-    }
     setState(() => _loading = true);
 
-    final segments = await _repo.getSegmentsCreatedFromTrack(trackId);
+    final segments = await _repo.getSegmentsCreatedFromTrack(
+      _trackId,
+      publicOnly: widget.readOnly,
+    );
     final champs = await Future.wait(segments.map((s) => _repo.getTopEffort(s.id)));
     if (!mounted) return;
 
@@ -62,7 +92,8 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
   }
 
   Future<void> _openEditor() async {
-    if (widget.track.points.length < 2) {
+    final points = widget.trackPoints;
+    if (points == null || points.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Traccia senza punti: impossibile creare un segmento')),
       );
@@ -72,10 +103,10 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
       context,
       MaterialPageRoute(
         builder: (_) => SegmentEditorPage(
-          sourcePoints: widget.track.points,
+          sourcePoints: points,
           isOfficial: false,
           sourceTrackId: _trackId,
-          defaultActivityType: widget.track.activityType.name,
+          defaultActivityType: widget.activityType,
         ),
       ),
     );
@@ -157,14 +188,15 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
   }
 
   Widget _buildHeader() {
+    final title = widget.title ?? (widget.readOnly ? 'Segmenti' : 'I miei segmenti');
     return Row(
       children: [
         const Icon(Icons.timer_outlined, size: 20, color: AppColors.primary),
         const SizedBox(width: 8),
-        const Expanded(
+        Expanded(
           child: Text(
-            'I miei segmenti',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
         if (!_loading && _segments.isNotEmpty)
@@ -175,7 +207,7 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
               style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
           ),
-        if (_isOwner)
+        if (_canCreate)
           IconButton(
             icon: const Icon(Icons.add, size: 20),
             onPressed: _openEditor,
@@ -191,9 +223,11 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Text(
-        _isOwner
-            ? 'Nessun segmento creato da questa traccia. Tocca "+" per crearne uno.'
-            : 'Nessun segmento creato da questa traccia.',
+        widget.readOnly
+            ? 'Nessun segmento su questa traccia.'
+            : (_canCreate
+                ? 'Nessun segmento creato da questa traccia. Tocca "+" per crearne uno.'
+                : 'Nessun segmento creato da questa traccia.'),
         style: TextStyle(
           color: Colors.grey[600],
           fontSize: 13,
