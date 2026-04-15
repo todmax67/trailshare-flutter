@@ -9,6 +9,7 @@ import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../widgets/weather_forecast_card.dart';
 import '../../widgets/trail_reviews_section.dart';
 import '../../widgets/trail_photos_section.dart';
+import '../../widgets/trail_segments_section.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -151,6 +152,14 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
 
                   // Recensioni e rating
                   TrailReviewsSection(trailId: widget.trail.id),
+
+                  const SizedBox(height: 16),
+
+                  // Segmenti cronometrati
+                  TrailSegmentsSection(
+                    trail: widget.trail,
+                    trailPoints: _displayPoints,
+                  ),
 
                   const SizedBox(height: 16),
 

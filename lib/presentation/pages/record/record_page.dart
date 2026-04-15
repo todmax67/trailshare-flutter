@@ -9,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/location_service.dart';
 import '../../../presentation/blocs/tracking_bloc.dart';
+import '../../../core/services/post_track_save_service.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../widgets/live_track_button.dart';
@@ -570,7 +571,19 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       await _persistence.clearState();
       await LiveTrackService().stop();
       _photos.clear();
-      
+
+      // Post-save: XP, badge, sfide, segmenti cronometrati
+      if (mounted) {
+        await PostTrackSaveService.handleTrackSaved(
+          context: context,
+          distanceMeters: trackToSave.stats.distance,
+          elevationGain: trackToSave.stats.elevationGain,
+          durationSeconds: trackToSave.stats.duration.inSeconds,
+          track: trackToSave,
+          trackId: trackId,
+        );
+      }
+
       if (mounted) {
         _showCompletionDialog(trackToSave);
       }

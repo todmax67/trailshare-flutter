@@ -3,7 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'gamification_service.dart';
 import 'challenges_service.dart';
+import 'segment_matching_service.dart';
+import '../../data/models/segment.dart';
+import '../../data/models/track.dart';
+import '../../data/repositories/segments_repository.dart';
 import '../../presentation/widgets/level_up_dialog.dart';
+import '../../presentation/widgets/segment_results_dialog.dart';
 import '../../presentation/widgets/xp_snack_bar.dart';
 
 /// Servizio centralizzato per gestire tutte le azioni post-salvataggio traccia.
@@ -27,6 +32,7 @@ import '../../presentation/widgets/xp_snack_bar.dart';
 class PostTrackSaveService {
   static final GamificationService _gamification = GamificationService();
   static final ChallengesService _challenges = ChallengesService();
+  static final SegmentsRepository _segmentsRepo = SegmentsRepository();
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Gestisce tutte le azioni post-salvataggio traccia.
@@ -42,6 +48,8 @@ class PostTrackSaveService {
     required double elevationGain,
     required int durationSeconds,
     bool showDialogs = true,
+    Track? track,
+    String? trackId,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -56,6 +64,7 @@ class PostTrackSaveService {
     bool leveledUp = false;
     int? newLevel;
     List<GameBadge> newBadges = [];
+    List<SegmentMatchResult> segmentResults = [];
 
     // ═══════════════════════════════════════════════════════════════
     // STEP 1: Assegna XP per la traccia
@@ -172,7 +181,68 @@ class PostTrackSaveService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // STEP 4: Mostra notifiche UI
+    // STEP 4: Matching segmenti cronometrati
+    // ═══════════════════════════════════════════════════════════════
+    if (track != null && trackId != null) {
+      try {
+        final segments = await _segmentsRepo.getAllSegments();
+        final attempts = SegmentMatchingService.match(track, segments);
+
+        for (final attempt in attempts) {
+          // Ricava username/avatar denormalizzati
+          final profileDoc = await _firestore
+              .collection('user_profiles')
+              .doc(user.uid)
+              .get();
+          final profileData = profileDoc.data() ?? {};
+          final username = (profileData['username'] as String?) ??
+              user.displayName ??
+              user.email?.split('@').first ??
+              'Utente';
+          final avatarUrl = (profileData['avatarUrl'] as String?) ?? user.photoURL;
+
+          // Top assoluto e PB precedenti
+          final topBefore = await _segmentsRepo.getTopEffort(attempt.segment.id);
+          final pbBefore = await _segmentsRepo.getUserBestEffort(attempt.segment.id, user.uid);
+
+          final isNewRecord = topBefore == null ||
+              attempt.durationSeconds < topBefore.durationSeconds;
+          final isNewPB = pbBefore == null ||
+              attempt.durationSeconds < pbBefore.durationSeconds;
+
+          // Salva l'effort solo se PB (evita clutter)
+          if (isNewPB) {
+            final effort = SegmentEffort(
+              id: '',
+              userId: user.uid,
+              username: username,
+              avatarUrl: avatarUrl,
+              trackId: trackId,
+              durationSeconds: attempt.durationSeconds,
+              distance: attempt.segment.distance,
+              averageSpeedKmh: attempt.averageSpeedKmh,
+              completedAt: DateTime.now(),
+            );
+            await _segmentsRepo.saveEffort(attempt.segment.id, effort);
+          }
+
+          segmentResults.add(SegmentMatchResult(
+            segment: attempt.segment,
+            durationSeconds: attempt.durationSeconds,
+            distance: attempt.segment.distance,
+            isNewRecord: isNewRecord,
+            isNewPB: isNewPB,
+            previousPBSeconds: pbBefore?.durationSeconds,
+          ));
+        }
+        debugPrint('[PostTrackSave] 🏁 Segmenti completati: ${segmentResults.length}');
+      } catch (e) {
+        debugPrint('[PostTrackSave] ❌ Errore segmenti: $e');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 5: Mostra notifiche UI
     // ═══════════════════════════════════════════════════════════════
     if (showDialogs && context != null && context.mounted) {
       try {
@@ -201,6 +271,14 @@ class PostTrackSaveService {
             await showBadgeUnlockedDialog(context, badge);
           }
         }
+
+        // Dialog segmenti completati
+        if (segmentResults.isNotEmpty && context.mounted) {
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (context.mounted) {
+            await showSegmentResultsDialog(context, segmentResults);
+          }
+        }
       } catch (e) {
         debugPrint('[PostTrackSave] ⚠️ Errore UI dialogs: $e');
       }
@@ -213,6 +291,7 @@ class PostTrackSaveService {
       leveledUp: leveledUp,
       newLevel: newLevel,
       newBadges: newBadges,
+      segmentResults: segmentResults,
     );
   }
 
@@ -233,11 +312,13 @@ class PostTrackSaveResult {
   final bool leveledUp;
   final int? newLevel;
   final List<GameBadge> newBadges;
+  final List<SegmentMatchResult> segmentResults;
 
   const PostTrackSaveResult({
     this.xpGranted = 0,
     this.leveledUp = false,
     this.newLevel,
     this.newBadges = const [],
+    this.segmentResults = const [],
   });
 }
