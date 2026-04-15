@@ -33,4 +33,10 @@ const List<MapStyle> mapStyles = [
     urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     icon: Icons.satellite_alt,
   ),
+  MapStyle(
+    name: 'Dark',
+    urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+    subdomains: ['a', 'b', 'c', 'd'],
+    icon: Icons.dark_mode,
+  ),
 ];
