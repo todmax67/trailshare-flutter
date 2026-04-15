@@ -281,6 +281,44 @@ class CommunityTracksRepository {
     }
   }
 
+  /// Feed delle attività recenti degli utenti seguiti.
+  ///
+  /// Esegue batching automatico per gestire `whereIn` limit di 30 elementi.
+  /// Risultati uniti e riordinati client-side per `sharedAt` desc.
+  Future<List<CommunityTrack>> getFollowingActivityFeed(
+    List<String> followingIds, {
+    int limit = 30,
+  }) async {
+    if (followingIds.isEmpty) return [];
+    try {
+      final List<CommunityTrack> all = [];
+      for (var i = 0; i < followingIds.length; i += 30) {
+        final batch = followingIds.skip(i).take(30).toList();
+        final snapshot = await _tracksCollection
+            .where('originalOwnerId', whereIn: batch)
+            .orderBy('sharedAt', descending: true)
+            .limit(limit)
+            .get();
+        for (final doc in snapshot.docs) {
+          final track = _docToTrack(doc);
+          if (track != null) all.add(track);
+        }
+      }
+      // Sort globale
+      all.sort((a, b) {
+        final at = a.sharedAt ?? DateTime(0);
+        final bt = b.sharedAt ?? DateTime(0);
+        return bt.compareTo(at);
+      });
+      final result = all.take(limit).toList();
+      debugPrint('[CommunityTracks] Feed seguiti: ${result.length} tracce da ${followingIds.length} utenti');
+      return result;
+    } catch (e) {
+      debugPrint('[CommunityTracks] Errore getFollowingActivityFeed: $e');
+      return [];
+    }
+  }
+
   /// Ottieni tracce più apprezzate
   Future<List<CommunityTrack>> getPopularTracks({int limit = 30}) async {
     try {

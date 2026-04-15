@@ -7,6 +7,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
+import '../../../data/repositories/follow_repository.dart';
+import '../../../presentation/widgets/following_feed_item.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../presentation/widgets/community_track_card.dart';
 import '../groups/create_group_page.dart';
@@ -69,10 +71,19 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   bool _isLoadingPublicEvents = false;
   bool _showPublicEvents = false; // Toggle I miei / Pubblici
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // STATO: FEED SEGUITI
+  // ═══════════════════════════════════════════════════════════════════════
+  List<CommunityTrack> _followingTracks = [];
+  Map<String, String?> _authorAvatars = {};
+  bool _isLoadingFollowing = false;
+  bool _followingLoaded = false;
+  bool _userHasNoFollowing = false;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() {
       // Carica lazy i dati quando si cambia tab
       if (_tabController.index == 1 && _myGroups.isEmpty && !_isLoadingMyGroups) {
@@ -80,6 +91,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       }
       if (_tabController.index == 2 && _myEvents.isEmpty && !_isLoadingMyEvents) {
         _loadMyEvents();
+      }
+      if (_tabController.index == 3 && !_followingLoaded && !_isLoadingFollowing) {
+        _loadFollowingFeed();
       }
       setState(() {
         _selectedCommunityTrack = null;
@@ -391,6 +405,58 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     }
   }
 
+  Future<void> _loadFollowingFeed() async {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null) {
+      setState(() {
+        _followingLoaded = true;
+        _userHasNoFollowing = true;
+      });
+      return;
+    }
+    setState(() => _isLoadingFollowing = true);
+
+    try {
+      final followRepo = FollowRepository();
+      final followingIds = await followRepo.getFollowing(currentUid);
+
+      if (followingIds.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _userHasNoFollowing = true;
+          _followingLoaded = true;
+          _isLoadingFollowing = false;
+        });
+        return;
+      }
+
+      final tracks = await _communityRepo.getFollowingActivityFeed(followingIds);
+
+      // Carica profili degli autori per gli avatar
+      final ownerIds = tracks.map((t) => t.ownerId).toSet().toList();
+      final profiles = await followRepo.getUserProfiles(ownerIds);
+      final avatars = <String, String?>{
+        for (final p in profiles) p.id: p.avatarUrl,
+      };
+
+      if (!mounted) return;
+      setState(() {
+        _followingTracks = tracks;
+        _authorAvatars = avatars;
+        _userHasNoFollowing = false;
+        _followingLoaded = true;
+        _isLoadingFollowing = false;
+      });
+    } catch (e) {
+      debugPrint('[CommunityPage] Errore feed seguiti: $e');
+      if (!mounted) return;
+      setState(() {
+        _followingLoaded = true;
+        _isLoadingFollowing = false;
+      });
+    }
+  }
+
   Future<void> _loadPublicEvents() async {
     setState(() => _isLoadingPublicEvents = true);
     final events = await _groupsRepo.getPublicUpcomingEvents();
@@ -436,6 +502,10 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               icon: const Icon(Icons.event),
               text: context.l10n.eventsTabCount(_myEvents.length),
             ),
+            const Tab(
+              icon: Icon(Icons.dynamic_feed),
+              text: 'Seguiti',
+            ),
           ],
         ),
         actions: [
@@ -471,6 +541,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           _buildTracksTab(),
           _buildGroupsTab(),
           _buildEventsTab(),
+          _buildFollowingTab(),
         ],
       ),
     );
@@ -489,6 +560,10 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         _loadMyEvents();
         if (_showPublicEvents) _loadPublicEvents();
         _loadActiveChallenges();
+        break;
+      case 3:
+        _followingLoaded = false;
+        _loadFollowingFeed();
         break;
     }
   }
@@ -1441,6 +1516,96 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         const SizedBox(width: 4),
         Text(text, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // TAB 4: FEED SEGUITI
+  // ═══════════════════════════════════════════════════════════════════════
+
+  Widget _buildFollowingTab() {
+    if (_isLoadingFollowing) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_userHasNoFollowing) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.favorite_border,
+                size: 80,
+                color: AppColors.textMuted.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Non segui ancora nessuno',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Segui altri utenti per vedere le loro attività qui',
+                style: TextStyle(color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SearchUsersPage()),
+                  );
+                },
+                icon: const Icon(Icons.person_search),
+                label: const Text('Cerca utenti'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_followingTracks.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: () async {
+          _followingLoaded = false;
+          await _loadFollowingFeed();
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.5,
+              child: _buildEmptyState(
+                icon: Icons.inbox_outlined,
+                message: 'Nessuna attività recente dai tuoi seguiti',
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        _followingLoaded = false;
+        await _loadFollowingFeed();
+      },
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 12, bottom: 16),
+        itemCount: _followingTracks.length,
+        itemBuilder: (context, index) {
+          final track = _followingTracks[index];
+          return FollowingFeedItem(
+            track: track,
+            authorAvatarUrl: _authorAvatars[track.ownerId],
+            onTap: () => _openCommunityTrackDetail(track),
+          );
+        },
+      ),
     );
   }
 
