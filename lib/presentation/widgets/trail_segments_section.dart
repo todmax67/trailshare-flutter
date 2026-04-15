@@ -68,8 +68,10 @@ class _TrailSegmentsSectionState extends State<TrailSegmentsSection> {
       context,
       MaterialPageRoute(
         builder: (_) => SegmentEditorPage(
-          trail: widget.trail,
-          trailPoints: widget.trailPoints,
+          sourcePoints: widget.trailPoints,
+          isOfficial: true,
+          sourceTrailId: widget.trail.id,
+          defaultActivityType: widget.trail.activityType,
         ),
       ),
     );

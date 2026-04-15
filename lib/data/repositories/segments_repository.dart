@@ -32,7 +32,11 @@ class SegmentsRepository {
 
   // ─── Query ───────────────────────────────────────────────────────────────
 
-  /// Tutti i segmenti con cache TTL 10 min.
+  /// Restituisce tutti i segmenti visibili all'utente corrente:
+  /// - tutti i segmenti pubblici (admin + user pubblici)
+  /// - segmenti privati creati dall'utente corrente
+  ///
+  /// Cache statica TTL 10 min. Due query Firestore in parallelo, union client-side.
   Future<List<Segment>> getAllSegments() async {
     if (_allCache != null && _allCacheAt != null) {
       if (DateTime.now().difference(_allCacheAt!) < _allTtl) {
@@ -40,13 +44,46 @@ class SegmentsRepository {
       }
     }
     try {
-      final snap = await _segmentsCol.get();
-      final list = snap.docs.map((d) => Segment.fromFirestore(d)).toList();
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final futures = <Future<QuerySnapshot<Map<String, dynamic>>>>[
+        _segmentsCol.where('isPublic', isEqualTo: true).get(),
+      ];
+      if (uid != null) {
+        futures.add(
+          _segmentsCol
+              .where('createdBy', isEqualTo: uid)
+              .where('isPublic', isEqualTo: false)
+              .get(),
+        );
+      }
+      final results = await Future.wait(futures);
+
+      // Union + dedup by id
+      final byId = <String, Segment>{};
+      for (final snap in results) {
+        for (final doc in snap.docs) {
+          byId[doc.id] = Segment.fromFirestore(doc);
+        }
+      }
+      final list = byId.values.toList();
       _allCache = list;
       _allCacheAt = DateTime.now();
       return list;
     } catch (e) {
       debugPrint('[Segments] Errore getAllSegments: $e');
+      return [];
+    }
+  }
+
+  /// Segmenti creati da una specifica traccia personale dell'utente.
+  Future<List<Segment>> getSegmentsCreatedFromTrack(String sourceTrackId) async {
+    try {
+      final snap = await _segmentsCol
+          .where('sourceTrackId', isEqualTo: sourceTrackId)
+          .get();
+      return snap.docs.map((d) => Segment.fromFirestore(d)).toList();
+    } catch (e) {
+      debugPrint('[Segments] Errore getSegmentsCreatedFromTrack: $e');
       return [];
     }
   }

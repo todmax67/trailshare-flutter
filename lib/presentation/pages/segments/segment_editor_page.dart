@@ -6,22 +6,40 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/navigation_service.dart';
 import '../../../data/models/segment.dart';
 import '../../../data/models/track.dart';
-import '../../../data/repositories/public_trails_repository.dart';
 import '../../../data/repositories/segments_repository.dart';
 
-/// Pagina per admin: creazione di un nuovo segmento da un sentiero pubblico.
+/// Pagina per creare un nuovo segmento.
+///
+/// Può essere usata in due modi:
+/// - **Admin da sentiero pubblico**: `isOfficial: true`, `sourceTrailId` valorizzato
+/// - **User da propria traccia**: `isOfficial: false`, `sourceTrackId` valorizzato,
+///   l'utente può scegliere se pubblicarlo o tenerlo privato
 ///
 /// L'utente tocca due punti sulla mappa; l'editor trova i punti del polyline
-/// del sentiero più vicini ai tap e estrae il sub-tratto tra i due indici
-/// come polyline del segmento.
+/// sorgente più vicini e estrae il sub-tratto.
 class SegmentEditorPage extends StatefulWidget {
-  final PublicTrail trail;
-  final List<TrackPoint> trailPoints;
+  /// Punti della sorgente (polyline del sentiero OSM o della traccia personale).
+  final List<TrackPoint> sourcePoints;
+
+  /// true se creato da admin da un sentiero OSM, false per user-created.
+  final bool isOfficial;
+
+  /// ID del sentiero OSM di provenienza (solo per admin / official segments).
+  final String? sourceTrailId;
+
+  /// ID della traccia personale di provenienza (solo per user-created).
+  final String? sourceTrackId;
+
+  /// Tipo attività default (ereditato dalla sorgente).
+  final String? defaultActivityType;
 
   const SegmentEditorPage({
     super.key,
-    required this.trail,
-    required this.trailPoints,
+    required this.sourcePoints,
+    required this.isOfficial,
+    this.sourceTrailId,
+    this.sourceTrackId,
+    this.defaultActivityType,
   });
 
   @override
@@ -37,13 +55,14 @@ class _SegmentEditorPageState extends State<SegmentEditorPage> {
   int? _startIdx;
   int? _endIdx;
   bool _saving = false;
+  bool _isPublic = true;
 
   late List<LatLng> _trailLatLng;
 
   @override
   void initState() {
     super.initState();
-    _trailLatLng = widget.trailPoints
+    _trailLatLng = widget.sourcePoints
         .map((p) => LatLng(p.latitude, p.longitude))
         .toList();
   }
@@ -94,7 +113,7 @@ class _SegmentEditorPageState extends State<SegmentEditorPage> {
   /// Sub-points con elevazione (per calcolare dislivello).
   List<TrackPoint> get _subPoints {
     if (_startIdx == null || _endIdx == null) return [];
-    return widget.trailPoints.sublist(_startIdx!, _endIdx! + 1);
+    return widget.sourcePoints.sublist(_startIdx!, _endIdx! + 1);
   }
 
   double get _subDistance {
@@ -142,7 +161,7 @@ class _SegmentEditorPageState extends State<SegmentEditorPage> {
       id: '',
       name: _nameController.text.trim(),
       description: _descController.text.trim(),
-      trailId: widget.trail.id,
+      trailId: widget.sourceTrailId ?? '',
       createdBy: user.uid,
       startLat: start.latitude,
       startLng: start.longitude,
@@ -151,8 +170,11 @@ class _SegmentEditorPageState extends State<SegmentEditorPage> {
       polyline: _subPolyline,
       distance: _subDistance,
       elevationGain: _subElevationGain,
-      activityType: widget.trail.activityType,
+      activityType: widget.defaultActivityType,
       createdAt: DateTime.now(),
+      isOfficial: widget.isOfficial,
+      isPublic: widget.isOfficial ? true : _isPublic,
+      sourceTrackId: widget.sourceTrackId,
     );
 
     final id = await _segmentsRepo.createSegment(segment);
@@ -369,6 +391,31 @@ class _SegmentEditorPageState extends State<SegmentEditorPage> {
             maxLength: 200,
             maxLines: 2,
           ),
+          if (!widget.isOfficial) ...[
+            const SizedBox(height: 4),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Row(
+                children: [
+                  Icon(
+                    _isPublic ? Icons.public : Icons.lock_outline,
+                    size: 18,
+                    color: _isPublic ? AppColors.success : AppColors.textMuted,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(_isPublic ? 'Pubblico' : 'Privato'),
+                ],
+              ),
+              subtitle: Text(
+                _isPublic
+                    ? 'Tutti possono vedere e gareggiare'
+                    : 'Solo tu puoi vedere questo segmento',
+                style: const TextStyle(fontSize: 11),
+              ),
+              value: _isPublic,
+              onChanged: _saving ? null : (v) => setState(() => _isPublic = v),
+            ),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,

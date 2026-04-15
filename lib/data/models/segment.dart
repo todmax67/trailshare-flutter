@@ -19,6 +19,17 @@ class Segment {
   final String? activityType;
   final DateTime createdAt;
 
+  /// True solo se creato da un admin da un sentiero pubblico OSM.
+  final bool isOfficial;
+
+  /// Visibilità pubblica (leaderboard condivisa + matching per altri utenti).
+  /// Admin-created è sempre pubblico; user-created è scelta dell'utente.
+  final bool isPublic;
+
+  /// ID della traccia personale da cui è stato creato (solo user-created).
+  /// `null` per admin-created.
+  final String? sourceTrackId;
+
   const Segment({
     required this.id,
     required this.name,
@@ -34,6 +45,9 @@ class Segment {
     this.elevationGain = 0,
     this.activityType,
     required this.createdAt,
+    this.isOfficial = false,
+    this.isPublic = true,
+    this.sourceTrackId,
   });
 
   LatLng get startPoint => LatLng(startLat, startLng);
@@ -66,6 +80,9 @@ class Segment {
       elevationGain: (data['elevationGain'] as num?)?.toDouble() ?? 0,
       activityType: data['activityType'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isOfficial: data['isOfficial'] == true,
+      isPublic: data['isPublic'] != false, // default true per retrocompatibilità
+      sourceTrackId: data['sourceTrackId'] as String?,
     );
   }
 
@@ -85,6 +102,9 @@ class Segment {
         'elevationGain': elevationGain,
         'activityType': activityType,
         'createdAt': FieldValue.serverTimestamp(),
+        'isOfficial': isOfficial,
+        'isPublic': isPublic,
+        if (sourceTrackId != null) 'sourceTrackId': sourceTrackId,
       };
 }
 

@@ -12,6 +12,7 @@ import '../../../data/repositories/community_tracks_repository.dart';
 import '../../widgets/interactive_track_map.dart';
 import '../../widgets/track_charts_widget.dart';
 import '../../widgets/lap_splits_widget.dart';
+import '../../widgets/track_segments_section.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -216,7 +217,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       },
                     ),
                   ],
-                  
+
+                  // Segmenti creati da questa traccia
+                  if (_track.id != null && _track.points.length > 1) ...[
+                    const SizedBox(height: 16),
+                    TrackSegmentsSection(track: _track),
+                  ],
+
                   const SizedBox(height: 24),
                   _buildDetails(),
                 ],
