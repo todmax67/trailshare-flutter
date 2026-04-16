@@ -583,6 +583,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
             totalDistance: widget.trail.length?.toDouble(),
             totalElevationGain: widget.trail.elevationGain,
           ),
+          initialActivityType: widget.trail.parsedActivityType,
         ),
       ),
     );

@@ -571,7 +571,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header: icona + nome reference + toggle voce
+              // Header: icona + nome reference + chip attività + toggle voce
               Row(
                 children: [
                   Icon(
@@ -589,6 +589,40 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                         color: _refOffTrail ? Colors.white : AppColors.textPrimary,
                       ),
                       overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Chip attività corrente (tap per cambiarla)
+                  InkWell(
+                    onTap: _showActivityPickerGuided,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: _refOffTrail
+                            ? Colors.white.withOpacity(0.2)
+                            : AppColors.info.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_selectedActivity.icon,
+                              style: const TextStyle(fontSize: 12)),
+                          const SizedBox(width: 4),
+                          Text(
+                            _selectedActivity.displayName,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: _refOffTrail ? Colors.white : AppColors.info,
+                            ),
+                          ),
+                          Icon(Icons.expand_more,
+                              size: 14,
+                              color: _refOffTrail ? Colors.white : AppColors.info),
+                        ],
+                      ),
                     ),
                   ),
                   InkWell(
@@ -1308,6 +1342,25 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         selected: _selectedActivity,
         onSelected: (type) {
           setState(() => _selectedActivity = type);
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  /// Variante del picker usata in modalità guidata: aggiorna anche il
+  /// TrackingBloc così l'attività viene salvata correttamente sulla traccia
+  /// in registrazione (altrimenti resterebbe quella passata al start).
+  void _showActivityPickerGuided() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _ActivityPickerSheet(
+        selected: _selectedActivity,
+        onSelected: (type) {
+          setState(() => _selectedActivity = type);
+          _trackingBloc.setActivityType(type);
           Navigator.pop(context);
         },
       ),

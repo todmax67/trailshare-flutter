@@ -146,6 +146,10 @@ class CommunityTrack {
     );
   }
 
+  /// Versione pubblica di `_parseActivityType`, utile ai consumer
+  /// (es. apertura RecordPage in modalità guidata con activity corretta).
+  ActivityType get parsedActivityType => _parseActivityType();
+
   /// Converte la stringa activityType in enum ActivityType
   ActivityType _parseActivityType() {
     // Prima prova match diretto per nome enum

@@ -852,11 +852,18 @@ class _PlannerTabState extends State<PlannerTab> {
 
   void _startNavigation() {
     if (_routeResult == null) return;
+    // Deduce l'activity dal profilo ORS usato per calcolare il percorso:
+    // hiking → trekking, cycling → ciclismo su strada.
+    // L'utente può cambiarla al volo dal banner guidato se serve (es. MTB).
+    final deducedActivity = _profile == RoutingProfile.hiking
+        ? ActivityType.trekking
+        : ActivityType.cycling;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => RecordPage(
           reference: RecordingReference.fromPlanner(route: _routeResult!),
+          initialActivityType: deducedActivity,
         ),
       ),
     );

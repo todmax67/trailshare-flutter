@@ -795,6 +795,35 @@ class PublicTrail {
   final String? quality;
   final String? activityType;
   final String? source;
+
+  /// Versione parsata di [activityType] (stringa su Firestore) in enum.
+  /// Usa `trekking` come default (fallback più sensato per trail OSM).
+  ActivityType get parsedActivityType {
+    final raw = activityType;
+    if (raw == null || raw.isEmpty) return ActivityType.trekking;
+    for (final t in ActivityType.values) {
+      if (t.name == raw) return t;
+    }
+    switch (raw.toLowerCase()) {
+      case 'hiking':
+      case 'trekking':
+        return ActivityType.trekking;
+      case 'cycling':
+      case 'bike':
+        return ActivityType.cycling;
+      case 'mtb':
+      case 'mountain_biking':
+      case 'mountainbike':
+        return ActivityType.mountainBiking;
+      case 'running':
+        return ActivityType.running;
+      case 'trail_running':
+      case 'trailrunning':
+        return ActivityType.trailRunning;
+      default:
+        return ActivityType.trekking;
+    }
+  }
   final int? duration;
   final double startLat;
   final double startLng;

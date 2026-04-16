@@ -790,6 +790,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             totalDistance: widget.track.distance,
             totalElevationGain: widget.track.elevationGain,
           ),
+          initialActivityType: widget.track.parsedActivityType,
         ),
       ),
     );
