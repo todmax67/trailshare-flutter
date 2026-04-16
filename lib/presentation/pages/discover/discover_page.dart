@@ -694,6 +694,12 @@ class _DiscoverPageState extends State<DiscoverPage> {
               subdomains: mapStyles[_currentMapStyle].subdomains,
               userAgentPackageName: 'com.trailshare.app',
               tileProvider: OfflineFallbackTileProvider(),
+              tileBuilder: mapStyles[_currentMapStyle].tileColorFilter != null
+                  ? (context, tileWidget, tile) => ColorFiltered(
+                        colorFilter: mapStyles[_currentMapStyle].tileColorFilter!,
+                        child: tileWidget,
+                      )
+                  : null,
             ),
 
             // Polyline: zoom medio = tratteggio, zoom alto = completo

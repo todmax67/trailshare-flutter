@@ -11,6 +11,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/map_styles.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -82,11 +83,6 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
   // UI
   bool _followUser = true; // auto-centra su utente
   int _currentMapStyle = 0;
-  final List<(String name, String url)> _mapStyles = [
-    ('Standard', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
-    ('Topo', 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'),
-    ('Satellite', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
-  ];
 
   // Off-trail
   static const double _offTrailThreshold = 50.0; // metri
@@ -721,10 +717,16 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
       children: [
         // Tile layer
         TileLayer(
-          urlTemplate: _mapStyles[_currentMapStyle].$2,
-          subdomains: _currentMapStyle == 1 ? const ['a', 'b', 'c'] : const [],
+          urlTemplate: mapStyles[_currentMapStyle].urlTemplate,
+          subdomains: mapStyles[_currentMapStyle].subdomains,
           userAgentPackageName: 'com.trailshare.app',
           tileProvider: OfflineFallbackTileProvider(),
+          tileBuilder: mapStyles[_currentMapStyle].tileColorFilter != null
+              ? (context, tileWidget, tile) => ColorFiltered(
+                    colorFilter: mapStyles[_currentMapStyle].tileColorFilter!,
+                    child: tileWidget,
+                  )
+              : null,
         ),
 
         // Traccia percorsa (grigia)
@@ -1129,10 +1131,10 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
             onTap: () {
               setState(() {
                 _currentMapStyle =
-                    (_currentMapStyle + 1) % _mapStyles.length;
+                    (_currentMapStyle + 1) % mapStyles.length;
               });
             },
-            tooltip: _mapStyles[_currentMapStyle].$1,
+            tooltip: mapStyles[_currentMapStyle].name,
           ),
           const SizedBox(height: 8),
           // Centra su traccia

@@ -306,6 +306,12 @@ class _PlannerTabState extends State<PlannerTab> {
               subdomains: mapStyles[_currentMapStyle].subdomains,
               userAgentPackageName: 'com.trailshare.app',
               tileProvider: OfflineFallbackTileProvider(),
+              tileBuilder: mapStyles[_currentMapStyle].tileColorFilter != null
+                  ? (context, tileWidget, tile) => ColorFiltered(
+                        colorFilter: mapStyles[_currentMapStyle].tileColorFilter!,
+                        child: tileWidget,
+                      )
+                  : null,
             ),
 
             if (_routeResult != null)

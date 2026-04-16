@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/map_styles.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/community_tracks_repository.dart';
 import '../pages/map/track_map_page.dart';
@@ -625,12 +626,6 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
   double? _tappedDistance;
   double? _tappedElevation;
   int _currentMapStyle = 0;
-  
-  final List<(String name, String url)> _mapStyles = [
-    ('Standard', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
-    ('Topo', 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'),
-    ('Satellite', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
-  ];
 
   (LatLng center, double zoom) _calculateBounds() {
     if (widget.points.isEmpty) {
@@ -711,7 +706,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
 
   void _cycleMapStyle() {
     setState(() {
-      _currentMapStyle = (_currentMapStyle + 1) % _mapStyles.length;
+      _currentMapStyle = (_currentMapStyle + 1) % mapStyles.length;
     });
   }
 
@@ -730,7 +725,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
           IconButton(
             icon: const Icon(Icons.layers),
             onPressed: _cycleMapStyle,
-            tooltip: _mapStyles[_currentMapStyle].$1,
+            tooltip: mapStyles[_currentMapStyle].name,
           ),
         ],
       ),
@@ -748,10 +743,16 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
             ),
             children: [
               TileLayer(
-                urlTemplate: _mapStyles[_currentMapStyle].$2,
+                urlTemplate: mapStyles[_currentMapStyle].urlTemplate,
                 userAgentPackageName: 'com.trailshare.app',
-                subdomains: const ['a', 'b', 'c'],
+                subdomains: mapStyles[_currentMapStyle].subdomains,
                 tileProvider: _tileProvider,
+                tileBuilder: mapStyles[_currentMapStyle].tileColorFilter != null
+                    ? (context, tileWidget, tile) => ColorFiltered(
+                          colorFilter: mapStyles[_currentMapStyle].tileColorFilter!,
+                          child: tileWidget,
+                        )
+                    : null,
               ),
               
               PolylineLayer(
@@ -960,7 +961,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                 ],
               ),
               child: Text(
-                _mapStyles[_currentMapStyle].$1,
+                mapStyles[_currentMapStyle].name,
                 style: const TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
