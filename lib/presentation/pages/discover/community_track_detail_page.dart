@@ -19,6 +19,8 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/share_card_widget.dart';
 import '../../../data/repositories/admin_repository.dart';
+import '../../../data/models/recording_reference.dart';
+import '../record/record_page.dart';
 
 class CommunityTrackDetailPage extends StatefulWidget {
   final CommunityTrack track;
@@ -537,6 +539,21 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           ),
         ),
         const SizedBox(height: 10),
+        // Pulsante Segui traccia (registra + off-trail alert)
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _followTrack,
+            icon: const Icon(Icons.navigation),
+            label: const Text('Segui e registra'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.info,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         // Pulsante Scarica GPX (esistente)
         SizedBox(
           width: double.infinity,
@@ -749,6 +766,33 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         );
       }
     }
+  }
+
+  /// Apre la pagina di registrazione in modalità guidata con la traccia
+  /// della community come riferimento (polyline + alert off-trail).
+  void _followTrack() {
+    final points = widget.track.points;
+    if (points.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Traccia troppo corta per essere seguita')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecordPage(
+          reference: RecordingReference.fromTrail(
+            trailPoints: points
+                .map((p) => LatLng(p.latitude, p.longitude))
+                .toList(),
+            trailName: widget.track.name,
+            totalDistance: widget.track.distance,
+            totalElevationGain: widget.track.elevationGain,
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _exportGpx() async {

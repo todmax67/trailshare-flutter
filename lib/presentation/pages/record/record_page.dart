@@ -23,9 +23,31 @@ import 'package:battery_plus/battery_plus.dart';
 import 'dart:async';
 import '../../../core/services/health_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/services/voice_guidance_service.dart';
+import '../../../core/services/navigation_service.dart';
+import '../../../data/models/navigation_step.dart';
+import '../../../data/models/recording_reference.dart';
 
 class RecordPage extends StatefulWidget {
-  const RecordPage({super.key});
+  /// Traccia di riferimento opzionale. Quando passata, la registrazione si
+  /// avvia automaticamente e sulla mappa compare la polyline guida.
+  ///
+  /// - `reference.isPlanner` + `reference.hasTurnByTurn` → guida vocale
+  ///   turn-by-turn + rilevamento arrivo
+  /// - `reference.isTrail` → alert sonori off-trail + rilevamento arrivo
+  ///
+  /// Se `null` la pagina funziona in modalità standalone come sempre.
+  final RecordingReference? reference;
+
+  /// Tipo di attività iniziale. Usato principalmente in modalità guidata
+  /// (quando non c'è lo schermo idle che permette di sceglierlo).
+  final ActivityType? initialActivityType;
+
+  const RecordPage({
+    super.key,
+    this.reference,
+    this.initialActivityType,
+  });
 
   @override
   State<RecordPage> createState() => _RecordPageState();
@@ -57,18 +79,74 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   double _weeklyElevation = 0;
   int _weeklyTracks = 0;
 
+  // ── Modalità "guidata" (reference != null) ──────────────────────────────
+  VoiceGuidanceService? _voice;
+  int _refUserIndex = 0;
+  NavigationStep? _refCurrentStep;
+  NavigationStep? _refNextStep;
+  double _refDistanceToNextTurn = 0;
+  double _refRemainingDistance = 0;
+  double _refDistanceFromTrail = 0;
+  bool _refOffTrail = false;
+  bool _refArrived = false;
+  DateTime? _refLastOffTrailAnnouncement;
+  final Set<String> _refSpokenThresholds = {};
+  bool _refAutoStartRequested = false;
+
+  bool get _isGuided => widget.reference != null;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _trackingBloc = TrackingBloc(LocationService());
     _trackingBloc.addListener(_onTrackingUpdate);
-    _checkForBackup();
+    if (widget.initialActivityType != null) {
+      _selectedActivity = widget.initialActivityType!;
+    }
+    if (_isGuided) {
+      _initGuidedMode();
+    } else {
+      _checkForBackup();
+    }
     _startBatteryMonitoring();
     _initUserPosition();
     _loadQuickStats();
     Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) AppTips.showFirstTrackTip(context);
+      if (mounted && !_isGuided) AppTips.showFirstTrackTip(context);
+    });
+  }
+
+  /// Modalità guidata: inizializza voce + parte automaticamente la registrazione.
+  /// NON fa check backup perché ci si aspetta che l'utente abbia appena
+  /// avviato il follow e la pagina entri subito in registrazione.
+  Future<void> _initGuidedMode() async {
+    final ref = widget.reference!;
+    debugPrint('[RecordPage] Modalità guidata: ${ref.source.name} - ${ref.name}');
+
+    // Inizializza TTS solo se abbiamo step turn-by-turn (planner).
+    // Per le tracce pubbliche la guida vocale completa non ha senso (niente
+    // svolte), ma teniamo un messaggio di benvenuto e gli alert off-trail.
+    _voice = VoiceGuidanceService();
+    await _voice!.init();
+
+    if (ref.isPlanner && ref.hasTurnByTurn) {
+      final next = ref.steps.length > 1 ? ref.steps[1] : null;
+      final welcome = next != null
+          ? 'Registrazione avviata. Prima manovra: ${next.maneuver.italianAction.toLowerCase()}'
+          : 'Registrazione avviata lungo il percorso pianificato';
+      await _voice!.speak(welcome);
+    } else {
+      await _voice!.speak('Registrazione avviata. Seguo la traccia ${ref.name}.');
+    }
+
+    // Avvia la registrazione al prossimo frame (dopo che il widget è montato
+    // e il tracking bloc è pronto).
+    if (!mounted || _refAutoStartRequested) return;
+    _refAutoStartRequested = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _trackingBloc.startRecording(activityType: _selectedActivity);
     });
   }
 
@@ -276,7 +354,100 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     }
     final state = _trackingBloc.state;
     if (!state.isIdle && state.points.length % 5 == 0) _saveStateToBackup();
+    if (_isGuided && state.points.isNotEmpty) {
+      _updateGuidedState(state.points.last);
+    }
     setState(() {});
+  }
+
+  /// Aggiorna stato guidato: avanza indice sulla polyline di riferimento,
+  /// calcola distanza residua, distanza dal trail, step corrente (se planner)
+  /// e gestisce alert/voice.
+  void _updateGuidedState(TrackPoint p) {
+    final ref = widget.reference;
+    if (ref == null || _refArrived) return;
+    if (ref.polyline.length < 2) return;
+
+    final user = LatLng(p.latitude, p.longitude);
+
+    // Indice utente sul polyline (monotono crescente)
+    final newIndex = NavigationService.findNearestPointIndex(
+      ref.polyline,
+      user,
+      minIndex: _refUserIndex,
+    );
+
+    // Distanza residua totale
+    final remaining =
+        NavigationService.remainingDistanceTotal(ref.polyline, newIndex, user);
+
+    // Distanza dal percorso
+    final distFromRoute =
+        NavigationService.distanceToPolyline(ref.polyline, user);
+    final offTrail = distFromRoute > 50;
+
+    // Step corrente (solo se planner con turn-by-turn)
+    NavigationStep? curStep;
+    NavigationStep? nextStep;
+    double distToTurn = 0;
+    if (ref.hasTurnByTurn) {
+      curStep = NavigationService.currentStep(ref.steps, newIndex);
+      nextStep = NavigationService.nextStep(ref.steps, curStep);
+      if (curStep != null) {
+        distToTurn = NavigationService.remainingDistanceInStep(
+            ref.polyline, newIndex, user, curStep);
+      }
+    }
+
+    _refUserIndex = newIndex;
+    _refCurrentStep = curStep;
+    _refNextStep = nextStep;
+    _refDistanceToNextTurn = distToTurn;
+    _refRemainingDistance = remaining;
+    _refDistanceFromTrail = distFromRoute;
+    _refOffTrail = offTrail;
+
+    // Arrivo → trigger save dialog automatico
+    if (remaining < 30 && !_refArrived) {
+      _refArrived = true;
+      _voice?.speak('Sei arrivato a destinazione. Salvataggio registrazione.');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_isSaving) _showSaveDialog();
+      });
+      return;
+    }
+
+    // Alert off-trail (debounce 10s)
+    if (offTrail) {
+      final now = DateTime.now();
+      if (_refLastOffTrailAnnouncement == null ||
+          now.difference(_refLastOffTrailAnnouncement!).inSeconds > 10) {
+        _voice?.speak('Attenzione, sei fuori percorso');
+        _refLastOffTrailAnnouncement = now;
+      }
+      return;
+    }
+
+    // Voice turn-by-turn (solo planner)
+    if (curStep != null) {
+      final step = curStep; // non-null locale per flow analysis
+      void trySpeak(double threshold, String key) {
+        final lookup = '${step.index}_$key';
+        if (distToTurn <= threshold && !_refSpokenThresholds.contains(lookup)) {
+          _refSpokenThresholds.add(lookup);
+          _voice?.speak(step.maneuver.instructionWithDistance(distToTurn));
+        }
+      }
+
+      if (distToTurn > 500) {
+        _refSpokenThresholds
+            .removeWhere((k) => k.startsWith('${step.index}_'));
+      } else {
+        trySpeak(500, '500');
+        if (distToTurn <= 200) trySpeak(200, '200');
+        if (distToTurn <= 50) trySpeak(50, '50');
+      }
+    }
   }
 
   void _startBatteryMonitoring() {
@@ -369,8 +540,242 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _trackingBloc.removeListener(_onTrackingUpdate);
     _batterySubscription?.cancel();
+    _voice?.dispose();
     _trackingBloc.dispose();
     super.dispose();
+  }
+
+  /// Banner informativo per modalità guidata: nome riferimento, prossima
+  /// manovra (turn-by-turn), distanza residua, alert off-trail.
+  Widget _buildGuidedBanner() {
+    final ref = widget.reference!;
+    final state = _trackingBloc.state;
+
+    // Se stiamo mostrando lo StatsHeader (recording), incastra il banner
+    // SOTTO di esso (top ~ status bar + 200).
+    final topOffset = state.isIdle
+        ? MediaQuery.of(context).padding.top + 12
+        : MediaQuery.of(context).padding.top + 180;
+
+    return Positioned(
+      top: topOffset,
+      left: 12,
+      right: 12,
+      child: Material(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(14),
+        color: _refOffTrail ? AppColors.danger : Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header: icona + nome reference + toggle voce
+              Row(
+                children: [
+                  Icon(
+                    ref.isPlanner ? Icons.navigation : Icons.route,
+                    size: 20,
+                    color: _refOffTrail ? Colors.white : AppColors.info,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      ref.name,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _refOffTrail ? Colors.white : AppColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        if (_voice != null) _voice!.enabled = !_voice!.enabled;
+                      });
+                    },
+                    child: Icon(
+                      (_voice?.enabled ?? true) ? Icons.volume_up : Icons.volume_off,
+                      size: 20,
+                      color: _refOffTrail ? Colors.white : AppColors.info,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              // Contenuto dinamico
+              if (_refOffTrail)
+                _buildGuidedOffTrailRow()
+              else if (ref.hasTurnByTurn && _refCurrentStep != null)
+                _buildGuidedTurnRow()
+              else
+                _buildGuidedProgressRow(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGuidedOffTrailRow() {
+    return Row(
+      children: [
+        const Icon(Icons.warning_amber, color: Colors.white, size: 26),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Sei fuori percorso',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              Text(
+                '${_refDistanceFromTrail.round()} m dalla traccia',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGuidedTurnRow() {
+    final step = _refCurrentStep!;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.info.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(step.maneuver.icon, size: 28, color: AppColors.info),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                step.maneuver.italianAction,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                'Tra ${_formatDistanceMeters(_refDistanceToNextTurn)}',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Residuo: ${_formatDistanceMeters(_refRemainingDistance)}',
+                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+              ),
+              if (_refNextStep != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'Poi ${_refNextStep!.maneuver.italianAction.toLowerCase()}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGuidedProgressRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _guidedStat(Icons.straighten, _formatDistanceMeters(_refRemainingDistance), 'Residuo'),
+        _guidedStat(Icons.near_me, '${_refDistanceFromTrail.round()} m', 'Dal percorso'),
+      ],
+    );
+  }
+
+  Widget _guidedStat(IconData icon, String value, String label) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 14, color: AppColors.textMuted),
+          const SizedBox(width: 4),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        ]),
+        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+      ],
+    );
+  }
+
+  String _formatDistanceMeters(double m) {
+    if (m < 1000) return '${m.round()} m';
+    return '${(m / 1000).toStringAsFixed(1)} km';
+  }
+
+  /// Pulsante di chiusura per modalità guidata. Se la registrazione è in
+  /// corso, mostra conferma per evitare uscite accidentali.
+  Widget _buildGuidedCloseButton(TrackingState state) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 8,
+      child: Material(
+        color: Colors.white,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () async {
+            // Se sta registrando (o è in pausa con dati), conferma.
+            final hasActiveData = !state.isIdle && state.points.isNotEmpty;
+            if (hasActiveData) {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Uscire dalla registrazione?'),
+                  content: const Text(
+                    'La registrazione in corso andrà persa se non la salvi. '
+                    'Vuoi davvero uscire?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Annulla'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                      child: const Text('Esci'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true) return;
+              // Cancella registrazione per non lasciare stato zombie.
+              await _trackingBloc.cancelRecording();
+              await _persistence.clearState();
+              await LiveTrackService().stop();
+            }
+            if (!mounted) return;
+            Navigator.of(context).pop();
+          },
+          child: const Padding(
+            padding: EdgeInsets.all(10),
+            child: Icon(Icons.close, color: AppColors.textPrimary, size: 24),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -385,7 +790,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               child: PhotoGalleryWidget(photos: _photos, isRecording: !state.isIdle, onAddPhoto: state.isIdle ? null : _showPhotoOptions, onDeletePhoto: _deletePhoto),
             ),
           if (!state.isIdle) _buildStatsHeader(state),
-          if (state.isIdle) _buildIdleOverlay(),
+          // Banner guidato: solo durante registrazione attiva.
+          // A registrazione ferma (idle) nasconderlo così l'utente vede la
+          // schermata idle pulita e può uscire dalla pagina.
+          if (_isGuided && !state.isIdle) _buildGuidedBanner(),
+          if (state.isIdle && !_isGuided) _buildIdleOverlay(),
+          // Pulsante chiudi: solo in modalità guidata (la pagina è stata
+          // aperta via Navigator.push, quindi non c'è un bottom nav che
+          // permetta di tornare indietro come nello standalone).
+          if (_isGuided) _buildGuidedCloseButton(state),
           _buildControls(state),
           if (state.errorMessage != null)
             Positioned(top: MediaQuery.of(context).padding.top + 100, left: 16, right: 16, child: _buildErrorBanner(_localizeError(state.errorMessage!))),
@@ -585,7 +998,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       }
 
       if (mounted) {
-        _showCompletionDialog(trackToSave);
+        await _showCompletionDialog(trackToSave);
+      }
+
+      // In modalità guidata la pagina è stata aperta via Navigator.push dal
+      // Planner o da un trail detail: dopo il salvataggio completato torna
+      // alla pagina precedente invece di lasciare l'utente bloccato in idle.
+      if (mounted && _isGuided) {
+        Navigator.of(context).pop();
+        return;
       }
     } catch (e) {
       debugPrint('[RecordPage] Errore salvataggio: $e');
@@ -613,6 +1034,16 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       options: MapOptions(initialCenter: center, initialZoom: 16, minZoom: 4, maxZoom: 18, onPositionChanged: (position, hasGesture) { if (hasGesture) _followUser = false; }),
       children: [
         TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.trailshare.app', tileProvider: OfflineFallbackTileProvider()),
+        // Polyline di riferimento (sotto la traccia utente) quando in modalità guidata
+        if (_isGuided && widget.reference!.polyline.length >= 2)
+          PolylineLayer(polylines: [
+            Polyline(
+              points: widget.reference!.polyline,
+              strokeWidth: 5,
+              color: AppColors.info.withOpacity(0.7),
+              pattern: StrokePattern.dashed(segments: const [10, 6]),
+            ),
+          ]),
         if (state.points.length >= 2) PolylineLayer(polylines: [Polyline(points: state.points.map((p) => LatLng(p.latitude, p.longitude)).toList(), strokeWidth: 4, color: state.isRecording ? AppColors.trackRecording : AppColors.primary)]),
         if (state.points.isNotEmpty) MarkerLayer(markers: [
           Marker(point: LatLng(state.points.first.latitude, state.points.first.longitude), width: 24, height: 24, child: Container(decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)), child: const Icon(Icons.flag, color: Colors.white, size: 14))),
@@ -898,7 +1329,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     return GestureDetector(onTap: onTap, child: Column(mainAxisSize: MainAxisSize.min, children: [Container(width: size, height: size, decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle), child: Icon(icon, color: color, size: large ? 32 : 24)), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500))]));
   }
 
-  void _showCompletionDialog(Track track) {
+  Future<void> _showCompletionDialog(Track track) async {
     final km = (track.stats.distance / 1000).toStringAsFixed(1);
     final elev = track.stats.elevationGain.toStringAsFixed(0);
     final h = track.stats.duration.inHours;
@@ -917,7 +1348,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     ];
     final message = messages[DateTime.now().millisecond % messages.length];
 
-    showDialog(
+    await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(

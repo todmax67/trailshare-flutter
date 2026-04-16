@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/gpx_service.dart';
@@ -16,7 +17,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io' show Platform;
-import 'trail_follow_page.dart';
+import '../record/record_page.dart';
+import '../../../data/models/recording_reference.dart';
 import '../../../data/repositories/admin_repository.dart';
 
 class TrailDetailPage extends StatefulWidget {
@@ -572,11 +574,15 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TrailFollowPage(
-          trailPoints: _displayPoints,
-          trailName: widget.trail.displayName,
-          totalDistance: widget.trail.length?.toDouble(),
-          totalElevationGain: widget.trail.elevationGain,
+        builder: (_) => RecordPage(
+          reference: RecordingReference.fromTrail(
+            trailPoints: _displayPoints
+                .map((p) => LatLng(p.latitude, p.longitude))
+                .toList(),
+            trailName: widget.trail.displayName,
+            totalDistance: widget.trail.length?.toDouble(),
+            totalElevationGain: widget.trail.elevationGain,
+          ),
         ),
       ),
     );

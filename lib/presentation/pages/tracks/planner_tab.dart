@@ -13,7 +13,8 @@ import '../../../data/models/track.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../widgets/map_layer_button.dart';
-import '../navigation/navigation_page.dart';
+import '../record/record_page.dart';
+import '../../../data/models/recording_reference.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:async';
@@ -854,7 +855,9 @@ class _PlannerTabState extends State<PlannerTab> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => NavigationPage(route: _routeResult!),
+        builder: (_) => RecordPage(
+          reference: RecordingReference.fromPlanner(route: _routeResult!),
+        ),
       ),
     );
   }
