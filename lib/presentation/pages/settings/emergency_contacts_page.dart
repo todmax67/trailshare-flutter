@@ -42,11 +42,18 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
               Expanded(
                 child: contacts.isEmpty
                     ? _buildEmptyState()
-                    : ListView.separated(
+                    : ListView(
                         padding: const EdgeInsets.symmetric(vertical: 8),
-                        itemCount: contacts.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (_, i) => _buildContactTile(contacts[i]),
+                        children: [
+                          ...List.generate(
+                            contacts.length * 2 - 1,
+                            (i) => i.isEven
+                                ? _buildContactTile(contacts[i ~/ 2])
+                                : const Divider(height: 1),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTemplateEditor(),
+                        ],
                       ),
               ),
               if (contacts.length < EmergencyContactsRepository.maxContacts)
@@ -205,6 +212,67 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                 'Elimina un contatto per aggiungerne altri.',
                 style: const TextStyle(fontSize: 12),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTemplateEditor() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: ExpansionTile(
+          shape: const RoundedRectangleBorder(side: BorderSide.none),
+          collapsedShape: const RoundedRectangleBorder(side: BorderSide.none),
+          leading: const Icon(Icons.edit_note, color: AppColors.info),
+          title: const Text(
+            'Personalizza messaggio',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: const Text(
+            'Testo inviato ai contatti all\'avvio di Lifeline',
+            style: TextStyle(fontSize: 12),
+          ),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            FutureBuilder<String?>(
+              future: _repo.getMessageTemplate(),
+              builder: (ctx, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: LinearProgressIndicator(),
+                  );
+                }
+                return _TemplateEditor(
+                  initial: snap.data ??
+                      EmergencyContactsRepository.defaultMessageTemplate,
+                  onSaved: (text) async {
+                    final toSave = text.trim() ==
+                            EmergencyContactsRepository.defaultMessageTemplate.trim()
+                        ? null
+                        : text;
+                    await _repo.setMessageTemplate(toSave);
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          toSave == null
+                              ? 'Ripristinato messaggio predefinito'
+                              : 'Messaggio personalizzato salvato',
+                        ),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ],
         ),
@@ -437,5 +505,122 @@ class _ContactEditorSheetState extends State<_ContactEditorSheet> {
       createdAt: widget.initial?.createdAt,
     );
     Navigator.pop(context, result);
+  }
+}
+
+/// Editor inline del template messaggio. Mostra il testo attuale + un
+/// preview renderizzato con dati finti (Marco / Trekking / link fittizio)
+/// così l'utente capisce dove finiranno i placeholder.
+class _TemplateEditor extends StatefulWidget {
+  final String initial;
+  final ValueChanged<String> onSaved;
+
+  const _TemplateEditor({required this.initial, required this.onSaved});
+
+  @override
+  State<_TemplateEditor> createState() => _TemplateEditorState();
+}
+
+class _TemplateEditorState extends State<_TemplateEditor> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _ctrl,
+          maxLines: null,
+          minLines: 4,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Placeholder disponibili: {nome}, {attività}, {nomeTraccia}, {link}',
+          style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.info.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.info.withOpacity(0.2)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Anteprima',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.info,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                EmergencyContactsRepository.renderTemplate(
+                  template: _ctrl.text,
+                  contactName: 'Marco',
+                  activityName: 'Trekking',
+                  referenceName: 'Rifugio Brentei',
+                  link: 'https://trailshare.app/live?id=abc&token=xyz',
+                ),
+                style: const TextStyle(fontSize: 12, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _ctrl.text =
+                        EmergencyContactsRepository.defaultMessageTemplate;
+                  });
+                },
+                icon: const Icon(Icons.restore, size: 16),
+                label: const Text('Default'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _ctrl.text.trim().isEmpty
+                    ? null
+                    : () => widget.onSaved(_ctrl.text),
+                icon: const Icon(Icons.save, size: 16),
+                label: const Text('Salva'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }

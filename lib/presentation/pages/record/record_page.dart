@@ -25,8 +25,12 @@ import '../../../core/services/health_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/voice_guidance_service.dart';
 import '../../../core/services/navigation_service.dart';
+import '../../../core/services/lifeline_service.dart';
 import '../../../data/models/navigation_step.dart';
 import '../../../data/models/recording_reference.dart';
+import '../../../data/models/emergency_contact.dart';
+import '../../../data/repositories/emergency_contacts_repository.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class RecordPage extends StatefulWidget {
   /// Traccia di riferimento opzionale. Quando passata, la registrazione si
@@ -95,6 +99,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   bool get _isGuided => widget.reference != null;
 
+  // ── Lifeline ────────────────────────────────────────────────────────
+  final EmergencyContactsRepository _contactsRepo = EmergencyContactsRepository();
+  final LifelineService _lifeline = LifelineService();
+  List<EmergencyContact> _emergencyContacts = const [];
+  String? _lifelineTemplate;
+  bool _lifelineToggleOn = false; // intent utente (toggle nel pulsante start)
+  bool _lifelineActive = false;   // effettivamente attiva durante recording
+
   @override
   void initState() {
     super.initState();
@@ -112,6 +124,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _startBatteryMonitoring();
     _initUserPosition();
     _loadQuickStats();
+    _loadLifelineConfig();
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted && !_isGuided) AppTips.showFirstTrackTip(context);
     });
@@ -148,6 +161,23 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       if (!mounted) return;
       await _trackingBloc.startRecording(activityType: _selectedActivity);
     });
+  }
+
+  /// Carica contatti emergenza + template Lifeline dell'utente.
+  /// Non blocca il flusso se fallisce: Lifeline resta semplicemente
+  /// non disponibile (toggle nascosto).
+  Future<void> _loadLifelineConfig() async {
+    try {
+      final contacts = await _contactsRepo.getContacts();
+      final template = await _contactsRepo.getMessageTemplate();
+      if (!mounted) return;
+      setState(() {
+        _emergencyContacts = contacts;
+        _lifelineTemplate = template;
+      });
+    } catch (e) {
+      debugPrint('[RecordPage] Errore load lifeline: $e');
+    }
   }
 
   /// Centra la mappa sulla posizione utente all'avvio
@@ -828,6 +858,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           // A registrazione ferma (idle) nasconderlo così l'utente vede la
           // schermata idle pulita e può uscire dalla pagina.
           if (_isGuided && !state.isIdle) _buildGuidedBanner(),
+          if (_lifelineActive && !state.isIdle) _buildLifelineActiveBanner(),
           if (state.isIdle && !_isGuided) _buildIdleOverlay(),
           // Pulsante chiudi: solo in modalità guidata (la pagina è stata
           // aperta via Navigator.push, quindi non c'è un bottom nav che
@@ -891,7 +922,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       content: Text(_photos.isEmpty ? context.l10n.trackDataWillBeLost : context.l10n.trackAndPhotosWillBeLost(_photos.length)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.continueBtn)),
-        TextButton(onPressed: () async { Navigator.pop(context); setState(() => _photos.clear()); await _trackingBloc.cancelRecording(); await _persistence.clearState(); await LiveTrackService().stop(); },
+        TextButton(onPressed: () async { Navigator.pop(context); setState(() => _photos.clear()); await _trackingBloc.cancelRecording(); await _persistence.clearState(); await LiveTrackService().stop(); await _stopLifelineIfActive(askSafeArrival: false); },
           child: Text(context.l10n.cancel, style: const TextStyle(color: AppColors.danger))),
       ],
     ));
@@ -1018,6 +1049,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       await _persistence.clearState();
       await LiveTrackService().stop();
       _photos.clear();
+
+      // Stop Lifeline con eventuale prompt "arrivato in sicurezza"
+      await _stopLifelineIfActive(askSafeArrival: true);
 
       // Post-save: XP, badge, sfide, segmenti cronometrati
       if (mounted) {
@@ -1265,6 +1299,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Toggle Lifeline (visibile solo se contatti configurati)
+        if (_emergencyContacts.isNotEmpty) _buildLifelineToggle(),
         // Selettore tipo attività (tap per aprire bottom sheet)
         GestureDetector(
           onTap: _showActivityPicker,
@@ -1297,7 +1333,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         ),
         // Pulsante INIZIA
         GestureDetector(
-          onTap: () => _trackingBloc.startRecording(activityType: _selectedActivity),
+          onTap: _onStartPressed,
           child: Container(
             width: 110,
             height: 110,
@@ -1329,6 +1365,350 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         ),
       ],
     );
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // LIFELINE
+  // ════════════════════════════════════════════════════════════════════
+
+  Widget _buildLifelineToggle() {
+    return GestureDetector(
+      onTap: () => setState(() => _lifelineToggleOn = !_lifelineToggleOn),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: _lifelineToggleOn
+              ? AppColors.info.withOpacity(0.95)
+              : Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: _lifelineToggleOn
+                ? AppColors.info
+                : AppColors.info.withOpacity(0.5),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 6,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _lifelineToggleOn ? Icons.shield : Icons.shield_outlined,
+              size: 16,
+              color: _lifelineToggleOn ? Colors.white : AppColors.info,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _lifelineToggleOn
+                  ? 'Lifeline attivo · ${_emergencyContacts.length} contatti'
+                  : 'Lifeline',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: _lifelineToggleOn ? Colors.white : AppColors.info,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Handler del tap sul bottone START. Gestisce l'avvio Lifeline
+  /// (se il toggle è attivo) prima di avviare la registrazione.
+  Future<void> _onStartPressed() async {
+    // Se Lifeline richiesto: avvia prima (prepara drafts da inviare)
+    if (_lifelineToggleOn && _emergencyContacts.isNotEmpty) {
+      try {
+        final userName = FirebaseAuth.instance.currentUser?.displayName ??
+            FirebaseAuth.instance.currentUser?.email ??
+            'Utente TrailShare';
+        final drafts = await _lifeline.start(
+          contacts: _emergencyContacts,
+          userName: userName,
+          activityName: _selectedActivity.displayName,
+          referenceName: widget.reference?.name,
+          customTemplate: _lifelineTemplate,
+        );
+        _lifelineActive = drafts.isNotEmpty;
+        if (drafts.isNotEmpty && mounted) {
+          await _showLifelineDraftsDialog(drafts);
+        }
+      } catch (e) {
+        debugPrint('[RecordPage] Errore avvio Lifeline: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Impossibile avviare Lifeline: $e'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+      }
+    }
+    await _trackingBloc.startRecording(activityType: _selectedActivity);
+  }
+
+  /// Mostra un dialog con la lista dei messaggi da inviare ai contatti.
+  /// L'utente tappa "Invia a X" per aprire l'app SMS (o WhatsApp / email)
+  /// pre-compilata. Opzione A concordata: l'utente conferma ogni invio.
+  Future<void> _showLifelineDraftsDialog(
+      List<LifelineMessageDraft> drafts) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: const [
+          Icon(Icons.shield, color: AppColors.info),
+          SizedBox(width: 8),
+          Text('Notifica contatti'),
+        ]),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Invia il link di tracking ai tuoi contatti:',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              ...drafts.map((d) => _buildDraftRow(d)),
+              const SizedBox(height: 8),
+              Text(
+                'Puoi saltare e inviarli più tardi dal banner Lifeline.',
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fatto'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDraftRow(LifelineMessageDraft draft) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: AppColors.info.withOpacity(0.15),
+            child: Text(
+              draft.contact.name.isNotEmpty
+                  ? draft.contact.name[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.info,
+                  fontSize: 13),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(draft.contact.name)),
+          if (draft.contact.phone != null && draft.contact.phone!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.sms, size: 20, color: AppColors.info),
+              tooltip: 'SMS',
+              onPressed: () => _sendDraft(draft, viaSms: true),
+            ),
+          if (draft.contact.phone != null && draft.contact.phone!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.chat, size: 20, color: Colors.green),
+              tooltip: 'WhatsApp',
+              onPressed: () => _sendDraft(draft, viaWhatsApp: true),
+            ),
+          if (draft.contact.email != null && draft.contact.email!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.email_outlined, size: 20),
+              tooltip: 'Email',
+              onPressed: () => _sendDraft(draft, viaEmail: true),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendDraft(
+    LifelineMessageDraft draft, {
+    bool viaSms = false,
+    bool viaWhatsApp = false,
+    bool viaEmail = false,
+  }) async {
+    Uri? uri;
+    if (viaSms && draft.contact.phone != null) {
+      final phone = draft.contact.phone!.replaceAll(' ', '');
+      uri = Uri.parse('sms:$phone?body=${Uri.encodeComponent(draft.text)}');
+    } else if (viaWhatsApp && draft.contact.phone != null) {
+      final phone = draft.contact.phone!
+          .replaceAll(' ', '')
+          .replaceAll('+', '')
+          .replaceAll('-', '');
+      uri = Uri.parse(
+          'https://wa.me/$phone?text=${Uri.encodeComponent(draft.text)}');
+    } else if (viaEmail && draft.contact.email != null) {
+      uri = Uri.parse(
+        'mailto:${draft.contact.email}?subject=${Uri.encodeComponent("🛡️ Lifeline TrailShare")}&body=${Uri.encodeComponent(draft.text)}',
+      );
+    }
+    if (uri == null) return;
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nessuna app disponibile')),
+        );
+      }
+    } catch (e) {
+      debugPrint('[Lifeline] Errore launchUrl: $e');
+    }
+  }
+
+  /// Banner persistente "Lifeline attiva" durante la registrazione.
+  Widget _buildLifelineActiveBanner() {
+    final state = _trackingBloc.state;
+    final topOffset = _isGuided
+        ? MediaQuery.of(context).padding.top +
+            (state.isIdle ? 80 : 310) // sotto guided banner
+        : MediaQuery.of(context).padding.top + 180;
+    return Positioned(
+      top: topOffset,
+      left: 12,
+      right: 12,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(10),
+        color: AppColors.info,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.shield, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Lifeline attiva · ${_emergencyContacts.length} contatti',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 28),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                onPressed: _resendDrafts,
+                child: const Text('Re-invia', style: TextStyle(fontSize: 11)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Rigenera i draft e riapre il dialog per reinviare a contatti.
+  /// I token esistenti restano validi — questo serve solo a mostrare di
+  /// nuovo i pulsanti SMS/WhatsApp senza ripartire la sessione.
+  /// Ferma Lifeline se attivo. Se [askSafeArrival] chiede all'utente se
+  /// vuole mandare un messaggio "sono arrivato/a al sicuro" ai contatti.
+  Future<void> _stopLifelineIfActive({bool askSafeArrival = false}) async {
+    if (!_lifelineActive) return;
+    bool wantSafeArrival = false;
+    if (askSafeArrival && mounted) {
+      wantSafeArrival = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Lifeline terminata'),
+              content: const Text(
+                'Vuoi notificare ai tuoi contatti che sei arrivato/a in sicurezza?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('No, grazie'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Invia conferma'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
+    final userName = FirebaseAuth.instance.currentUser?.displayName ??
+        FirebaseAuth.instance.currentUser?.email ??
+        'Utente TrailShare';
+    final drafts = await _lifeline.stop(
+      contacts: _emergencyContacts,
+      userName: userName,
+      sendSafeArrival: wantSafeArrival,
+    );
+    _lifelineActive = false;
+    if (drafts.isNotEmpty && mounted) {
+      await _showLifelineDraftsDialog(drafts);
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _resendDrafts() async {
+    final sid = _lifeline.state.sessionId;
+    if (sid == null) return;
+    // Ricarichiamo i token esistenti per ricomporre i draft
+    try {
+      final tokensSnap = await FirebaseFirestore.instance
+          .collection('live_sessions')
+          .doc(sid)
+          .collection('access_tokens')
+          .get();
+      final template = _lifelineTemplate ??
+          EmergencyContactsRepository.defaultMessageTemplate;
+      final drafts = <LifelineMessageDraft>[];
+      for (final c in _emergencyContacts) {
+        final tokDoc = tokensSnap.docs.firstWhere(
+          (d) => d.data()['contactId'] == c.id,
+          orElse: () => tokensSnap.docs.first,
+        );
+        final link =
+            'https://trailshare.app/live?id=$sid&token=${tokDoc.id}';
+        drafts.add(LifelineMessageDraft(
+          contact: c,
+          link: link,
+          text: EmergencyContactsRepository.renderTemplate(
+            template: template,
+            contactName: c.name,
+            activityName: _selectedActivity.displayName,
+            referenceName: widget.reference?.name,
+            link: link,
+          ),
+        ));
+      }
+      if (mounted) await _showLifelineDraftsDialog(drafts);
+    } catch (e) {
+      debugPrint('[Lifeline] Errore resend: $e');
+    }
   }
 
   // --- BOTTOM SHEET per selezionare attività ---

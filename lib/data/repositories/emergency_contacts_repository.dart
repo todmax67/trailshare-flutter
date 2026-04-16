@@ -96,4 +96,67 @@ class EmergencyContactsRepository {
     final snap = await _col(uid).limit(1).get();
     return snap.docs.isNotEmpty;
   }
+
+  // ── Template messaggio Lifeline ──────────────────────────────────────
+  //
+  // Il template è salvato come campo `lifelineMessageTemplate` direttamente
+  // sul documento `user_profiles/{uid}`. Se vuoto / null si usa il default.
+  //
+  // Placeholder supportati (case-sensitive):
+  //   {nome}         → nome del contatto destinatario
+  //   {attività}     → nome attività (es. "Trekking", "Mountain Bike")
+  //   {nomeTraccia}  → " lungo {nome}" solo se in modalità guidata, vuoto altrimenti
+  //   {link}         → link live con token del contatto
+
+  /// Testo di default del messaggio iniziale ai contatti.
+  static const String defaultMessageTemplate =
+      '🛡️ Lifeline TrailShare — Ciao {nome}! Sto per iniziare {attività}{nomeTraccia}.\n'
+      'Se vuoi seguire la mia posizione live apri: {link}\n'
+      'In caso di emergenza contattami o chiama le autorità.';
+
+  /// Legge il template salvato (o null se non personalizzato).
+  Future<String?> getMessageTemplate() async {
+    final uid = _uid;
+    if (uid == null) return null;
+    final doc = await _firestore.collection('user_profiles').doc(uid).get();
+    final data = doc.data();
+    final raw = data?['lifelineMessageTemplate'];
+    if (raw is String && raw.trim().isNotEmpty) return raw;
+    return null;
+  }
+
+  /// Sostituisce il template salvato. Passare null / stringa vuota per
+  /// ripristinare il default.
+  Future<void> setMessageTemplate(String? template) async {
+    final uid = _uid;
+    if (uid == null) throw StateError('Utente non autenticato');
+    final trimmed = template?.trim();
+    await _firestore.collection('user_profiles').doc(uid).set(
+      {
+        'lifelineMessageTemplate':
+            (trimmed == null || trimmed.isEmpty) ? FieldValue.delete() : trimmed,
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  /// Rende il template sostituendo i placeholder.
+  /// Usato dal [LifelineService] al momento dell'invio.
+  static String renderTemplate({
+    required String template,
+    required String contactName,
+    required String activityName,
+    String? referenceName,
+    required String link,
+  }) {
+    final traccia = (referenceName == null || referenceName.trim().isEmpty)
+        ? ''
+        : ' lungo "$referenceName"';
+    return template
+        .replaceAll('{nome}', contactName)
+        .replaceAll('{attività}', activityName)
+        .replaceAll('{attivita}', activityName) // tolleranza senza accento
+        .replaceAll('{nomeTraccia}', traccia)
+        .replaceAll('{link}', link);
+  }
 }

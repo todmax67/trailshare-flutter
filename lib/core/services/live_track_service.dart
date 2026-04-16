@@ -36,16 +36,23 @@ class LiveTrackService {
 
   /// Avvia LiveTrack e condividi il link
   Future<bool> startAndShare({required String userName}) async {
+    final ok = await startSilent(userName: userName);
+    if (ok) await _shareSession();
+    return ok;
+  }
+
+  /// Avvia LiveTrack **senza** aprire il dialog di condivisione nativo.
+  /// Usato da Lifeline: la condivisione viene gestita per-contatto con
+  /// messaggi personalizzati (pre-compilati via url_launcher).
+  Future<bool> startSilent({required String userName}) async {
     if (_isActive) {
       debugPrint('[LiveTrack] Già attivo');
       return true;
     }
 
     try {
-      // Ottieni livello batteria
       final batteryLevel = await _getBatteryLevel();
 
-      // Crea sessione su Firestore
       final session = await _repository.createSession(
         userName: userName,
         batteryLevel: batteryLevel,
@@ -61,14 +68,10 @@ class LiveTrackService {
       _lastUpdate = DateTime.now();
 
       _emitState();
-      debugPrint('[LiveTrack] Sessione creata: $_sessionId');
-
-      // Apri dialog condivisione
-      await _shareSession();
-
+      debugPrint('[LiveTrack] Sessione silent creata: $_sessionId');
       return true;
     } catch (e) {
-      debugPrint('[LiveTrack] Errore start: $e');
+      debugPrint('[LiveTrack] Errore startSilent: $e');
       return false;
     }
   }
