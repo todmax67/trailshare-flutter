@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../data/models/track.dart';
 import '../../core/services/location_service.dart';
 import '../../core/services/live_track_service.dart';
+import '../../core/services/lifeline_service.dart';
 import '../../core/services/gamification_service.dart';
 import '../widgets/level_up_dialog.dart';
 import '../../core/utils/elevation_processor.dart';
@@ -362,6 +363,9 @@ class TrackingBloc extends ChangeNotifier {
       final newStats = _calculateStats(newPoints, point);
 
     LiveTrackService().updatePosition(point.latitude, point.longitude);
+    // Lifeline (safety feature): aggiorna detection movimento/inattività.
+    // No-op se Lifeline non è attiva.
+    LifelineService().onPosition(point.latitude, point.longitude);
 
     _state = _state.copyWith(
       points: newPoints,

@@ -115,6 +115,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   /// Analogo per la card unificata guida+lifeline.
   bool _overlayExpanded = false;
 
+  StreamSubscription<LifelineState>? _lifelineSub;
+  bool _inactivityDialogShown = false;
+
   @override
   void initState() {
     super.initState();
@@ -133,6 +136,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _initUserPosition();
     _loadQuickStats();
     _loadLifelineConfig();
+    _subscribeLifelineEvents();
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted && !_isGuided) AppTips.showFirstTrackTip(context);
     });
@@ -168,6 +172,21 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _trackingBloc.startRecording(activityType: _selectedActivity);
+    });
+  }
+
+  /// Subscribe a `LifelineService.stateStream` per mostrare il dialog
+  /// di inattività quando il servizio lo richiede.
+  void _subscribeLifelineEvents() {
+    _lifelineSub?.cancel();
+    _lifelineSub = _lifeline.stateStream.listen((s) {
+      if (!mounted) return;
+      if (s.needsInactivityConfirmation && !_inactivityDialogShown) {
+        _inactivityDialogShown = true;
+        _showInactivityConfirmationDialog();
+      } else if (!s.needsInactivityConfirmation) {
+        _inactivityDialogShown = false;
+      }
     });
   }
 
@@ -578,6 +597,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _trackingBloc.removeListener(_onTrackingUpdate);
     _batterySubscription?.cancel();
+    _lifelineSub?.cancel();
     _voice?.dispose();
     _trackingBloc.dispose();
     super.dispose();
@@ -1865,6 +1885,67 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   /// Rigenera i draft e riapre il dialog per reinviare a contatti.
   /// I token esistenti restano validi — questo serve solo a mostrare di
   /// nuovo i pulsanti SMS/WhatsApp senza ripartire la sessione.
+  /// Dialog di conferma 2-step quando Lifeline rileva inattività >30 min.
+  /// L'utente ha 3 opzioni + un countdown di 5 min: se non risponde, parte
+  /// l'alert automatico ai contatti.
+  Future<void> _showInactivityConfirmationDialog() async {
+    if (!mounted) return;
+    final result = await showDialog<_InactivityResponse>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _InactivityDialog(
+        responseWindow: LifelineService.responseWindow,
+      ),
+    );
+
+    _inactivityDialogShown = false;
+
+    if (!mounted) return;
+    switch (result) {
+      case _InactivityResponse.ok:
+      case null:
+      // Null = dismiss imprevisto → trattiamo come OK per sicurezza
+      // (l'utente non ha tappato SOS, ipotizziamo stia bene).
+        _lifeline.dismissInactivityAlert();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Check superato, registrazione continua'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        break;
+      case _InactivityResponse.stopAndSave:
+        _lifeline.dismissInactivityAlert();
+        _showSaveDialog();
+        break;
+      case _InactivityResponse.sendAlert:
+        await _sendInactivityAlert();
+        break;
+      case _InactivityResponse.timeout:
+        await _sendInactivityAlert();
+        break;
+    }
+  }
+
+  /// Costruisce e mostra i draft di alert inattività ai contatti.
+  Future<void> _sendInactivityAlert() async {
+    final drafts = await _lifeline.prepareInactivityDrafts();
+    if (!mounted) return;
+    if (drafts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Errore preparazione messaggi alert'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+    // Reset lo stato Lifeline (l'utente ora DEVE inviare i drafts, poi
+    // può decidere se continuare o stoppare).
+    _lifeline.dismissInactivityAlert();
+    await _showLifelineDraftsDialog(drafts);
+  }
+
   /// Ferma Lifeline se attivo. Se [askSafeArrival] chiede all'utente se
   /// vuole mandare un messaggio "sono arrivato/a al sicuro" ai contatti.
   Future<void> _stopLifelineIfActive({bool askSafeArrival = false}) async {
@@ -2227,6 +2308,178 @@ class _ActivityPickerSheet extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Risultato del dialog di conferma inattività Lifeline.
+enum _InactivityResponse {
+  /// "Sono OK, continuo la registrazione"
+  ok,
+  /// "Sono OK, ferma e salva"
+  stopAndSave,
+  /// "Manda SOS adesso"
+  sendAlert,
+  /// Countdown scaduto senza risposta → auto-alert
+  timeout,
+}
+
+/// Dialog bloccante con countdown visivo che chiede all'utente di
+/// confermare lo stato dopo inattività prolungata. Progettato per essere
+/// molto visibile (titolo grande, pulsanti grandi, suono/vibrazione se
+/// possibile) così se il telefono è in tasca si fa sentire.
+class _InactivityDialog extends StatefulWidget {
+  final Duration responseWindow;
+  const _InactivityDialog({required this.responseWindow});
+
+  @override
+  State<_InactivityDialog> createState() => _InactivityDialogState();
+}
+
+class _InactivityDialogState extends State<_InactivityDialog> {
+  late Duration _remaining;
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = widget.responseWindow;
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _remaining -= const Duration(seconds: 1);
+        if (_remaining <= Duration.zero) {
+          _ticker?.cancel();
+          Navigator.of(context).pop(_InactivityResponse.timeout);
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  String _formatCountdown() {
+    final m = _remaining.inMinutes;
+    final s = _remaining.inSeconds.remainder(60);
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = _remaining.inMilliseconds /
+        widget.responseWindow.inMilliseconds;
+
+    return AlertDialog(
+      backgroundColor: AppColors.warning,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: const [
+          Icon(Icons.notifications_active, color: Colors.white, size: 28),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Tutto bene?',
+              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Sei fermo da più di 30 minuti.\nConferma che va tutto bene.',
+            style: TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
+          ),
+          const SizedBox(height: 14),
+          // Countdown + progress bar
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'Allarme automatico tra ${_formatCountdown()}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: pct.clamp(0.0, 1.0),
+                    minHeight: 6,
+                    backgroundColor: Colors.white.withOpacity(0.3),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.pop(context, _InactivityResponse.ok),
+                icon: const Icon(Icons.check),
+                label: const Text('Sono OK, continuo'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    Navigator.pop(context, _InactivityResponse.stopAndSave),
+                icon: const Icon(Icons.stop, color: Colors.white),
+                label: const Text('Sono OK, termina e salva',
+                    style: TextStyle(color: Colors.white)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () =>
+                    Navigator.pop(context, _InactivityResponse.sendAlert),
+                icon: const Icon(Icons.warning_amber),
+                label: const Text('MANDA SOS ADESSO'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

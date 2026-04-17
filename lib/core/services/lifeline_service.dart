@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
 import '../../data/models/emergency_contact.dart';
 import '../../data/repositories/emergency_contacts_repository.dart';
 import 'live_track_service.dart';
@@ -34,11 +35,41 @@ class LifelineState {
   final bool isActive;
   final int contactsCount;
   final String? sessionId;
+
+  /// True quando è stata rilevata inattività >= [inactivityThreshold]
+  /// e il servizio sta chiedendo conferma locale all'utente prima di
+  /// notificare i contatti. La UI deve mostrare il dialog "Tutto bene?".
+  final bool needsInactivityConfirmation;
+
+  /// Timestamp di quando è stata rilevata l'inattività. La UI usa questo
+  /// per calcolare il countdown visivo prima dell'auto-alert.
+  final DateTime? inactivityDetectedAt;
+
   const LifelineState({
     required this.isActive,
     required this.contactsCount,
     this.sessionId,
+    this.needsInactivityConfirmation = false,
+    this.inactivityDetectedAt,
   });
+
+  LifelineState copyWith({
+    bool? isActive,
+    int? contactsCount,
+    String? sessionId,
+    bool? needsInactivityConfirmation,
+    DateTime? inactivityDetectedAt,
+  }) {
+    return LifelineState(
+      isActive: isActive ?? this.isActive,
+      contactsCount: contactsCount ?? this.contactsCount,
+      sessionId: sessionId ?? this.sessionId,
+      needsInactivityConfirmation:
+          needsInactivityConfirmation ?? this.needsInactivityConfirmation,
+      inactivityDetectedAt:
+          inactivityDetectedAt ?? this.inactivityDetectedAt,
+    );
+  }
 
   static const LifelineState off =
       LifelineState(isActive: false, contactsCount: 0);
@@ -68,6 +99,34 @@ class LifelineService {
 
   LifelineState _state = LifelineState.off;
   LifelineState get state => _state;
+
+  // ── Detection inattività ─────────────────────────────────────────────
+  /// Soglia di inattività: se l'utente non si muove > [_movementThreshold]
+  /// per questo lasso di tempo, viene richiesto un check locale.
+  /// 30 minuti è lo standard per escursionismo (copre soste legittime per
+  /// pranzo / pausa foto senza falsi positivi).
+  static const Duration inactivityThreshold = Duration(minutes: 30);
+
+  /// Distanza sotto la quale consideriamo l'utente "fermo".
+  /// 20 m filtra il rumore GPS tipico mentre si pianzia fermi.
+  static const double _movementThreshold = 20.0;
+
+  /// Finestra di risposta locale prima di notificare i contatti.
+  static const Duration responseWindow = Duration(minutes: 5);
+
+  // Elenco di ultime posizioni utente (usate dall'inactivity check).
+  LatLng? _lastSignificantPosition;
+  DateTime? _lastMovementTime;
+  Timer? _inactivityCheckTimer;
+  Timer? _autoAlertTimer;
+
+  /// Contatti e parametri memorizzati al start, usati per generare gli
+  /// alert di inattività/SOS senza dover ri-raccogliere dati.
+  List<EmergencyContact> _contacts = const [];
+  String _userName = '';
+  String _activityName = '';
+  String? _referenceName;
+  String? _customTemplate;
 
   /// Avvia Lifeline.
   ///
@@ -144,6 +203,18 @@ class LifelineService {
       drafts.add(LifelineMessageDraft(contact: c, text: text, link: link));
     }
 
+    // Memorizza parametri per poter generare alert successivi.
+    _contacts = contacts;
+    _userName = userName;
+    _activityName = activityName;
+    _referenceName = referenceName;
+    _customTemplate = customTemplate;
+
+    // Reset detection inattività.
+    _lastSignificantPosition = null;
+    _lastMovementTime = DateTime.now();
+    _startInactivityWatcher();
+
     _state = LifelineState(
       isActive: true,
       contactsCount: contacts.length,
@@ -152,6 +223,161 @@ class LifelineService {
     _stateCtrl.add(_state);
     debugPrint('[Lifeline] avviata: sessionId=$sessionId contacts=${contacts.length}');
 
+    return drafts;
+  }
+
+  /// Chiamato dal TrackingBloc ad ogni nuovo punto GPS durante la
+  /// registrazione. Aggiorna `_lastMovementTime` solo se lo spostamento
+  /// supera la soglia di rumore ([_movementThreshold]).
+  ///
+  /// Questa è la sola fonte di verità per capire se l'utente si è
+  /// davvero mosso (il timer della batteria/GPS può ricevere punti anche
+  /// da utente fermo, qui li filtriamo).
+  void onPosition(double lat, double lng) {
+    if (!_state.isActive) return;
+    final p = LatLng(lat, lng);
+    final last = _lastSignificantPosition;
+    if (last == null) {
+      _lastSignificantPosition = p;
+      _lastMovementTime = DateTime.now();
+      return;
+    }
+    final dist = const Distance().as(LengthUnit.Meter, last, p);
+    if (dist >= _movementThreshold) {
+      _lastSignificantPosition = p;
+      _lastMovementTime = DateTime.now();
+      // Se stavamo mostrando l'alert di inattività e l'utente si è
+      // rimesso in moto, dismissiamo automaticamente.
+      if (_state.needsInactivityConfirmation) {
+        debugPrint('[Lifeline] Movimento rilevato → auto-dismiss inactivity');
+        dismissInactivityAlert();
+      }
+    }
+  }
+
+  /// Avvia il check periodico (ogni 30s) che confronta tempo trascorso
+  /// dall'ultimo movimento con la soglia [inactivityThreshold].
+  void _startInactivityWatcher() {
+    _inactivityCheckTimer?.cancel();
+    _inactivityCheckTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _checkInactivity();
+    });
+  }
+
+  void _checkInactivity() {
+    if (!_state.isActive) return;
+    if (_state.needsInactivityConfirmation) return; // già in attesa risposta
+    final last = _lastMovementTime;
+    if (last == null) return;
+    final elapsed = DateTime.now().difference(last);
+    if (elapsed >= inactivityThreshold) {
+      debugPrint('[Lifeline] Inattività rilevata: ${elapsed.inMinutes} min');
+      _state = _state.copyWith(
+        needsInactivityConfirmation: true,
+        inactivityDetectedAt: DateTime.now(),
+      );
+      _stateCtrl.add(_state);
+
+      // Avvia timer per auto-fire alert se l'utente non risponde entro
+      // la response window. Se l'utente tappa un bottone sul dialog
+      // dismissInactivityAlert() cancella questo timer.
+      _autoAlertTimer?.cancel();
+      _autoAlertTimer = Timer(responseWindow, _triggerAutoAlert);
+    }
+  }
+
+  /// L'utente ha risposto al check e tutto va bene: reset detection e
+  /// cancella il timer di auto-alert.
+  void dismissInactivityAlert() {
+    _autoAlertTimer?.cancel();
+    _autoAlertTimer = null;
+    _lastMovementTime = DateTime.now(); // reset finestra
+    if (_state.needsInactivityConfirmation) {
+      _state = _state.copyWith(
+        needsInactivityConfirmation: false,
+        inactivityDetectedAt: null,
+      );
+      _stateCtrl.add(_state);
+    }
+  }
+
+  /// L'utente non ha risposto al check entro [responseWindow]: prepara
+  /// e ritorna i draft "⚠️ Inattività" per i contatti. La UI dovrà
+  /// aprire il dialog invii per farli partire.
+  ///
+  /// Se la UI non è in primo piano (app in background) la detection
+  /// del non-risposta avviene comunque (Timer), ma l'invio effettivo
+  /// dei draft richiede interazione utente (Opzione A). In v1.8 questo
+  /// sarà sostituito da push automatiche a contatti TrailShare + SMS
+  /// via Cloud Function.
+  void _triggerAutoAlert() {
+    if (!_state.needsInactivityConfirmation) return; // utente ha risposto
+    debugPrint('[Lifeline] No response → auto-alert contatti');
+    // Lo stato resta needsInactivityConfirmation=true ma viene emesso
+    // un evento specifico per distinguere "in attesa risposta" da
+    // "timer scaduto → inviare ORA". La UI gestisce la distinzione
+    // internamente (countdown arriva a 0 → mostra draft dialog).
+    // Qui ci limitiamo a NON cambiare stato: la UI quando il suo
+    // countdown arriva a 0 chiama prepareInactivityDrafts().
+  }
+
+  /// Costruisce i messaggi di alert "⚠️ Inattività" per tutti i contatti.
+  /// Riusa i token esistenti della sessione LiveTrack. Chiamato dalla
+  /// UI quando il countdown 5 min arriva a 0 senza risposta, oppure
+  /// manualmente dall'utente via pulsante SOS (vedi [triggerManualSos]).
+  Future<List<LifelineMessageDraft>> prepareInactivityDrafts() async {
+    final sid = _state.sessionId;
+    if (sid == null) return [];
+    return _prepareAlertDrafts(
+      sid: sid,
+      prefix: '⚠️ ATTENZIONE — TrailShare',
+      body:
+          '$_userName è fermo da ${inactivityThreshold.inMinutes} minuti durante $_activityName e non ha risposto al check. Posizione live:',
+    );
+  }
+
+  /// Costruisce i messaggi di SOS manuale.
+  Future<List<LifelineMessageDraft>> prepareSosDrafts() async {
+    final sid = _state.sessionId;
+    if (sid == null) return [];
+    return _prepareAlertDrafts(
+      sid: sid,
+      prefix: '🆘 SOS — TrailShare',
+      body:
+          '$_userName ha attivato un SOS durante $_activityName e ha bisogno di aiuto. Posizione live:',
+    );
+  }
+
+  Future<List<LifelineMessageDraft>> _prepareAlertDrafts({
+    required String sid,
+    required String prefix,
+    required String body,
+  }) async {
+    final drafts = <LifelineMessageDraft>[];
+    try {
+      final tokensSnap = await _firestore
+          .collection('live_sessions')
+          .doc(sid)
+          .collection('access_tokens')
+          .get();
+      for (final c in _contacts) {
+        final tokenDoc = tokensSnap.docs.firstWhere(
+          (d) => d.data()['contactId'] == c.id,
+          orElse: () => tokensSnap.docs.isNotEmpty
+              ? tokensSnap.docs.first
+              : throw StateError('no tokens'),
+        );
+        final link =
+            'https://trailshare.app/live?id=$sid&token=${tokenDoc.id}';
+        drafts.add(LifelineMessageDraft(
+          contact: c,
+          link: link,
+          text: '$prefix\n\n$body $link\n\nContattalo o chiama il 112.',
+        ));
+      }
+    } catch (e) {
+      debugPrint('[Lifeline] Errore _prepareAlertDrafts: $e');
+    }
     return drafts;
   }
 
@@ -200,6 +426,14 @@ class LifelineService {
         debugPrint('[Lifeline] errore preparazione safe-arrival: $e');
       }
     }
+
+    // Ferma timer inattività
+    _inactivityCheckTimer?.cancel();
+    _inactivityCheckTimer = null;
+    _autoAlertTimer?.cancel();
+    _autoAlertTimer = null;
+    _lastSignificantPosition = null;
+    _lastMovementTime = null;
 
     // Ferma LiveTrack (chiude la sessione su Firestore)
     await _liveTrack.stop();
