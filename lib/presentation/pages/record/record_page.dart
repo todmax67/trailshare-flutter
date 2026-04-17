@@ -22,6 +22,7 @@ import '../../widgets/photo_gallery_widget.dart';
 import '../../../core/services/recording_persistence_service.dart';
 import '../../../core/services/live_track_service.dart';
 import 'package:battery_plus/battery_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../../../core/services/health_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
@@ -2092,11 +2093,38 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     );
   }
 
+  static const String _lifelineDisclaimerKey = 'lifeline_disclaimer_accepted_v1';
+
+  /// Mostra il disclaimer Lifeline al primo utilizzo. Ritorna true se
+  /// l'utente accetta, false se rifiuta. Dopo l'accettazione il flag è
+  /// memorizzato in SharedPreferences e il disclaimer non viene più
+  /// ripetuto (incrementare la versione del key per forzare riaccettazione
+  /// quando cambieranno i termini).
+  Future<bool> _ensureLifelineDisclaimerAccepted() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_lifelineDisclaimerKey) == true) return true;
+    if (!mounted) return false;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const _LifelineDisclaimerDialog(),
+    );
+
+    if (accepted == true) {
+      await prefs.setBool(_lifelineDisclaimerKey, true);
+      return true;
+    }
+    return false;
+  }
+
   /// Handler del tap sul bottone START. Gestisce l'avvio Lifeline
   /// (se il toggle è attivo) prima di avviare la registrazione.
   Future<void> _onStartPressed() async {
-    // Se Lifeline richiesto: avvia prima (prepara drafts da inviare)
+    // Se Lifeline richiesto: disclaimer al primo utilizzo + avvio
     if (_lifelineToggleOn && _emergencyContacts.isNotEmpty) {
+      final accepted = await _ensureLifelineDisclaimerAccepted();
+      if (!accepted) return; // utente ha rifiutato: non parte nulla
       try {
         final userName = FirebaseAuth.instance.currentUser?.displayName ??
             FirebaseAuth.instance.currentUser?.email ??
@@ -2755,6 +2783,137 @@ class _ActivityPickerSheet extends StatelessWidget {
 
 /// Scelta fatta nel dialog SOS attivato.
 enum _SosChoice { sendAlert, call112, cancel }
+
+/// Disclaimer legale + UX al primo utilizzo di Lifeline.
+///
+/// Obiettivo: spiegare chiaramente all'utente COSA FA e cosa NON FA
+/// Lifeline per evitare aspettative irrealistiche (e relativi rischi
+/// legali per l'autore dell'app). L'utente deve barrare la checkbox
+/// "Ho capito" per abilitare il pulsante "Continua".
+class _LifelineDisclaimerDialog extends StatefulWidget {
+  const _LifelineDisclaimerDialog();
+
+  @override
+  State<_LifelineDisclaimerDialog> createState() =>
+      _LifelineDisclaimerDialogState();
+}
+
+class _LifelineDisclaimerDialogState
+    extends State<_LifelineDisclaimerDialog> {
+  bool _ack = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: const [
+          Icon(Icons.shield_outlined, color: AppColors.info, size: 24),
+          SizedBox(width: 8),
+          Expanded(child: Text('Come funziona Lifeline')),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Lifeline è uno strumento di sicurezza aggiuntivo, non un servizio di soccorso ufficiale.',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            _bulletRow('✓', 'Invia un link di posizione live ai tuoi contatti di fiducia'),
+            _bulletRow('✓', 'Rileva inattività prolungata e ti chiede una conferma'),
+            _bulletRow('✓', 'Permette di inviare SOS manuale ai contatti + chiamata 112'),
+            const SizedBox(height: 12),
+            const Text(
+              'IMPORTANTE — Lifeline NON:',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: AppColors.danger,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _bulletRow('✗', 'contatta direttamente il Soccorso Alpino o altri servizi di emergenza'),
+            _bulletRow('✗', 'funziona senza copertura di rete cellulare o dati'),
+            _bulletRow('✗', 'garantisce la consegna dei messaggi se il telefono è spento, scarico o non raggiungibile'),
+            _bulletRow('✗', 'sostituisce dispositivi satellitari di emergenza (es. Garmin inReach, SPOT)'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+              ),
+              child: const Text(
+                'In aree remote, in alta montagna o in condizioni estreme, '
+                'porta sempre con te un dispositivo satellitare di emergenza '
+                'e comunica il percorso al Soccorso Alpino tramite GeoResQ '
+                '(app ufficiale CNSAS).',
+                style: TextStyle(fontSize: 12, height: 1.4),
+              ),
+            ),
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              value: _ack,
+              onChanged: (v) => setState(() => _ack = v ?? false),
+              title: const Text(
+                'Ho capito i limiti di Lifeline',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Annulla'),
+        ),
+        ElevatedButton(
+          onPressed: _ack ? () => Navigator.pop(context, true) : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.info,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Ho capito, continua'),
+        ),
+      ],
+    );
+  }
+
+  Widget _bulletRow(String bullet, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            bullet,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: bullet == '✓' ? AppColors.success : AppColors.danger,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 12, height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Pulsante SOS con long-press 1.5s.
 ///
