@@ -22,14 +22,23 @@ class LocationService {
   /// Stato tracking
   bool get isTracking => _isTracking;
   
+  /// Flag battery saver. Quando true il tracking usa frequenze/precisione
+  /// ridotte per risparmiare batteria (utile per escursioni lunghe o con
+  /// batteria bassa). Può essere attivato/disattivato anche durante la
+  /// registrazione: il service si riavvia con le nuove settings.
+  bool _batterySaverMode = false;
+  bool get isBatterySaverMode => _batterySaverMode;
+
   /// Configurazione location settings per tracking preciso
   /// iOS richiede AppleSettings con allowBackgroundLocationUpdates
   /// per continuare il tracking con schermo bloccato
   LocationSettings get _trackingSettings {
     if (Platform.isIOS) {
       return AppleSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 5,
+        accuracy: _batterySaverMode
+            ? LocationAccuracy.medium
+            : LocationAccuracy.bestForNavigation,
+        distanceFilter: _batterySaverMode ? 15 : 5,
         activityType: ActivityType.fitness, // Geolocator ActivityType
         allowBackgroundLocationUpdates: true,
         showBackgroundLocationIndicator: true,
@@ -37,15 +46,44 @@ class LocationService {
       );
     } else {
       return AndroidSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 5,
+        accuracy: _batterySaverMode
+            ? LocationAccuracy.medium
+            : LocationAccuracy.bestForNavigation,
+        distanceFilter: _batterySaverMode ? 15 : 5,
         forceLocationManager: false,
-        intervalDuration: const Duration(seconds: 2),
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
+        intervalDuration: Duration(seconds: _batterySaverMode ? 10 : 2),
+        foregroundNotificationConfig: ForegroundNotificationConfig(
           notificationTitle: 'TrailShare',
-          notificationText: 'Registrazione GPS attiva',
+          notificationText: _batterySaverMode
+              ? 'Registrazione GPS attiva (battery saver)'
+              : 'Registrazione GPS attiva',
           enableWakeLock: true,
         ),
+      );
+    }
+  }
+
+  /// Attiva/disattiva la modalità battery saver. Se il tracking è già
+  /// in corso, lo riavvia con i nuovi settings (piccolo gap di qualche
+  /// secondo durante il riavvio, ma niente perdita di dati già raccolti).
+  Future<void> setBatterySaverMode(bool enabled) async {
+    if (_batterySaverMode == enabled) return;
+    debugPrint('[LocationService] Battery saver: $enabled');
+    _batterySaverMode = enabled;
+    // Riavvia tracking se già attivo
+    if (_isTracking) {
+      await _positionSubscription?.cancel();
+      _positionSubscription = null;
+      _positionSubscription = Geolocator.getPositionStream(
+        locationSettings: _trackingSettings,
+      ).listen(
+        (Position position) {
+          final trackPoint = _positionToTrackPoint(position);
+          _positionController.add(trackPoint);
+        },
+        onError: (e) {
+          debugPrint('[LocationService] Errore stream (saver): $e');
+        },
       );
     }
   }

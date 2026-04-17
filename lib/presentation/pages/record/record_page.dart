@@ -79,6 +79,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   final Battery _battery = Battery();
   StreamSubscription<BatteryState>? _batterySubscription;
   bool _lowBatteryWarningShown = false;
+  bool _batterySaverSuggestionShown = false;
+  bool _batterySaverOn = false;
   LatLng? _userPosition;
 
   // Quick stats per schermata idle
@@ -559,6 +561,27 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       final level = await _battery.batteryLevel;
       debugPrint('[RecordPage] Batteria: $level%');
       
+      // Suggerimento battery saver a 30% (se non già attivo)
+      if (level <= 30 && !_batterySaverOn && !_batterySaverSuggestionShown) {
+        _batterySaverSuggestionShown = true;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Batteria al 30%. Attivare il risparmio energetico?',
+              ),
+              backgroundColor: AppColors.warning,
+              duration: const Duration(seconds: 8),
+              action: SnackBarAction(
+                label: 'Attiva',
+                textColor: Colors.white,
+                onPressed: () => _toggleBatterySaver(true),
+              ),
+            ),
+          );
+        }
+      }
+
       // Warning a 15%
       if (level <= 15 && !_lowBatteryWarningShown) {
         _lowBatteryWarningShown = true;
@@ -1047,6 +1070,73 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     return labels[idx];
   }
 
+  /// Attiva/disattiva la modalità battery saver durante la registrazione.
+  /// Riduce frequenza GPS (10s vs 2s) e precisione (medium vs best), con
+  /// un risparmio batteria stimato del 30-40%. Il tracking non si ferma,
+  /// il service si riavvia con le nuove settings (piccolo gap).
+  Future<void> _toggleBatterySaver([bool? force]) async {
+    final next = force ?? !_batterySaverOn;
+    await LocationService().setBatterySaverMode(next);
+    if (!mounted) return;
+    setState(() => _batterySaverOn = next);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(next
+            ? 'Risparmio energetico attivato'
+            : 'Risparmio energetico disattivato'),
+        backgroundColor: next ? AppColors.success : AppColors.textMuted,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// Chip battery saver: posizionato in basso-sinistra durante recording.
+  Widget _buildBatterySaverButton() {
+    return Positioned(
+      left: 12,
+      bottom: 180, // sopra controls panel
+      child: Material(
+        elevation: 3,
+        borderRadius: BorderRadius.circular(20),
+        color: _batterySaverOn
+            ? AppColors.success
+            : Colors.white.withOpacity(0.95),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _toggleBatterySaver(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _batterySaverOn
+                      ? Icons.battery_saver
+                      : Icons.battery_std_outlined,
+                  size: 16,
+                  color: _batterySaverOn
+                      ? Colors.white
+                      : AppColors.textPrimary,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  _batterySaverOn ? 'Risparmio' : 'Eco',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _batterySaverOn
+                        ? Colors.white
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Pulsante SOS sempre accessibile durante la registrazione.
   ///
   /// UX pensata per emergenza: grande, rosso, in alto a destra (dove
@@ -1054,10 +1144,22 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   /// attivarlo (evita tap accidentali con l'indice mentre cammina/
   /// corre). Tap breve mostra un hint.
   Widget _buildSosButton() {
-    // Posizione: sotto lo stats header, lato destro (opposto al pulsante
-    // close X in modalità guidata).
-    final topOffset = MediaQuery.of(context).padding.top +
-        (_statsExpanded ? 165.0 : 60.0);
+    // Posizione dinamica: sempre sotto tutti i banner visibili per evitare
+    // sovrapposizioni (stats header + banner guida + banner lifeline).
+    double topOffset = MediaQuery.of(context).padding.top;
+    // Stats header
+    topOffset += _statsExpanded ? 165.0 : 60.0;
+    // Banner guida (in modalità guidata)
+    if (_isGuided) {
+      final guidedExpanded = _overlayExpanded || _refOffTrail;
+      final lifelineExtra = _lifelineActive ? 28.0 : 0.0; // chip inline
+      topOffset += (guidedExpanded ? 150.0 : 55.0) + lifelineExtra + 8;
+    } else if (_lifelineActive) {
+      // Banner lifeline standalone (~38px)
+      topOffset += 38.0 + 8;
+    } else {
+      topOffset += 8;
+    }
     return Positioned(
       top: topOffset,
       right: 8,
@@ -1285,6 +1387,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           // SOS button: sempre visibile durante registrazione.
           // Long-press 1.5s per attivarlo (evita tap accidentali).
           if (!state.isIdle) _buildSosButton(),
+          // Battery saver toggle: sempre visibile durante registrazione.
+          if (!state.isIdle) _buildBatterySaverButton(),
           _buildControls(state),
           if (state.errorMessage != null)
             Positioned(top: MediaQuery.of(context).padding.top + 100, left: 16, right: 16, child: _buildErrorBanner(_localizeError(state.errorMessage!))),
