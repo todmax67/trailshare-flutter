@@ -83,6 +83,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         setState(() => _isLoadingLocation = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.'),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
         return;
       }
 
@@ -90,6 +98,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
       final hasPermission = await LocationService().checkAndRequestPermission(context: context);
       if (!hasPermission) {
         setState(() => _isLoadingLocation = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.'),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
         return;
       }
 
@@ -120,6 +136,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
     } catch (e) {
       debugPrint('[DiscoverPage] Errore geolocalizzazione: $e');
       setState(() => _isLoadingLocation = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impossibile ottenere la posizione (timeout GPS). Riprova all\'aperto.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       // Carica comunque i sentieri per il viewport di default
       _loadTrailsForViewport();
     }
@@ -994,14 +1018,30 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 onChanged: (i) => setState(() => _currentMapStyle = i),
               ),
               const SizedBox(height: 8),
-              // Pulsante centra su utente
-              if (_userPosition != null)
-                FloatingActionButton.small(
-                  heroTag: 'center_user_trails',
-                  onPressed: _centerOnUser,
-                  backgroundColor: Colors.white,
-                  child: const Icon(Icons.my_location, color: AppColors.primary),
-                ),
+              // Pulsante centra su utente. Sempre visibile: se non abbiamo
+              // ancora una posizione (permessi non concessi, fix GPS fallito,
+              // timeout su iOS cold-start), al tap ritenta `_initializeLocation`
+              // che richiede i permessi e prova a prendere la posizione.
+              FloatingActionButton.small(
+                heroTag: 'center_user_trails',
+                onPressed: _isLoadingLocation ? null : _centerOnUser,
+                backgroundColor: Colors.white,
+                child: _isLoadingLocation
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    : Icon(
+                        _userPosition != null
+                            ? Icons.my_location
+                            : Icons.location_searching,
+                        color: AppColors.primary,
+                      ),
+              ),
             ],
           ),
         ),
