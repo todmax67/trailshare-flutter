@@ -213,7 +213,7 @@ class _WeatherForecastCardState extends State<WeatherForecastCard> {
 
     return Container(
       width: 72,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
       decoration: BoxDecoration(
         color: isToday ? AppColors.info.withValues(alpha: 0.08) : null,
         borderRadius: BorderRadius.circular(8),
@@ -221,34 +221,44 @@ class _WeatherForecastCardState extends State<WeatherForecastCard> {
           color: isToday ? AppColors.info.withValues(alpha: 0.3) : Colors.grey.shade200,
         ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: isToday ? AppColors.info : AppColors.textSecondary,
-            ),
-          ),
-          Text(
-            '${day.date.day} ${months[day.date.month - 1]}',
-            style: const TextStyle(fontSize: 9, color: AppColors.textMuted),
-          ),
-          Icon(day.icon, size: 22, color: AppColors.info),
-          Text(
-            '${day.tempMax.round()}° / ${day.tempMin.round()}°',
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-          ),
-          if (day.precipitationMm > 0)
+      // FittedBox garantisce che i contenuti non straccino mai il bounding
+      // box anche con accessibility font più grandi (causava RenderFlex
+      // overflow su alcuni device). In condizioni normali la scala è 1.0.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Text(
-              '${day.precipitationMm.toStringAsFixed(1)} mm',
-              style: const TextStyle(fontSize: 9, color: AppColors.info),
-            )
-          else
-            const SizedBox(height: 11),
-        ],
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isToday ? AppColors.info : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${day.date.day} ${months[day.date.month - 1]}',
+              style: const TextStyle(fontSize: 9, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 4),
+            Icon(day.icon, size: 22, color: AppColors.info),
+            const SizedBox(height: 4),
+            Text(
+              '${day.tempMax.round()}° / ${day.tempMin.round()}°',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+            ),
+            if (day.precipitationMm > 0) ...[
+              const SizedBox(height: 2),
+              Text(
+                '${day.precipitationMm.toStringAsFixed(1)} mm',
+                style: const TextStyle(fontSize: 9, color: AppColors.info),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

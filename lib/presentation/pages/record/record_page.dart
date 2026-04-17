@@ -1410,27 +1410,40 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           // Stats settimanali
           if (hasWeeklyData)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: colorScheme.surface.withOpacity(0.95),
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 16, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    context.l10n.thisWeek,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: colorScheme.onSurfaceVariant),
-                  ),
-                  const Spacer(),
-                  _buildMiniStat('📏', '${_weeklyDistanceKm.toStringAsFixed(1)} km'),
-                  const SizedBox(width: 16),
-                  _buildMiniStat('⬆️', '+${_weeklyElevation.toStringAsFixed(0)} m'),
-                  const SizedBox(width: 16),
-                  _buildMiniStat('🗺️', '$_weeklyTracks'),
-                ],
+              // Row con FittedBox per resistere a schermi stretti /
+              // accessibility font: se non entra, scala tutto insieme.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.calendar_today,
+                        size: 16, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      context.l10n.thisWeek,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(width: 14),
+                    _buildMiniStat(
+                        '📏', '${_weeklyDistanceKm.toStringAsFixed(1)} km'),
+                    const SizedBox(width: 12),
+                    _buildMiniStat(
+                        '⬆️', '+${_weeklyElevation.toStringAsFixed(0)} m'),
+                    const SizedBox(width: 12),
+                    _buildMiniStat('🗺️', '$_weeklyTracks'),
+                  ],
+                ),
               ),
             ),
 
