@@ -107,6 +107,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   bool _lifelineToggleOn = false; // intent utente (toggle nel pulsante start)
   bool _lifelineActive = false;   // effettivamente attiva durante recording
 
+  // ── UX overlay compatto ─────────────────────────────────────────────
+  /// Se true lo stats header mostra tutti i 6 valori; se false solo i
+  /// primi 3 (distanza, tempo, D+) su una riga singola. Tap sullo header
+  /// alterna i due stati.
+  bool _statsExpanded = false;
+  /// Analogo per la card unificata guida+lifeline.
+  bool _overlayExpanded = false;
+
   @override
   void initState() {
     super.initState();
@@ -575,112 +583,200 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Banner informativo per modalità guidata: nome riferimento, prossima
-  /// manovra (turn-by-turn), distanza residua, alert off-trail.
+  /// Banner informativo per modalità guidata in versione compatta con
+  /// tap-to-expand. Include chip Lifeline se attiva (merge con il vecchio
+  /// banner Lifeline separato).
+  ///
+  /// Stati:
+  /// - Normale: 1 riga con icona + nome trail + chip attività + voce + chip
+  ///   lifeline (se attiva) + chevron expand
+  /// - Espanso (tap): +1 riga con prossima manovra o progress
+  /// - Off-trail: sempre espanso + banner rosso (priorità sicurezza)
   Widget _buildGuidedBanner() {
     final ref = widget.reference!;
     final state = _trackingBloc.state;
 
-    // Se stiamo mostrando lo StatsHeader (recording), incastra il banner
-    // SOTTO di esso (top ~ status bar + 200).
+    // Posizione: sotto lo stats header (compact ~55px, expanded ~160px)
+    final headerHeight = _statsExpanded ? 160.0 : 55.0;
     final topOffset = state.isIdle
         ? MediaQuery.of(context).padding.top + 12
-        : MediaQuery.of(context).padding.top + 180;
+        : MediaQuery.of(context).padding.top + headerHeight + 8;
+
+    // Auto-expand quando serve attenzione: off-trail (sicurezza) o
+    // manovra imminente (<300m da una svolta).
+    final imminentTurn = ref.hasTurnByTurn &&
+        _refCurrentStep != null &&
+        _refDistanceToNextTurn > 0 &&
+        _refDistanceToNextTurn < 300;
+    final expanded = _overlayExpanded || _refOffTrail || imminentTurn;
 
     return Positioned(
       top: topOffset,
       left: 12,
       right: 12,
-      child: Material(
-        elevation: 6,
-        borderRadius: BorderRadius.circular(14),
-        color: _refOffTrail ? AppColors.danger : Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header: icona + nome reference + chip attività + toggle voce
-              Row(
-                children: [
-                  Icon(
-                    ref.isPlanner ? Icons.navigation : Icons.route,
-                    size: 20,
-                    color: _refOffTrail ? Colors.white : AppColors.info,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      ref.name,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _refOffTrail ? Colors.white : AppColors.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  // Chip attività corrente (tap per cambiarla)
-                  InkWell(
-                    onTap: _showActivityPickerGuided,
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                        color: _refOffTrail
-                            ? Colors.white.withOpacity(0.2)
-                            : AppColors.info.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(_selectedActivity.icon,
-                              style: const TextStyle(fontSize: 12)),
-                          const SizedBox(width: 4),
-                          Text(
-                            _selectedActivity.displayName,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: _refOffTrail ? Colors.white : AppColors.info,
-                            ),
-                          ),
-                          Icon(Icons.expand_more,
-                              size: 14,
-                              color: _refOffTrail ? Colors.white : AppColors.info),
-                        ],
-                      ),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        if (_voice != null) _voice!.enabled = !_voice!.enabled;
-                      });
-                    },
-                    child: Icon(
-                      (_voice?.enabled ?? true) ? Icons.volume_up : Icons.volume_off,
-                      size: 20,
-                      color: _refOffTrail ? Colors.white : AppColors.info,
-                    ),
-                  ),
+      child: GestureDetector(
+        onTap: _refOffTrail
+            ? null
+            : () => setState(() => _overlayExpanded = !_overlayExpanded),
+        child: Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(12),
+          color: _refOffTrail ? AppColors.danger : Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Riga compatta sempre visibile
+                _buildGuidedCompactRow(ref),
+                // Se expanded: contenuto dinamico
+                if (expanded) ...[
+                  const SizedBox(height: 6),
+                  if (_refOffTrail)
+                    _buildGuidedOffTrailRow()
+                  else if (ref.hasTurnByTurn && _refCurrentStep != null)
+                    _buildGuidedTurnRow()
+                  else
+                    _buildGuidedProgressRow(),
                 ],
-              ),
-
-              const SizedBox(height: 8),
-
-              // Contenuto dinamico
-              if (_refOffTrail)
-                _buildGuidedOffTrailRow()
-              else if (ref.hasTurnByTurn && _refCurrentStep != null)
-                _buildGuidedTurnRow()
-              else
-                _buildGuidedProgressRow(),
-            ],
+                // Chip Lifeline (piccola, in fondo) se attiva
+                if (_lifelineActive) ...[
+                  const SizedBox(height: 6),
+                  _buildLifelineChipInline(),
+                ],
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Riga singola compatta: icona + nome + chip attività + voce + chevron.
+  Widget _buildGuidedCompactRow(RecordingReference ref) {
+    final textColor = _refOffTrail ? Colors.white : AppColors.textPrimary;
+    final accent = _refOffTrail ? Colors.white : AppColors.info;
+
+    return Row(
+      children: [
+        Icon(
+          ref.isPlanner ? Icons.navigation : Icons.route,
+          size: 18,
+          color: accent,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            // Se off-trail e non espanso: mostra l'alert in riga
+            _refOffTrail
+                ? 'Fuori percorso · ${_refDistanceFromTrail.round()} m'
+                : ref.name,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        // Chip attività (tap per cambiarla)
+        InkWell(
+          onTap: _showActivityPickerGuided,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: _refOffTrail
+                  ? Colors.white.withOpacity(0.2)
+                  : AppColors.info.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_selectedActivity.icon,
+                    style: const TextStyle(fontSize: 11)),
+                const SizedBox(width: 3),
+                Text(
+                  _selectedActivity.displayName,
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: accent),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        // Toggle voce
+        InkWell(
+          onTap: () {
+            setState(() {
+              if (_voice != null) _voice!.enabled = !_voice!.enabled;
+            });
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(
+              (_voice?.enabled ?? true) ? Icons.volume_up : Icons.volume_off,
+              size: 18,
+              color: accent,
+            ),
+          ),
+        ),
+        // Chevron expand (solo se non off-trail: off-trail è sempre expanded)
+        if (!_refOffTrail)
+          Icon(
+            _overlayExpanded ? Icons.expand_less : Icons.expand_more,
+            size: 18,
+            color: accent,
+          ),
+      ],
+    );
+  }
+
+  /// Chip in-line dentro il banner guidato quando Lifeline è attiva.
+  /// Tap → riapre il dialog invio messaggi.
+  Widget _buildLifelineChipInline() {
+    return InkWell(
+      onTap: _resendDrafts,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: _refOffTrail
+              ? Colors.white.withOpacity(0.15)
+              : AppColors.info.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.shield,
+                size: 13, color: _refOffTrail ? Colors.white : AppColors.info),
+            const SizedBox(width: 4),
+            Text(
+              'Lifeline · ${_emergencyContacts.length} contatti',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: _refOffTrail ? Colors.white : AppColors.info,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Re-invia',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                decoration: TextDecoration.underline,
+                color: _refOffTrail ? Colors.white : AppColors.info,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -858,7 +954,10 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           // A registrazione ferma (idle) nasconderlo così l'utente vede la
           // schermata idle pulita e può uscire dalla pagina.
           if (_isGuided && !state.isIdle) _buildGuidedBanner(),
-          if (_lifelineActive && !state.isIdle) _buildLifelineActiveBanner(),
+          // Lifeline banner separato SOLO quando non siamo in modalità guidata
+          // (altrimenti l'info Lifeline è inclusa nel guided banner come chip).
+          if (_lifelineActive && !_isGuided && !state.isIdle)
+            _buildLifelineActiveBanner(),
           if (state.isIdle && !_isGuided) _buildIdleOverlay(),
           // Pulsante chiudi: solo in modalità guidata (la pagina è stata
           // aperta via Navigator.push, quindi non c'è un bottom nav che
@@ -1140,34 +1239,155 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     );
   }
 
+  /// Header stats con modalità compatta (default) ed espansa.
+  /// - Compatto: pulse + 3 valori primari in una riga + HR + chevron
+  /// - Espanso: come prima (2 righe con tutti i 6 valori)
+  /// Tap sull'header alterna i due stati.
   Widget _buildStatsHeader(TrackingState state) {
-    return Positioned(top: 0, left: 0, right: 0, child: Container(
-      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 8, bottom: 16, left: 16, right: 16),
-      decoration: BoxDecoration(color: state.isRecording ? AppColors.trackRecording.withOpacity(0.95) : AppColors.warning.withOpacity(0.95), borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20))),
-      child: Column(children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const SizedBox(width: 60),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(state.isRecording ? Icons.fiber_manual_record : Icons.pause, color: Colors.white, size: 12),
-            const SizedBox(width: 4),
-            Text(state.isRecording ? context.l10n.recording : context.l10n.paused, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-          ]),
-          const HeartRateWidget(), // ❤️ HEART RATE
-        ]),
-        const SizedBox(height: 12),
+    final bg = state.isRecording
+        ? AppColors.trackRecording.withOpacity(0.95)
+        : AppColors.warning.withOpacity(0.95);
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: GestureDetector(
+        onTap: () => setState(() => _statsExpanded = !_statsExpanded),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 6,
+            bottom: _statsExpanded ? 14 : 8,
+            left: 12,
+            right: 12,
+          ),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(18),
+              bottomRight: Radius.circular(18),
+            ),
+          ),
+          child: _statsExpanded
+              ? _buildStatsExpanded(state)
+              : _buildStatsCompact(state),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsCompact(TrackingState state) {
+    return Row(
+      children: [
+        // Spazio per il pulsante X (chiudi) quando in modalità guidata
+        SizedBox(width: _isGuided ? 44 : 8),
+        // Pulse dot + REC/PAUSA
+        Icon(
+          state.isRecording ? Icons.fiber_manual_record : Icons.pause,
+          color: Colors.white,
+          size: 11,
+        ),
+        const SizedBox(width: 8),
+        // Stats in riga
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _miniStat('${state.stats.distanceKm.toStringAsFixed(2)}', 'km'),
+              _miniStat(state.stats.durationFormatted, 'h/m'),
+              _miniStat('${state.stats.elevationGain.toStringAsFixed(0)}', 'D+'),
+            ],
+          ),
+        ),
+        const SizedBox(width: 6),
+        const HeartRateWidget(),
+        const SizedBox(width: 4),
+        const Icon(Icons.expand_more, size: 18, color: Colors.white70),
+      ],
+    );
+  }
+
+  Widget _buildStatsExpanded(TrackingState state) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const SizedBox(width: 60),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(
+                state.isRecording
+                    ? Icons.fiber_manual_record
+                    : Icons.pause,
+                color: Colors.white,
+                size: 12,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                state.isRecording
+                    ? context.l10n.recording
+                    : context.l10n.paused,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12),
+              ),
+            ]),
+            Row(mainAxisSize: MainAxisSize.min, children: const [
+              HeartRateWidget(),
+              SizedBox(width: 4),
+              Icon(Icons.expand_less, size: 18, color: Colors.white70),
+            ]),
+          ],
+        ),
+        const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _buildStat(context.l10n.distanceLabel, '${state.stats.distanceKm.toStringAsFixed(2)} km'),
+          _buildStat(context.l10n.distanceLabel,
+              '${state.stats.distanceKm.toStringAsFixed(2)} km'),
           _buildStat(context.l10n.timeLabel, state.stats.durationFormatted),
-          _buildStat('D+', '${state.stats.elevationGain.toStringAsFixed(0)} m'),
+          _buildStat('D+',
+              '${state.stats.elevationGain.toStringAsFixed(0)} m'),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _buildStat(context.l10n.speedLabel, '${(state.stats.currentSpeed * 3.6).toStringAsFixed(1)} km/h', small: true),
-          _buildStat(context.l10n.avgSpeedLabel, '${(state.stats.avgSpeed * 3.6).toStringAsFixed(1)} km/h', small: true),
-          _buildStat(context.l10n.paceLabel, _formatPace(state.stats.avgSpeed), small: true),
+          _buildStat(context.l10n.speedLabel,
+              '${(state.stats.currentSpeed * 3.6).toStringAsFixed(1)} km/h',
+              small: true),
+          _buildStat(context.l10n.avgSpeedLabel,
+              '${(state.stats.avgSpeed * 3.6).toStringAsFixed(1)} km/h',
+              small: true),
+          _buildStat(context.l10n.paceLabel,
+              _formatPace(state.stats.avgSpeed),
+              small: true),
         ]),
-      ]),
-    ));
+      ],
+    );
+  }
+
+  Widget _miniStat(String value, String unit) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              height: 1),
+        ),
+        const SizedBox(width: 3),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 2),
+          child: Text(
+            unit,
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.8), fontSize: 10),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildStat(String label, String value, {bool small = false}) => Column(children: [Text(value, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: small ? 16 : 22)), Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: small ? 10 : 11))]);
@@ -1577,47 +1797,52 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     }
   }
 
-  /// Banner persistente "Lifeline attiva" durante la registrazione.
+  /// Banner compatto "Lifeline attiva" quando non si è in modalità guidata
+  /// (altrimenti è già integrato nel banner guida come chip inline).
+  ///
+  /// Posizionato subito sotto lo stats header, altezza minima per non
+  /// rubare spazio alla mappa.
   Widget _buildLifelineActiveBanner() {
-    final state = _trackingBloc.state;
-    final topOffset = _isGuided
-        ? MediaQuery.of(context).padding.top +
-            (state.isIdle ? 80 : 310) // sotto guided banner
-        : MediaQuery.of(context).padding.top + 180;
+    final headerHeight = _statsExpanded ? 160.0 : 55.0;
+    final topOffset = MediaQuery.of(context).padding.top + headerHeight + 8;
     return Positioned(
       top: topOffset,
       left: 12,
       right: 12,
       child: Material(
-        elevation: 4,
+        elevation: 3,
         borderRadius: BorderRadius.circular(10),
         color: AppColors.info,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              const Icon(Icons.shield, color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Lifeline attiva · ${_emergencyContacts.length} contatti',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: _resendDrafts,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              children: [
+                const Icon(Icons.shield, color: Colors.white, size: 15),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Lifeline · ${_emergencyContacts.length} contatti',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11.5,
+                    ),
                   ),
                 ),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(0, 28),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                const Text(
+                  'Re-invia',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 10.5,
+                    decoration: TextDecoration.underline,
+                  ),
                 ),
-                onPressed: _resendDrafts,
-                child: const Text('Re-invia', style: TextStyle(fontSize: 11)),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
