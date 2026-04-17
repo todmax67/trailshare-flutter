@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart' hide ActivityType;
 import 'package:latlong2/latlong.dart';
@@ -903,6 +904,161 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     return '${(m / 1000).toStringAsFixed(1)} km';
   }
 
+  /// Pulsante SOS sempre accessibile durante la registrazione.
+  ///
+  /// UX pensata per emergenza: grande, rosso, in alto a destra (dove
+  /// l'utente lo trova anche sotto stress). Long-press 1.5s per
+  /// attivarlo (evita tap accidentali con l'indice mentre cammina/
+  /// corre). Tap breve mostra un hint.
+  Widget _buildSosButton() {
+    // Posizione: sotto lo stats header, lato destro (opposto al pulsante
+    // close X in modalità guidata).
+    final topOffset = MediaQuery.of(context).padding.top +
+        (_statsExpanded ? 165.0 : 60.0);
+    return Positioned(
+      top: topOffset,
+      right: 8,
+      child: _SosFab(
+        onTriggered: _handleSosActivated,
+        onShortTap: () {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tieni premuto 1,5 secondi per attivare SOS'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Chiamato quando l'utente ha completato il long-press sul SOS.
+  /// Mostra dialog di scelta tra "manda SOS contatti" / "chiama 112" /
+  /// "annulla". Vibra per conferma.
+  Future<void> _handleSosActivated() async {
+    HapticFeedback.heavyImpact();
+    if (!mounted) return;
+
+    final choice = await showDialog<_SosChoice>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.danger,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber, color: Colors.white, size: 28),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'SOS attivato',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              _lifelineActive
+                  ? 'Hai ${_emergencyContacts.length} contatti configurati.\nCome vuoi procedere?'
+                  : 'Lifeline non è attiva.\nPuoi solo chiamare il 112.',
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 14, height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_lifelineActive)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(ctx, _SosChoice.sendAlert),
+                    icon: const Icon(Icons.shield),
+                    label: const Text('Manda SOS ai contatti'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.danger,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              if (_lifelineActive) const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(ctx, _SosChoice.call112),
+                  icon: const Icon(Icons.phone),
+                  label: const Text('Chiama 112'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.danger,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx, _SosChoice.cancel),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.white),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Annulla',
+                      style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    switch (choice) {
+      case _SosChoice.sendAlert:
+        await _sendAlert(sosExplicit: true);
+        break;
+      case _SosChoice.call112:
+        await _call112();
+        break;
+      case _SosChoice.cancel:
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _call112() async {
+    final uri = Uri.parse('tel:112');
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Impossibile aprire la chiamata. Compone manualmente 112.'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[RecordPage] Errore chiamata 112: $e');
+    }
+  }
+
   /// Pulsante di chiusura per modalità guidata. Se la registrazione è in
   /// corso, mostra conferma per evitare uscite accidentali.
   Widget _buildGuidedCloseButton(TrackingState state) {
@@ -983,6 +1139,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           // aperta via Navigator.push, quindi non c'è un bottom nav che
           // permetta di tornare indietro come nello standalone).
           if (_isGuided) _buildGuidedCloseButton(state),
+          // SOS button: sempre visibile durante registrazione.
+          // Long-press 1.5s per attivarlo (evita tap accidentali).
+          if (!state.isIdle) _buildSosButton(),
           _buildControls(state),
           if (state.errorMessage != null)
             Positioned(top: MediaQuery.of(context).padding.top + 100, left: 16, right: 16, child: _buildErrorBanner(_localizeError(state.errorMessage!))),
@@ -2329,6 +2488,132 @@ class _ActivityPickerSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Scelta fatta nel dialog SOS attivato.
+enum _SosChoice { sendAlert, call112, cancel }
+
+/// Pulsante SOS con long-press 1.5s.
+///
+/// Mostra un progress ring che si riempie mentre l'utente tiene premuto.
+/// Al completamento chiama [onTriggered] (caller può vibrare/aprire dialog).
+/// Tap breve → [onShortTap] (per hint).
+class _SosFab extends StatefulWidget {
+  final VoidCallback onTriggered;
+  final VoidCallback onShortTap;
+  const _SosFab({required this.onTriggered, required this.onShortTap});
+
+  @override
+  State<_SosFab> createState() => _SosFabState();
+}
+
+class _SosFabState extends State<_SosFab>
+    with SingleTickerProviderStateMixin {
+  static const Duration _holdDuration = Duration(milliseconds: 1500);
+  late AnimationController _ctrl;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: _holdDuration)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed && _pressed) {
+          widget.onTriggered();
+          _pressed = false;
+          _ctrl.reset();
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onPressDown() {
+    _pressed = true;
+    HapticFeedback.lightImpact();
+    _ctrl.forward(from: 0);
+  }
+
+  void _onPressUp() {
+    final wasCompleted = _ctrl.status == AnimationStatus.completed;
+    _pressed = false;
+    if (_ctrl.status == AnimationStatus.forward) {
+      final progress = _ctrl.value;
+      _ctrl.reset();
+      if (progress < 0.15) {
+        widget.onShortTap();
+      }
+    } else if (!wasCompleted) {
+      _ctrl.reset();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 56.0;
+    return Listener(
+      onPointerDown: (_) => _onPressDown(),
+      onPointerUp: (_) => _onPressUp(),
+      onPointerCancel: (_) => _onPressUp(),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Progress ring durante il long-press
+            AnimatedBuilder(
+              animation: _ctrl,
+              builder: (_, __) {
+                if (_ctrl.value == 0) return const SizedBox.shrink();
+                return SizedBox(
+                  width: size,
+                  height: size,
+                  child: CircularProgressIndicator(
+                    value: _ctrl.value,
+                    strokeWidth: 4,
+                    backgroundColor: Colors.white.withOpacity(0.3),
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                );
+              },
+            ),
+            // Pulsante
+            Container(
+              width: size - 10,
+              height: size - 10,
+              decoration: BoxDecoration(
+                color: AppColors.danger,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.danger.withOpacity(0.5),
+                    blurRadius: 12,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                'SOS',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
