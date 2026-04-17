@@ -131,6 +131,18 @@ Target: raffinare ciò che c'è già.
 
 ---
 
+## Web Dashboard (progetto parallelo parcheggiato)
+
+Obiettivo futuro: portare una versione dashboard web dell'app su
+`app.trailshare.app` per consultazione tracce, planner e community da browser.
+
+Piano dettagliato: [`docs/WEB_DASHBOARD_PLAN.md`](docs/WEB_DASHBOARD_PLAN.md)
+
+Status: **parcheggiato** fino a stabilizzazione v1.7.0 sugli store.
+Effort stimato: 8-10 settimane part-time per MVP completo (fasi 1+2+3).
+
+---
+
 ## Versioning proposto
 
 - **v1.7.0** — Epic 1 completa (Sicurezza):
