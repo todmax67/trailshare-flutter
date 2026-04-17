@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
@@ -101,6 +102,29 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                     fontSize: 12,
                     color: AppColors.textSecondary,
                     height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: _openLifelineTerms,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.open_in_new,
+                          size: 13, color: AppColors.info),
+                      SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          'Leggi i limiti di Lifeline',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.info,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -278,6 +302,24 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         ),
       ),
     );
+  }
+
+  /// Apre i Termini di Servizio direttamente alla sezione Lifeline/SOS.
+  /// Usa l'anchor #7 che punta alla sezione 7 "Funzioni di sicurezza".
+  Future<void> _openLifelineTerms() async {
+    final uri = Uri.parse('https://trailshare.app/terms#7');
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impossibile aprire i Termini di Servizio'),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Errore apertura ToS: $e');
+    }
   }
 
   Future<void> _addContact() async {
