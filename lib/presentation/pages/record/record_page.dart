@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -26,7 +27,9 @@ import '../../../core/services/health_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/voice_guidance_service.dart';
 import '../../../core/services/navigation_service.dart';
+import '../../../core/services/routing_service.dart';
 import '../../../core/services/lifeline_service.dart';
+import '../../../core/config/app_config.dart';
 import '../../../data/models/navigation_step.dart';
 import '../../../data/models/recording_reference.dart';
 import '../../../data/models/emergency_contact.dart';
@@ -98,6 +101,17 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   final Set<String> _refSpokenThresholds = {};
   bool _refAutoStartRequested = false;
 
+  // ── Re-routing off-trail ────────────────────────────────────────────
+  /// Quando l'utente esce dal percorso, segniamo l'istante. Se dopo 30s
+  /// è ancora fuori, scatta il re-routing automatico.
+  DateTime? _offTrailSince;
+  bool _rerouting = false;
+  /// Polyline di rientro (calcolata via ORS o fallback linea retta).
+  List<LatLng>? _rerouteBackPolyline;
+  /// True se la polyline è un fallback bussola (non un path calcolato).
+  bool _rerouteIsFallback = false;
+  RoutingService? _routingSvc;
+
   bool get _isGuided => widget.reference != null;
 
   // ── Lifeline ────────────────────────────────────────────────────────
@@ -149,6 +163,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   Future<void> _initGuidedMode() async {
     final ref = widget.reference!;
     debugPrint('[RecordPage] Modalità guidata: ${ref.source.name} - ${ref.name}');
+
+    // Servizio routing per re-route automatico off-trail (1.4).
+    _routingSvc = RoutingService(proxyBaseUrl: AppConfig.orsProxyBaseUrl);
 
     // Inizializza TTS solo se abbiamo step turn-by-turn (planner).
     // Per le tracce pubbliche la guida vocale completa non ha senso (niente
@@ -475,15 +492,32 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       return;
     }
 
-    // Alert off-trail (debounce 10s)
+    // Gestione off-trail: tracciamento tempo + re-routing automatico
     if (offTrail) {
       final now = DateTime.now();
+      _offTrailSince ??= now;
+      // Alert vocale (debounce 10s)
       if (_refLastOffTrailAnnouncement == null ||
           now.difference(_refLastOffTrailAnnouncement!).inSeconds > 10) {
         _voice?.speak('Attenzione, sei fuori percorso');
         _refLastOffTrailAnnouncement = now;
       }
+      // Re-routing: se fuori da >30s e non ho ancora un piano di rientro
+      final offElapsed = now.difference(_offTrailSince!);
+      if (offElapsed.inSeconds >= 30 &&
+          !_rerouting &&
+          _rerouteBackPolyline == null) {
+        _triggerReroute(user, ref);
+      }
       return;
+    } else {
+      // Rientrato nel percorso: reset stato re-routing
+      if (_rerouteBackPolyline != null || _offTrailSince != null) {
+        _voice?.speak('Sei rientrato nel percorso');
+        _rerouteBackPolyline = null;
+        _rerouteIsFallback = false;
+        _offTrailSince = null;
+      }
     }
 
     // Voice turn-by-turn (solo planner)
@@ -902,6 +936,115 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   String _formatDistanceMeters(double m) {
     if (m < 1000) return '${m.round()} m';
     return '${(m / 1000).toStringAsFixed(1)} km';
+  }
+
+  /// Avvia re-routing automatico dal punto utente al punto più vicino
+  /// sulla polyline di riferimento. Se ORS fallisce, fallback bussola +
+  /// linea retta (opzione A concordata).
+  Future<void> _triggerReroute(LatLng user, RecordingReference ref) async {
+    if (_rerouting) return;
+    _rerouting = true;
+    debugPrint('[RecordPage] Trigger re-routing');
+    _voice?.speak('Calcolo il percorso di rientro');
+
+    // Trova il punto più vicino sulla polyline di riferimento
+    int nearestIdx = 0;
+    double nearestDist = double.infinity;
+    for (var i = 0; i < ref.polyline.length; i++) {
+      final d = const Distance().as(LengthUnit.Meter, user, ref.polyline[i]);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestIdx = i;
+      }
+    }
+    final target = ref.polyline[nearestIdx];
+
+    // Mappa activity → profilo ORS (solo hiking/cycling supportati)
+    final profile = _isCyclingActivity(_selectedActivity)
+        ? RoutingProfile.cycling
+        : RoutingProfile.hiking;
+
+    List<LatLng>? routeBack;
+    try {
+      final result = await _routingSvc?.calculateRoute(
+        [user, target],
+        profile: profile,
+      );
+      if (result != null && result.points.length >= 2) {
+        routeBack = result.points.map((p) => p.latLng).toList();
+      }
+    } catch (e) {
+      debugPrint('[RecordPage] Errore reroute ORS: $e');
+    }
+
+    if (!mounted) {
+      _rerouting = false;
+      return;
+    }
+
+    if (routeBack != null) {
+      // Successo ORS
+      setState(() {
+        _rerouteBackPolyline = routeBack;
+        _rerouteIsFallback = false;
+        _rerouting = false;
+      });
+      _voice?.speak('Segui la linea arancione per tornare al percorso');
+    } else {
+      // Fallback opzione A: linea retta + direzione bussola
+      final compass = _compassDirection(user, target);
+      setState(() {
+        _rerouteBackPolyline = [user, target];
+        _rerouteIsFallback = true;
+        _rerouting = false;
+      });
+      _voice?.speak(
+        'Impossibile calcolare il rientro. Il punto più vicino è a ${nearestDist.round()} metri in direzione $compass',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Rotta di rientro non disponibile. Direzione $compass, distanza ${nearestDist.round()} m',
+            ),
+            backgroundColor: AppColors.warning,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Mappa ActivityType → profilo ORS. ORS supporta solo hiking/cycling,
+  /// quindi raggruppiamo: tutte le bici → cycling, resto → hiking.
+  bool _isCyclingActivity(ActivityType t) {
+    return t == ActivityType.cycling ||
+        t == ActivityType.mountainBiking ||
+        t == ActivityType.gravelBiking ||
+        t == ActivityType.eBike ||
+        t == ActivityType.eMountainBike;
+  }
+
+  /// Ritorna direzione cardinale (N/NE/E/...) da [from] a [to].
+  String _compassDirection(LatLng from, LatLng to) {
+    final dLng = (to.longitude - from.longitude) *
+        math.cos((from.latitude + to.latitude) / 2 * math.pi / 180);
+    final dLat = to.latitude - from.latitude;
+    // Bearing in gradi 0-360 (0 = Nord)
+    double bearing = (math.atan2(dLng, dLat) * 180 / math.pi) % 360;
+    if (bearing < 0) bearing += 360;
+    const labels = [
+      'Nord',
+      'Nord-Est',
+      'Est',
+      'Sud-Est',
+      'Sud',
+      'Sud-Ovest',
+      'Ovest',
+      'Nord-Ovest',
+    ];
+    final idx = ((bearing + 22.5) % 360 / 45).floor();
+    return labels[idx];
   }
 
   /// Pulsante SOS sempre accessibile durante la registrazione.
@@ -1388,6 +1531,19 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               strokeWidth: 5,
               color: AppColors.info.withOpacity(0.7),
               pattern: StrokePattern.dashed(segments: const [10, 6]),
+            ),
+          ]),
+        // Polyline arancione di rientro quando off-trail + re-route attivo
+        if (_isGuided && _rerouteBackPolyline != null)
+          PolylineLayer(polylines: [
+            Polyline(
+              points: _rerouteBackPolyline!,
+              strokeWidth: 6,
+              color: Colors.orange,
+              // Fallback (linea retta) distingue con pattern diverso
+              pattern: _rerouteIsFallback
+                  ? StrokePattern.dotted()
+                  : StrokePattern.solid(),
             ),
           ]),
         if (state.points.length >= 2) PolylineLayer(polylines: [Polyline(points: state.points.map((p) => LatLng(p.latitude, p.longitude)).toList(), strokeWidth: 4, color: state.isRecording ? AppColors.trackRecording : AppColors.primary)]),
