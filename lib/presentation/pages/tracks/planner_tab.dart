@@ -1128,13 +1128,21 @@ class _SaveRouteDialogState extends State<_SaveRouteDialog> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _defaultNameSet = false;
 
   @override
-  void initState() {
-    super.initState();
-    final activity = widget.profile == RoutingProfile.hiking ? context.l10n.hikeDefaultName : context.l10n.bikeDefaultName;
-    final date = DateTime.now();
-    _nameController.text = '$activity ${date.day}/${date.month}';
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Il nome default usa context.l10n (dipende da InheritedWidget) quindi
+    // NON può stare in initState. Lo impostiamo qui, solo la prima volta.
+    if (!_defaultNameSet) {
+      _defaultNameSet = true;
+      final activity = widget.profile == RoutingProfile.hiking
+          ? context.l10n.hikeDefaultName
+          : context.l10n.bikeDefaultName;
+      final date = DateTime.now();
+      _nameController.text = '$activity ${date.day}/${date.month}';
+    }
   }
 
   @override
