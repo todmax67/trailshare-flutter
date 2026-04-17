@@ -1,6 +1,6 @@
 # TrailShare — Roadmap di sviluppo
 
-Ultimo aggiornamento: 2026-04-16  ·  Versione corrente: `1.6.0+45`
+Ultimo aggiornamento: 2026-04-17  ·  Versione corrente: `1.6.0+45`
 
 Documento vivo. Le voci sono ordinate per priorità all'interno di ogni categoria. Stima sforzo indicativa in giornate uomo.
 
@@ -10,28 +10,61 @@ Documento vivo. Le voci sono ordinate per priorità all'interno di ogni categori
 
 - **Priorità**: 🟥 critica · 🟧 alta · 🟨 media · 🟩 bassa
 - **Effort**: XS (<0.5d) · S (1d) · M (2-3d) · L (1 settimana) · XL (>1 settimana)
-- **Status**: ☐ da fare · 🔄 in corso · ✅ fatto
+- **Status**: ☐ da fare · 🔄 in corso · ✅ fatto · ⚠️ parziale
 
 ---
 
-## Epic 1 — Sicurezza
+## Epic 1 — Sicurezza (target v1.7.0)
 
 Target: rendere TrailShare l'app più sicura per chi va in montagna da solo in Italia.
 
+### 1.A — Feature funzionali
+
 | # | Feature | Priorità | Effort | Status |
 |---|---|---|---|---|
-| 1.1 | Lifeline (condivisione posizione live con 1-3 contatti via SMS/WhatsApp) | 🟥 | M | ☐ |
+| 1.1 | Lifeline: contatti emergenza + invio link live con token | 🟥 | M | ✅ |
 | 1.2 | Pulsante SOS accessibile durante registrazione, integrato con 112 | 🟥 | S | ☐ |
-| 1.3 | Auto-alert ai contatti se utente fermo >30 min in registrazione | 🟥 | S | ☐ |
+| 1.3 | Auto-alert inattività 2-step (conferma locale → contatti) | 🟥 | S | ☐ |
 | 1.4 | Re-routing automatico quando off-trail >100m per >30s | 🟧 | S | ☐ |
 | 1.5 | Modalità "Battery saver" (GPS 10s, schermo off forzato) | 🟧 | S | ☐ |
-| 1.6 | Widget lock-screen con stats essenziali (iOS Live Activities / Android foreground) | 🟨 | M | ☐ |
+| 1.6 | Widget lock-screen (iOS Live Activities / Android foreground) | 🟨 | M | ☐ |
 
-Note tecniche 1.1: sfrutta `LiveTrackService` esistente — serve UI contatti + deep link condivisibile.
+### 1.B — Protezioni tecniche Lifeline (prerequisito release v1.7.0)
+
+| # | Feature | Priorità | Effort | Status |
+|---|---|---|---|---|
+| 1.B1 | Health-check durante Lifeline (ogni 30s: rete? Firestore? GPS?) con banner stato 🟢🟡🔴 | 🟥 | S | ☐ |
+| 1.B2 | SMS fallback nativo quando manca rete dati ma c'è GSM | 🟧 | S | ☐ |
+| 1.B3 | Battery-optimization whitelist prompt al primo avvio Lifeline | 🟧 | S | ☐ |
+| 1.B4 | Pulsante 112 sempre accessibile durante registrazione Lifeline | 🟥 | XS | ☐ |
+| 1.B5 | Backup locale posizioni (SharedPrefs/SQLite) + retry automatico | 🟧 | S | ☐ |
+| 1.B6 | Countdown visuale auto-alert + anti-tap accidentale (swipe/long-press) | 🟥 | XS | ☐ |
+
+### 1.C — Protezioni legali e comunicative (prerequisito release v1.7.0)
+
+| # | Feature | Priorità | Effort | Status |
+|---|---|---|---|---|
+| 1.C1 | Disclaimer obbligatorio al primo uso Lifeline con checkbox "Ho capito" | 🟥 | XS | ☐ |
+| 1.C2 | Onboarding testi contatti emergenza (spiegazione limiti + suggerimento satellitare) | 🟥 | XS | ☐ |
+| 1.C3 | Aggiornare Terms of Service con sezione "Limitazioni Lifeline" | 🟥 | XS | ☐ |
+| 1.C4 | Aggiornare Privacy Policy (condivisione posizione con contatti) | 🟥 | XS | ☐ |
+| 1.C5 | Link a GeoResQ (soccorso alpino ufficiale) in settings Sicurezza | 🟨 | XS | ☐ |
+| 1.C6 | Store description priva di claim "salvavita" garantiti | 🟥 | XS | ☐ |
+
+### 1.D — UX mappa registrazione (overlay troppo ingombranti)
+
+Problema osservato: in modalità guidata + Lifeline attiva, stats header + banner guida + banner lifeline occupano ~60% dello schermo, lasciando poca mappa visibile.
+
+| # | Feature | Priorità | Effort | Status |
+|---|---|---|---|---|
+| 1.D1 | Stats header compatto (3 valori in una riga + tap per espandere) | 🟧 | S | ☐ |
+| 1.D2 | Merge banner guida + lifeline in card unica compatta | 🟧 | S | ☐ |
+| 1.D3 | Banner lifeline minimizzabile a singolo chip icona | 🟨 | XS | ☐ |
+| 1.D4 | Auto-hide HUD dopo 10s inattività touch (tap schermo per riaprire) | 🟨 | S | ☐ |
 
 ---
 
-## Epic 2 — Completezza funzionale
+## Epic 2 — Completezza funzionale (target v1.8.0)
 
 Target: colmare i gap rispetto a Komoot / AllTrails / Strava.
 
@@ -49,7 +82,7 @@ Note 2.4: richiede piccola web app Flutter o statica hostata su Firebase Hosting
 
 ---
 
-## Epic 3 — Engagement
+## Epic 3 — Engagement (target v1.9.0)
 
 Target: aumentare ritenzione e dwell time.
 
@@ -100,10 +133,26 @@ Target: raffinare ciò che c'è già.
 
 ## Versioning proposto
 
-- **v1.7.0** — Epic 1 completa (Sicurezza): Lifeline + SOS + battery saver + re-routing
+- **v1.7.0** — Epic 1 completa (Sicurezza):
+  - 1.A (Lifeline + SOS + auto-alert + re-routing + battery saver)
+  - 1.B (tutte le protezioni tecniche)
+  - 1.C (tutte le protezioni legali/comunicative)
+  - 1.D (UX compatta overlay)
+  - **Release-gate**: tutte le voci 🟥 devono essere ✅ o giustificate
 - **v1.8.0** — POI/Highlights + notifiche geolocate + sharing link pubblico
 - **v1.9.0** — Challenges personali + heatmap + commenti community
 - **v2.0.0** — Multi-day tours + Apple Watch app + dark mode app-wide
+
+### Criterio "safety-ready" per rilascio v1.7.0
+
+Prima di rilasciare la versione "Sicurezza" in produzione:
+
+1. ✅ Tutte le voci 🟥 critiche di Epic 1 implementate
+2. ✅ Disclaimer + checkbox "Ho capito" al primo uso Lifeline
+3. ✅ ToS e Privacy Policy aggiornati e revisionati
+4. ✅ Test sul campo reale con un contatto, in zona con copertura parziale
+5. ✅ Store description priva di claim salvavita garantiti
+6. ✅ Almeno un banner di stato (🟢🟡🔴) visibile durante Lifeline
 
 ---
 
