@@ -105,14 +105,14 @@ class LifelineService {
   /// per questo lasso di tempo, viene richiesto un check locale.
   /// 30 minuti è lo standard per escursionismo (copre soste legittime per
   /// pranzo / pausa foto senza falsi positivi).
-  static const Duration inactivityThreshold = Duration(minutes: 30);
+  static const Duration inactivityThreshold = Duration(minutes: 2);
 
   /// Distanza sotto la quale consideriamo l'utente "fermo".
   /// 20 m filtra il rumore GPS tipico mentre si pianzia fermi.
   static const double _movementThreshold = 20.0;
 
   /// Finestra di risposta locale prima di notificare i contatti.
-  static const Duration responseWindow = Duration(minutes: 5);
+  static const Duration responseWindow = Duration(seconds: 30);
 
   // Elenco di ultime posizioni utente (usate dall'inactivity check).
   LatLng? _lastSignificantPosition;
@@ -360,15 +360,29 @@ class LifelineService {
           .doc(sid)
           .collection('access_tokens')
           .get();
+
+      if (tokensSnap.docs.isEmpty) {
+        debugPrint('[Lifeline] _prepareAlertDrafts: nessun token trovato');
+        return [];
+      }
+
       for (final c in _contacts) {
-        final tokenDoc = tokensSnap.docs.firstWhere(
+        // Cerca il token per questo contatto; fallback al primo token
+        // se il matching specifico non trova nulla (non dovrebbe mai
+        // succedere ma teniamo il link utilizzabile).
+        String tokenId;
+        final matching = tokensSnap.docs.where(
           (d) => d.data()['contactId'] == c.id,
-          orElse: () => tokensSnap.docs.isNotEmpty
-              ? tokensSnap.docs.first
-              : throw StateError('no tokens'),
         );
-        final link =
-            'https://trailshare.app/live?id=$sid&token=${tokenDoc.id}';
+        if (matching.isNotEmpty) {
+          tokenId = matching.first.id;
+        } else {
+          tokenId = tokensSnap.docs.first.id;
+          debugPrint(
+              '[Lifeline] Token non trovato per contatto ${c.name}, uso fallback');
+        }
+
+        final link = 'https://trailshare.app/live?id=$sid&token=$tokenId';
         drafts.add(LifelineMessageDraft(
           contact: c,
           link: link,
@@ -405,22 +419,25 @@ class LifelineService {
             .doc(sessionId)
             .collection('access_tokens')
             .get();
-        for (final c in contacts) {
-          final tokenDoc = tokensSnap.docs.firstWhere(
-            (d) => d.data()['contactId'] == c.id,
-            orElse: () => tokensSnap.docs.isNotEmpty
-                ? tokensSnap.docs.first
-                : throw StateError('no tokens'),
-          );
-          final link = 'https://trailshare.app/live?id=$sessionId&token=${tokenDoc.id}';
-          drafts.add(LifelineMessageDraft(
-            contact: c,
-            link: link,
-            text:
-                '✅ Lifeline TrailShare — Ciao ${c.name}, sono $userName. '
-                'Sono rientrato/a in sicurezza dall\'attività. '
-                'Puoi rivedere il percorso qui: $link',
-          ));
+        if (tokensSnap.docs.isNotEmpty) {
+          for (final c in contacts) {
+            String tokenId;
+            final matching = tokensSnap.docs.where(
+              (d) => d.data()['contactId'] == c.id,
+            );
+            tokenId = matching.isNotEmpty
+                ? matching.first.id
+                : tokensSnap.docs.first.id;
+            final link =
+                'https://trailshare.app/live?id=$sessionId&token=$tokenId';
+            drafts.add(LifelineMessageDraft(
+              contact: c,
+              link: link,
+              text: '✅ Lifeline TrailShare — Ciao ${c.name}, sono $userName. '
+                  'Sono rientrato/a in sicurezza dall\'attività. '
+                  'Puoi rivedere il percorso qui: $link',
+            ));
+          }
         }
       } catch (e) {
         debugPrint('[Lifeline] errore preparazione safe-arrival: $e');

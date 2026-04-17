@@ -2014,14 +2014,26 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           .get();
       final template = _lifelineTemplate ??
           EmergencyContactsRepository.defaultMessageTemplate;
+      if (tokensSnap.docs.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text(
+                    'Nessun token trovato per questa sessione. Riavvia Lifeline.')),
+          );
+        }
+        return;
+      }
       final drafts = <LifelineMessageDraft>[];
       for (final c in _emergencyContacts) {
-        final tokDoc = tokensSnap.docs.firstWhere(
+        String tokenId;
+        final matching = tokensSnap.docs.where(
           (d) => d.data()['contactId'] == c.id,
-          orElse: () => tokensSnap.docs.first,
         );
-        final link =
-            'https://trailshare.app/live?id=$sid&token=${tokDoc.id}';
+        tokenId = matching.isNotEmpty
+            ? matching.first.id
+            : tokensSnap.docs.first.id;
+        final link = 'https://trailshare.app/live?id=$sid&token=$tokenId';
         drafts.add(LifelineMessageDraft(
           contact: c,
           link: link,
