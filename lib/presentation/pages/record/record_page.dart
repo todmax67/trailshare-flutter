@@ -1919,23 +1919,33 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         _showSaveDialog();
         break;
       case _InactivityResponse.sendAlert:
-        await _sendInactivityAlert();
+        // Utente ha esplicitamente tappato SOS → usa testo "🆘 SOS"
+        await _sendAlert(sosExplicit: true);
         break;
       case _InactivityResponse.timeout:
-        await _sendInactivityAlert();
+        // Countdown scaduto senza risposta → "⚠️ Inattività"
+        await _sendAlert(sosExplicit: false);
         break;
     }
   }
 
-  /// Costruisce e mostra i draft di alert inattività ai contatti.
-  Future<void> _sendInactivityAlert() async {
-    final drafts = await _lifeline.prepareInactivityDrafts();
+  /// Costruisce e mostra i draft di alert ai contatti.
+  /// [sosExplicit] determina il tipo di messaggio.
+  Future<void> _sendAlert({required bool sosExplicit}) async {
+    debugPrint('[RecordPage] Invio alert, sos=$sosExplicit');
+    final drafts = sosExplicit
+        ? await _lifeline.prepareSosDrafts()
+        : await _lifeline.prepareInactivityDrafts();
     if (!mounted) return;
+    debugPrint('[RecordPage] Drafts preparati: ${drafts.length}');
     if (drafts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Errore preparazione messaggi alert'),
+          content: Text(
+            'Errore preparazione messaggi alert. Controlla i log.',
+          ),
           backgroundColor: AppColors.danger,
+          duration: Duration(seconds: 6),
         ),
       );
       return;
