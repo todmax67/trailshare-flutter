@@ -9,6 +9,10 @@ import '../../data/repositories/community_tracks_repository.dart';
 import '../pages/map/track_map_page.dart';
 import '../../core/services/offline_tile_provider.dart';
 import '../../core/services/location_service.dart';
+import '../../data/models/trail_poi.dart';
+import '../../data/repositories/poi_repository.dart';
+import 'poi_marker_layer.dart';
+import 'poi_detail_sheet.dart';
 
 /// Widget mappa interattiva per visualizzare tracce GPS
 /// 
@@ -47,9 +51,20 @@ class InteractiveTrackMap extends StatefulWidget {
   
   /// Track privata per fullscreen (opzionale)
   final Track? track;
-  
+
   /// Track community per fullscreen (opzionale)
   final CommunityTrack? communityTrack;
+
+  /// Se valorizzato, la mappa carica e mostra i POI pubblici associati
+  /// a questo trail OSM. Tap su un POI apre il detail sheet.
+  final String? poiTrailId;
+
+  /// Come [poiTrailId] ma per track community.
+  final String? poiTrackId;
+
+  /// Se true, include anche i POI privati dell'utente corrente
+  /// (proprietario di una track). Default false.
+  final bool poiIncludePrivate;
 
   const InteractiveTrackMap({
     super.key,
@@ -63,6 +78,9 @@ class InteractiveTrackMap extends StatefulWidget {
     this.onPointTap,
     this.track,
     this.communityTrack,
+    this.poiTrailId,
+    this.poiTrackId,
+    this.poiIncludePrivate = false,
   });
 
   @override
@@ -78,12 +96,51 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
   bool _isLoadingLocation = false;
   final OfflineFallbackTileProvider _tileProvider = OfflineFallbackTileProvider();
 
+  final PoiRepository _poiRepo = PoiRepository();
+  List<TrailPoi> _pois = const [];
+
   @override
   void initState() {
     super.initState();
     if (widget.showUserLocation) {
       _loadUserPosition();
     }
+    _loadPois();
+  }
+
+  @override
+  void didUpdateWidget(covariant InteractiveTrackMap old) {
+    super.didUpdateWidget(old);
+    if (old.poiTrailId != widget.poiTrailId ||
+        old.poiTrackId != widget.poiTrackId) {
+      _loadPois();
+    }
+  }
+
+  Future<void> _loadPois() async {
+    if (widget.poiTrailId == null && widget.poiTrackId == null) {
+      if (_pois.isNotEmpty) setState(() => _pois = const []);
+      return;
+    }
+    List<TrailPoi> pois;
+    if (widget.poiTrailId != null) {
+      pois = await _poiRepo.getPoisForTrail(widget.poiTrailId!);
+    } else {
+      pois = await _poiRepo.getPoisForTrack(
+        widget.poiTrackId!,
+        includePrivate: widget.poiIncludePrivate,
+      );
+    }
+    if (mounted) setState(() => _pois = pois);
+  }
+
+  void _onPoiTap(TrailPoi poi) {
+    showPoiDetailSheet(context, poi: poi).then((result) {
+      if (result == PoiDetailResult.updated ||
+          result == PoiDetailResult.deleted) {
+        _loadPois();
+      }
+    });
   }
 
   Future<void> _loadUserPosition() async {
@@ -294,7 +351,11 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                     ),
                   ],
                 ),
-                
+
+                // POI lungo il percorso (sopra polyline, sotto marker start/end)
+                if (_pois.isNotEmpty)
+                  PoiMarkerLayer(pois: _pois, onTap: _onPoiTap),
+
                 // Markers
                 MarkerLayer(
                   markers: [
@@ -764,7 +825,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                   ),
                 ],
               ),
-              
+
               MarkerLayer(
                 markers: [
                   // Start

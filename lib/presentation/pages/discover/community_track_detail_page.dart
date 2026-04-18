@@ -154,6 +154,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                   title: track.name,
                   showUserLocation: true,
                   highlightedPointIndex: _selectedPointIndex,
+                  poiTrackId: track.id,
+                  poiIncludePrivate:
+                      FirebaseAuth.instance.currentUser?.uid == track.ownerId,
                   onPointTap: (index) {
                     setState(() => _selectedPointIndex = index);
                   },

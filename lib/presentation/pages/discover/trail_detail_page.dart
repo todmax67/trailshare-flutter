@@ -251,6 +251,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
       title: widget.trail.displayName,
       showUserLocation: true,
       highlightedPointIndex: _selectedPointIndex,
+      poiTrailId: widget.trail.id, // mostra POI pin sulla mappa
       onPointTap: (index) {
         setState(() => _selectedPointIndex = index);
       },
