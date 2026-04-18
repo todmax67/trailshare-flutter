@@ -1406,7 +1406,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         ],
       ),
       floatingActionButton: !state.isIdle && state.isRecording
-          ? AddPhotoButton(onTakePhoto: _takePhoto, onPickFromGallery: _pickPhotos) : null,
+          ? AddPhotoButton(onTakePhoto: _takePhoto, onPickFromGallery: _pickPhotos, onAddPoi: _addPoiHere) : null,
     );
   }
 

@@ -327,10 +327,15 @@ class AddPhotoButton extends StatelessWidget {
   final VoidCallback onTakePhoto;
   final VoidCallback onPickFromGallery;
 
+  /// Callback opzionale per "Aggiungi POI qui" (Point of Interest).
+  /// Se null non viene mostrata la voce nel menu.
+  final VoidCallback? onAddPoi;
+
   const AddPhotoButton({
     super.key,
     required this.onTakePhoto,
     required this.onPickFromGallery,
+    this.onAddPoi,
   });
 
   @override
@@ -365,6 +370,22 @@ class AddPhotoButton extends StatelessWidget {
                 onPickFromGallery();
               },
             ),
+            if (onAddPoi != null) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.place, color: AppColors.success),
+                title: const Text('Aggiungi POI qui'),
+                subtitle: const Text(
+                  'Fontana, panorama, pericolo...',
+                  style: TextStyle(fontSize: 11),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  onAddPoi!();
+                },
+              ),
+              const Divider(height: 1),
+            ],
             ListTile(
               leading: const Icon(Icons.cancel, color: AppColors.textMuted),
               title: const Text('Annulla'),
