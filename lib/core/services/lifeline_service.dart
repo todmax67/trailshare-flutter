@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../../data/models/emergency_contact.dart';
 import '../../data/repositories/emergency_contacts_repository.dart';
 import 'live_track_service.dart';
+import 'lifeline_alert_service.dart';
 
 /// Bozza di messaggio Lifeline pronta per essere inviata via `url_launcher`.
 ///
@@ -105,14 +106,14 @@ class LifelineService {
   /// per questo lasso di tempo, viene richiesto un check locale.
   /// 30 minuti è lo standard per escursionismo (copre soste legittime per
   /// pranzo / pausa foto senza falsi positivi).
-  static const Duration inactivityThreshold = Duration(minutes: 2);
+  static const Duration inactivityThreshold = Duration(minutes: 30);
 
   /// Distanza sotto la quale consideriamo l'utente "fermo".
   /// 20 m filtra il rumore GPS tipico mentre si pianzia fermi.
   static const double _movementThreshold = 20.0;
 
   /// Finestra di risposta locale prima di notificare i contatti.
-  static const Duration responseWindow = Duration(seconds: 30);
+  static const Duration responseWindow = Duration(minutes: 5);
 
   // Elenco di ultime posizioni utente (usate dall'inactivity check).
   LatLng? _lastSignificantPosition;
@@ -278,6 +279,12 @@ class LifelineService {
       );
       _stateCtrl.add(_state);
 
+      // Sveglia il telefono anche in standby: notifica MAX priority +
+      // vibrazione + suono. Indispensabile se l'utente è incosciente o
+      // il telefono è in tasca: senza questo il dialog in-app si vede
+      // solo a schermo acceso.
+      LifelineAlertService().fireInactivityAlert();
+
       // Avvia timer per auto-fire alert se l'utente non risponde entro
       // la response window. Se l'utente tappa un bottone sul dialog
       // dismissInactivityAlert() cancella questo timer.
@@ -287,11 +294,13 @@ class LifelineService {
   }
 
   /// L'utente ha risposto al check e tutto va bene: reset detection e
-  /// cancella il timer di auto-alert.
+  /// cancella il timer di auto-alert + notifica di sistema.
   void dismissInactivityAlert() {
     _autoAlertTimer?.cancel();
     _autoAlertTimer = null;
     _lastMovementTime = DateTime.now(); // reset finestra
+    // Ferma vibrazione e rimuovi notifica sistema
+    LifelineAlertService().dismiss();
     if (_state.needsInactivityConfirmation) {
       _state = _state.copyWith(
         needsInactivityConfirmation: false,
@@ -451,6 +460,8 @@ class LifelineService {
     _autoAlertTimer = null;
     _lastSignificantPosition = null;
     _lastMovementTime = null;
+    // Rimuove eventuale notifica di allarme ancora attiva
+    LifelineAlertService().dismiss();
 
     // Ferma LiveTrack (chiude la sessione su Firestore)
     await _liveTrack.stop();
