@@ -283,6 +283,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
             onPhotoMarkerTap: widget.onPhotoMarkerTap,
             userPosition: _userPosition,
             title: widget.title ?? 'Mappa',
+            pois: _pois,
           ),
         ),
       );
@@ -668,12 +669,17 @@ class _FullscreenMapPage extends StatefulWidget {
   final LatLng? userPosition;
   final String title;
 
+  /// POI già caricati dal padre (InteractiveTrackMap) — evitiamo di
+  /// rifare la query. Se null, nessun POI viene mostrato.
+  final List<TrailPoi>? pois;
+
   const _FullscreenMapPage({
     required this.points,
     this.photoMarkers,
     this.onPhotoMarkerTap,
     this.userPosition,
     required this.title,
+    this.pois,
   });
 
   @override
@@ -687,6 +693,23 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
   double? _tappedDistance;
   double? _tappedElevation;
   int _currentMapStyle = 0;
+  late List<TrailPoi> _pois;
+
+  @override
+  void initState() {
+    super.initState();
+    _pois = List<TrailPoi>.from(widget.pois ?? const []);
+  }
+
+  void _onPoiTap(TrailPoi poi) {
+    showPoiDetailSheet(context, poi: poi).then((result) {
+      // Per ora non ricaricare (la fullscreen non ha accesso al trailId
+      // originale). Rimuoviamo localmente se eliminato.
+      if (result == PoiDetailResult.deleted && mounted) {
+        setState(() => _pois.removeWhere((p) => p.id == poi.id));
+      }
+    });
+  }
 
   (LatLng center, double zoom) _calculateBounds() {
     if (widget.points.isEmpty) {
@@ -825,6 +848,11 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                   ),
                 ],
               ),
+
+              // POI pin (fullscreen)
+              if (_pois.isNotEmpty)
+                PoiMarkerLayer(
+                    pois: _pois, onTap: _onPoiTap, markerSize: 40),
 
               MarkerLayer(
                 markers: [
