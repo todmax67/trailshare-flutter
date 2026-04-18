@@ -35,6 +35,7 @@ import '../../../data/models/navigation_step.dart';
 import '../../../data/models/recording_reference.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
+import '../../widgets/poi_editor_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class RecordPage extends StatefulWidget {
@@ -1434,7 +1435,44 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     showModalBottomSheet(context: context, builder: (context) => SafeArea(child: Wrap(children: [
       ListTile(leading: const Icon(Icons.camera_alt, color: AppColors.primary), title: Text(context.l10n.takePhoto), onTap: () { Navigator.pop(context); _takePhoto(); }),
       ListTile(leading: const Icon(Icons.photo_library, color: AppColors.info), title: Text(context.l10n.pickFromGallery), onTap: () { Navigator.pop(context); _pickPhotos(); }),
+      const Divider(height: 1),
+      ListTile(
+        leading: const Icon(Icons.place, color: AppColors.success),
+        title: const Text('Aggiungi POI qui'),
+        subtitle: const Text('Fontana, panorama, pericolo...', style: TextStyle(fontSize: 11)),
+        onTap: () { Navigator.pop(context); _addPoiHere(); },
+      ),
     ])));
+  }
+
+  /// Apre il bottom sheet di creazione POI con la posizione GPS attuale.
+  /// Se stiamo seguendo una track community, associa il POI alla track
+  /// (relatedTrackId) così diventa visibile come POI di quella traccia.
+  Future<void> _addPoiHere() async {
+    final state = _trackingBloc.state;
+    if (state.points.isEmpty) {
+      _showSnackBar('GPS non ancora disponibile', isError: true);
+      return;
+    }
+    final lastPoint = state.points.last;
+    // Se siamo in modalità guidata e il riferimento è una community track
+    // (non un trail OSM), associo il POI alla track. Al momento non ho un
+    // id persistente per il trail OSM dalla reference, lo aggiungerò in
+    // uno step successivo.
+    String? relatedTrackId;
+    // TrackId è disponibile solo dopo save; durante recording non c'è.
+    // Il POI verrà creato come "globale" (visibile in base alla posizione)
+    // con possibilità di linkarlo alla track dopo il salvataggio.
+    final poi = await showPoiEditorSheet(
+      context,
+      latitude: lastPoint.latitude,
+      longitude: lastPoint.longitude,
+      elevation: lastPoint.elevation,
+      relatedTrackId: relatedTrackId,
+    );
+    if (poi != null && mounted) {
+      _showSnackBar('POI "${poi.title}" aggiunto');
+    }
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
