@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import 'emergency_contacts_page.dart';
+import 'poi_voice_settings_page.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/theme_service.dart';
 import 'privacy_policy_page.dart';
@@ -273,6 +274,20 @@ class _SettingsPageState extends State<SettingsPage> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => const EmergencyContactsPage(),
+                ),
+              );
+            },
+          ),
+          _buildListTile(
+            icon: Icons.record_voice_over_outlined,
+            title: 'Annunci vocali POI',
+            subtitle:
+                'Scegli quali tipi di POI annunciare durante la navigazione',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PoiVoiceSettingsPage(),
                 ),
               );
             },

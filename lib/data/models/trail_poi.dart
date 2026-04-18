@@ -84,6 +84,27 @@ enum PoiType {
     }
     return PoiType.nature;
   }
+
+  /// Tipi di POI "critici" annunciati vocalmente durante la registrazione
+  /// guidata (soglie 500/200/50 m). Gli altri tipi restano visibili sulla
+  /// mappa ma non interrompono la navigazione con annunci.
+  ///
+  /// Criterio: è utile sapere in anticipo? Fontana (rifornimento acqua),
+  /// rifugio (riparo), pericolo (sicurezza), ristoro (pausa), panorama
+  /// (non perdere la vista). Parcheggio/bagno/camping/storico/natura sono
+  /// "nice to know" ma non richiedono annuncio sonoro.
+  bool get isDefaultAnnounceable {
+    switch (this) {
+      case PoiType.water:
+      case PoiType.shelter:
+      case PoiType.danger:
+      case PoiType.food:
+      case PoiType.viewpoint:
+        return true;
+      default:
+        return false;
+    }
+  }
 }
 
 /// Punto di interesse (POI) sulla mappa o lungo un percorso.

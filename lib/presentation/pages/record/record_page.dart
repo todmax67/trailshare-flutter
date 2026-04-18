@@ -36,6 +36,9 @@ import '../../../data/models/recording_reference.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
 import '../../widgets/poi_editor_sheet.dart';
+import '../../../data/models/trail_poi.dart';
+import '../../../data/repositories/poi_repository.dart';
+import '../../../core/services/poi_voice_prefs.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class RecordPage extends StatefulWidget {
@@ -105,6 +108,13 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   final Set<String> _refSpokenThresholds = {};
   bool _refAutoStartRequested = false;
 
+  // ── POI voice announcement (guided) ─────────────────────────────────
+  /// POI associati al reference (trail o track) caricati al start della
+  /// modalità guidata. Filtrati solo "announceable" secondo le pref.
+  List<TrailPoi> _guidedPois = const [];
+  /// Set<"poiId_threshold"> dei POI già annunciati per evitare ripetizioni.
+  final Set<String> _poiAnnouncedThresholds = {};
+
   // ── Re-routing off-trail ────────────────────────────────────────────
   /// Quando l'utente esce dal percorso, segniamo l'istante. Se dopo 30s
   /// è ancora fuori, scatta il re-routing automatico.
@@ -170,6 +180,10 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
     // Servizio routing per re-route automatico off-trail (1.4).
     _routingSvc = RoutingService(proxyBaseUrl: AppConfig.orsProxyBaseUrl);
+
+    // Carica POI del trail/track di riferimento + preferenze voce.
+    // Non blocca l'inizio della registrazione (fire-and-forget).
+    unawaited(_loadGuidedPois());
 
     // Inizializza TTS solo se abbiamo step turn-by-turn (planner).
     // Per le tracce pubbliche la guida vocale completa non ha senso (niente
@@ -544,6 +558,60 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         if (distToTurn <= 50) trySpeak(50, '50');
       }
     }
+
+    // Annunci POI prossimi (water/shelter/danger/food/viewpoint)
+    _maybeAnnouncePois(user);
+  }
+
+  /// Scan dei POI caricati e annuncio alle soglie 500/200/50 m.
+  /// Ogni POI × soglia è annunciato una sola volta (tracked in
+  /// _poiAnnouncedThresholds).
+  void _maybeAnnouncePois(LatLng user) {
+    if (_guidedPois.isEmpty) return;
+    const dist = Distance();
+    for (final poi in _guidedPois) {
+      final d = dist.as(LengthUnit.Meter, user,
+          LatLng(poi.latitude, poi.longitude));
+      // Soglia scegliamo in base alla distanza (prima più grande che matcha)
+      int? threshold;
+      if (d <= 50) {
+        threshold = 50;
+      } else if (d <= 200) {
+        threshold = 200;
+      } else if (d <= 500) {
+        threshold = 500;
+      }
+      if (threshold == null) continue;
+
+      final key = '${poi.id}_$threshold';
+      if (_poiAnnouncedThresholds.contains(key)) continue;
+      // Assicura che non siano stati annunciati i livelli superiori già (es.
+      // se salta direttamente a <50m significa che l'utente è arrivato
+      // velocemente — marchiamo anche 500 e 200 per coerenza)
+      _poiAnnouncedThresholds.add(key);
+      if (threshold == 50) {
+        _poiAnnouncedThresholds.add('${poi.id}_200');
+        _poiAnnouncedThresholds.add('${poi.id}_500');
+      } else if (threshold == 200) {
+        _poiAnnouncedThresholds.add('${poi.id}_500');
+      }
+
+      _speakPoiAnnouncement(poi, threshold, d.round());
+    }
+  }
+
+  void _speakPoiAnnouncement(TrailPoi poi, int threshold, int distMeters) {
+    final typeName = poi.type.displayName.toLowerCase();
+    String phrase;
+    if (threshold == 500) {
+      phrase = 'Tra circa 500 metri, $typeName: ${poi.title}';
+    } else if (threshold == 200) {
+      phrase = 'Tra 200 metri, $typeName: ${poi.title}';
+    } else {
+      phrase = '$typeName ${poi.title} raggiunta';
+    }
+    _voice?.speak(phrase);
+    debugPrint('[RecordPage] POI voice: $phrase (${distMeters}m)');
   }
 
   void _startBatteryMonitoring() {
@@ -961,6 +1029,49 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   String _formatDistanceMeters(double m) {
     if (m < 1000) return '${m.round()} m';
     return '${(m / 1000).toStringAsFixed(1)} km';
+  }
+
+  /// Carica i POI associati al trail/track di riferimento e le preferenze
+  /// utente sulla voce. Solo POI di tipo "announceable" (per preferenza
+  /// utente, default su tipi critici) vengono mantenuti.
+  ///
+  /// Il reference può essere:
+  /// - `isPlanner`: nessun trailId/trackId, POI non caricati
+  /// - `isTrail`: cerca POI con relatedTrailId = id del trail (non
+  ///   abbiamo l'id nel RecordingReference, skippato per MVP)
+  ///
+  /// NOTA: RecordingReference attualmente non espone trailId/trackId —
+  /// implementato in questo step solo per community track dove abbiamo
+  /// il nome del riferimento come hint. Sarà esteso quando aggiungeremo
+  /// i campi id al reference.
+  Future<void> _loadGuidedPois() async {
+    final ref = widget.reference;
+    if (ref == null) return;
+
+    // Pre-carica preferenze voce
+    await PoiVoicePrefs().load();
+
+    // MVP: cerchiamo POI a raggio ampio intorno al centro della polyline
+    // di riferimento, filtrando poi sul tipo in base alle preferenze.
+    if (ref.polyline.isEmpty) return;
+    final center = ref.polyline[ref.polyline.length ~/ 2];
+
+    final repo = PoiRepository();
+    final pois = await repo.getPoisNear(
+      centerLat: center.latitude,
+      centerLng: center.longitude,
+      radiusMeters: 15000, // 15km raggio per copertura sicura
+      limit: 200,
+    );
+
+    if (!mounted) return;
+    // Tieni solo quelli che l'utente vuole annunciati
+    final filtered = pois
+        .where((p) => PoiVoicePrefs().isAnnounceableSync(p.type))
+        .toList();
+    setState(() => _guidedPois = filtered);
+    debugPrint(
+        '[RecordPage] Guided POI caricati: ${pois.length}, announceable: ${filtered.length}');
   }
 
   /// Avvia re-routing automatico dal punto utente al punto più vicino
