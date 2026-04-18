@@ -10,6 +10,7 @@ import '../../../presentation/widgets/interactive_track_map.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../../presentation/widgets/lap_splits_widget.dart';
 import '../../../presentation/widgets/track_segments_section.dart';
+import '../../widgets/trail_pois_section.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/services/trails_cache_service.dart';
@@ -220,6 +221,23 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                   TrackSegmentsSection(
                     trackId: track.id,
                     readOnly: true,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // POI community sulla traccia (fontane, rifugi, panorami)
+                  TrailPoisSection(
+                    trackId: track.id,
+                    isOwner: FirebaseAuth.instance.currentUser?.uid ==
+                        track.ownerId,
+                    allowAdd: FirebaseAuth.instance.currentUser?.uid ==
+                        track.ownerId,
+                    defaultLatitude: track.points.isNotEmpty
+                        ? track.points.first.latitude
+                        : null,
+                    defaultLongitude: track.points.isNotEmpty
+                        ? track.points.first.longitude
+                        : null,
                   ),
 
                   const SizedBox(height: 16),
