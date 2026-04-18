@@ -152,6 +152,9 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                     allowAdd: true,
                     defaultLatitude: widget.trail.startLat,
                     defaultLongitude: widget.trail.startLng,
+                    polyline: _displayPoints
+                        .map((p) => LatLng(p.latitude, p.longitude))
+                        .toList(),
                   ),
 
                   const SizedBox(height: 16),

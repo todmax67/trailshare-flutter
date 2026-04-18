@@ -238,6 +238,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     defaultLongitude: track.points.isNotEmpty
                         ? track.points.first.longitude
                         : null,
+                    polyline: track.points
+                        .map((p) => LatLng(p.latitude, p.longitude))
+                        .toList(),
                   ),
 
                   const SizedBox(height: 16),

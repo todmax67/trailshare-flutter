@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:latlong2/latlong.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/trail_poi.dart';
 import '../../data/repositories/poi_repository.dart';
+import '../pages/poi/poi_location_picker_page.dart';
 import 'poi_detail_sheet.dart';
 import 'poi_editor_sheet.dart';
 
@@ -29,10 +31,16 @@ class TrailPoisSection extends StatefulWidget {
   /// per stimare dove posizionare il nuovo POI (di solito il punto medio).
   final bool allowAdd;
 
-  /// Coordinate del trail/track per pre-centrare il picker POI quando
-  /// l'utente aggiunge manualmente dalla pagina (senza GPS corrente).
+  /// Coordinate di fallback del trail/track per centrare il picker POI
+  /// quando la polyline non è disponibile. Non viene usato come posizione
+  /// finale del POI (l'utente sceglie sempre sulla mappa).
   final double? defaultLatitude;
   final double? defaultLongitude;
+
+  /// Polyline completa del trail/track. Se presente viene mostrata sul
+  /// picker posizione come riferimento visivo per piazzare il POI lungo
+  /// il percorso.
+  final List<LatLng>? polyline;
 
   const TrailPoisSection({
     super.key,
@@ -42,6 +50,7 @@ class TrailPoisSection extends StatefulWidget {
     this.allowAdd = false,
     this.defaultLatitude,
     this.defaultLongitude,
+    this.polyline,
   }) : assert(trailId != null || trackId != null,
             'Passa almeno trailId o trackId');
 
@@ -87,21 +96,28 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
   }
 
   Future<void> _openAddPoiSheet() async {
-    final lat = widget.defaultLatitude;
-    final lng = widget.defaultLongitude;
-    if (lat == null || lng == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Coordinate non disponibili per creare POI da questa pagina'),
+    // 1. Prima apre il picker posizione: mappa con polyline del trail/track
+    //    dove l'utente tocca per scegliere il punto esatto del POI.
+    final initialCenter = widget.defaultLatitude != null &&
+            widget.defaultLongitude != null
+        ? LatLng(widget.defaultLatitude!, widget.defaultLongitude!)
+        : null;
+    final picked = await Navigator.push<LatLng?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PoiLocationPickerPage(
+          polyline: widget.polyline ?? const [],
+          initialCenter: initialCenter,
         ),
-      );
-      return;
-    }
+      ),
+    );
+    if (picked == null || !mounted) return;
+
+    // 2. Con la posizione scelta, apre l'editor POI.
     final poi = await showPoiEditorSheet(
       context,
-      latitude: lat,
-      longitude: lng,
+      latitude: picked.latitude,
+      longitude: picked.longitude,
       relatedTrailId: widget.trailId,
       relatedTrackId: widget.trackId,
     );
