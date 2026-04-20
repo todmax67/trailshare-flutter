@@ -3730,4 +3730,91 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchStartPoint => 'Search starting point...';
+
+  @override
+  String get toursTab => 'Tours';
+
+  @override
+  String get myTours => 'My tours';
+
+  @override
+  String get newTour => 'New tour';
+
+  @override
+  String get editTour => 'Edit tour';
+
+  @override
+  String get noTours => 'No tours yet';
+
+  @override
+  String get createFirstTourHint => 'Group your tracks into a multi-day trip';
+
+  @override
+  String get tourTitle => 'Title';
+
+  @override
+  String get tourTitleHint => 'e.g. Dolomites Tour 2026';
+
+  @override
+  String get tourDescription => 'Description (optional)';
+
+  @override
+  String get tourSelectTracks => 'Select tracks';
+
+  @override
+  String get tourSelectTracksHint =>
+      'Pick the tracks that make up the tour and reorder them';
+
+  @override
+  String get tourReorderHint => 'Drag to reorder stages';
+
+  @override
+  String get tourPublic => 'Publish to community';
+
+  @override
+  String get tourPublicHint => 'Other users will see it in the community feed';
+
+  @override
+  String get tourSaved => 'Tour saved';
+
+  @override
+  String get tourDeleted => 'Tour deleted';
+
+  @override
+  String get deleteTourConfirm =>
+      'Delete this tour? The underlying tracks won\'t be deleted.';
+
+  @override
+  String get tourTitleRequired => 'Enter a title';
+
+  @override
+  String get tourSelectAtLeastOne => 'Select at least one track';
+
+  @override
+  String tourDays(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days',
+      one: '1 day',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String tourStages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count stages',
+      one: '1 stage',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get tourTotals => 'Tour totals';
+
+  @override
+  String get tourStagesTitle => 'Stages';
 }

@@ -9,6 +9,7 @@ import '../track_detail/track_detail_page.dart';
 import '../map/track_map_page.dart';
 import 'import_gpx_page.dart';
 import 'planner_tab.dart';
+import '../tours/tours_tab.dart';
 
 class TracksPage extends StatefulWidget {
   const TracksPage({super.key});
@@ -34,7 +35,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _scrollController.addListener(_onScroll); // ⭐ Listener per lazy load
     _loadTracks();
   }
@@ -266,6 +267,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
           tabs: [
             Tab(icon: const Icon(Icons.list), text: context.l10n.listTab),
             Tab(icon: const Icon(Icons.edit_location_alt), text: context.l10n.planTab),
+            Tab(icon: const Icon(Icons.map_outlined), text: context.l10n.toursTab),
           ],
         ),
         actions: [
@@ -290,6 +292,9 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
                   onTrackSaved: _onTrackSaved,
                 )
               : _buildLoginRequired(),
+
+          // Tab 3: Tour multi-giorno
+          user != null ? const ToursTab() : _buildLoginRequired(),
         ],
       ),
     );

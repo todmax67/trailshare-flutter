@@ -6913,6 +6913,144 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Cerca punto di partenza...'**
   String get searchStartPoint;
+
+  /// No description provided for @toursTab.
+  ///
+  /// In it, this message translates to:
+  /// **'Tour'**
+  String get toursTab;
+
+  /// No description provided for @myTours.
+  ///
+  /// In it, this message translates to:
+  /// **'I miei tour'**
+  String get myTours;
+
+  /// No description provided for @newTour.
+  ///
+  /// In it, this message translates to:
+  /// **'Nuovo tour'**
+  String get newTour;
+
+  /// No description provided for @editTour.
+  ///
+  /// In it, this message translates to:
+  /// **'Modifica tour'**
+  String get editTour;
+
+  /// No description provided for @noTours.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun tour creato'**
+  String get noTours;
+
+  /// No description provided for @createFirstTourHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Raggruppa le tue tracce in un viaggio multi-giorno'**
+  String get createFirstTourHint;
+
+  /// No description provided for @tourTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Titolo'**
+  String get tourTitle;
+
+  /// No description provided for @tourTitleHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Es. Tour delle Dolomiti 2026'**
+  String get tourTitleHint;
+
+  /// No description provided for @tourDescription.
+  ///
+  /// In it, this message translates to:
+  /// **'Descrizione (opzionale)'**
+  String get tourDescription;
+
+  /// No description provided for @tourSelectTracks.
+  ///
+  /// In it, this message translates to:
+  /// **'Seleziona tracce'**
+  String get tourSelectTracks;
+
+  /// No description provided for @tourSelectTracksHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Seleziona le tracce che compongono il tour e riordinale'**
+  String get tourSelectTracksHint;
+
+  /// No description provided for @tourReorderHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Trascina per riordinare le tappe'**
+  String get tourReorderHint;
+
+  /// No description provided for @tourPublic.
+  ///
+  /// In it, this message translates to:
+  /// **'Pubblica nella community'**
+  String get tourPublic;
+
+  /// No description provided for @tourPublicHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Gli altri utenti potranno vederlo nel feed community'**
+  String get tourPublicHint;
+
+  /// No description provided for @tourSaved.
+  ///
+  /// In it, this message translates to:
+  /// **'Tour salvato'**
+  String get tourSaved;
+
+  /// No description provided for @tourDeleted.
+  ///
+  /// In it, this message translates to:
+  /// **'Tour eliminato'**
+  String get tourDeleted;
+
+  /// No description provided for @deleteTourConfirm.
+  ///
+  /// In it, this message translates to:
+  /// **'Vuoi eliminare questo tour? Le tracce non verranno cancellate.'**
+  String get deleteTourConfirm;
+
+  /// No description provided for @tourTitleRequired.
+  ///
+  /// In it, this message translates to:
+  /// **'Inserisci un titolo'**
+  String get tourTitleRequired;
+
+  /// No description provided for @tourSelectAtLeastOne.
+  ///
+  /// In it, this message translates to:
+  /// **'Seleziona almeno una traccia'**
+  String get tourSelectAtLeastOne;
+
+  /// No description provided for @tourDays.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{1 giorno} other{{count} giorni}}'**
+  String tourDays(int count);
+
+  /// No description provided for @tourStages.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{1 tappa} other{{count} tappe}}'**
+  String tourStages(int count);
+
+  /// No description provided for @tourTotals.
+  ///
+  /// In it, this message translates to:
+  /// **'Totali tour'**
+  String get tourTotals;
+
+  /// No description provided for @tourStagesTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Tappe'**
+  String get tourStagesTitle;
 }
 
 class _AppLocalizationsDelegate

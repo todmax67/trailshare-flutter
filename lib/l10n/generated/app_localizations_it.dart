@@ -3744,4 +3744,93 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get searchStartPoint => 'Cerca punto di partenza...';
+
+  @override
+  String get toursTab => 'Tour';
+
+  @override
+  String get myTours => 'I miei tour';
+
+  @override
+  String get newTour => 'Nuovo tour';
+
+  @override
+  String get editTour => 'Modifica tour';
+
+  @override
+  String get noTours => 'Nessun tour creato';
+
+  @override
+  String get createFirstTourHint =>
+      'Raggruppa le tue tracce in un viaggio multi-giorno';
+
+  @override
+  String get tourTitle => 'Titolo';
+
+  @override
+  String get tourTitleHint => 'Es. Tour delle Dolomiti 2026';
+
+  @override
+  String get tourDescription => 'Descrizione (opzionale)';
+
+  @override
+  String get tourSelectTracks => 'Seleziona tracce';
+
+  @override
+  String get tourSelectTracksHint =>
+      'Seleziona le tracce che compongono il tour e riordinale';
+
+  @override
+  String get tourReorderHint => 'Trascina per riordinare le tappe';
+
+  @override
+  String get tourPublic => 'Pubblica nella community';
+
+  @override
+  String get tourPublicHint =>
+      'Gli altri utenti potranno vederlo nel feed community';
+
+  @override
+  String get tourSaved => 'Tour salvato';
+
+  @override
+  String get tourDeleted => 'Tour eliminato';
+
+  @override
+  String get deleteTourConfirm =>
+      'Vuoi eliminare questo tour? Le tracce non verranno cancellate.';
+
+  @override
+  String get tourTitleRequired => 'Inserisci un titolo';
+
+  @override
+  String get tourSelectAtLeastOne => 'Seleziona almeno una traccia';
+
+  @override
+  String tourDays(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count giorni',
+      one: '1 giorno',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String tourStages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tappe',
+      one: '1 tappa',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get tourTotals => 'Totali tour';
+
+  @override
+  String get tourStagesTitle => 'Tappe';
 }

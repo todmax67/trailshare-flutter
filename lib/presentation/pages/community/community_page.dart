@@ -5,9 +5,12 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../data/models/tour.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../../../data/repositories/follow_repository.dart';
+import '../../../data/repositories/tours_repository.dart';
+import '../tours/community_tour_detail_page.dart';
 import '../../../presentation/widgets/following_feed_item.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../presentation/widgets/community_track_card.dart';
@@ -80,10 +83,18 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   bool _followingLoaded = false;
   bool _userHasNoFollowing = false;
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // STATO: TOUR PUBBLICI
+  // ═══════════════════════════════════════════════════════════════════════
+  final ToursRepository _toursRepo = ToursRepository();
+  List<Tour> _publicTours = [];
+  bool _isLoadingPublicTours = false;
+  bool _publicToursLoaded = false;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(() {
       // Carica lazy i dati quando si cambia tab
       if (_tabController.index == 1 && _myGroups.isEmpty && !_isLoadingMyGroups) {
@@ -94,6 +105,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       }
       if (_tabController.index == 3 && !_followingLoaded && !_isLoadingFollowing) {
         _loadFollowingFeed();
+      }
+      if (_tabController.index == 4 && !_publicToursLoaded && !_isLoadingPublicTours) {
+        _loadPublicTours();
       }
       setState(() {
         _selectedCommunityTrack = null;
@@ -506,6 +520,10 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               icon: Icon(Icons.dynamic_feed),
               text: 'Seguiti',
             ),
+            Tab(
+              icon: const Icon(Icons.map_outlined),
+              text: context.l10n.toursTab,
+            ),
           ],
         ),
         actions: [
@@ -542,6 +560,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           _buildGroupsTab(),
           _buildEventsTab(),
           _buildFollowingTab(),
+          _buildPublicToursTab(),
         ],
       ),
     );
@@ -565,7 +584,80 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         _followingLoaded = false;
         _loadFollowingFeed();
         break;
+      case 4:
+        _loadPublicTours();
+        break;
     }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // TOUR PUBBLICI — carica e renderizza la lista dei tour community
+  // ═════════════════════════════════════════════════════════════════════════
+
+  Future<void> _loadPublicTours() async {
+    setState(() => _isLoadingPublicTours = true);
+    try {
+      final tours = await _toursRepo.getPublicTours(limit: 30);
+      if (!mounted) return;
+      setState(() {
+        _publicTours = tours;
+        _isLoadingPublicTours = false;
+        _publicToursLoaded = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingPublicTours = false;
+        _publicToursLoaded = true;
+      });
+    }
+  }
+
+  Widget _buildPublicToursTab() {
+    if (_isLoadingPublicTours && _publicTours.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_publicTours.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _loadPublicTours,
+        child: ListView(
+          children: [
+            const SizedBox(height: 100),
+            Center(
+              child: Column(
+                children: [
+                  Icon(Icons.map_outlined, size: 80, color: AppColors.primary.withOpacity(0.3)),
+                  const SizedBox(height: 16),
+                  Text(
+                    context.l10n.noTours,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadPublicTours,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _publicTours.length,
+        itemBuilder: (ctx, i) {
+          final t = _publicTours[i];
+          return _PublicTourCard(
+            tour: t,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CommunityTourDetailPage(tourId: t.id),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1738,6 +1830,90 @@ class _CommunityTrackInfoCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PublicTourCard extends StatelessWidget {
+  final Tour tour;
+  final VoidCallback onTap;
+
+  const _PublicTourCard({required this.tour, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final hours = tour.totalDuration.inHours;
+    final mins = tour.totalDuration.inMinutes % 60;
+    final durStr = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.map, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tour.title,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${tour.ownerName} · ${context.l10n.tourDays(tour.daysCount)} · ${context.l10n.tourStages(tour.trackIds.length)}',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _chip(Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
+                  _chip(Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
+                  if (tour.totalDuration.inMinutes > 0)
+                    _chip(Icons.schedule, durStr),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(IconData icon, String value, [Color? color]) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color ?? AppColors.textSecondary),
+        const SizedBox(width: 4),
+        Text(value, style: TextStyle(fontSize: 13, color: color ?? AppColors.textPrimary, fontWeight: FontWeight.w500)),
+      ],
     );
   }
 }
