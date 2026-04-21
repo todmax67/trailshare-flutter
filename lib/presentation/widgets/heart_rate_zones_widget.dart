@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/heart_rate_zones.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Widget che mostra la distribuzione del tempo nelle zone cardio
 class HeartRateZonesWidget extends StatefulWidget {
@@ -54,7 +55,7 @@ class _HeartRateZonesWidgetState extends State<HeartRateZonesWidget> {
                       'Imposta la tua FC massima nelle Impostazioni per vedere le zone cardio.',
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.textSecondary,
+                        color: context.textSecondary,
                       ),
                     ),
                   ],
@@ -94,9 +95,9 @@ class _HeartRateZonesWidgetState extends State<HeartRateZonesWidget> {
                 const Spacer(),
                 Text(
                   'FC Max: $_maxHR',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                   ),
                 ),
               ],
@@ -227,9 +228,9 @@ class _ZoneBar extends StatelessWidget {
                 ),
                 Text(
                   '${zoneRange.minBpm}-${zoneRange.maxBpm}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                   ),
                 ),
               ],

@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/trail_poi.dart';
 import '../../data/repositories/poi_repository.dart';
 import 'poi_editor_sheet.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Risultato della sheet di dettaglio POI, utilizzato dal chiamante per
 /// sapere se deve ricaricare la lista/mappa.
@@ -222,12 +223,12 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
                               ),
                               if (!_poi.isPublic) ...[
                                 const SizedBox(width: 6),
-                                const Icon(Icons.lock_outline,
-                                    size: 13, color: AppColors.textMuted),
-                                const Text(' Privato',
+                                Icon(Icons.lock_outline,
+                                    size: 13, color: context.textMuted),
+                                Text(' Privato',
                                     style: TextStyle(
                                         fontSize: 11,
-                                        color: AppColors.textMuted)),
+                                        color: context.textMuted)),
                               ],
                               if (_poi.verifiedByAdmin) ...[
                                 const SizedBox(width: 6),
@@ -294,8 +295,8 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
                         height: 180,
                         alignment: Alignment.center,
                         color: Colors.grey.shade200,
-                        child: const Icon(Icons.broken_image,
-                            color: AppColors.textMuted),
+                        child: Icon(Icons.broken_image,
+                            color: context.textMuted),
                       ),
                     ),
                   ),
@@ -413,8 +414,8 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
             style:
                 const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         Text(label,
-            style: const TextStyle(
-                fontSize: 10, color: AppColors.textMuted)),
+            style: TextStyle(
+                fontSize: 10, color: context.textMuted)),
       ],
     );
   }

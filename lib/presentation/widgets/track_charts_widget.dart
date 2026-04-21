@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/elevation_processor.dart';
 import '../../data/models/track.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Tipo di grafico disponibile
 enum ChartType {
@@ -584,7 +585,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     '${value.toStringAsFixed(1)}',
-                    style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 10, color: context.textMuted),
                   ),
                 );
               },
@@ -639,7 +640,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 '${value.toStringAsFixed(1)}',
-                style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 10, color: context.textMuted),
               ),
             );
           },
@@ -652,7 +653,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
           getTitlesWidget: (value, meta) {
             return Text(
               value.toStringAsFixed(0),
-              style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 10, color: context.textMuted),
             );
           },
         ),
@@ -794,7 +795,7 @@ class _ChartTypeButton extends StatelessWidget {
           color: isSelected ? color.withOpacity(0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? color : AppColors.textMuted.withOpacity(0.3),
+            color: isSelected ? color : context.textMuted.withOpacity(0.3),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -804,7 +805,7 @@ class _ChartTypeButton extends StatelessWidget {
             Icon(
               icon,
               size: 16,
-              color: isSelected ? color : AppColors.textMuted,
+              color: isSelected ? color : context.textMuted,
             ),
             const SizedBox(width: 6),
             Text(
@@ -812,7 +813,7 @@ class _ChartTypeButton extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? color : AppColors.textMuted,
+                color: isSelected ? color : context.textMuted,
               ),
             ),
           ],

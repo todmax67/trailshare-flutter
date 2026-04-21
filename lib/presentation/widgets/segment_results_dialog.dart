@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/segment.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Dialog mostrato dopo il salvataggio di una traccia che ha attraversato
 /// uno o più segmenti cronometrati.
@@ -125,18 +126,18 @@ class _SegmentResultsDialog extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              const Icon(Icons.timer_outlined, size: 14, color: AppColors.textMuted),
+              Icon(Icons.timer_outlined, size: 14, color: AppColors.textMuted),
               const SizedBox(width: 4),
               Text(
                 r.durationFormatted,
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               const SizedBox(width: 10),
-              const Icon(Icons.straighten, size: 14, color: AppColors.textMuted),
+              Icon(Icons.straighten, size: 14, color: AppColors.textMuted),
               const SizedBox(width: 4),
               Text(
                 '${(r.distance / 1000).toStringAsFixed(2)} km',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
             ],
           ),

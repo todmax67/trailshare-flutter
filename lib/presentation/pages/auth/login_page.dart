@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/auth_service.dart';
 import 'register_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -181,7 +182,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 8),
                 Text(
                   context.l10n.trackYourAdventures,
-                  style: const TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: context.textSecondary),
                   textAlign: TextAlign.center,
                 ),
                 
@@ -207,7 +208,7 @@ class _LoginPageState extends State<LoginPage> {
                   customIcon: _buildGoogleIcon(),
                   label: context.l10n.continueWithGoogle,
                   backgroundColor: Colors.white,
-                  textColor: AppColors.textPrimary,
+                  textColor: context.textPrimary,
                   borderColor: AppColors.border,
                 ),
 
@@ -221,7 +222,7 @@ class _LoginPageState extends State<LoginPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
                         context.l10n.orDivider,
-                        style: TextStyle(color: AppColors.textMuted),
+                        style: TextStyle(color: context.textMuted),
                       ),
                     ),
                     const Expanded(child: Divider()),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/l10n_extension.dart';
@@ -27,7 +28,7 @@ class ExportFormatSheet {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16, top: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.textMuted.withOpacity(0.3),
+                  color: context.textMuted.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -47,7 +48,7 @@ class ExportFormatSheet {
                           const SizedBox(height: 4),
                           Text(
                             context.l10n.exportFormatSubtitle,
-                            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                            style: TextStyle(fontSize: 13, color: context.textSecondary),
                           ),
                         ],
                       ),

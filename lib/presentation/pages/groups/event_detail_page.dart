@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class EventDetailPage extends StatefulWidget {
   final String groupId;
@@ -223,7 +224,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
           title: Text(context.l10n.eventLabel),
           backgroundColor: Colors.transparent,
           elevation: 0,
-          foregroundColor: AppColors.textPrimary,
+          foregroundColor: context.textPrimary,
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -551,7 +552,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: isCreator ? Colors.white : AppColors.textPrimary,
+                        color: isCreator ? Colors.white : context.textPrimary,
                       ),
                     ),
                   ),
@@ -590,7 +591,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: _isParticipating ? Colors.grey[200] : AppColors.primary,
-            foregroundColor: _isParticipating ? AppColors.textPrimary : Colors.white,
+            foregroundColor: _isParticipating ? context.textPrimary : Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),

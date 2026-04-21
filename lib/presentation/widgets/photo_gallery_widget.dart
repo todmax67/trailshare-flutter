@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/track_photos_service.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Widget per visualizzare e gestire foto durante/dopo registrazione
 class PhotoGalleryWidget extends StatelessWidget {
@@ -33,14 +34,14 @@ class PhotoGalleryWidget extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              const Icon(Icons.photo_camera, size: 20, color: AppColors.textSecondary),
+              Icon(Icons.photo_camera, size: 20, color: context.textSecondary),
               const SizedBox(width: 8),
               Text(
                 photos.isEmpty ? 'Nessuna foto' : '${photos.length} ${photos.length == 1 ? "foto" : "foto"}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: context.textPrimary,
                 ),
               ),
               const Spacer(),
@@ -304,13 +305,13 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: AppColors.textMuted),
+          Icon(icon, size: 20, color: context.textMuted),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                Text(label, style: TextStyle(fontSize: 12, color: context.textMuted)),
                 const SizedBox(height: 2),
                 Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
               ],
@@ -387,7 +388,7 @@ class AddPhotoButton extends StatelessWidget {
               const Divider(height: 1),
             ],
             ListTile(
-              leading: const Icon(Icons.cancel, color: AppColors.textMuted),
+              leading: Icon(Icons.cancel, color: context.textMuted),
               title: const Text('Annulla'),
               onTap: () => Navigator.pop(context),
             ),

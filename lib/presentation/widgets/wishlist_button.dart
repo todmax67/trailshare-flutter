@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/wishlist_repository.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Bottone Wishlist (salva/rimuovi dai preferiti)
 /// 
@@ -93,7 +94,7 @@ class _WishlistButtonState extends State<WishlistButton> with SingleTickerProvid
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.message!),
-            backgroundColor: _isInWishlist ? AppColors.success : AppColors.textSecondary,
+            backgroundColor: _isInWishlist ? AppColors.success : context.textSecondary,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -129,7 +130,7 @@ class _WishlistButtonState extends State<WishlistButton> with SingleTickerProvid
                 scale: _scaleAnimation,
                 child: Icon(
                   _isInWishlist ? Icons.bookmark : Icons.bookmark_border,
-                  color: _isInWishlist ? AppColors.warning : AppColors.textMuted,
+                  color: _isInWishlist ? AppColors.warning : context.textMuted,
                   size: widget.size,
                 ),
               ),
@@ -138,7 +139,7 @@ class _WishlistButtonState extends State<WishlistButton> with SingleTickerProvid
                 Text(
                   _isInWishlist ? 'Salvato' : 'Salva',
                   style: TextStyle(
-                    color: _isInWishlist ? AppColors.warning : AppColors.textMuted,
+                    color: _isInWishlist ? AppColors.warning : context.textMuted,
                     fontWeight: _isInWishlist ? FontWeight.w600 : FontWeight.normal,
                     fontSize: widget.size * 0.55,
                   ),
@@ -220,7 +221,7 @@ class _WishlistIconButtonState extends State<WishlistIconButton> {
         _isInWishlist ? Icons.bookmark : Icons.bookmark_border,
         color: _isInWishlist 
             ? (widget.activeColor ?? AppColors.warning) 
-            : (widget.color ?? AppColors.textMuted),
+            : (widget.color ?? context.textMuted),
       ),
       onPressed: _isLoading ? null : _toggle,
       tooltip: _isInWishlist ? 'Rimuovi dai salvati' : 'Salva percorso',

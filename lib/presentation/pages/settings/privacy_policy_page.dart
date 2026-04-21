@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina Privacy Policy
 /// 
@@ -19,7 +20,7 @@ class PrivacyPolicyPage extends StatelessWidget {
         title: Text(context.l10n.privacyPolicy),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -39,7 +40,7 @@ class PrivacyPolicyPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     context.l10n.privacyLastUpdated,
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    style: TextStyle(color: context.textMuted, fontSize: 12),
                   ),
                 ],
               ),
@@ -137,7 +138,7 @@ class PrivacyPolicyPage extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             content,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               height: 1.5,
               color: AppColors.textSecondary,

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/gamification_service.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina Badge
 class BadgesPage extends StatefulWidget {
@@ -196,7 +197,7 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textMuted,
+          unselectedLabelColor: context.textMuted,
           indicatorColor: AppColors.primary,
           tabs: [
             Tab(text: context.l10n.unlockedCount(_unlockedBadges.length)),

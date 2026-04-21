@@ -23,6 +23,7 @@ import '../../widgets/share_card_widget.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/models/recording_reference.dart';
 import '../record/record_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class CommunityTrackDetailPage extends StatefulWidget {
   final CommunityTrack track;
@@ -321,7 +322,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     const SizedBox(height: 4),
                     Text(
                       context.l10n.sharedOnDate(_formatDate(track.sharedAt!)),
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      style: TextStyle(color: context.textSecondary, fontSize: 12),
                     ),
                   ],
                 ],
@@ -422,7 +423,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             // Header
             Row(
               children: [
-                const Icon(Icons.photo_library, size: 20, color: AppColors.textSecondary),
+                Icon(Icons.photo_library, size: 20, color: context.textSecondary),
                 const SizedBox(width: 8),
                 Text(
                   context.l10n.photosWithCount(photoUrls.length),
@@ -485,7 +486,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             const SizedBox(height: 8),
             Text(
               widget.track.description!,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: context.textSecondary),
             ),
           ],
         ),
@@ -523,10 +524,10 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.textMuted),
+          Icon(icon, size: 18, color: context.textMuted),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+            child: Text(label, style: TextStyle(color: context.textSecondary)),
           ),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
@@ -929,7 +930,7 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 11, color: context.textMuted),
             ),
           ],
         ),
@@ -996,11 +997,11 @@ class _PhotoThumbnail extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.broken_image, color: AppColors.textMuted, size: 32),
+                      Icon(Icons.broken_image, color: context.textMuted, size: 32),
                       const SizedBox(height: 4),
                       Text(
                         context.l10n.errorLabel,
-                        style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+                        style: TextStyle(color: context.textMuted, fontSize: 10),
                       ),
                     ],
                   ),

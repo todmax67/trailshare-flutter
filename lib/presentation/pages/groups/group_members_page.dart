@@ -5,6 +5,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../profile/public_profile_page.dart';
 import '../../../data/repositories/follow_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class GroupMembersPage extends StatefulWidget {
   final String groupId;
@@ -51,7 +52,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
         title: Text(context.l10n.membersWithCount(_members.length)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
         actions: [
           if (widget.isAdmin)
             IconButton(
@@ -119,7 +120,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
               ),
             ),
             if (isMe)
-              Text(context.l10n.youSuffix, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              Text(context.l10n.youSuffix, style: TextStyle(color: context.textMuted, fontSize: 12)),
           ],
         ),
         subtitle: Text(

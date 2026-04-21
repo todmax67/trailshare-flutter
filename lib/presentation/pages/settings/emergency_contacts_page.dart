@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina gestione contatti di emergenza (max 3).
 ///
@@ -100,7 +101,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                   'automaticamente.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: context.textSecondary,
                     height: 1.4,
                   ),
                 ),
@@ -141,7 +142,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.contacts_outlined,
-              size: 64, color: AppColors.textMuted.withOpacity(0.5)),
+              size: 64, color: context.textMuted.withOpacity(0.5)),
           const SizedBox(height: 12),
           const Text(
             'Nessun contatto configurato',
@@ -153,7 +154,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
           const SizedBox(height: 4),
           Text(
             'Aggiungi almeno un contatto per abilitare Lifeline',
-            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 13, color: context.textMuted),
           ),
         ],
       ),
@@ -501,7 +502,7 @@ class _ContactEditorSheetState extends State<_ContactEditorSheet> {
                   'Almeno uno tra telefono ed email è obbligatorio.',
                   style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -596,7 +597,7 @@ class _TemplateEditorState extends State<_TemplateEditor> {
         const SizedBox(height: 8),
         Text(
           'Placeholder disponibili: {nome}, {attività}, {nomeTraccia}, {link}',
-          style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          style: TextStyle(fontSize: 11, color: context.textMuted),
         ),
         const SizedBox(height: 12),
         Container(

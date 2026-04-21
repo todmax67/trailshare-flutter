@@ -4,6 +4,7 @@ import '../../core/utils/elevation_processor.dart';
 import '../../data/models/track.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math' show min;
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Dati di un singolo lap (chilometro)
 class LapData {
@@ -374,15 +375,15 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                   ),
                   Text(
                     '${_laps.length} km',
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
+                    style: TextStyle(
+                      color: context.textMuted,
                       fontSize: 14,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Icon(
                     _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                   ),
                 ],
               ),
@@ -438,7 +439,7 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                                 : '${lap.lapNumber}',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                              color: isSelected ? AppColors.primary : context.textPrimary,
                             ),
                           ),
                         ),
@@ -466,7 +467,7 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                                   ? AppColors.success 
                                   : lap.netElevation < 0 
                                       ? AppColors.info 
-                                      : AppColors.textPrimary,
+                                      : context.textPrimary,
                               fontWeight: FontWeight.w500,
                             ),
                           ),

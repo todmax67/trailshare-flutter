@@ -13,6 +13,7 @@ import '../../data/models/trail_poi.dart';
 import '../../data/repositories/poi_repository.dart';
 import 'poi_marker_layer.dart';
 import 'poi_detail_sheet.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Widget mappa interattiva per visualizzare tracce GPS
 /// 
@@ -534,7 +535,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                       const Spacer(),
                       GestureDetector(
                         onTap: () => setState(() => _tappedPoint = null),
-                        child: const Icon(Icons.close, size: 18, color: AppColors.textMuted),
+                        child: Icon(Icons.close, size: 18, color: context.textMuted),
                       ),
                     ],
                   ),

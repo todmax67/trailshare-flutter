@@ -8,6 +8,7 @@ import '../../../data/repositories/community_tracks_repository.dart';
 import '../../widgets/community_track_card.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../data/models/track.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina che mostra i percorsi salvati nella wishlist
 class WishlistPage extends StatefulWidget {
@@ -186,7 +187,7 @@ class _WishlistPageState extends State<WishlistPage> {
         title: Text(context.l10n.savedTracks),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
       ),
       body: _buildBody(),
     );

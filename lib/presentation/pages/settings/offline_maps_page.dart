@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/offline_maps_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina gestione mappe offline
 class OfflineMapsPage extends StatefulWidget {
@@ -49,7 +50,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
         title: Text(context.l10n.offlineMaps),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_sweep),
@@ -113,9 +114,9 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
               children: [
                 Text(
                   context.l10n.storageUsed,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
+                    color: context.textSecondary,
                   ),
                 ),
                 Text(
@@ -131,7 +132,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
           ),
           Text(
             context.l10n.areasCount(_regions.length),
-            style: const TextStyle(color: AppColors.textMuted),
+            style: TextStyle(color: context.textMuted),
           ),
         ],
       ),
@@ -425,7 +426,7 @@ class _SelectAreaPageState extends State<_SelectAreaPage> {
         title: Text(context.l10n.selectArea),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
         actions: [
           TextButton(
             onPressed: _confirm,
@@ -495,7 +496,7 @@ class _SelectAreaPageState extends State<_SelectAreaPage> {
                   children: [
                     Text(
                       context.l10n.tapMapToSelectCenter,
-                      style: const TextStyle(color: AppColors.textMuted),
+                      style: TextStyle(color: context.textMuted),
                     ),
                     const SizedBox(height: 12),
                     Row(

@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 // ⭐ Repository con cache e clustering
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../core/services/trails_cache_service.dart';
@@ -1087,11 +1088,11 @@ class _DiscoverPageState extends State<DiscoverPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: AppColors.textMuted.withOpacity(0.5)),
+          Icon(icon, size: 64, color: context.textMuted.withOpacity(0.5)),
           const SizedBox(height: 16),
           Text(
             message,
-            style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 16, color: context.textSecondary),
             textAlign: TextAlign.center,
           ),
           if (_searchQuery.isNotEmpty) ...[
@@ -1253,11 +1254,11 @@ class _TrailInfoCard extends StatelessWidget {
                                 const SizedBox(width: 14),
                               ],
                               if (trail.elevationGain != null) ...[
-                                Icon(Icons.trending_up, size: 14, color: AppColors.textMuted),
+                                Icon(Icons.trending_up, size: 14, color: context.textMuted),
                                 const SizedBox(width: 4),
                                 Text(
                                   '+${trail.elevationGain!.toStringAsFixed(0)} m',
-                                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                  style: TextStyle(color: context.textSecondary, fontSize: 13),
                                 ),
                               ],
                             ],
@@ -1274,7 +1275,7 @@ class _TrailInfoCard extends StatelessWidget {
                         minimumSize: const Size(32, 32),
                       ),
                     ),
-                    const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                    Icon(Icons.chevron_right, color: context.textMuted),
                   ],
                 ),
 
@@ -1442,13 +1443,13 @@ class _TrailCard extends StatelessWidget {
                   if (trail.operator != null) ...[
                     Row(
                       children: [
-                        const Icon(Icons.business, size: 14, color: AppColors.textMuted),
+                        Icon(Icons.business, size: 14, color: context.textMuted),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
                             trail.operator!,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              color: context.textSecondary,
                               fontSize: 12,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -1645,11 +1646,11 @@ class _TrailCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.hiking, size: 32, color: AppColors.textMuted),
+              Icon(Icons.hiking, size: 32, color: context.textMuted),
               const SizedBox(height: 4),
               Text(
                 trail.ref ?? context.l10n.trailFallback,
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                style: TextStyle(color: context.textMuted, fontSize: 12),
               ),
             ],
           ),
@@ -1780,7 +1781,7 @@ class _TrailCard extends StatelessWidget {
                 color: Colors.white.withOpacity(0.9),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
+              child: Icon(Icons.chevron_right, size: 18, color: context.textMuted),
             ),
           ),
         ],

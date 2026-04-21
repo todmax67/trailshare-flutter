@@ -6,6 +6,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/trail_photo.dart';
 import '../../data/repositories/trail_photos_repository.dart';
 import 'trail_photo_viewer.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Sezione completa "Foto community" per la pagina dettaglio sentiero.
 ///
@@ -233,7 +234,7 @@ class _TrailPhotosSectionState extends State<TrailPhotosSection> {
         if (!_isLoading && !_error && _photos.isNotEmpty)
           Text(
             '${_photos.length}',
-            style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 13, color: context.textMuted),
           ),
       ],
     );
@@ -244,12 +245,12 @@ class _TrailPhotosSectionState extends State<TrailPhotosSection> {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, size: 20, color: AppColors.textMuted),
+          Icon(Icons.error_outline, size: 20, color: context.textMuted),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
               'Impossibile caricare le foto',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              style: TextStyle(color: context.textMuted, fontSize: 13),
             ),
           ),
           TextButton(

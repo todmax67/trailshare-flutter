@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/follow_repository.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Bottone Follow/Unfollow per profili utente
 class FollowButton extends StatefulWidget {
@@ -88,7 +89,7 @@ class _FollowButtonState extends State<FollowButton> {
       onPressed: _isLoading ? null : _toggleFollow,
       style: ElevatedButton.styleFrom(
         backgroundColor: _isFollowing ? Colors.grey[200] : AppColors.primary,
-        foregroundColor: _isFollowing ? AppColors.textPrimary : Colors.white,
+        foregroundColor: _isFollowing ? context.textPrimary : Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(25),
@@ -100,7 +101,7 @@ class _FollowButtonState extends State<FollowButton> {
               height: 20,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: _isFollowing ? AppColors.textPrimary : Colors.white,
+                color: _isFollowing ? context.textPrimary : Colors.white,
               ),
             )
           : Row(
@@ -125,9 +126,9 @@ class _FollowButtonState extends State<FollowButton> {
       onPressed: _isLoading ? null : _toggleFollow,
       style: OutlinedButton.styleFrom(
         backgroundColor: _isFollowing ? AppColors.primary.withOpacity(0.1) : null,
-        foregroundColor: _isFollowing ? AppColors.primary : AppColors.textSecondary,
+        foregroundColor: _isFollowing ? AppColors.primary : context.textSecondary,
         side: BorderSide(
-          color: _isFollowing ? AppColors.primary : AppColors.textMuted,
+          color: _isFollowing ? AppColors.primary : context.textMuted,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         shape: RoundedRectangleBorder(
@@ -176,7 +177,7 @@ class FollowCountsWidget extends StatelessWidget {
         Container(
           height: 30,
           width: 1,
-          color: AppColors.textMuted.withOpacity(0.3),
+          color: context.textMuted.withOpacity(0.3),
           margin: const EdgeInsets.symmetric(horizontal: 24),
         ),
         _buildCountItem(

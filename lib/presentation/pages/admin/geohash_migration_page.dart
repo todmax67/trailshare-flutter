@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina di amministrazione per verificare lo stato GeoHash
 /// 
@@ -83,11 +84,11 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'GeoHash è un sistema che codifica le coordinate geografiche in stringhe. '
                       'I tuoi documenti hanno già il campo \'geoHash\' popolato, quindi le query '
                       'geospaziali funzionano automaticamente!',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: context.textSecondary),
                     ),
                   ],
                 ),
@@ -266,9 +267,9 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.code, color: AppColors.textMuted),
+                        Icon(Icons.code, color: context.textMuted),
                         SizedBox(width: 8),
                         Text(
                           'Note Tecniche',
@@ -334,7 +335,7 @@ class _StatBox extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 10, color: context.textMuted),
             textAlign: TextAlign.center,
           ),
         ],

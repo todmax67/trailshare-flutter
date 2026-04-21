@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/segment.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/segments_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina dettaglio segmento con classifica Top 10 + tempo personale.
 class SegmentDetailPage extends StatefulWidget {
@@ -152,7 +153,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
           Icon(icon, size: 20, color: AppColors.primary),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          Text(label, style: TextStyle(fontSize: 11, color: context.textMuted)),
         ],
       ),
     );
@@ -242,9 +243,9 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
               color: Colors.grey.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text(
+            child: Text(
               'Non hai ancora completato questo segmento',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              style: TextStyle(color: context.textMuted, fontSize: 13),
             ),
           )
         else
@@ -287,7 +288,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
                       ),
                       Text(
                         '${mine.averageSpeedKmh.toStringAsFixed(1)} km/h',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                        style: TextStyle(fontSize: 12, color: context.textMuted),
                       ),
                     ],
                   ),
@@ -395,7 +396,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
                 ),
                 Text(
                   '${effort.averageSpeedKmh.toStringAsFixed(1)} km/h',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 11, color: context.textMuted),
                 ),
               ],
             ),

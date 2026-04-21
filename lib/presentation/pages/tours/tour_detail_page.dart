@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tours_repository.dart';
@@ -142,7 +143,7 @@ class _TourDetailPageState extends State<TourDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (tour.description != null && tour.description!.isNotEmpty) ...[
-                  Text(tour.description!, style: TextStyle(color: AppColors.textSecondary)),
+                  Text(tour.description!, style: TextStyle(color: context.textSecondary)),
                   const SizedBox(height: 12),
                 ],
                 Row(
@@ -261,9 +262,9 @@ class _TourDetailPageState extends State<TourDetailPage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18, color: color ?? AppColors.textSecondary),
+        Icon(icon, size: 18, color: color ?? context.textSecondary),
         const SizedBox(width: 6),
-        Text(value, style: TextStyle(color: color ?? AppColors.textPrimary, fontWeight: FontWeight.w500)),
+        Text(value, style: TextStyle(color: color ?? context.textPrimary, fontWeight: FontWeight.w500)),
       ],
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/trail_condition.dart';
 import '../../data/repositories/trail_conditions_repository.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Bottom sheet per segnalare le condizioni del sentiero.
 /// Ritorna il [TrailCondition] creato in caso di successo.
@@ -185,7 +186,7 @@ class _ReportConditionSheetState extends State<_ReportConditionSheet> {
                     s.label,
                     style: TextStyle(
                       fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      color: isSelected ? s.color : AppColors.textPrimary,
+                      color: isSelected ? s.color : context.textPrimary,
                       fontSize: 13,
                     ),
                     overflow: TextOverflow.ellipsis,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -143,7 +144,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 8),
                 Text(
                   context.l10n.createAccountToSaveTracks,
-                  style: const TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: context.textSecondary),
                   textAlign: TextAlign.center,
                 ),
                 
@@ -173,7 +174,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   )),
                   label: context.l10n.continueWithGoogle,
                   backgroundColor: Colors.white,
-                  textColor: AppColors.textPrimary,
+                  textColor: context.textPrimary,
                   borderColor: AppColors.border,
                 ),
 
@@ -187,7 +188,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
                         context.l10n.orRegisterWithEmail,
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                        style: TextStyle(color: context.textMuted, fontSize: 12),
                       ),
                     ),
                     const Expanded(child: Divider()),
@@ -332,7 +333,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   context.l10n.acceptTermsAndPrivacy,
                   style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                   ),
                   textAlign: TextAlign.center,
                 ),

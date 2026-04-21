@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/heart_rate_service.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Widget per mostrare il battito cardiaco durante il tracking
 class HeartRateWidget extends StatefulWidget {
@@ -131,11 +132,11 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
         break;
       case HRConnectionState.connecting:
         text = '...';
-        style = style.copyWith(color: AppColors.textMuted);
+        style = style.copyWith(color: context.textMuted);
         break;
       case HRConnectionState.scanning:
         text = 'Cerca';
-        style = style.copyWith(color: AppColors.textMuted, fontSize: 12);
+        style = style.copyWith(color: context.textMuted, fontSize: 12);
         break;
       case HRConnectionState.bluetoothOff:
         text = 'BT Off';
@@ -148,7 +149,7 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
       case HRConnectionState.disconnected:
       default:
         text = 'HR';
-        style = style.copyWith(color: AppColors.textMuted);
+        style = style.copyWith(color: context.textMuted);
     }
 
     return Column(
@@ -157,9 +158,9 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
       children: [
         Text(text, style: style),
         if (_connectionState == HRConnectionState.connected)
-          const Text(
+          Text(
             'BPM',
-            style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 10, color: context.textMuted),
           ),
       ],
     );
@@ -197,7 +198,7 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
       case HRConnectionState.error:
         return AppColors.warning;
       default:
-        return AppColors.textMuted;
+        return context.textMuted;
     }
   }
 
@@ -418,7 +419,7 @@ class _HeartRateDeviceSelectorState extends State<HeartRateDeviceSelector> {
 
   Widget _buildEmptyState() {
     if (_isScanning) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -429,7 +430,7 @@ class _HeartRateDeviceSelectorState extends State<HeartRateDeviceSelector> {
             Text(
               'Assicurati che la fascia sia accesa\ne il Bluetooth attivo',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              style: TextStyle(color: context.textMuted, fontSize: 13),
             ),
           ],
         ),

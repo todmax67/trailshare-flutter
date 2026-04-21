@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/live_track_repository.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina per visualizzare una sessione LiveTrack in tempo reale
 /// 
@@ -116,7 +117,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
                 backgroundColor: _followUser ? AppColors.primary : Colors.white,
                 child: Icon(
                   Icons.my_location,
-                  color: _followUser ? Colors.white : AppColors.textPrimary,
+                  color: _followUser ? Colors.white : context.textPrimary,
                 ),
               ),
             ),

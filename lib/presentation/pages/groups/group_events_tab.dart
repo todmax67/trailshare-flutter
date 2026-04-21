@@ -5,6 +5,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_event_page.dart';
 import 'event_detail_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class GroupEventsTab extends StatefulWidget {
   final String groupId;
@@ -225,7 +226,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
               const SizedBox(height: 12),
               Text(
                 event.description!,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                style: TextStyle(color: context.textSecondary, fontSize: 14),
               ),
             ],
 
@@ -279,7 +280,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isParticipating ? Colors.grey[300] : AppColors.primary,
-                        foregroundColor: isParticipating ? AppColors.textPrimary : Colors.white,
+                        foregroundColor: isParticipating ? context.textPrimary : Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
@@ -310,9 +311,9 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: AppColors.textMuted),
+        Icon(icon, size: 14, color: context.textMuted),
         const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Text(text, style: TextStyle(fontSize: 12, color: context.textSecondary)),
       ],
     );
   }

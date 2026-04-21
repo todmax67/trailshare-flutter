@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../groups/group_detail_page.dart';
 import '../follow/follow_list_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class AdminPanelPage extends StatefulWidget {
   const AdminPanelPage({super.key});
@@ -506,10 +507,10 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
                       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                     if (user.bio != null && user.bio!.isNotEmpty)
-                      Text(user.bio!, style: const TextStyle(color: AppColors.textSecondary)),
+                      Text(user.bio!, style: TextStyle(color: context.textSecondary)),
                     Text(
                       'Lv. ${user.level} • ${user.xp} XP',
-                      style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                      style: TextStyle(fontSize: 13, color: context.textMuted),
                     ),
                   ],
                 ),
@@ -527,12 +528,12 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.fingerprint, size: 16, color: AppColors.textMuted),
+                Icon(Icons.fingerprint, size: 16, color: context.textMuted),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     user.uid,
-                    style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: context.textMuted),
                   ),
                 ),
               ],
@@ -576,7 +577,7 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
                       const SizedBox(width: 8),
                       Text(g['name'], style: const TextStyle(color: AppColors.primary)),
                       const Spacer(),
-                      const Icon(Icons.chevron_right, size: 16, color: AppColors.textMuted),
+                      Icon(Icons.chevron_right, size: 16, color: context.textMuted),
                     ],
                   ),
                 ),
@@ -630,9 +631,9 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.textMuted),
+          Icon(icon, size: 18, color: context.textMuted),
           const SizedBox(width: 10),
-          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(label, style: TextStyle(color: context.textSecondary)),
           const Spacer(),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
         ],

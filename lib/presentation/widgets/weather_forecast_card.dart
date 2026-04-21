@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/weather_service.dart';
 import '../../data/models/weather_data.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Card che mostra meteo attuale + forecast 5 giorni per una location.
 ///
@@ -115,12 +116,12 @@ class _WeatherForecastCardState extends State<WeatherForecastCard> {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: [
-          const Icon(Icons.wifi_off, size: 20, color: AppColors.textMuted),
+          Icon(Icons.wifi_off, size: 20, color: context.textMuted),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
               'Meteo non disponibile',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              style: TextStyle(color: context.textMuted, fontSize: 13),
             ),
           ),
           TextButton(
@@ -155,9 +156,9 @@ class _WeatherForecastCardState extends State<WeatherForecastCard> {
               ),
               Text(
                 current.description,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.textSecondary,
+                  color: context.textSecondary,
                 ),
               ),
               const SizedBox(height: 6),
@@ -184,11 +185,11 @@ class _WeatherForecastCardState extends State<WeatherForecastCard> {
   Widget _miniStat(IconData icon, String value) {
     return Row(
       children: [
-        Icon(icon, size: 14, color: AppColors.textMuted),
+        Icon(icon, size: 14, color: context.textMuted),
         const SizedBox(width: 4),
         Text(
           value,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 12, color: context.textSecondary),
         ),
       ],
     );
@@ -235,13 +236,13 @@ class _WeatherForecastCardState extends State<WeatherForecastCard> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: isToday ? AppColors.info : AppColors.textSecondary,
+                color: isToday ? AppColors.info : context.textSecondary,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               '${day.date.day} ${months[day.date.month - 1]}',
-              style: const TextStyle(fontSize: 9, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 9, color: context.textMuted),
             ),
             const SizedBox(height: 4),
             Icon(day.icon, size: 22, color: AppColors.info),

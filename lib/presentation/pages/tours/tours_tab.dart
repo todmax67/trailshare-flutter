@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/repositories/tours_repository.dart';
 import 'tour_edit_page.dart';
@@ -116,7 +117,7 @@ class _ToursTabState extends State<ToursTab> {
                     child: Text(
                       context.l10n.createFirstTourHint,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: context.textSecondary),
                     ),
                   ),
                 ],
@@ -187,7 +188,7 @@ class _TourCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           '${context.l10n.tourDays(tour.daysCount)} · ${context.l10n.tourStages(tour.trackIds.length)}',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                          style: TextStyle(color: context.textSecondary, fontSize: 12),
                         ),
                       ],
                     ),
@@ -200,10 +201,10 @@ class _TourCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _chip(Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
-                  _chip(Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
+                  _chip(context, Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
+                  _chip(context, Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
                   if (tour.totalDuration.inMinutes > 0)
-                    _chip(Icons.schedule, durStr),
+                    _chip(context, Icons.schedule, durStr),
                 ],
               ),
             ],
@@ -213,13 +214,13 @@ class _TourCard extends StatelessWidget {
     );
   }
 
-  Widget _chip(IconData icon, String value, [Color? color]) {
+  Widget _chip(BuildContext context, IconData icon, String value, [Color? color]) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: color ?? AppColors.textSecondary),
+        Icon(icon, size: 16, color: color ?? context.textSecondary),
         const SizedBox(width: 4),
-        Text(value, style: TextStyle(fontSize: 13, color: color ?? AppColors.textPrimary, fontWeight: FontWeight.w500)),
+        Text(value, style: TextStyle(fontSize: 13, color: color ?? context.textPrimary, fontWeight: FontWeight.w500)),
       ],
     );
   }

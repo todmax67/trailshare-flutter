@@ -6,6 +6,7 @@ import '../../data/models/track.dart';
 import '../../data/repositories/segments_repository.dart';
 import '../pages/segments/segment_detail_page.dart';
 import '../pages/segments/segment_editor_page.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Sezione segmenti per una traccia specifica.
 ///
@@ -204,7 +205,7 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
             padding: const EdgeInsets.only(right: 4),
             child: Text(
               '${_segments.length}',
-              style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 13, color: context.textMuted),
             ),
           ),
         if (_canCreate)
@@ -278,25 +279,25 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
                         ),
                         if (!s.isPublic) ...[
                           const SizedBox(width: 6),
-                          const Icon(Icons.lock_outline, size: 13, color: AppColors.textMuted),
+                          Icon(Icons.lock_outline, size: 13, color: context.textMuted),
                         ],
                       ],
                     ),
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        const Icon(Icons.straighten, size: 12, color: AppColors.textMuted),
+                        Icon(Icons.straighten, size: 12, color: context.textMuted),
                         const SizedBox(width: 3),
                         Text(
                           '${(s.distance / 1000).toStringAsFixed(2)} km',
-                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          style: TextStyle(fontSize: 11, color: context.textMuted),
                         ),
                         const SizedBox(width: 10),
-                        const Icon(Icons.trending_up, size: 12, color: AppColors.textMuted),
+                        Icon(Icons.trending_up, size: 12, color: context.textMuted),
                         const SizedBox(width: 3),
                         Text(
                           '+${s.elevationGain.round()} m',
-                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          style: TextStyle(fontSize: 11, color: context.textMuted),
                         ),
                       ],
                     ),
@@ -309,9 +310,9 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
                           Expanded(
                             child: Text(
                               '${champion.username} · ${champion.durationFormatted}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
-                                color: AppColors.textSecondary,
+                                color: context.textSecondary,
                                 fontWeight: FontWeight.w500,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -328,7 +329,7 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
                   icon: const Icon(Icons.delete_outline, size: 18),
                   onPressed: () => _deleteSegment(s),
                   tooltip: 'Elimina',
-                  color: AppColors.textMuted,
+                  color: context.textMuted,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),

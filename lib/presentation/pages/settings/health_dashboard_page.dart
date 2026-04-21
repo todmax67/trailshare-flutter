@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/health_service.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Dashboard Salute — mostra dati aggregati da Health Connect
 class HealthDashboardPage extends StatefulWidget {
@@ -197,7 +198,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
                             entries[idx].key,
-                            style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                            style: TextStyle(fontSize: 10, color: context.textMuted),
                           ),
                         );
                       }
@@ -279,7 +280,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
                             entries[idx].key,
-                            style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                            style: TextStyle(fontSize: 10, color: context.textMuted),
                           ),
                         );
                       }
@@ -326,7 +327,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
               const SizedBox(height: 8),
               Text(
                 message,
-                style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                style: TextStyle(color: context.textMuted, fontSize: 13),
               ),
             ],
           ),
@@ -347,7 +348,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
             Expanded(
               child: Text(
                 context.l10n.healthDataInfo,
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 12, color: context.textSecondary),
               ),
             ),
           ],
@@ -395,7 +396,7 @@ class _DashboardCard extends StatelessWidget {
                     title,
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppColors.textSecondary,
+                      color: context.textSecondary,
                     ),
                   ),
                 ),
@@ -415,7 +416,7 @@ class _DashboardCard extends StatelessWidget {
               subtitle,
               style: TextStyle(
                 fontSize: 12,
-                color: AppColors.textMuted,
+                color: context.textMuted,
               ),
             ),
             if (progress != null) ...[

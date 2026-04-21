@@ -6,6 +6,7 @@ import 'dart:io';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class GroupChatTab extends StatefulWidget {
   final String groupId;
@@ -154,7 +155,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
               children: [
                 const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                 const SizedBox(width: 8),
-                Text(context.l10n.sendingImage, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                Text(context.l10n.sendingImage, style: TextStyle(fontSize: 13, color: context.textMuted)),
               ],
             ),
           ),
@@ -248,7 +249,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
           Text(
             message.text,
             style: TextStyle(
-              color: isMe ? Colors.white : AppColors.textPrimary,
+              color: isMe ? Colors.white : context.textPrimary,
               fontSize: 15,
             ),
           ),
@@ -256,7 +257,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
           Text(
             _formatTime(message.timestamp),
             style: TextStyle(
-              color: isMe ? Colors.white70 : AppColors.textMuted,
+              color: isMe ? Colors.white70 : context.textMuted,
               fontSize: 10,
             ),
           ),
@@ -309,7 +310,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
                 _formatTime(message.timestamp),
                 textAlign: TextAlign.right,
                 style: TextStyle(
-                  color: isMe ? Colors.white70 : AppColors.textMuted,
+                  color: isMe ? Colors.white70 : context.textMuted,
                   fontSize: 10,
                 ),
               ),

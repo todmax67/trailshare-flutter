@@ -14,6 +14,7 @@ import '../challenges/challenges_page.dart';
 import '../groups/groups_list_page.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../admin/admin_panel_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -266,7 +267,7 @@ class _ProfilePageState extends State<ProfilePage> {
         title: Text(context.l10n.profile),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
         actions: [
           if (user != null)
             IconButton(
@@ -307,7 +308,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         // Email
                         Text(
                           user.email ?? '',
-                          style: const TextStyle(color: AppColors.textMuted),
+                          style: TextStyle(color: context.textMuted),
                         ),
                         const SizedBox(height: 16),
 
@@ -513,7 +514,7 @@ class _ProfilePageState extends State<ProfilePage> {
         if (_bio != null && _bio!.isNotEmpty)
           Text(
             _bio!,
-            style: const TextStyle(fontStyle: FontStyle.italic, color: AppColors.textSecondary),
+            style: TextStyle(fontStyle: FontStyle.italic, color: context.textSecondary),
             textAlign: TextAlign.center,
           ),
         TextButton(
@@ -561,7 +562,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               Text(
                 '$_currentXp / $_xpForNextLevel XP',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                style: TextStyle(color: context.textMuted, fontSize: 13),
               ),
             ],
           ),
@@ -873,7 +874,7 @@ class _StatItem extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: context.textMuted),
           ),
           const SizedBox(height: 4),
           Row(

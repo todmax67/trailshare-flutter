@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../track_detail/track_detail_page.dart';
@@ -348,7 +349,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
                   const SizedBox(height: 8),
                   Text(
                     context.l10n.startRecordingAdventures,
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: context.textSecondary),
                   ),
                 ],
               ),
@@ -504,7 +505,7 @@ class _TrackCard extends StatelessWidget {
                         Text(
                           _formatDate(context, track.createdAt),
                           style: TextStyle(
-                            color: AppColors.textSecondary,
+                            color: context.textSecondary,
                             fontSize: 12,
                           ),
                         ),
@@ -571,7 +572,7 @@ class _TrackCard extends StatelessWidget {
                   _StatChip(
                     icon: Icons.location_on,
                     value: '${track.points.length} pt',
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                   ),
                 ],
               ),
@@ -641,7 +642,7 @@ class _StatChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: color ?? AppColors.textSecondary),
+        Icon(icon, size: 16, color: color ?? context.textSecondary),
         const SizedBox(width: 4),
         Flexible(
           child: Text(
@@ -649,7 +650,7 @@ class _StatChip extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 13,
-              color: color ?? AppColors.textPrimary,
+              color: color ?? context.textPrimary,
               fontWeight: FontWeight.w500,
             ),
           ),

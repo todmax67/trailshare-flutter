@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/track.dart';
 import 'cheer_button.dart'; // ⭐ AGGIUNTO: Import CheerButton
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Card per visualizzare una traccia della community
 /// 
@@ -91,7 +92,7 @@ class CommunityTrackCard extends StatelessWidget {
                               'di: $ownerUsername',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: AppColors.textSecondary,
+                                color: context.textSecondary,
                               ),
                             ),
                           ],
@@ -459,7 +460,7 @@ class _StatColumn extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 12,
-            color: AppColors.textMuted,
+            color: context.textMuted,
           ),
         ),
         const SizedBox(height: 4),
@@ -555,12 +556,12 @@ class CommunityTrackCardCompact extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.person, size: 14, color: AppColors.textMuted),
+                        Icon(Icons.person, size: 14, color: context.textMuted),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
                             ownerUsername,
-                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                            style: TextStyle(color: context.textSecondary, fontSize: 12),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -583,7 +584,7 @@ class CommunityTrackCardCompact extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         _formatDateRelative(sharedAt!),
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                        style: TextStyle(color: context.textMuted, fontSize: 11),
                       ),
                     ],
                   ],
@@ -605,12 +606,12 @@ class CommunityTrackCardCompact extends StatelessWidget {
                     ),
                   Text(
                     durationFormatted,
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    style: TextStyle(color: context.textMuted, fontSize: 11),
                   ),
                 ],
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, color: AppColors.textMuted),
+              Icon(Icons.chevron_right, color: context.textMuted),
             ],
           ),
         ),

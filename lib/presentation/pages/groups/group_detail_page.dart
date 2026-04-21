@@ -10,6 +10,7 @@ import 'group_members_page.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class GroupDetailPage extends StatefulWidget {
   final String groupId;
@@ -152,7 +153,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         title: Text(_group?.name ?? widget.groupName),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
         actions: [
           // Membri
           IconButton(
@@ -211,7 +212,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textMuted,
+          unselectedLabelColor: context.textMuted,
           indicatorColor: AppColors.primary,
           tabs: [
             Tab(icon: const Icon(Icons.chat_bubble_outline), text: context.l10n.chatTab),
@@ -273,7 +274,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               if (_isAdmin)
                 IconButton(
                   icon: const Icon(Icons.refresh, size: 20),
-                  color: AppColors.textMuted,
+                  color: context.textMuted,
                   tooltip: context.l10n.regenerateCode,
                   onPressed: _regenerateInviteCode,
                 ),
@@ -348,7 +349,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           const SizedBox(height: 8),
           Text(
             context.l10n.shareInviteCodeDesc,
-            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: context.textMuted),
           ),
         ],
       ),
@@ -673,19 +674,19 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     Icon(
                       group.isPublic ? Icons.public : group.isPrivate ? Icons.lock_open : Icons.lock,
                       size: 16,
-                      color: AppColors.textMuted,
+                      color: context.textMuted,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       group.isPublic ? context.l10n.publicLabel : group.isPrivate ? context.l10n.privateLabel : context.l10n.secretLabel,
-                      style: const TextStyle(color: AppColors.textMuted),
+                      style: TextStyle(color: context.textMuted),
                     ),
                     const SizedBox(width: 16),
-                    const Icon(Icons.people, size: 16, color: AppColors.textMuted),
+                    Icon(Icons.people, size: 16, color: context.textMuted),
                     const SizedBox(width: 4),
                     Text(
                       context.l10n.memberCountPlural(group.memberCount),
-                      style: const TextStyle(color: AppColors.textMuted),
+                      style: TextStyle(color: context.textMuted),
                     ),
                   ],
                 ),
@@ -717,8 +718,8 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                 : context.l10n.noDescriptionHint,
             style: TextStyle(
               color: (group.description != null && group.description!.isNotEmpty)
-                  ? AppColors.textSecondary
-                  : AppColors.textMuted,
+                  ? context.textSecondary
+                  : context.textMuted,
               fontSize: 14,
               height: 1.5,
               fontStyle: (group.description != null && group.description!.isNotEmpty)
@@ -850,7 +851,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            Text(label, style: TextStyle(color: context.textMuted, fontSize: 12)),
             Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
           ],
         ),

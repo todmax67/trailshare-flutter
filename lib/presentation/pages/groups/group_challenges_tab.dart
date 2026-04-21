@@ -3,6 +3,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_challenge_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class GroupChallengesTab extends StatefulWidget {
   final String groupId;
@@ -151,7 +152,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                         const SizedBox(height: 4),
                         Text(
                           context.l10n.typeAndGoal(challenge.typeLabel, challenge.targetFormatted),
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: TextStyle(color: context.textSecondary, fontSize: 13),
                         ),
                       ],
                     ),
@@ -254,7 +255,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                   const SizedBox(height: 4),
                   Text(
                     context.l10n.goalColon(challenge.targetFormatted),
-                    style: const TextStyle(color: AppColors.textMuted),
+                    style: TextStyle(color: context.textMuted),
                   ),
                 ],
               ),

@@ -7,6 +7,7 @@ import '../../data/repositories/poi_repository.dart';
 import '../pages/poi/poi_location_picker_page.dart';
 import 'poi_detail_sheet.dart';
 import 'poi_editor_sheet.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Sezione "POI" nelle pagine di dettaglio trail/track.
 ///
@@ -305,14 +306,14 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
                 ),
               ),
             if (isMine)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(left: 4),
                 child: Icon(Icons.person_outline,
-                    size: 14, color: AppColors.textMuted),
+                    size: 14, color: context.textMuted),
               ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right,
-                size: 18, color: AppColors.textMuted),
+            Icon(Icons.chevron_right,
+                size: 18, color: context.textMuted),
           ],
         ),
       ),

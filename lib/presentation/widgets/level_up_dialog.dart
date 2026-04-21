@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/gamification_service.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Dialog mostrato quando l'utente sale di livello
 class LevelUpDialog extends StatefulWidget {
@@ -128,12 +129,12 @@ class _LevelUpDialogState extends State<LevelUpDialog>
                           color: AppColors.primary,
                         ),
                       ),
-                      const Text(
+                      Text(
                         'LVL',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textMuted,
+                          color: context.textMuted,
                         ),
                       ),
                     ],

@@ -5,6 +5,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_group_page.dart';
 import 'group_detail_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class GroupsListPage extends StatefulWidget {
   const GroupsListPage({super.key});
@@ -68,11 +69,11 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
         title: Text(context.l10n.groups),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textMuted,
+          unselectedLabelColor: context.textMuted,
           indicatorColor: AppColors.primary,
           tabs: [
             Tab(text: context.l10n.myGroupsTab),
@@ -261,8 +262,8 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                         group.description!,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: context.textSecondary,
                           fontSize: 13,
                         ),
                       ),
@@ -293,7 +294,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
 
               // Bottone unisciti o freccia
               if (isMember)
-                const Icon(Icons.chevron_right, color: AppColors.textMuted)
+                Icon(Icons.chevron_right, color: context.textMuted)
               else
                 ElevatedButton(
                   onPressed: () async {

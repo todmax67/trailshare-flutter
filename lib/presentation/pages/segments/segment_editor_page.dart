@@ -7,6 +7,7 @@ import '../../../core/services/navigation_service.dart';
 import '../../../data/models/segment.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/segments_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina per creare un nuovo segmento.
 ///
@@ -400,7 +401,7 @@ class _SegmentEditorPageState extends State<SegmentEditorPage> {
                   Icon(
                     _isPublic ? Icons.public : Icons.lock_outline,
                     size: 18,
-                    color: _isPublic ? AppColors.success : AppColors.textMuted,
+                    color: _isPublic ? AppColors.success : context.textMuted,
                   ),
                   const SizedBox(width: 6),
                   Text(_isPublic ? 'Pubblico' : 'Privato'),
@@ -450,7 +451,7 @@ class _SegmentEditorPageState extends State<SegmentEditorPage> {
             ),
             Text(
               label,
-              style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 10, color: context.textMuted),
             ),
           ],
         ),

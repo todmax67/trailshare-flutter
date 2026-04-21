@@ -5,6 +5,7 @@ import '../../data/models/trail_review.dart';
 import '../../data/repositories/reviews_repository.dart';
 import 'review_editor_sheet.dart';
 import 'star_rating.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Sezione completa recensioni per la pagina dettaglio sentiero.
 ///
@@ -172,7 +173,7 @@ class _TrailReviewsSectionState extends State<TrailReviewsSection> {
           const SizedBox(width: 6),
           Text(
             '(${_reviews.length})',
-            style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 13, color: context.textMuted),
           ),
         ],
       ],
@@ -184,12 +185,12 @@ class _TrailReviewsSectionState extends State<TrailReviewsSection> {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, size: 20, color: AppColors.textMuted),
+          Icon(Icons.error_outline, size: 20, color: context.textMuted),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
               'Impossibile caricare le recensioni',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              style: TextStyle(color: context.textMuted, fontSize: 13),
             ),
           ),
           TextButton(
@@ -304,7 +305,7 @@ class _TrailReviewsSectionState extends State<TrailReviewsSection> {
                   ),
                   Text(
                     _relativeDate(r.createdAt),
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 11, color: context.textMuted),
                   ),
                 ],
               ),

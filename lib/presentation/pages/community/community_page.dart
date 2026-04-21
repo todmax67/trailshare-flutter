@@ -20,6 +20,7 @@ import '../follow/search_users_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key});
@@ -308,7 +309,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               children: [
                 Text(
                   context.l10n.enterInviteCodeDesc,
-                  style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                  style: TextStyle(fontSize: 14, color: context.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -501,7 +502,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textMuted,
+          unselectedLabelColor: context.textMuted,
           indicatorColor: AppColors.primary,
           tabs: [
             Tab(
@@ -1141,7 +1142,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         group.description!,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        style: TextStyle(color: context.textSecondary, fontSize: 13),
                       ),
                     ],
                     const SizedBox(height: 6),
@@ -1171,7 +1172,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
               // Bottone unisciti o freccia
               if (isMember)
-                const Icon(Icons.chevron_right, color: AppColors.textMuted)
+                Icon(Icons.chevron_right, color: context.textMuted)
               else if (group.isPublic)
                 ElevatedButton(
                   onPressed: () async {
@@ -1345,7 +1346,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   const SizedBox(width: 8),
                   Text(
                     context.l10n.daysShort(item.challenge.endDate.difference(DateTime.now()).inDays),
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 11, color: context.textMuted),
                   ),
                 ],
               ),
@@ -1604,9 +1605,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: AppColors.textMuted),
+        Icon(icon, size: 14, color: context.textMuted),
         const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Text(text, style: TextStyle(fontSize: 12, color: context.textSecondary)),
       ],
     );
   }
@@ -1630,7 +1631,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               Icon(
                 Icons.favorite_border,
                 size: 80,
-                color: AppColors.textMuted.withValues(alpha: 0.5),
+                color: context.textMuted.withValues(alpha: 0.5),
               ),
               const SizedBox(height: 16),
               const Text(
@@ -1710,11 +1711,11 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: AppColors.textMuted.withOpacity(0.5)),
+          Icon(icon, size: 64, color: context.textMuted.withOpacity(0.5)),
           const SizedBox(height: 16),
           Text(
             message,
-            style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 16, color: context.textSecondary),
             textAlign: TextAlign.center,
           ),
           if (_searchQuery.isNotEmpty) ...[
@@ -1811,20 +1812,20 @@ class _CommunityTrackInfoCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.person, size: 14, color: AppColors.textMuted),
+                          Icon(Icons.person, size: 14, color: context.textMuted),
                           const SizedBox(width: 4),
-                          Flexible(child: Text(track.ownerUsername, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis)),
+                          Flexible(child: Text(track.ownerUsername, style: TextStyle(color: context.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis)),
                           const SizedBox(width: 8),
-                          const Icon(Icons.straighten, size: 14, color: AppColors.textMuted),
+                          Icon(Icons.straighten, size: 14, color: context.textMuted),
                           const SizedBox(width: 4),
-                          Text('${track.distanceKm.toStringAsFixed(1)} km', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                          Text('${track.distanceKm.toStringAsFixed(1)} km', style: TextStyle(color: context.textSecondary, fontSize: 12)),
                         ],
                       ),
                     ],
                   ),
                 ),
                 IconButton(icon: const Icon(Icons.close), onPressed: onClose, iconSize: 20),
-                const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                Icon(Icons.chevron_right, color: context.textMuted),
               ],
             ),
           ),
@@ -1880,7 +1881,7 @@ class _PublicTourCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           '${tour.ownerName} · ${context.l10n.tourDays(tour.daysCount)} · ${context.l10n.tourStages(tour.trackIds.length)}',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                          style: TextStyle(color: context.textSecondary, fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1893,10 +1894,10 @@ class _PublicTourCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _chip(Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
-                  _chip(Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
+                  _chip(context, Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
+                  _chip(context, Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
                   if (tour.totalDuration.inMinutes > 0)
-                    _chip(Icons.schedule, durStr),
+                    _chip(context, Icons.schedule, durStr),
                 ],
               ),
             ],
@@ -1906,13 +1907,13 @@ class _PublicTourCard extends StatelessWidget {
     );
   }
 
-  Widget _chip(IconData icon, String value, [Color? color]) {
+  Widget _chip(BuildContext context, IconData icon, String value, [Color? color]) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: color ?? AppColors.textSecondary),
+        Icon(icon, size: 16, color: color ?? context.textSecondary),
         const SizedBox(width: 4),
-        Text(value, style: TextStyle(fontSize: 13, color: color ?? AppColors.textPrimary, fontWeight: FontWeight.w500)),
+        Text(value, style: TextStyle(fontSize: 13, color: color ?? context.textPrimary, fontWeight: FontWeight.w500)),
       ],
     );
   }

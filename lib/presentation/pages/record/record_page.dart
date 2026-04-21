@@ -40,6 +40,7 @@ import '../../../data/models/trail_poi.dart';
 import '../../../data/repositories/poi_repository.dart';
 import '../../../core/services/poi_voice_prefs.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class RecordPage extends StatefulWidget {
   /// Traccia di riferimento opzionale. Quando passata, la registrazione si
@@ -819,7 +820,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   /// Riga singola compatta: icona + nome + chip attività + voce + chevron.
   Widget _buildGuidedCompactRow(RecordingReference ref) {
-    final textColor = _refOffTrail ? Colors.white : AppColors.textPrimary;
+    final textColor = _refOffTrail ? Colors.white : context.textPrimary;
     final accent = _refOffTrail ? Colors.white : AppColors.info;
 
     return Row(
@@ -995,18 +996,18 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               ),
               Text(
                 'Tra ${_formatDistanceMeters(_refDistanceToNextTurn)}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 12, color: context.textSecondary),
               ),
               const SizedBox(height: 2),
               Text(
                 'Residuo: ${_formatDistanceMeters(_refRemainingDistance)}',
-                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 11, color: context.textMuted),
               ),
               if (_refNextStep != null) ...[
                 const SizedBox(height: 2),
                 Text(
                   'Poi ${_refNextStep!.maneuver.italianAction.toLowerCase()}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 11, color: context.textMuted),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1033,11 +1034,11 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 14, color: AppColors.textMuted),
+          Icon(icon, size: 14, color: context.textMuted),
           const SizedBox(width: 4),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
         ]),
-        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+        Text(label, style: TextStyle(fontSize: 10, color: context.textMuted)),
       ],
     );
   }
@@ -1213,7 +1214,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         content: Text(next
             ? 'Risparmio energetico attivato'
             : 'Risparmio energetico disattivato'),
-        backgroundColor: next ? AppColors.success : AppColors.textMuted,
+        backgroundColor: next ? AppColors.success : context.textMuted,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -1245,7 +1246,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                   size: 16,
                   color: _batterySaverOn
                       ? Colors.white
-                      : AppColors.textPrimary,
+                      : context.textPrimary,
                 ),
                 const SizedBox(width: 5),
                 Text(
@@ -1255,7 +1256,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                     fontWeight: FontWeight.w700,
                     color: _batterySaverOn
                         ? Colors.white
-                        : AppColors.textPrimary,
+                        : context.textPrimary,
                   ),
                 ),
               ],
@@ -1479,9 +1480,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             if (!mounted) return;
             Navigator.of(context).pop();
           },
-          child: const Padding(
+          child: Padding(
             padding: EdgeInsets.all(10),
-            child: Icon(Icons.close, color: AppColors.textPrimary, size: 24),
+            child: Icon(Icons.close, color: context.textPrimary, size: 24),
           ),
         ),
       ),
@@ -1785,7 +1786,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     }
   }
 
-  Widget _buildSummaryRow(String label, String value) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: const TextStyle(color: AppColors.textSecondary)), Text(value, style: const TextStyle(fontWeight: FontWeight.w600))]));
+  Widget _buildSummaryRow(String label, String value) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: TextStyle(color: context.textSecondary)), Text(value, style: const TextStyle(fontWeight: FontWeight.w600))]));
   Widget _buildErrorBanner(String message) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.danger, borderRadius: BorderRadius.circular(8)), child: Row(children: [const Icon(Icons.error_outline, color: Colors.white), const SizedBox(width: 8), Expanded(child: Text(message, style: const TextStyle(color: Colors.white)))]));
 
   Widget _buildMap(TrackingState state) {
@@ -2230,7 +2231,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   Widget _buildControls(TrackingState state) {
     return Positioned(bottom: 24, left: 16, right: 16, child: Column(children: [
-      if (!state.isIdle) Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.only(bottom: 16), child: FloatingActionButton.small(heroTag: 'center', onPressed: () { _followUser = true; if (state.points.isNotEmpty) _mapController.move(LatLng(state.points.last.latitude, state.points.last.longitude), 16); }, backgroundColor: _followUser ? AppColors.primary : Colors.white, child: Icon(Icons.my_location, color: _followUser ? Colors.white : AppColors.textPrimary)))),
+      if (!state.isIdle) Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.only(bottom: 16), child: FloatingActionButton.small(heroTag: 'center', onPressed: () { _followUser = true; if (state.points.isNotEmpty) _mapController.move(LatLng(state.points.last.latitude, state.points.last.longitude), 16); }, backgroundColor: _followUser ? AppColors.primary : Colors.white, child: Icon(Icons.my_location, color: _followUser ? Colors.white : context.textPrimary)))),
       if (state.isIdle) _buildStartButton() else _buildRecordingControls(state),
     ]));
   }
@@ -2451,7 +2452,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               const SizedBox(height: 8),
               Text(
                 'Puoi saltare e inviarli più tardi dal banner Lifeline.',
-                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 11, color: context.textMuted),
               ),
             ],
           ),
@@ -2806,7 +2807,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   Widget _buildRecordingControls(TrackingState state) => Column(mainAxisSize: MainAxisSize.min, children: [
     const Padding(padding: EdgeInsets.only(bottom: 12), child: LiveTrackButton()),
     Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-      _buildControlButton(icon: Icons.close, label: context.l10n.cancelLabel, color: AppColors.textMuted, onTap: _showCancelDialog),
+      _buildControlButton(icon: Icons.close, label: context.l10n.cancelLabel, color: context.textMuted, onTap: _showCancelDialog),
       _buildControlButton(icon: state.isRecording ? Icons.pause : Icons.play_arrow, label: state.isRecording ? context.l10n.pauseLabel : context.l10n.resumeLabel, color: AppColors.warning, onTap: () { if (state.isRecording) _trackingBloc.pauseRecording(); else _trackingBloc.resumeRecording(); }, large: true),
       _buildControlButton(icon: Icons.stop, label: context.l10n.saveLabel, color: AppColors.danger, onTap: _showSaveDialog),
     ])),

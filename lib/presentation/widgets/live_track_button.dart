@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/live_track_service.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Bottone per attivare/disattivare LiveTrack durante la registrazione
 /// 
@@ -166,7 +167,7 @@ class _LiveTrackButtonState extends State<LiveTrackButton>
                 color: isActive ? AppColors.danger : Colors.white,
                 borderRadius: BorderRadius.circular(25),
                 border: Border.all(
-                  color: isActive ? AppColors.danger : AppColors.textMuted,
+                  color: isActive ? AppColors.danger : context.textMuted,
                   width: 1.5,
                 ),
                 boxShadow: isActive
@@ -195,13 +196,13 @@ class _LiveTrackButtonState extends State<LiveTrackButton>
                     Icon(
                       isActive ? Icons.broadcast_on_personal : Icons.broadcast_on_personal_outlined,
                       size: 18,
-                      color: isActive ? Colors.white : AppColors.textMuted,
+                      color: isActive ? Colors.white : context.textMuted,
                     ),
                   const SizedBox(width: 6),
                   Text(
                     isActive ? 'LIVE' : 'LiveTrack',
                     style: TextStyle(
-                      color: isActive ? Colors.white : AppColors.textSecondary,
+                      color: isActive ? Colors.white : context.textSecondary,
                       fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
                       fontSize: 13,
                     ),

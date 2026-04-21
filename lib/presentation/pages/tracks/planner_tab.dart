@@ -18,6 +18,7 @@ import '../../../data/models/recording_reference.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:async';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 
 /// Tab per pianificare nuovi percorsi con routing ORS
@@ -432,14 +433,14 @@ class _PlannerTabState extends State<PlannerTab> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.search, color: AppColors.textMuted, size: 20),
+                    Icon(Icons.search, color: context.textMuted, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: _searchController,
                         decoration: InputDecoration(
                           hintText: context.l10n.searchStartPoint,
-                          hintStyle: TextStyle(fontSize: 14, color: AppColors.textMuted),
+                          hintStyle: TextStyle(fontSize: 14, color: context.textMuted),
                           border: InputBorder.none,
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -468,7 +469,7 @@ class _PlannerTabState extends State<PlannerTab> {
                             _showSearchResults = false;
                           });
                         },
-                        child: Icon(Icons.clear, color: AppColors.textMuted, size: 20),
+                        child: Icon(Icons.clear, color: context.textMuted, size: 20),
                       ),
                   ],
                 ),
@@ -512,7 +513,7 @@ class _PlannerTabState extends State<PlannerTab> {
                                     if (parts.length > 1)
                                       Text(
                                         parts.sublist(1).join(',').trim(),
-                                        style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                        style: TextStyle(fontSize: 11, color: context.textMuted),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -726,7 +727,7 @@ class _PlannerTabState extends State<PlannerTab> {
                   _waypoints.isEmpty
                       ? context.l10n.addPointsToCreate
                       : context.l10n.longPressToRemove,
-                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 11, color: context.textMuted),
                 ),
               ],
             ),
@@ -739,7 +740,7 @@ class _PlannerTabState extends State<PlannerTab> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.textMuted.withOpacity(0.3)),
+                  border: Border.all(color: context.textMuted.withOpacity(0.3)),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -748,12 +749,12 @@ class _PlannerTabState extends State<PlannerTab> {
                     Icon(
                       _profile == RoutingProfile.hiking ? Icons.directions_bike : Icons.hiking,
                       size: 16,
-                      color: AppColors.textSecondary,
+                      color: context.textSecondary,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _profile == RoutingProfile.hiking ? 'Bike' : 'Hiking',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(fontSize: 12, color: context.textSecondary),
                     ),
                   ],
                 ),
@@ -786,7 +787,7 @@ class _PlannerTabState extends State<PlannerTab> {
               onPressed: _centerOnRoute,
               backgroundColor: Colors.white,
               elevation: 4,
-              child: const Icon(Icons.fit_screen, color: AppColors.textPrimary),
+              child: Icon(Icons.fit_screen, color: context.textPrimary),
             ),
           ),
         // Centra su posizione utente
@@ -799,7 +800,7 @@ class _PlannerTabState extends State<PlannerTab> {
             elevation: 4,
             child: Icon(
               Icons.my_location,
-              color: _userPosition != null ? AppColors.primary : AppColors.textMuted,
+              color: _userPosition != null ? AppColors.primary : context.textMuted,
             ),
           ),
         ),
@@ -811,7 +812,7 @@ class _PlannerTabState extends State<PlannerTab> {
               onPressed: _removeLastWaypoint,
               backgroundColor: Colors.white,
               elevation: 4,
-              child: const Icon(Icons.undo, color: AppColors.textPrimary),
+              child: Icon(Icons.undo, color: context.textPrimary),
             ),
           ),
         if (_waypoints.isNotEmpty)
@@ -993,17 +994,17 @@ class _StatItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 20, color: AppColors.textMuted),
+        Icon(icon, size: 20, color: context.textMuted),
         const SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: valueColor ?? AppColors.textPrimary,
+            color: valueColor ?? context.textPrimary,
           ),
         ),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+        Text(label, style: TextStyle(fontSize: 11, color: context.textMuted)),
       ],
     );
   }
@@ -1174,14 +1175,14 @@ class _SaveRouteDialogState extends State<_SaveRouteDialog> {
                     children: [
                       Text('${widget.distance.toStringAsFixed(1)} km',
                           style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text(context.l10n.distanceLabel, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                      Text(context.l10n.distanceLabel, style: TextStyle(fontSize: 11, color: context.textMuted)),
                     ],
                   ),
                   Column(
                     children: [
                       Text('+${widget.elevationGain.toStringAsFixed(0)} m',
                           style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
-                      Text(context.l10n.elevationGainShort, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                      Text(context.l10n.elevationGainShort, style: TextStyle(fontSize: 11, color: context.textMuted)),
                     ],
                   ),
                 ],

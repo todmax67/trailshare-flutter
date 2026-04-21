@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina mappa a schermo intero per visualizzare una traccia
 /// Supporta sia Track (tracce private) che CommunityTrack (tracce community)
@@ -296,7 +297,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
           ),
           child: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            icon: Icon(Icons.arrow_back, color: context.textPrimary),
             onPressed: () => Navigator.pop(context),
           ),
         ),
@@ -312,7 +313,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             child: IconButton(
               icon: Icon(
                 Icons.gradient,
-                color: _showGradientColors ? Colors.white : AppColors.textPrimary,
+                color: _showGradientColors ? Colors.white : context.textPrimary,
               ),
               onPressed: _toggleGradientColors,
               tooltip: 'Colori pendenza',
@@ -327,7 +328,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
             ),
             child: IconButton(
-              icon: const Icon(Icons.layers, color: AppColors.textPrimary),
+              icon: Icon(Icons.layers, color: context.textPrimary),
               onPressed: _cycleLayer,
               tooltip: layer.name,
             ),
@@ -341,7 +342,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
             ),
             child: IconButton(
-              icon: const Icon(Icons.fit_screen, color: AppColors.textPrimary),
+              icon: Icon(Icons.fit_screen, color: context.textPrimary),
               onPressed: _fitBounds,
               tooltip: 'Centra traccia',
             ),
@@ -573,7 +574,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                 IconButton(
                   icon: Icon(
                     _showElevation ? Icons.expand_more : Icons.expand_less,
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                   ),
                   onPressed: () => setState(() => _showElevation = !_showElevation),
                   padding: EdgeInsets.zero,
@@ -711,17 +712,17 @@ class _StatItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18, color: AppColors.textMuted),
+        Icon(icon, size: 18, color: context.textMuted),
         const SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: color ?? AppColors.textPrimary,
+            color: color ?? context.textPrimary,
           ),
         ),
-        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+        Text(label, style: TextStyle(fontSize: 10, color: context.textMuted)),
       ],
     );
   }

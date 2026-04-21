@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/dashboard_stats.dart';
 import '../../../data/repositories/dashboard_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -57,7 +58,7 @@ class _DashboardPageState extends State<DashboardPage> {
         title: Text(context.l10n.dashboard),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -481,7 +482,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   _selectedMetric == 'distance' 
                       ? '${value.toStringAsFixed(0)}' 
                       : '${value.toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 10, color: context.textMuted),
                 );
               },
             ),
@@ -496,7 +497,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       chartData[index].label,
-                      style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                      style: TextStyle(fontSize: 10, color: context.textMuted),
                     ),
                   );
                 }
@@ -717,9 +718,9 @@ class _StatCard extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: context.textSecondary,
             ),
           ),
         ],
@@ -767,7 +768,7 @@ class _RecordTile extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 12, color: context.textMuted),
                 ),
                 Text(
                   record?.name ?? context.l10n.noRecord,
@@ -821,7 +822,7 @@ class _FilterChip extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            color: isSelected ? Colors.white : AppColors.textSecondary,
+            color: isSelected ? Colors.white : context.textSecondary,
           ),
         ),
       ),

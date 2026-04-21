@@ -5,6 +5,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../widgets/follow_button.dart';
 import '../profile/public_profile_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina che mostra lista Followers o Following
 class FollowListPage extends StatefulWidget {
@@ -61,7 +62,7 @@ class _FollowListPageState extends State<FollowListPage> {
         title: Text(title),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
       ),
       body: _buildBody(),
     );

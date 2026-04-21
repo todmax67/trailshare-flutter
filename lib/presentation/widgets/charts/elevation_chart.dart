@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/track.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Grafico elevazione per una traccia
 class ElevationChart extends StatefulWidget {
@@ -28,10 +29,10 @@ class _ElevationChartState extends State<ElevationChart> {
     if (data.isEmpty) {
       return SizedBox(
         height: widget.height,
-        child: const Center(
+        child: Center(
           child: Text(
             'Dati elevazione non disponibili',
-            style: TextStyle(color: AppColors.textMuted),
+            style: TextStyle(color: context.textMuted),
           ),
         ),
       );
@@ -58,7 +59,7 @@ class _ElevationChartState extends State<ElevationChart> {
               const Spacer(),
               Text(
                 '${minEle.toStringAsFixed(0)} - ${maxEle.toStringAsFixed(0)} m',
-                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 12, color: context.textMuted),
               ),
             ],
           ),
@@ -91,7 +92,7 @@ class _ElevationChartState extends State<ElevationChart> {
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           '${value.toStringAsFixed(1)}',
-                          style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                          style: TextStyle(fontSize: 10, color: context.textMuted),
                         ),
                       );
                     },
@@ -105,7 +106,7 @@ class _ElevationChartState extends State<ElevationChart> {
                     getTitlesWidget: (value, meta) {
                       return Text(
                         '${value.toInt()} m',
-                        style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                        style: TextStyle(fontSize: 10, color: context.textMuted),
                       );
                     },
                   ),
@@ -125,7 +126,7 @@ class _ElevationChartState extends State<ElevationChart> {
               lineTouchData: LineTouchData(
                 enabled: true,
                 touchTooltipData: LineTouchTooltipData(
-                  getTooltipColor: (spot) => AppColors.textPrimary.withOpacity(0.9),
+                  getTooltipColor: (spot) => context.textPrimary.withOpacity(0.9),
                   tooltipBorderRadius: BorderRadius.circular(8),
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((spot) {
@@ -178,12 +179,12 @@ class _ElevationChartState extends State<ElevationChart> {
         ),
 
         // Label asse X
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(top: 4),
           child: Center(
             child: Text(
               'Distanza (km)',
-              style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 10, color: context.textMuted),
             ),
           ),
         ),

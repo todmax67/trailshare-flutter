@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../widgets/cheer_button.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Card per traccia pubblica con bottone Cheer
 /// 
@@ -75,9 +76,9 @@ class PublicTrackCard extends StatelessWidget {
                       onTap: onAuthorTap,
                       child: Text(
                         authorName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w500,
-                          color: AppColors.textSecondary,
+                          color: context.textSecondary,
                         ),
                       ),
                     ),
@@ -197,13 +198,13 @@ class _StatChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: color ?? AppColors.textMuted),
+        Icon(icon, size: 16, color: color ?? context.textMuted),
         const SizedBox(width: 4),
         Text(
           value,
           style: TextStyle(
             fontSize: 13,
-            color: color ?? AppColors.textSecondary,
+            color: color ?? context.textSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),

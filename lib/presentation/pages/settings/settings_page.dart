@@ -21,6 +21,7 @@ import '../../../core/services/health_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'health_dashboard_page.dart';
 import '../../../data/repositories/admin_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -88,7 +89,7 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             Text(
               context.l10n.maxHRDescription,
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 13, color: context.textSecondary),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -101,7 +102,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const SizedBox(height: 12),
-            Text(context.l10n.orLabel, style: const TextStyle(color: AppColors.textMuted)),
+            Text(context.l10n.orLabel, style: TextStyle(color: context.textMuted)),
             const SizedBox(height: 12),
             TextField(
               controller: ageController,
@@ -182,7 +183,7 @@ class _SettingsPageState extends State<SettingsPage> {
           SwitchListTile(
             secondary: Icon(
               Icons.favorite_outline,
-              color: _healthSyncEnabled ? AppColors.danger : AppColors.textSecondary,
+              color: _healthSyncEnabled ? AppColors.danger : context.textSecondary,
             ),
             title: Text(context.l10n.syncWithHealth),
             subtitle: Text(

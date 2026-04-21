@@ -7,6 +7,7 @@ import '../../data/repositories/public_trails_repository.dart';
 import '../../data/repositories/segments_repository.dart';
 import '../pages/segments/segment_detail_page.dart';
 import '../pages/segments/segment_editor_page.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Sezione "Segmenti" nella pagina dettaglio sentiero.
 ///
@@ -136,7 +137,7 @@ class _TrailSegmentsSectionState extends State<TrailSegmentsSection> {
             padding: const EdgeInsets.only(right: 4),
             child: Text(
               '${_segments.length}',
-              style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 13, color: context.textMuted),
             ),
           ),
         if (_isAdmin)
@@ -204,18 +205,18 @@ class _TrailSegmentsSectionState extends State<TrailSegmentsSection> {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      const Icon(Icons.straighten, size: 12, color: AppColors.textMuted),
+                      Icon(Icons.straighten, size: 12, color: context.textMuted),
                       const SizedBox(width: 3),
                       Text(
                         '${(s.distance / 1000).toStringAsFixed(2)} km',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        style: TextStyle(fontSize: 11, color: context.textMuted),
                       ),
                       const SizedBox(width: 10),
-                      const Icon(Icons.trending_up, size: 12, color: AppColors.textMuted),
+                      Icon(Icons.trending_up, size: 12, color: context.textMuted),
                       const SizedBox(width: 3),
                       Text(
                         '+${s.elevationGain.round()} m',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        style: TextStyle(fontSize: 11, color: context.textMuted),
                       ),
                     ],
                   ),
@@ -228,9 +229,9 @@ class _TrailSegmentsSectionState extends State<TrailSegmentsSection> {
                         Expanded(
                           child: Text(
                             '${champion.username} · ${champion.durationFormatted}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.textSecondary,
+                              color: context.textSecondary,
                               fontWeight: FontWeight.w500,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -242,7 +243,7 @@ class _TrailSegmentsSectionState extends State<TrailSegmentsSection> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textMuted),
+            Icon(Icons.chevron_right, color: context.textMuted),
           ],
         ),
       ),

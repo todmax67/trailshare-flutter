@@ -17,6 +17,7 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina per seguire una traccia in tempo reale
 ///
@@ -866,7 +867,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
           children: [
             GestureDetector(
               onTap: () => _showExitConfirm(),
-              child: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+              child: Icon(Icons.arrow_back, color: context.textPrimary),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -886,7 +887,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                     _isGpsActive ? context.l10n.navigationActive : context.l10n.waitingForGps,
                     style: TextStyle(
                       fontSize: 11,
-                      color: _isGpsActive ? AppColors.success : AppColors.textMuted,
+                      color: _isGpsActive ? AppColors.success : context.textMuted,
                     ),
                   ),
                 ],
@@ -909,7 +910,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Icon(
                   _soundEnabled ? Icons.volume_up : Icons.volume_off,
-                  color: _soundEnabled ? AppColors.primary : AppColors.textMuted,
+                  color: _soundEnabled ? AppColors.primary : context.textMuted,
                   size: 22,
                 ),
               ),
@@ -921,7 +922,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
               decoration: BoxDecoration(
                 color: _isGpsActive
                     ? (_isOffTrail ? AppColors.danger : AppColors.success)
-                    : AppColors.textMuted,
+                    : context.textMuted,
                 shape: BoxShape.circle,
               ),
             ),
@@ -1210,9 +1211,9 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                         ),
                         Text(
                           _formatDistance(_distanceCovered),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: AppColors.textMuted,
+                            color: context.textMuted,
                           ),
                         ),
                       ],
@@ -1260,7 +1261,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                       icon: _isOffTrail ? Icons.warning_amber : Icons.near_me,
                       value: '${_distanceFromTrail.toStringAsFixed(0)}m',
                       label: context.l10n.fromTrailLabel,
-                      color: _isOffTrail ? AppColors.danger : AppColors.textMuted,
+                      color: _isOffTrail ? AppColors.danger : context.textMuted,
                     ),
                   ],
                 ),
@@ -1450,7 +1451,7 @@ class _StatTile extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 10, color: context.textMuted),
           ),
         ],
       ),
@@ -1738,7 +1739,7 @@ class _SaveRecordingDialogState extends State<_SaveRecordingDialog> {
             const SizedBox(height: 16),
 
             // Tipo attività
-            Text(context.l10n.activityTypeLabel, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+            Text(context.l10n.activityTypeLabel, style: TextStyle(fontSize: 13, color: context.textMuted)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -1795,7 +1796,7 @@ class _MiniStat extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+        Text(label, style: TextStyle(fontSize: 10, color: context.textMuted)),
       ],
     );
   }

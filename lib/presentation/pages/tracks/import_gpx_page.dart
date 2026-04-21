@@ -11,6 +11,7 @@ import '../../../data/repositories/tracks_repository.dart';
 import '../../../core/services/fit_service.dart';
 import '../../../core/services/tcx_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class ImportGpxPage extends StatefulWidget {
   final String? initialFilePath;
@@ -221,7 +222,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
             Text(context.l10n.importGpxTitle, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(context.l10n.selectGpxFromDevice, 
-                style: TextStyle(color: AppColors.textSecondary), textAlign: TextAlign.center),
+                style: TextStyle(color: context.textSecondary), textAlign: TextAlign.center),
             const SizedBox(height: 32),
             if (_isLoading)
               const CircularProgressIndicator()
@@ -416,7 +417,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
                 TextSpan(text: value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
                 if (unit.isNotEmpty) TextSpan(text: ' $unit', style: TextStyle(fontSize: 11, color: color.withOpacity(0.7))),
               ])),
-              Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+              Text(label, style: TextStyle(fontSize: 10, color: context.textMuted)),
             ],
           ),
         ),
@@ -429,9 +430,9 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.textMuted),
+          Icon(icon, size: 18, color: context.textMuted),
           const SizedBox(width: 12),
-          Expanded(child: Text(label, style: TextStyle(color: AppColors.textSecondary))),
+          Expanded(child: Text(label, style: TextStyle(color: context.textSecondary))),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),

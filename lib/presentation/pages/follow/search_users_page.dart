@@ -5,6 +5,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../widgets/follow_button.dart';
 import '../profile/public_profile_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class SearchUsersPage extends StatefulWidget {
   const SearchUsersPage({super.key});
@@ -180,7 +181,7 @@ class _SearchUsersPageState extends State<SearchUsersPage> {
               IconButton(
                 icon: const Icon(Icons.refresh, size: 20),
                 onPressed: _loadSuggested,
-                color: AppColors.textMuted,
+                color: context.textMuted,
               ),
           ],
         ),

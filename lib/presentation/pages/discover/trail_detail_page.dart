@@ -21,6 +21,7 @@ import 'dart:io' show Platform;
 import '../record/record_page.dart';
 import '../../../data/models/recording_reference.dart';
 import '../../../data/repositories/admin_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class TrailDetailPage extends StatefulWidget {
   final PublicTrail trail;
@@ -199,7 +200,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           context.l10n.loadingFullTrack,
-                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          style: TextStyle(fontSize: 11, color: context.textMuted),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -310,8 +311,8 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                         const SizedBox(width: 8),
                         Text(
                           trail.networkName,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
+                          style: TextStyle(
+                            color: context.textMuted,
                             fontSize: 12,
                           ),
                         ),
@@ -322,11 +323,11 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.business, size: 16, color: AppColors.textMuted),
+                        Icon(Icons.business, size: 16, color: context.textMuted),
                         const SizedBox(width: 4),
                         Text(
                           trail.operator!,
-                          style: const TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(color: context.textSecondary),
                         ),
                       ],
                     ),
@@ -419,10 +420,10 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.textMuted),
+          Icon(icon, size: 18, color: context.textMuted),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+            child: Text(label, style: TextStyle(color: context.textSecondary)),
           ),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
@@ -509,7 +510,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
             const SizedBox(height: 8),
             Text('"${widget.trail.displayName}"'),
             const SizedBox(height: 4),
-            Text('ID: ${widget.trail.id}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            Text('ID: ${widget.trail.id}', style: TextStyle(fontSize: 11, color: context.textMuted)),
             const SizedBox(height: 12),
             Text(
               context.l10n.deleteTrailIrreversible,
@@ -751,7 +752,7 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 11, color: context.textMuted),
             ),
           ],
         ),

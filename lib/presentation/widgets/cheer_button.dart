@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/cheers_repository.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Bottone Cheer (like) riutilizzabile
 /// 
@@ -123,7 +124,7 @@ class _CheerButtonState extends State<CheerButton> with SingleTickerProviderStat
                 scale: _scaleAnimation,
                 child: Icon(
                   _hasCheered ? Icons.favorite : Icons.favorite_border,
-                  color: _hasCheered ? Colors.red : AppColors.textMuted,
+                  color: _hasCheered ? Colors.red : context.textMuted,
                   size: widget.size,
                 ),
               ),
@@ -132,7 +133,7 @@ class _CheerButtonState extends State<CheerButton> with SingleTickerProviderStat
                 Text(
                   _formatCount(_count),
                   style: TextStyle(
-                    color: _hasCheered ? Colors.red : AppColors.textMuted,
+                    color: _hasCheered ? Colors.red : context.textMuted,
                     fontWeight: _hasCheered ? FontWeight.w600 : FontWeight.normal,
                     fontSize: widget.size * 0.6,
                   ),
@@ -199,14 +200,14 @@ class CheerCount extends StatelessWidget {
       children: [
         Icon(
           highlighted ? Icons.favorite : Icons.favorite_border,
-          color: highlighted ? Colors.red : AppColors.textMuted,
+          color: highlighted ? Colors.red : context.textMuted,
           size: 16,
         ),
         const SizedBox(width: 4),
         Text(
           count.toString(),
           style: TextStyle(
-            color: highlighted ? Colors.red : AppColors.textMuted,
+            color: highlighted ? Colors.red : context.textMuted,
             fontSize: 12,
           ),
         ),

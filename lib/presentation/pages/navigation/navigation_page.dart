@@ -8,6 +8,7 @@ import '../../../core/services/navigation_service.dart';
 import '../../../core/services/routing_service.dart';
 import '../../../core/services/voice_guidance_service.dart';
 import '../../../data/models/navigation_step.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina di navigazione turn-by-turn con guida vocale.
 ///
@@ -354,16 +355,16 @@ class _NavigationPageState extends State<NavigationPage> {
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
-                        color: _offRoute ? Colors.white : AppColors.textPrimary,
+                        color: _offRoute ? Colors.white : context.textPrimary,
                       ),
                     ),
                     if (!_offRoute) ...[
                       const SizedBox(height: 2),
                       Text(
                         'Tra ${_formatDistance(_distanceToNextTurn)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: AppColors.textSecondary,
+                          color: context.textSecondary,
                         ),
                       ),
                     ],
@@ -400,14 +401,14 @@ class _NavigationPageState extends State<NavigationPage> {
               if (_nextStep != null && !_offRoute) ...[
                 Row(
                   children: [
-                    Icon(_nextStep!.maneuver.icon, size: 18, color: AppColors.textMuted),
+                    Icon(_nextStep!.maneuver.icon, size: 18, color: context.textMuted),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Poi ${_nextStep!.maneuver.italianAction.toLowerCase()}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textMuted,
+                          color: context.textMuted,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -464,7 +465,7 @@ class _NavigationPageState extends State<NavigationPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: AppColors.textMuted),
+              Icon(icon, size: 14, color: context.textMuted),
               const SizedBox(width: 4),
               Text(
                 value,
@@ -474,7 +475,7 @@ class _NavigationPageState extends State<NavigationPage> {
           ),
           Text(
             label,
-            style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 10, color: context.textMuted),
           ),
         ],
       ),

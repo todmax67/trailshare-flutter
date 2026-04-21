@@ -21,6 +21,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../widgets/share_card_widget.dart';
 import '../../../presentation/widgets/heart_rate_zones_widget.dart';
 import '../../../core/services/health_service.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class TrackDetailPage extends StatefulWidget {
   final Track track;
@@ -271,7 +272,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
             // Header
             Row(
               children: [
-                const Icon(Icons.photo_library, size: 20, color: AppColors.textSecondary),
+                Icon(Icons.photo_library, size: 20, color: context.textSecondary),
                 const SizedBox(width: 8),
                 Text(
                   context.l10n.photosCount(_track.photos.length),
@@ -592,9 +593,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.textMuted),
+          Icon(icon, size: 18, color: context.textMuted),
           const SizedBox(width: 12),
-          Expanded(child: Text(label, style: TextStyle(color: AppColors.textSecondary))),
+          Expanded(child: Text(label, style: TextStyle(color: context.textSecondary))),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),
@@ -799,7 +800,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     const SizedBox(height: 4),
                     Text(
                       context.l10n.tapToSearchHR,
-                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      style: TextStyle(fontSize: 13, color: context.textSecondary),
                     ),
                   ],
                 ),
@@ -893,7 +894,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 90, child: Text(label, style: const TextStyle(color: AppColors.textSecondary))),
+          SizedBox(width: 90, child: Text(label, style: TextStyle(color: context.textSecondary))),
           Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
         ],
       ),
@@ -1086,7 +1087,7 @@ class _StatCard extends StatelessWidget {
                   if (unit.isNotEmpty) TextSpan(text: ' $unit', style: TextStyle(fontSize: 11, color: color.withOpacity(0.7))),
                 ]),
               ),
-              Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+              Text(label, style: TextStyle(fontSize: 10, color: context.textMuted)),
             ],
           ),
         ),
@@ -1155,9 +1156,9 @@ class _PhotoThumbnail extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.broken_image, color: AppColors.textMuted, size: 32),
+                      Icon(Icons.broken_image, color: context.textMuted, size: 32),
                       const SizedBox(height: 4),
-                      Text(context.l10n.errorLabel, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                      Text(context.l10n.errorLabel, style: TextStyle(color: context.textMuted, fontSize: 10)),
                     ],
                   ),
                 );

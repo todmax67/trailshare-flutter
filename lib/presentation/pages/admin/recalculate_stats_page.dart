@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/elevation_processor.dart';
 import '../../../data/models/track.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina admin per ricalcolare le statistiche di tutte le tracce
 /// dai punti GPS salvati in Firestore.
@@ -68,12 +69,12 @@ class _RecalculateStatsPageState extends State<RecalculateStatsPage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Ricalcola distanza, dislivello, quota min/max direttamente '
                   'dai punti GPS salvati.\n'
                   'Usa ElevationProcessor (filtro mediano + smoothing + isteresi 4m) '
                   '— stesso algoritmo usato nelle stats per km.',
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  style: TextStyle(fontSize: 13, color: context.textSecondary),
                 ),
                 const SizedBox(height: 16),
 
@@ -91,8 +92,8 @@ class _RecalculateStatsPageState extends State<RecalculateStatsPage> {
                     _isRunning
                         ? '$_processedTracks/$_totalTracks - $_currentTrack'
                         : 'Completato: $_fixedTracks corrette, $_skippedTracks ok, $_errorTracks errori',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 12, color: context.textSecondary),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -136,10 +137,10 @@ class _RecalculateStatsPageState extends State<RecalculateStatsPage> {
           // Risultati
           Expanded(
             child: _results.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       'Premi un pulsante per avviare il ricalcolo',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: context.textSecondary),
                     ),
                   )
                 : ListView.builder(

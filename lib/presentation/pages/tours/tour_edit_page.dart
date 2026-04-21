@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tours_repository.dart';
@@ -203,13 +204,13 @@ class _TourEditPageState extends State<TourEditPage> {
                   const SizedBox(height: 4),
                   Text(
                     context.l10n.tourSelectTracksHint,
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(color: context.textSecondary, fontSize: 12),
                   ),
                   const SizedBox(height: 12),
                   if (selectedTracks.isNotEmpty) ...[
                     Text(
                       context.l10n.tourReorderHint,
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontStyle: FontStyle.italic),
+                      style: TextStyle(color: context.textSecondary, fontSize: 12, fontStyle: FontStyle.italic),
                     ),
                     const SizedBox(height: 8),
                     ReorderableListView(
@@ -243,7 +244,7 @@ class _TourEditPageState extends State<TourEditPage> {
                       child: Center(
                         child: Text(
                           context.l10n.noTracksSaved,
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(color: context.textSecondary),
                         ),
                       ),
                     ),

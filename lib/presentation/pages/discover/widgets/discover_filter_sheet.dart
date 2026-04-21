@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../models/discover_filters.dart';
+import '../../../../core/extensions/theme_colors_extension.dart';
 
 /// Bottom sheet modale per i filtri avanzati della pagina Scopri.
 ///
@@ -293,14 +294,14 @@ class _FilterChip extends StatelessWidget {
               Icon(
                 icon,
                 size: 16,
-                color: isSelected ? Colors.white : AppColors.textSecondary,
+                color: isSelected ? Colors.white : context.textSecondary,
               ),
               const SizedBox(width: 6),
             ],
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textPrimary,
+                color: isSelected ? Colors.white : context.textPrimary,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 fontSize: 13,
               ),
@@ -339,11 +340,11 @@ class _RangeSliderField extends StatelessWidget {
           children: [
             Text(
               labelFormat(value.start),
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12, color: context.textSecondary),
             ),
             Text(
               labelFormat(value.end),
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12, color: context.textSecondary),
             ),
           ],
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina admin per visualizzare statistiche del database Firestore
 class DatabaseStatsPage extends StatefulWidget {
@@ -466,7 +467,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
             ),
             trailing: Text(
               '${user['followers']} follower',
-              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: context.textMuted),
             ),
           );
         },
@@ -520,7 +521,7 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 11, color: context.textMuted),
               textAlign: TextAlign.center,
               maxLines: 2,
             ),

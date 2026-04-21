@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/trail_condition.dart';
 import '../../data/repositories/trail_conditions_repository.dart';
 import 'report_condition_sheet.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Sezione "Condizioni sentiero" della pagina dettaglio sentiero.
 ///
@@ -152,9 +153,9 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
                 const SizedBox(height: 16),
                 const Divider(height: 1),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'Altre segnalazioni recenti',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.textMuted),
                 ),
                 const SizedBox(height: 8),
                 ..._reports.skip(1).take(_historyLimit - 1).map((r) => _buildReportTile(r)),
@@ -180,7 +181,7 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
         if (!_loading && !_error && _reports.isNotEmpty)
           Text(
             '${_reports.length}',
-            style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 13, color: context.textMuted),
           ),
       ],
     );
@@ -191,12 +192,12 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, size: 20, color: AppColors.textMuted),
+          Icon(Icons.error_outline, size: 20, color: context.textMuted),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
               'Impossibile caricare le segnalazioni',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              style: TextStyle(color: context.textMuted, fontSize: 13),
             ),
           ),
           TextButton(
@@ -256,7 +257,7 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
                 const SizedBox(height: 2),
                 Text(
                   '${_relativeDate(r.reportedAt)} · ${r.username}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 12, color: context.textMuted),
                 ),
                 if (r.note.isNotEmpty) ...[
                   const SizedBox(height: 6),
@@ -318,7 +319,7 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
                     ),
                     Text(
                       _relativeDate(r.reportedAt),
-                      style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                      style: TextStyle(fontSize: 10, color: context.textMuted),
                     ),
                   ],
                 ),
@@ -327,7 +328,7 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       r.note,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(fontSize: 12, color: context.textSecondary),
                     ),
                   ),
               ],
@@ -340,7 +341,7 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
               tooltip: 'Elimina',
-              color: AppColors.textMuted,
+              color: context.textMuted,
             ),
         ],
       ),

@@ -7,6 +7,7 @@ import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../follow/follow_list_page.dart';
 import '../discover/community_track_detail_page.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 /// Pagina profilo pubblico di un altro utente
 class PublicProfilePage extends StatefulWidget {
@@ -164,7 +165,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         title: Text(_username),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -194,9 +195,9 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                     if (_bio != null && _bio!.isNotEmpty) ...[
                       Text(
                         _bio!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontStyle: FontStyle.italic,
-                          color: AppColors.textSecondary,
+                          color: context.textSecondary,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -331,7 +332,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
               ),
               Text(
                 '$_currentXp / $xpForNextLevel XP',
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                style: TextStyle(color: context.textMuted, fontSize: 13),
               ),
             ],
           ),
@@ -405,17 +406,17 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: context.textPrimary,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(
-            color: AppColors.textMuted,
+          style: TextStyle(
+            color: context.textMuted,
             fontSize: 12,
           ),
         ),

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/trail_poi.dart';
 import '../../data/repositories/poi_repository.dart';
+import '../../core/extensions/theme_colors_extension.dart';
 
 /// Apre il bottom sheet per creare/modificare un POI.
 ///
@@ -411,8 +412,8 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
         children: [
           Row(
             children: [
-              const Icon(Icons.photo_camera_outlined,
-                  size: 18, color: AppColors.textMuted),
+              Icon(Icons.photo_camera_outlined,
+                  size: 18, color: context.textMuted),
               const SizedBox(width: 6),
               const Text('Foto (opzionale)',
                   style: TextStyle(

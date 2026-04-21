@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
 
 class CreateEventPage extends StatefulWidget {
   final String groupId;
@@ -144,7 +145,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
         title: Text(context.l10n.newEvent),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: context.textPrimary,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
