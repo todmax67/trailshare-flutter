@@ -1344,5 +1344,15 @@
   "tourStages": "{count, plural, =1{1 stage} other{{count} stages}}",
   "@tourStages": { "placeholders": { "count": {"type": "int"} } },
   "tourTotals": "Tour totals",
-  "tourStagesTitle": "Stages"
+  "tourStagesTitle": "Stages",
+
+  "exportLabel": "Export",
+  "exportFormatTitle": "Choose format",
+  "exportFormatSubtitle": "Export the track to open it in other apps",
+  "exportGpxDescription": "Universal — Komoot, AllTrails, OsmAnd, Gaia…",
+  "exportTcxDescription": "Strava, Garmin Connect, TrainingPeaks (with HR)",
+  "exportFitDescription": "Native Garmin/Wahoo format — import in Garmin Connect",
+  "exportKmlDescription": "Google Earth and Google My Maps",
+  "exportDone": "Track exported",
+  "exportFailed": "Export failed"
 }

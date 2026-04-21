@@ -3,7 +3,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
-import '../../../core/services/gpx_service.dart';
+import '../../../core/services/track_export_service.dart';
+import '../../widgets/export_format_sheet.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../presentation/widgets/charts/elevation_chart.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
@@ -33,7 +34,6 @@ class CommunityTrackDetailPage extends StatefulWidget {
 }
 
 class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
-  final GpxService _gpxService = GpxService();
   bool _isExporting = false;
   
   /// Indice del punto attualmente selezionato (sincronizzazione mappa-grafico)
@@ -832,11 +832,14 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
       return;
     }
 
+    final format = await ExportFormatSheet.show(context);
+    if (format == null || !mounted) return;
+
     setState(() => _isExporting = true);
 
     try {
       final track = widget.track.toTrack();
-      final filePath = await _gpxService.saveGpxToFile(track);
+      final filePath = await TrackExportService().exportToFile(track, format);
 
       await Share.shareXFiles(
         [XFile(filePath)],

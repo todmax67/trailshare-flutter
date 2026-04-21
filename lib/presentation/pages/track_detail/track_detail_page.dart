@@ -5,7 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
-import '../../../core/services/gpx_service.dart';
+import '../../../core/services/track_export_service.dart';
+import '../../widgets/export_format_sheet.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
@@ -601,9 +602,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   }
 
   Future<void> _exportGpx(BuildContext context) async {
+    final format = await ExportFormatSheet.show(context);
+    if (format == null || !context.mounted) return;
     try {
-      final gpxService = GpxService();
-      final filePath = await gpxService.saveGpxToFile(_track);
+      final filePath = await TrackExportService().exportToFile(_track, format);
       await Share.shareXFiles([XFile(filePath)], subject: _track.name);
     } catch (e) {
       if (context.mounted) {

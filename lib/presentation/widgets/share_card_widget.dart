@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../data/models/track.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Card grafica per condivisione social (stile Strava)
 class ShareCardGenerator {
@@ -253,7 +254,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 children: [
-                  // Export GPX
+                  // Esporta (apre picker formato: GPX, TCX, KML, FIT)
                   if (widget.onExportGpx != null)
                     Expanded(
                       child: OutlinedButton.icon(
@@ -262,7 +263,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                           widget.onExportGpx!();
                         },
                         icon: const Icon(Icons.file_download, size: 18),
-                        label: const Text('GPX'),
+                        label: Text(context.l10n.exportLabel),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

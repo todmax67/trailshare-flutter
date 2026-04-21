@@ -3833,4 +3833,35 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get tourStagesTitle => 'Tappe';
+
+  @override
+  String get exportLabel => 'Esporta';
+
+  @override
+  String get exportFormatTitle => 'Scegli formato';
+
+  @override
+  String get exportFormatSubtitle =>
+      'Esporta la traccia per aprirla in altre app';
+
+  @override
+  String get exportGpxDescription =>
+      'Universale — Komoot, AllTrails, OsmAnd, Gaia…';
+
+  @override
+  String get exportTcxDescription =>
+      'Strava, Garmin Connect, TrainingPeaks (con battito)';
+
+  @override
+  String get exportFitDescription =>
+      'Formato nativo Garmin/Wahoo — import in Garmin Connect';
+
+  @override
+  String get exportKmlDescription => 'Google Earth e Google My Maps';
+
+  @override
+  String get exportDone => 'Traccia esportata';
+
+  @override
+  String get exportFailed => 'Esportazione fallita';
 }

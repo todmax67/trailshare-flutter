@@ -7051,6 +7051,60 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Tappe'**
   String get tourStagesTitle;
+
+  /// No description provided for @exportLabel.
+  ///
+  /// In it, this message translates to:
+  /// **'Esporta'**
+  String get exportLabel;
+
+  /// No description provided for @exportFormatTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Scegli formato'**
+  String get exportFormatTitle;
+
+  /// No description provided for @exportFormatSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Esporta la traccia per aprirla in altre app'**
+  String get exportFormatSubtitle;
+
+  /// No description provided for @exportGpxDescription.
+  ///
+  /// In it, this message translates to:
+  /// **'Universale — Komoot, AllTrails, OsmAnd, Gaia…'**
+  String get exportGpxDescription;
+
+  /// No description provided for @exportTcxDescription.
+  ///
+  /// In it, this message translates to:
+  /// **'Strava, Garmin Connect, TrainingPeaks (con battito)'**
+  String get exportTcxDescription;
+
+  /// No description provided for @exportFitDescription.
+  ///
+  /// In it, this message translates to:
+  /// **'Formato nativo Garmin/Wahoo — import in Garmin Connect'**
+  String get exportFitDescription;
+
+  /// No description provided for @exportKmlDescription.
+  ///
+  /// In it, this message translates to:
+  /// **'Google Earth e Google My Maps'**
+  String get exportKmlDescription;
+
+  /// No description provided for @exportDone.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia esportata'**
+  String get exportDone;
+
+  /// No description provided for @exportFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'Esportazione fallita'**
+  String get exportFailed;
 }
 
 class _AppLocalizationsDelegate
