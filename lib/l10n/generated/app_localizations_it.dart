@@ -3864,4 +3864,21 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get exportFailed => 'Esportazione fallita';
+
+  @override
+  String get onboardingSafetyTitle => 'Sicurezza in escursione';
+
+  @override
+  String get onboardingSafetyDesc =>
+      'Lifeline permette ai tuoi contatti di seguirti in tempo reale e ricevere un allarme automatico se resti fermo troppo a lungo. Pulsante SOS sempre accessibile durante la registrazione.';
+
+  @override
+  String get recTutorialTitle => 'Inizia la tua prima traccia';
+
+  @override
+  String get recTutorialBody =>
+      'Premi il pulsante REC per avviare la registrazione GPS. Potrai mettere in pausa, scattare foto, aggiungere POI e attivare Lifeline in qualsiasi momento.';
+
+  @override
+  String get recTutorialGotIt => 'Ho capito';
 }

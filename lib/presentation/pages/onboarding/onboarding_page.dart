@@ -23,12 +23,21 @@ class _OnboardingPageState extends State<OnboardingPage> {
   int _currentPage = 0;
   static const int _slideCount = 5;
 
+  // Ordine: Welcome → Safety (Lifeline) → Track → Explore → Connect.
+  // La slice Safety viene subito dopo il welcome per dare peso alla
+  // feature di sicurezza (Lifeline, SOS, auto-alert) introdotta in v1.7.
   List<OnboardingSlide> _getSlides(BuildContext context) => [
     OnboardingSlide(
       icon: Icons.terrain,
       title: context.l10n.onboardingWelcomeTitle,
       description: context.l10n.onboardingWelcomeDesc,
       color: AppColors.primary,
+    ),
+    OnboardingSlide(
+      icon: Icons.shield_outlined,
+      title: context.l10n.onboardingSafetyTitle,
+      description: context.l10n.onboardingSafetyDesc,
+      color: const Color(0xFFEF5350),
     ),
     OnboardingSlide(
       icon: Icons.gps_fixed,
@@ -47,12 +56,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
       title: context.l10n.onboardingConnectTitle,
       description: context.l10n.onboardingConnectDesc,
       color: const Color(0xFFE64A19),
-    ),
-    OnboardingSlide(
-      icon: Icons.offline_bolt,
-      title: context.l10n.onboardingOfflineTitle,
-      description: context.l10n.onboardingOfflineDesc,
-      color: const Color(0xFF7B1FA2),
     ),
   ];
 

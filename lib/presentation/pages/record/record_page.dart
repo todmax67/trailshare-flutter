@@ -75,6 +75,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   bool _followUser = true;
   bool _isSaving = false;
   bool _isRestoringState = false;
+  bool _showRecTutorial = false;
   
   final TrackPhotosService _photosService = TrackPhotosService();
   final List<TrackPhoto> _photos = [];
@@ -166,9 +167,24 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _loadQuickStats();
     _loadLifelineConfig();
     _subscribeLifelineEvents();
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted && !_isGuided) AppTips.showFirstTrackTip(context);
-    });
+    if (!_isGuided) _checkFirstRecordTutorial();
+  }
+
+  /// Se l'utente non ha mai visto il tutorial di primo avvio, lo segnala
+  /// per essere mostrato come overlay sopra il pulsante REC.
+  Future<void> _checkFirstRecordTutorial() async {
+    final shown = await FeatureTipsService().isTipShown(AppTips.firstTrack);
+    if (!mounted || shown) return;
+    // Piccolo delay per dare tempo al layout di assestarsi.
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+    setState(() => _showRecTutorial = true);
+  }
+
+  Future<void> _dismissRecTutorial() async {
+    if (!_showRecTutorial) return;
+    setState(() => _showRecTutorial = false);
+    await FeatureTipsService().markTipShown(AppTips.firstTrack);
   }
 
   /// Modalità guidata: inizializza voce + parte automaticamente la registrazione.
@@ -1514,6 +1530,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             const CircularProgressIndicator(color: Colors.white), const SizedBox(height: 16),
             Text(context.l10n.restoringRecording, style: const TextStyle(color: Colors.white)),
           ])),
+          // Tutorial primo record: overlay con freccia che indica il REC.
+          if (_showRecTutorial && state.isIdle && !_isGuided) _buildRecTutorialOverlay(),
         ],
       ),
       floatingActionButton: !state.isIdle && state.isRecording
@@ -2108,6 +2126,106 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     if (diff.inDays == 0) return context.l10n.today;
     if (diff.inDays == 1) return context.l10n.yesterday;
     return '${date.day}/${date.month}';
+  }
+
+  /// Overlay mostrato al primo ingresso in RecordPage: backdrop semi-trasparente
+  /// + card informativa che spiega il pulsante REC + freccia giù + "Ho capito".
+  Widget _buildRecTutorialOverlay() {
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: _dismissRecTutorial,
+        child: Container(
+          color: Colors.black.withOpacity(0.65),
+          child: SafeArea(
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.center,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE07B4C).withOpacity(0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.play_arrow_rounded, color: Color(0xFFE07B4C), size: 32),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                context.l10n.recTutorialTitle,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                context.l10n.recTutorialBody,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  height: 1.5,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: _dismissRecTutorial,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    context.l10n.recTutorialGotIt,
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Freccia che punta verso il pulsante REC (in basso al centro).
+                Positioned(
+                  bottom: 160,
+                  left: 0,
+                  right: 0,
+                  child: Column(
+                    children: [
+                      Icon(Icons.keyboard_double_arrow_down,
+                          color: Colors.white.withOpacity(0.9), size: 48),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildControls(TrackingState state) {

@@ -3848,4 +3848,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get exportFailed => 'Export failed';
+
+  @override
+  String get onboardingSafetyTitle => 'Safety on the trail';
+
+  @override
+  String get onboardingSafetyDesc =>
+      'Lifeline lets your emergency contacts follow you in real time and receive an automatic alert if you stop moving too long. SOS button always accessible while recording.';
+
+  @override
+  String get recTutorialTitle => 'Start your first track';
+
+  @override
+  String get recTutorialBody =>
+      'Press the REC button to start GPS recording. You can pause, take photos, add POIs and turn on Lifeline any time.';
+
+  @override
+  String get recTutorialGotIt => 'Got it';
 }

@@ -7105,6 +7105,36 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Esportazione fallita'**
   String get exportFailed;
+
+  /// No description provided for @onboardingSafetyTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Sicurezza in escursione'**
+  String get onboardingSafetyTitle;
+
+  /// No description provided for @onboardingSafetyDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Lifeline permette ai tuoi contatti di seguirti in tempo reale e ricevere un allarme automatico se resti fermo troppo a lungo. Pulsante SOS sempre accessibile durante la registrazione.'**
+  String get onboardingSafetyDesc;
+
+  /// No description provided for @recTutorialTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Inizia la tua prima traccia'**
+  String get recTutorialTitle;
+
+  /// No description provided for @recTutorialBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Premi il pulsante REC per avviare la registrazione GPS. Potrai mettere in pausa, scattare foto, aggiungere POI e attivare Lifeline in qualsiasi momento.'**
+  String get recTutorialBody;
+
+  /// No description provided for @recTutorialGotIt.
+  ///
+  /// In it, this message translates to:
+  /// **'Ho capito'**
+  String get recTutorialGotIt;
 }
 
 class _AppLocalizationsDelegate

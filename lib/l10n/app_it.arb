@@ -1354,5 +1354,12 @@
   "exportFitDescription": "Formato nativo Garmin/Wahoo — import in Garmin Connect",
   "exportKmlDescription": "Google Earth e Google My Maps",
   "exportDone": "Traccia esportata",
-  "exportFailed": "Esportazione fallita"
+  "exportFailed": "Esportazione fallita",
+
+  "onboardingSafetyTitle": "Sicurezza in escursione",
+  "onboardingSafetyDesc": "Lifeline permette ai tuoi contatti di seguirti in tempo reale e ricevere un allarme automatico se resti fermo troppo a lungo. Pulsante SOS sempre accessibile durante la registrazione.",
+
+  "recTutorialTitle": "Inizia la tua prima traccia",
+  "recTutorialBody": "Premi il pulsante REC per avviare la registrazione GPS. Potrai mettere in pausa, scattare foto, aggiungere POI e attivare Lifeline in qualsiasi momento.",
+  "recTutorialGotIt": "Ho capito"
 }
