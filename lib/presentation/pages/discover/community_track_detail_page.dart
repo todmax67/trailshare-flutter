@@ -552,6 +552,10 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               activityName: widget.track.activityType,
               username: widget.track.ownerUsername,
               onExportGpx: _exportGpx,
+              onShareLink: () => Share.share(
+                '${widget.track.name}\nhttps://trailshare.app/track/${widget.track.id}',
+                subject: widget.track.name,
+              ),
             ),
             icon: const Icon(Icons.share),
             label: Text(context.l10n.share),

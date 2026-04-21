@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -136,6 +137,15 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(tour.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () => Share.share(
+              '${tour.title}\nhttps://trailshare.app/tour/${tour.id}',
+              subject: tour.title,
+            ),
+          ),
+        ],
       ),
       body: ListView(
         children: [

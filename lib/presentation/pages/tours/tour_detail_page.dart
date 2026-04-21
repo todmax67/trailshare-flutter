@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -62,6 +63,11 @@ class _TourDetailPageState extends State<TourDetailPage> {
     });
   }
 
+  Future<void> _shareWebLink(Tour tour) async {
+    final url = 'https://trailshare.app/tour/${tour.id}';
+    await Share.share('${tour.title}\n$url', subject: tour.title);
+  }
+
   Future<void> _edit() async {
     if (_tour == null) return;
     final changed = await Navigator.push<bool>(
@@ -118,6 +124,11 @@ class _TourDetailPageState extends State<TourDetailPage> {
       appBar: AppBar(
         title: Text(tour.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
+          if (tour.isPublic)
+            IconButton(
+              icon: const Icon(Icons.share),
+              onPressed: () => _shareWebLink(tour),
+            ),
           IconButton(icon: const Icon(Icons.edit), onPressed: _edit),
           IconButton(icon: const Icon(Icons.delete_outline), color: AppColors.danger, onPressed: _delete),
         ],

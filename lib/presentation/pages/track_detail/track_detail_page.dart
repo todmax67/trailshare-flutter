@@ -110,6 +110,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   activityEmoji: _track.activityType.icon,
                   activityName: _track.activityType.displayName,
                   onExportGpx: () => _exportGpx(context),
+                  onShareLink: (_track.isPublic && _track.id != null)
+                      ? () => _shareWebLink()
+                      : null,
                 ),
                 tooltip: context.l10n.shareTooltip,
               ),
@@ -609,6 +612,15 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         );
       }
     }
+  }
+
+  /// Condivide il link web pubblico della traccia (`https://trailshare.app/track/{id}`).
+  /// Richiede che la traccia sia pubblicata in community (controllato dal chiamante).
+  Future<void> _shareWebLink() async {
+    if (_track.id == null) return;
+    final url = 'https://trailshare.app/track/${_track.id}';
+    final message = '${_track.name}\n$url';
+    await Share.share(message, subject: _track.name);
   }
 
   String _formatDuration(Duration d) {

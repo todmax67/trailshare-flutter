@@ -24,6 +24,7 @@ class ShareCardGenerator {
     String? activityName,
     String? username,
     VoidCallback? onExportGpx,
+    VoidCallback? onShareLink,
   }) async {
     showModalBottomSheet(
       context: context,
@@ -39,6 +40,7 @@ class ShareCardGenerator {
         activityName: activityName,
         username: username,
         onExportGpx: onExportGpx,
+        onShareLink: onShareLink,
       ),
     );
   }
@@ -54,6 +56,7 @@ class _SharePreviewSheet extends StatefulWidget {
   final String? activityName;
   final String? username;
   final VoidCallback? onExportGpx;
+  final VoidCallback? onShareLink;
 
   const _SharePreviewSheet({
     required this.name,
@@ -65,6 +68,7 @@ class _SharePreviewSheet extends StatefulWidget {
     this.activityName,
     this.username,
     this.onExportGpx,
+    this.onShareLink,
   });
 
   @override
@@ -266,6 +270,24 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                       ),
                     ),
                   if (widget.onExportGpx != null) const SizedBox(width: 12),
+
+                  // Condividi link web (solo se la traccia è pubblica)
+                  if (widget.onShareLink != null)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          widget.onShareLink!();
+                        },
+                        icon: const Icon(Icons.link, size: 18),
+                        label: const Text('Link'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  if (widget.onShareLink != null) const SizedBox(width: 12),
 
                   // Condividi
                   Expanded(
