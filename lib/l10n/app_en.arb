@@ -1361,5 +1361,10 @@
 
   "recTutorialTitle": "Start your first track",
   "recTutorialBody": "Press the REC button to start GPS recording. You can pause, take photos, add POIs and turn on Lifeline any time.",
-  "recTutorialGotIt": "Got it"
+  "recTutorialGotIt": "Got it",
+
+  "sectionMyActivity": "My activity",
+  "sectionCommunity": "Community",
+  "sectionProgress": "Progress",
+  "sectionAdmin": "Administration"
 }

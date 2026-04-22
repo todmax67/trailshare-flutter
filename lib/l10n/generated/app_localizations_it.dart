@@ -3881,4 +3881,16 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get recTutorialGotIt => 'Ho capito';
+
+  @override
+  String get sectionMyActivity => 'La mia attività';
+
+  @override
+  String get sectionCommunity => 'Community';
+
+  @override
+  String get sectionProgress => 'Progressi';
+
+  @override
+  String get sectionAdmin => 'Amministrazione';
 }

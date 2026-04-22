@@ -3865,4 +3865,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recTutorialGotIt => 'Got it';
+
+  @override
+  String get sectionMyActivity => 'My activity';
+
+  @override
+  String get sectionCommunity => 'Community';
+
+  @override
+  String get sectionProgress => 'Progress';
+
+  @override
+  String get sectionAdmin => 'Administration';
 }

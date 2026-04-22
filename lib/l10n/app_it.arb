@@ -1361,5 +1361,10 @@
 
   "recTutorialTitle": "Inizia la tua prima traccia",
   "recTutorialBody": "Premi il pulsante REC per avviare la registrazione GPS. Potrai mettere in pausa, scattare foto, aggiungere POI e attivare Lifeline in qualsiasi momento.",
-  "recTutorialGotIt": "Ho capito"
+  "recTutorialGotIt": "Ho capito",
+
+  "sectionMyActivity": "La mia attività",
+  "sectionCommunity": "Community",
+  "sectionProgress": "Progressi",
+  "sectionAdmin": "Amministrazione"
 }

@@ -7135,6 +7135,30 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Ho capito'**
   String get recTutorialGotIt;
+
+  /// No description provided for @sectionMyActivity.
+  ///
+  /// In it, this message translates to:
+  /// **'La mia attività'**
+  String get sectionMyActivity;
+
+  /// No description provided for @sectionCommunity.
+  ///
+  /// In it, this message translates to:
+  /// **'Community'**
+  String get sectionCommunity;
+
+  /// No description provided for @sectionProgress.
+  ///
+  /// In it, this message translates to:
+  /// **'Progressi'**
+  String get sectionProgress;
+
+  /// No description provided for @sectionAdmin.
+  ///
+  /// In it, this message translates to:
+  /// **'Amministrazione'**
+  String get sectionAdmin;
 }
 
 class _AppLocalizationsDelegate

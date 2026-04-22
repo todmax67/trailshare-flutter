@@ -322,38 +322,92 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         // Stats Grid
                         _buildStatsGrid(),
-                        const SizedBox(height: 24),
-
-                        // Contatti Button
-                        _buildContactsButton(),
-                        const SizedBox(height: 12),
-
-                        // Admin Button
-                        _buildAdminButton(),
-                        const SizedBox(height: 12),
-
-                        // Gruppi Button
-                        _buildGroupsButton(),
-                        const SizedBox(height: 12),
-
-                        // Dashboard Button
-                        _buildDashboardButton(),
-                        const SizedBox(height: 12),
-
-                        // Wishlist Button
-                        _buildWishlistButton(),
                         const SizedBox(height: 32),
 
-                        // Leaderboard Button
-                        _buildLeaderboardButton(),
-                        const SizedBox(height: 32),
+                        // ═══ SEZIONE: La mia attività ═══
+                        _buildSectionHeader(context.l10n.sectionMyActivity),
+                        _buildTilesSection([
+                          _buildActionTile(
+                            icon: Icons.bar_chart,
+                            label: context.l10n.viewDashboard,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const DashboardPage()),
+                            ),
+                          ),
+                          _buildActionTile(
+                            icon: Icons.bookmark_outline,
+                            label: context.l10n.savedRoutes,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const WishlistPage()),
+                            ),
+                          ),
+                        ]),
 
-                        // Badges Button
-                        _buildBadgesButton(),
-                        const SizedBox(height: 32),
+                        // ═══ SEZIONE: Community ═══
+                        _buildSectionHeader(context.l10n.sectionCommunity),
+                        _buildTilesSection([
+                          _buildActionTile(
+                            icon: Icons.people_outline,
+                            label: context.l10n.myContacts,
+                            trailing: _buildContactsBadge(),
+                            onTap: _openFollowingList,
+                          ),
+                          _buildActionTile(
+                            icon: Icons.groups_outlined,
+                            label: context.l10n.myGroups,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const GroupsListPage()),
+                            ),
+                          ),
+                          _buildActionTile(
+                            icon: Icons.leaderboard_outlined,
+                            label: context.l10n.weeklyLeaderboard,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => LeaderboardPage()),
+                            ),
+                          ),
+                        ]),
 
-                        // Challenges Button  <-- AGGIUNGI QUESTO
-                        _buildChallengesButton(),
+                        // ═══ SEZIONE: Progressi ═══
+                        _buildSectionHeader(context.l10n.sectionProgress),
+                        _buildTilesSection([
+                          _buildActionTile(
+                            icon: Icons.emoji_events_outlined,
+                            label: context.l10n.myBadges,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const BadgesPage()),
+                            ),
+                          ),
+                          _buildActionTile(
+                            icon: Icons.flag_outlined,
+                            label: context.l10n.challenges,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const ChallengesPage()),
+                            ),
+                          ),
+                        ]),
+
+                        // ═══ SEZIONE: Amministrazione (solo admin) ═══
+                        if (_isAdminUser) ...[
+                          _buildSectionHeader(context.l10n.sectionAdmin),
+                          _buildTilesSection([
+                            _buildActionTile(
+                              icon: Icons.admin_panel_settings_outlined,
+                              label: context.l10n.adminPanel,
+                              iconColor: Colors.amber.shade700,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const AdminPanelPage()),
+                              ),
+                            ),
+                          ]),
+                        ],
                         const SizedBox(height: 32),
                       ],
                     ),
@@ -646,203 +700,113 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildContactsButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: _openFollowingList,
-        icon: const Icon(Icons.people),
-        label: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+  // ═══════════════════════════════════════════════════════════════════════
+  // ACTIONS — iOS-style grouped list (Opzione B audit UX)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Etichetta UPPERCASE piccola sopra una sezione di tile.
+  Widget _buildSectionHeader(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 8),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+          color: context.textMuted,
+        ),
+      ),
+    );
+  }
+
+  /// Container che raggruppa una serie di tile come un "gruppo" stile iOS
+  /// Settings, con bordo sottile arrotondato e divider interni.
+  Widget _buildTilesSection(List<Widget> tiles) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.themedBorder, width: 0.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
           children: [
-            Text(context.l10n.myContacts),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                context.l10n.contactsSummary(_followersCount, _followingCount),
-                style: const TextStyle(fontSize: 11),
-              ),
-            ),
+            for (var i = 0; i < tiles.length; i++) ...[
+              tiles[i],
+              if (i < tiles.length - 1)
+                Padding(
+                  padding: const EdgeInsets.only(left: 60),
+                  child: Divider(height: 1, thickness: 0.5, color: context.themedBorder),
+                ),
+            ],
           ],
         ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary.withOpacity(0.8),
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
       ),
     );
   }
 
-  Widget _buildAdminButton() {
-    if (!_isAdminUser) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AdminPanelPage()),
-            );
-          },
-          icon: const Icon(Icons.admin_panel_settings),
-          label: Text(context.l10n.adminPanel),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.amber.shade700,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  /// Singolo tile riga: icona in contenitore tenue + label + trailing opzionale + chevron.
+  Widget _buildActionTile({
+    required IconData icon,
+    required String label,
+    Widget? trailing,
+    required VoidCallback onTap,
+    Color? iconColor,
+  }) {
+    final color = iconColor ?? AppColors.primary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                ),
+              ),
+              if (trailing != null) ...[
+                trailing,
+                const SizedBox(width: 6),
+              ],
+              Icon(Icons.chevron_right, color: context.textMuted, size: 22),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildGroupsButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const GroupsListPage()),
-          );
-        },
-        icon: const Icon(Icons.groups),
-        label: Text(context.l10n.myGroups),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary.withOpacity(0.9),
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+  /// Badge trailing per "I miei contatti": "follower · seguiti" in pill compatta.
+  Widget _buildContactsBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(10),
       ),
-    );
-  }
-
-  Widget _buildDashboardButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const DashboardPage()),
-          );
-        },
-        icon: const Icon(Icons.bar_chart),
-        label: Text(context.l10n.viewDashboard),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWishlistButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const WishlistPage()),
-          );
-        },
-        icon: const Icon(Icons.bookmark_outline),
-        label: Text(context.l10n.savedRoutes),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          side: const BorderSide(color: AppColors.primary),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLeaderboardButton() {
-    return SizedBox(
-    width: double.infinity,
-    child: OutlinedButton.icon(
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => LeaderboardPage()),
-        );
-      },
-      icon: const Icon(Icons.leaderboard),
-      label: Text(context.l10n.weeklyLeaderboard),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.warning,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-          side: const BorderSide(color: AppColors.warning),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBadgesButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const BadgesPage()),
-          );
-        },
-        icon: const Icon(Icons.emoji_events_outlined),
-        label: Text(context.l10n.myBadges),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.success,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          side: const BorderSide(color: AppColors.success),
-        ),
-      ),
-    );
-  }
-  Widget _buildChallengesButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ChallengesPage()),
-          );
-        },
-        icon: const Icon(Icons.emoji_events),
-        label: Text(context.l10n.challenges),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.danger,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          side: const BorderSide(color: AppColors.danger),
+      child: Text(
+        '$_followersCount · $_followingCount',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
         ),
       ),
     );
