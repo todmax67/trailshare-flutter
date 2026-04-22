@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/services/discovery_prompt_service.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/export_format_sheet.dart';
@@ -837,6 +838,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     try {
       final track = widget.track.toTrack();
       final filePath = await TrackExportService().exportToFile(track, format);
+      if (format == ExportFormat.fit) {
+        await DiscoveryPromptService.markFitExported();
+      }
 
       await Share.shareXFiles(
         [XFile(filePath)],

@@ -11,6 +11,7 @@ import '../../../data/repositories/groups_repository.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../tours/community_tour_detail_page.dart';
+import '../../widgets/discovery_carousel.dart';
 import '../../../presentation/widgets/following_feed_item.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../presentation/widgets/community_track_card.dart';
@@ -668,6 +669,14 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   Widget _buildTracksTab() {
     return Column(
       children: [
+        // Discovery carousel: card informative sulle funzionalita meno
+        // scoperte (Lifeline, Tour, Export FIT, etc). Si auto-collassa se
+        // non ci sono prompt attivi o l'utente li ha tutti dismissati.
+        const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: DiscoveryCarousel(),
+        ),
+
         // Barra di ricerca
         Padding(
           padding: const EdgeInsets.all(12),

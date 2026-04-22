@@ -3877,4 +3877,72 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sectionAdmin => 'Administration';
+
+  @override
+  String get gotItAction => 'Got it';
+
+  @override
+  String get discoveryLifelineTitle => 'Keep your outings safe';
+
+  @override
+  String get discoveryLifelineDesc =>
+      'With Lifeline, your trusted contacts get an automatic alert if you stop moving too long. 30-second setup.';
+
+  @override
+  String get discoveryLifelineCta => 'Set up Lifeline';
+
+  @override
+  String get discoveryTourTitle => 'Group your tracks into a tour';
+
+  @override
+  String get discoveryTourDesc =>
+      'You\'ve recorded several outings: build a multi-day tour and publish it to the community with an aggregated map.';
+
+  @override
+  String get discoveryTourCta => 'Create tour';
+
+  @override
+  String get discoveryShareTitle => 'Share via web link';
+
+  @override
+  String get discoveryShareDesc =>
+      'Every public track gets a trailshare.app link that opens in a browser — handy for people without the app.';
+
+  @override
+  String get discoveryShareCta => 'How it works';
+
+  @override
+  String get discoveryShareInfo =>
+      'Open one of your public tracks, tap Share, then pick \'Link\'. You\'ll get a URL you can send via WhatsApp, email, or anywhere — the recipient sees map and stats right in their browser.';
+
+  @override
+  String get discoveryFitTitle => 'Import into Garmin Connect';
+
+  @override
+  String get discoveryFitDesc =>
+      'Export your tracks as FIT to load them into Garmin Connect, Wahoo, and other training apps.';
+
+  @override
+  String get discoveryFitCta => 'How to';
+
+  @override
+  String get discoveryFitInfo =>
+      'Open a track, tap Share, then Export. Choose FIT: you\'ll get a file compatible with Garmin Connect (import it from the \'Activities\' section). GPX, TCX and KML are also available.';
+
+  @override
+  String get discoveryPlannerTitle => 'Plan your next route';
+
+  @override
+  String get discoveryPlannerDesc =>
+      'Draw your route on the map before you go: you get distance, elevation and voice guidance while recording.';
+
+  @override
+  String get discoveryPlannerCta => 'How it works';
+
+  @override
+  String get discoveryPlannerInfo =>
+      'Go to Tracks → Plan tab. Tap the map to add points; the router computes the path. Save, then from Discover/Tracks you can follow it with turn-by-turn voice guidance.';
+
+  @override
+  String get discoveryCarouselHint => 'Swipe for more';
 }

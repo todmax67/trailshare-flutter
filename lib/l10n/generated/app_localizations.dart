@@ -7159,6 +7159,126 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Amministrazione'**
   String get sectionAdmin;
+
+  /// No description provided for @gotItAction.
+  ///
+  /// In it, this message translates to:
+  /// **'Ho capito'**
+  String get gotItAction;
+
+  /// No description provided for @discoveryLifelineTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Metti in sicurezza le tue uscite'**
+  String get discoveryLifelineTitle;
+
+  /// No description provided for @discoveryLifelineDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Con Lifeline i tuoi contatti di fiducia ricevono un allarme automatico se resti fermo troppo a lungo. Setup in 30 secondi.'**
+  String get discoveryLifelineDesc;
+
+  /// No description provided for @discoveryLifelineCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Attiva Lifeline'**
+  String get discoveryLifelineCta;
+
+  /// No description provided for @discoveryTourTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Raggruppa le tue tracce in un tour'**
+  String get discoveryTourTitle;
+
+  /// No description provided for @discoveryTourDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Hai registrato più uscite: crea un tour multi-giorno e pubblicalo nella community con mappa aggregata.'**
+  String get discoveryTourDesc;
+
+  /// No description provided for @discoveryTourCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Crea tour'**
+  String get discoveryTourCta;
+
+  /// No description provided for @discoveryShareTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Condividi con un link'**
+  String get discoveryShareTitle;
+
+  /// No description provided for @discoveryShareDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Ogni traccia pubblica ha un link trailshare.app che si apre nel browser: utile per mostrarla a chi non ha l\'app.'**
+  String get discoveryShareDesc;
+
+  /// No description provided for @discoveryShareCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Scopri come'**
+  String get discoveryShareCta;
+
+  /// No description provided for @discoveryShareInfo.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri una tua traccia pubblica, tocca il pulsante Condividi e scegli \'Link\': otterrai un URL da mandare su WhatsApp, email o ovunque. Chi clicca vede mappa e statistiche direttamente dal browser.'**
+  String get discoveryShareInfo;
+
+  /// No description provided for @discoveryFitTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Importa in Garmin Connect'**
+  String get discoveryFitTitle;
+
+  /// No description provided for @discoveryFitDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Esporta le tue tracce in formato FIT per caricarle su Garmin Connect, Wahoo e altre app di allenamento.'**
+  String get discoveryFitDesc;
+
+  /// No description provided for @discoveryFitCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Come fare'**
+  String get discoveryFitCta;
+
+  /// No description provided for @discoveryFitInfo.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri una traccia, tocca Condividi, poi Esporta. Scegli FIT: otterrai un file compatibile con Garmin Connect (importalo dalla sezione \'Attività\'). Disponibili anche GPX, TCX e KML.'**
+  String get discoveryFitInfo;
+
+  /// No description provided for @discoveryPlannerTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Pianifica il prossimo percorso'**
+  String get discoveryPlannerTitle;
+
+  /// No description provided for @discoveryPlannerDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia il tuo itinerario sulla mappa prima di partire: ottieni distanza, dislivello e guida vocale in registrazione.'**
+  String get discoveryPlannerDesc;
+
+  /// No description provided for @discoveryPlannerCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Come funziona'**
+  String get discoveryPlannerCta;
+
+  /// No description provided for @discoveryPlannerInfo.
+  ///
+  /// In it, this message translates to:
+  /// **'Vai su Tracce → scheda Pianifica. Tocca la mappa per aggiungere punti, il router calcola il percorso. Salva e poi da Scopri/Tracce puoi seguirlo con guida vocale come una navigazione turn-by-turn.'**
+  String get discoveryPlannerInfo;
+
+  /// No description provided for @discoveryCarouselHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Scorri per altre proposte'**
+  String get discoveryCarouselHint;
 }
 
 class _AppLocalizationsDelegate

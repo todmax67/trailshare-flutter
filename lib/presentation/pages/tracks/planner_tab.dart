@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/services/discovery_prompt_service.dart';
 import '../../../core/services/routing_service.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../data/models/track.dart';
@@ -268,6 +269,7 @@ class _PlannerTabState extends State<PlannerTab> {
       );
 
       await _tracksRepository.saveTrack(track);
+      await DiscoveryPromptService.markPlannerUsed();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

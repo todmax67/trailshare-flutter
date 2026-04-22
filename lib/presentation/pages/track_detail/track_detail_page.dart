@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/services/discovery_prompt_service.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/models/track.dart';
@@ -607,6 +608,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     if (format == null || !context.mounted) return;
     try {
       final filePath = await TrackExportService().exportToFile(_track, format);
+      if (format == ExportFormat.fit) {
+        await DiscoveryPromptService.markFitExported();
+      }
       await Share.shareXFiles([XFile(filePath)], subject: _track.name);
     } catch (e) {
       if (context.mounted) {

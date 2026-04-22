@@ -1366,5 +1366,32 @@
   "sectionMyActivity": "My activity",
   "sectionCommunity": "Community",
   "sectionProgress": "Progress",
-  "sectionAdmin": "Administration"
+  "sectionAdmin": "Administration",
+
+  "gotItAction": "Got it",
+
+  "discoveryLifelineTitle": "Keep your outings safe",
+  "discoveryLifelineDesc": "With Lifeline, your trusted contacts get an automatic alert if you stop moving too long. 30-second setup.",
+  "discoveryLifelineCta": "Set up Lifeline",
+
+  "discoveryTourTitle": "Group your tracks into a tour",
+  "discoveryTourDesc": "You've recorded several outings: build a multi-day tour and publish it to the community with an aggregated map.",
+  "discoveryTourCta": "Create tour",
+
+  "discoveryShareTitle": "Share via web link",
+  "discoveryShareDesc": "Every public track gets a trailshare.app link that opens in a browser — handy for people without the app.",
+  "discoveryShareCta": "How it works",
+  "discoveryShareInfo": "Open one of your public tracks, tap Share, then pick 'Link'. You'll get a URL you can send via WhatsApp, email, or anywhere — the recipient sees map and stats right in their browser.",
+
+  "discoveryFitTitle": "Import into Garmin Connect",
+  "discoveryFitDesc": "Export your tracks as FIT to load them into Garmin Connect, Wahoo, and other training apps.",
+  "discoveryFitCta": "How to",
+  "discoveryFitInfo": "Open a track, tap Share, then Export. Choose FIT: you'll get a file compatible with Garmin Connect (import it from the 'Activities' section). GPX, TCX and KML are also available.",
+
+  "discoveryPlannerTitle": "Plan your next route",
+  "discoveryPlannerDesc": "Draw your route on the map before you go: you get distance, elevation and voice guidance while recording.",
+  "discoveryPlannerCta": "How it works",
+  "discoveryPlannerInfo": "Go to Tracks → Plan tab. Tap the map to add points; the router computes the path. Save, then from Discover/Tracks you can follow it with turn-by-turn voice guidance.",
+
+  "discoveryCarouselHint": "Swipe for more"
 }

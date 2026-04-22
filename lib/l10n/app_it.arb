@@ -1366,5 +1366,32 @@
   "sectionMyActivity": "La mia attività",
   "sectionCommunity": "Community",
   "sectionProgress": "Progressi",
-  "sectionAdmin": "Amministrazione"
+  "sectionAdmin": "Amministrazione",
+
+  "gotItAction": "Ho capito",
+
+  "discoveryLifelineTitle": "Metti in sicurezza le tue uscite",
+  "discoveryLifelineDesc": "Con Lifeline i tuoi contatti di fiducia ricevono un allarme automatico se resti fermo troppo a lungo. Setup in 30 secondi.",
+  "discoveryLifelineCta": "Attiva Lifeline",
+
+  "discoveryTourTitle": "Raggruppa le tue tracce in un tour",
+  "discoveryTourDesc": "Hai registrato più uscite: crea un tour multi-giorno e pubblicalo nella community con mappa aggregata.",
+  "discoveryTourCta": "Crea tour",
+
+  "discoveryShareTitle": "Condividi con un link",
+  "discoveryShareDesc": "Ogni traccia pubblica ha un link trailshare.app che si apre nel browser: utile per mostrarla a chi non ha l'app.",
+  "discoveryShareCta": "Scopri come",
+  "discoveryShareInfo": "Apri una tua traccia pubblica, tocca il pulsante Condividi e scegli 'Link': otterrai un URL da mandare su WhatsApp, email o ovunque. Chi clicca vede mappa e statistiche direttamente dal browser.",
+
+  "discoveryFitTitle": "Importa in Garmin Connect",
+  "discoveryFitDesc": "Esporta le tue tracce in formato FIT per caricarle su Garmin Connect, Wahoo e altre app di allenamento.",
+  "discoveryFitCta": "Come fare",
+  "discoveryFitInfo": "Apri una traccia, tocca Condividi, poi Esporta. Scegli FIT: otterrai un file compatibile con Garmin Connect (importalo dalla sezione 'Attività'). Disponibili anche GPX, TCX e KML.",
+
+  "discoveryPlannerTitle": "Pianifica il prossimo percorso",
+  "discoveryPlannerDesc": "Traccia il tuo itinerario sulla mappa prima di partire: ottieni distanza, dislivello e guida vocale in registrazione.",
+  "discoveryPlannerCta": "Come funziona",
+  "discoveryPlannerInfo": "Vai su Tracce → scheda Pianifica. Tocca la mappa per aggiungere punti, il router calcola il percorso. Salva e poi da Scopri/Tracce puoi seguirlo con guida vocale come una navigazione turn-by-turn.",
+
+  "discoveryCarouselHint": "Scorri per altre proposte"
 }

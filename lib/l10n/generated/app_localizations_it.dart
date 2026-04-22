@@ -3893,4 +3893,72 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get sectionAdmin => 'Amministrazione';
+
+  @override
+  String get gotItAction => 'Ho capito';
+
+  @override
+  String get discoveryLifelineTitle => 'Metti in sicurezza le tue uscite';
+
+  @override
+  String get discoveryLifelineDesc =>
+      'Con Lifeline i tuoi contatti di fiducia ricevono un allarme automatico se resti fermo troppo a lungo. Setup in 30 secondi.';
+
+  @override
+  String get discoveryLifelineCta => 'Attiva Lifeline';
+
+  @override
+  String get discoveryTourTitle => 'Raggruppa le tue tracce in un tour';
+
+  @override
+  String get discoveryTourDesc =>
+      'Hai registrato più uscite: crea un tour multi-giorno e pubblicalo nella community con mappa aggregata.';
+
+  @override
+  String get discoveryTourCta => 'Crea tour';
+
+  @override
+  String get discoveryShareTitle => 'Condividi con un link';
+
+  @override
+  String get discoveryShareDesc =>
+      'Ogni traccia pubblica ha un link trailshare.app che si apre nel browser: utile per mostrarla a chi non ha l\'app.';
+
+  @override
+  String get discoveryShareCta => 'Scopri come';
+
+  @override
+  String get discoveryShareInfo =>
+      'Apri una tua traccia pubblica, tocca il pulsante Condividi e scegli \'Link\': otterrai un URL da mandare su WhatsApp, email o ovunque. Chi clicca vede mappa e statistiche direttamente dal browser.';
+
+  @override
+  String get discoveryFitTitle => 'Importa in Garmin Connect';
+
+  @override
+  String get discoveryFitDesc =>
+      'Esporta le tue tracce in formato FIT per caricarle su Garmin Connect, Wahoo e altre app di allenamento.';
+
+  @override
+  String get discoveryFitCta => 'Come fare';
+
+  @override
+  String get discoveryFitInfo =>
+      'Apri una traccia, tocca Condividi, poi Esporta. Scegli FIT: otterrai un file compatibile con Garmin Connect (importalo dalla sezione \'Attività\'). Disponibili anche GPX, TCX e KML.';
+
+  @override
+  String get discoveryPlannerTitle => 'Pianifica il prossimo percorso';
+
+  @override
+  String get discoveryPlannerDesc =>
+      'Traccia il tuo itinerario sulla mappa prima di partire: ottieni distanza, dislivello e guida vocale in registrazione.';
+
+  @override
+  String get discoveryPlannerCta => 'Come funziona';
+
+  @override
+  String get discoveryPlannerInfo =>
+      'Vai su Tracce → scheda Pianifica. Tocca la mappa per aggiungere punti, il router calcola il percorso. Salva e poi da Scopri/Tracce puoi seguirlo con guida vocale come una navigazione turn-by-turn.';
+
+  @override
+  String get discoveryCarouselHint => 'Scorri per altre proposte';
 }
