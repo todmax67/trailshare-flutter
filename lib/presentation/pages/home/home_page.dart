@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/services/recording_status_service.dart';
 import '../community/community_page.dart';
 import '../record/record_page.dart';
 import '../tracks/tracks_page.dart';
@@ -218,8 +219,13 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-/// Pulsante Registra prominente al centro
-class _RecordButton extends StatelessWidget {
+/// Pulsante Registra prominente al centro della nav bar.
+///
+/// Reagisce allo stato globale di [RecordingStatusService]:
+/// - **idle**: cerchio statico arancione con pallino rosso (record classico)
+/// - **recording**: ring pulsante rosso espanso + icona stop quadrata
+/// - **paused**: ring statico ambra + icona pausa
+class _RecordButton extends StatefulWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
@@ -231,47 +237,126 @@ class _RecordButton extends StatelessWidget {
   });
 
   @override
+  State<_RecordButton> createState() => _RecordButtonState();
+}
+
+class _RecordButtonState extends State<_RecordButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  final _service = RecordingStatusService();
+
+  static const _orange = Color(0xFFE07B4C);
+  static const _orangeDark = Color(0xFFC4683F);
+  static const _red = Color(0xFFE53935);
+  static const _amber = Color(0xFFFFA726);
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _service.addListener(_onStatusChanged);
+    _syncPulse();
+  }
+
+  @override
+  void dispose() {
+    _service.removeListener(_onStatusChanged);
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  void _onStatusChanged() {
+    _syncPulse();
+    if (mounted) setState(() {});
+  }
+
+  void _syncPulse() {
+    if (_service.isRecording) {
+      if (!_pulse.isAnimating) _pulse.repeat();
+    } else {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final recording = _service.isRecording;
+    final paused = _service.isPaused;
+
+    // Colori in base allo stato.
+    final (gradientStart, gradientEnd, shadowColor, icon) = recording
+        ? (_red, const Color(0xFFB71C1C), _red, Icons.stop_rounded)
+        : paused
+            ? (_amber, const Color(0xFFE57E0A), _amber, Icons.pause_rounded)
+            : (_orange, _orangeDark, _orange, Icons.fiber_manual_record_rounded);
+
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 52,
+          SizedBox(
+            width: 64,
             height: 52,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFE07B4C),  // AppColors.primary
-                  Color(0xFFC4683F),  // AppColors.primaryDark
-                ],
-              ),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFE07B4C).withOpacity(0.4),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Ring pulsante (solo in recording).
+                if (recording)
+                  AnimatedBuilder(
+                    animation: _pulse,
+                    builder: (context, _) {
+                      final t = _pulse.value; // 0 → 1
+                      final radius = 26 + t * 14; // 26 → 40
+                      final alpha = (1 - t) * 0.55;
+                      return Container(
+                        width: radius * 2,
+                        height: radius * 2,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _red.withValues(alpha: alpha),
+                            width: 2.5,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                // Cerchio principale.
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [gradientStart, gradientEnd],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: shadowColor.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 26),
                 ),
               ],
-            ),
-            child: Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: Colors.white,
-              size: 26,
             ),
           ),
           const SizedBox(height: 2),
           Text(
-            label,
+            widget.label,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected
-                  ? const Color(0xFFE07B4C)
+              fontWeight: widget.isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: widget.isSelected
+                  ? (recording ? _red : paused ? _amber : _orange)
                   : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),

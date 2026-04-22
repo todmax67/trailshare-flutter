@@ -5,6 +5,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/dashboard_stats.dart';
 import '../../../data/repositories/dashboard_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/stat_number.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -146,7 +147,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildStatsGrid() {
     final stats = _stats!;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -155,37 +156,43 @@ class _DashboardPageState extends State<DashboardPage> {
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.4,
+        // ⭐ HERO STAT — la distanza è la metrica più "sentita" per un
+        // tracker outdoor. Full-width, numero molto grande in Outfit.
+        _HeroStat(
+          value: stats.totalDistanceKm.toStringAsFixed(1),
+          unit: 'km',
+          label: context.l10n.totalDistance,
+        ),
+        const SizedBox(height: 12),
+        // Tre satelliti sotto — valori secondari.
+        Row(
           children: [
-            _StatCard(
-              icon: Icons.route,
-              label: context.l10n.totalTracksLabel,
-              value: '${stats.totalTracks}',
-              color: AppColors.primary,
+            Expanded(
+              child: _SatelliteStat(
+                icon: Icons.trending_up,
+                value: stats.totalElevationGain.toStringAsFixed(0),
+                unit: 'm',
+                label: context.l10n.totalElevation,
+                color: AppColors.success,
+              ),
             ),
-            _StatCard(
-              icon: Icons.straighten,
-              label: context.l10n.totalDistance,
-              value: '${stats.totalDistanceKm.toStringAsFixed(1)} km',
-              color: AppColors.info,
+            const SizedBox(width: 10),
+            Expanded(
+              child: _SatelliteStat(
+                icon: Icons.schedule,
+                value: stats.totalDurationFormatted,
+                label: context.l10n.totalTime,
+                color: AppColors.warning,
+              ),
             ),
-            _StatCard(
-              icon: Icons.trending_up,
-              label: context.l10n.totalElevation,
-              value: '${stats.totalElevationGain.toStringAsFixed(0)} m',
-              color: AppColors.success,
-            ),
-            _StatCard(
-              icon: Icons.schedule,
-              label: context.l10n.totalTime,
-              value: stats.totalDurationFormatted,
-              color: AppColors.warning,
+            const SizedBox(width: 10),
+            Expanded(
+              child: _SatelliteStat(
+                icon: Icons.route,
+                value: '${stats.totalTracks}',
+                label: context.l10n.totalTracksLabel,
+                color: AppColors.primary,
+              ),
             ),
           ],
         ),
@@ -675,16 +682,81 @@ class _DashboardPageState extends State<DashboardPage> {
 // WIDGET AUSILIARI
 // ═══════════════════════════════════════════════════════════════════════════
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
+/// Hero stat full-width: gradient primary, numero Outfit 56px tabular,
+/// label sotto. Domina la vista e risponde alla finding F02 dell'audit.
+class _HeroStat extends StatelessWidget {
   final String value;
+  final String unit;
+  final String label;
+
+  const _HeroStat({
+    required this.value,
+    required this.unit,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary,
+            AppColors.primaryDark,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          StatNumber.hero(
+            value,
+            unit: unit,
+            color: Colors.white,
+            unitColor: Colors.white.withValues(alpha: 0.85),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.white.withValues(alpha: 0.85),
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Satellite stat: card piccola con icona a sinistra + numero sotto
+/// (Outfit, tabular). Tre per riga.
+class _SatelliteStat extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String? unit;
+  final String label;
   final Color color;
 
-  const _StatCard({
+  const _SatelliteStat({
     required this.icon,
-    required this.label,
     required this.value,
+    this.unit,
+    required this.label,
     required this.color,
   });
 
@@ -693,35 +765,30 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: context.themedBorder, width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 24),
+          Icon(icon, color: color, size: 20),
           const SizedBox(height: 8),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(
+            child: StatNumber.medium(
               value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-              maxLines: 1,
+              unit: unit,
+              color: color,
             ),
           ),
+          const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
-              color: context.textSecondary,
-            ),
+            style: TextStyle(fontSize: 11, color: context.textSecondary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

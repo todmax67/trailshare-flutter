@@ -17,6 +17,7 @@ import '../../../data/repositories/tracks_repository.dart';
 import '../../widgets/live_track_button.dart';
 import '../../widgets/heart_rate_widget.dart';
 import '../../../core/services/feature_tips.dart';
+import '../../../core/services/recording_status_service.dart';
 import '../../../core/services/track_photos_service.dart';
 import '../../widgets/photo_gallery_widget.dart';
 import '../../../core/services/recording_persistence_service.dart';
@@ -466,6 +467,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     if (!state.isIdle && state.points.length % 5 == 0) _saveStateToBackup();
     if (_isGuided && state.points.isNotEmpty) {
       _updateGuidedState(state.points.last);
+    }
+    // Mirror lo stato macro nel servizio globale così il bottom nav button
+    // può animarsi (pulsare quando recording, pausa statica quando paused).
+    if (state.isRecording) {
+      RecordingStatusService().markRecording();
+    } else if (state.isPaused) {
+      RecordingStatusService().markPaused();
+    } else {
+      RecordingStatusService().markIdle();
     }
     setState(() {});
   }
