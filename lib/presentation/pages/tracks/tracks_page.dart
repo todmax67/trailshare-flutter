@@ -11,6 +11,7 @@ import '../map/track_map_page.dart';
 import 'import_gpx_page.dart';
 import 'planner_tab.dart';
 import '../tours/tours_tab.dart';
+import '../../widgets/topo_empty_state.dart';
 
 class TracksPage extends StatefulWidget {
   const TracksPage({super.key});
@@ -334,24 +335,14 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
       return RefreshIndicator(
         onRefresh: _loadTracks,
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            const SizedBox(height: 100),
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.hiking, size: 80, color: AppColors.primary.withOpacity(0.3)),
-                  const SizedBox(height: 16),
-                  Text(
-                    context.l10n.noTracksSaved,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    context.l10n.startRecordingAdventures,
-                    style: TextStyle(color: context.textSecondary),
-                  ),
-                ],
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: TopoEmptyState(
+                title: context.l10n.noTracksSaved,
+                message: context.l10n.startRecordingAdventures,
+                variant: 1,
               ),
             ),
           ],

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/track_export_service.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../presentation/widgets/charts/elevation_chart.dart';
@@ -787,12 +788,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isPromoting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ ${context.l10n.errorWithDetails(e.toString())}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        AppSnackBar.error(context, context.l10n.errorWithDetails(e.toString()));
       }
     }
   }

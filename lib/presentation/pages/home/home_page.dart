@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/recording_status_service.dart';
+import '../../widgets/app_snackbar.dart';
 import '../community/community_page.dart';
 import '../record/record_page.dart';
 import '../tracks/tracks_page.dart';
@@ -36,31 +37,22 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       switch (event.type) {
         case 'started':
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('⌚ Garmin: ricezione traccia (${event.totalPoints} punti)...'),
-              duration: const Duration(seconds: 3),
-            ),
+          AppSnackBar.info(
+            context,
+            'Garmin: ricezione traccia (${event.totalPoints} punti)…',
           );
           break;
         case 'completed':
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✅ Traccia Garmin importata! (${event.totalPoints} punti)'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 4),
-            ),
+          AppSnackBar.success(
+            context,
+            'Traccia Garmin importata (${event.totalPoints} punti)',
+            duration: const Duration(seconds: 4),
           );
           // Vai alla tab Tracce per mostrare la nuova traccia
           setState(() => _currentIndex = 3);
           break;
         case 'error':
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Errore Garmin: ${event.error}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          AppSnackBar.error(context, 'Errore Garmin: ${event.error}');
           break;
       }
     });

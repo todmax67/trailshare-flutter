@@ -18,6 +18,7 @@ import '../../widgets/live_track_button.dart';
 import '../../widgets/heart_rate_widget.dart';
 import '../../../core/services/feature_tips.dart';
 import '../../../core/services/recording_status_service.dart';
+import '../../widgets/map_overlays.dart';
 import '../../../core/services/track_photos_service.dart';
 import '../../widgets/photo_gallery_widget.dart';
 import '../../../core/services/recording_persistence_service.dart';
@@ -1529,6 +1530,16 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           if (!state.isIdle) _buildSosButton(),
           // Battery saver toggle: sempre visibile durante registrazione.
           if (!state.isIdle) _buildBatterySaverButton(),
+          // Scrim sotto i controlli: protegge leggibilita del bottone REC
+          // (e di eventuali toast) su tile mappa ad alta luminosita.
+          const Positioned(
+            left: 0, right: 0, bottom: 0,
+            child: MapScrimGradient(
+              direction: ScrimDirection.bottom,
+              height: 140,
+              maxOpacity: 0.35,
+            ),
+          ),
           _buildControls(state),
           if (state.errorMessage != null)
             Positioned(top: MediaQuery.of(context).padding.top + 100, left: 16, right: 16, child: _buildErrorBanner(_localizeError(state.errorMessage!))),

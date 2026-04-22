@@ -6,6 +6,7 @@ import '../../../data/models/dashboard_stats.dart';
 import '../../../data/repositories/dashboard_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../widgets/stat_number.dart';
+import '../../widgets/topo_empty_state.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -90,27 +91,10 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildEmpty() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.analytics_outlined, size: 80, color: Colors.grey[300]),
-            const SizedBox(height: 24),
-            Text(
-              context.l10n.noStatsAvailable,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              context.l10n.recordFirstTrackForStats,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ],
-        ),
-      ),
+    return TopoEmptyState(
+      title: context.l10n.noStatsAvailable,
+      message: context.l10n.recordFirstTrackForStats,
+      variant: 0,
     );
   }
 

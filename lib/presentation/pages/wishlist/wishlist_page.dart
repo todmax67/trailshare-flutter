@@ -9,6 +9,7 @@ import '../../widgets/community_track_card.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../data/models/track.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/topo_empty_state.dart';
 
 /// Pagina che mostra i percorsi salvati nella wishlist
 class WishlistPage extends StatefulWidget {
@@ -271,33 +272,12 @@ class _WishlistPageState extends State<WishlistPage> {
   }
 
   Widget _buildEmpty() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.bookmark_border, size: 80, color: Colors.grey[300]),
-            const SizedBox(height: 24),
-            Text(
-              context.l10n.noSavedTracks,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              context.l10n.exploreSavedHint,
-              style: TextStyle(color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.explore),
-              label: Text(context.l10n.goToDiscover),
-            ),
-          ],
-        ),
-      ),
+    return TopoEmptyState(
+      title: context.l10n.noSavedTracks,
+      message: context.l10n.exploreSavedHint,
+      cta: context.l10n.goToDiscover,
+      onCta: () => Navigator.pop(context),
+      variant: 2,
     );
   }
 
