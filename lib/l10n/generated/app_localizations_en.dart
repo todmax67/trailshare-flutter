@@ -4014,4 +4014,58 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discoveryChallengeCta => 'View challenge';
+
+  @override
+  String commentsTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Comments · $count',
+      one: 'Comments · 1',
+      zero: 'Comments',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get commentsEmpty => 'No comments yet. Be the first.';
+
+  @override
+  String get commentsInputHint => 'Write a comment…';
+
+  @override
+  String get commentsLoginHint => 'Sign in to comment';
+
+  @override
+  String get commentsPostError => 'Unable to post comment';
+
+  @override
+  String get commentsDeleteTitle => 'Delete comment';
+
+  @override
+  String get commentsDeleteBody => 'Do you really want to delete this comment?';
+
+  @override
+  String get commentsDeleted => 'Comment deleted';
+
+  @override
+  String get commentsDeleteError => 'Unable to delete comment';
+
+  @override
+  String get commentsJustNow => 'just now';
+
+  @override
+  String commentsMinutesAgo(int m) {
+    return '$m min ago';
+  }
+
+  @override
+  String commentsHoursAgo(int h) {
+    return '$h h ago';
+  }
+
+  @override
+  String commentsDaysAgo(int d) {
+    return '$d d ago';
+  }
 }

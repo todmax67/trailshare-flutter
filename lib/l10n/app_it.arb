@@ -1420,5 +1420,23 @@
 
   "discoveryChallengeTitle": "Nuova sfida della settimana",
   "discoveryChallengeDesc": "Una nuova sfida personalizzata ti aspetta. Guarda la Dashboard per scoprirla.",
-  "discoveryChallengeCta": "Vedi sfida"
+  "discoveryChallengeCta": "Vedi sfida",
+
+  "commentsTitle": "{count, plural, =0{Commenti} =1{Commenti · 1} other{Commenti · {count}}}",
+  "@commentsTitle": { "placeholders": { "count": {"type": "int"} } },
+  "commentsEmpty": "Nessun commento. Lascia il primo.",
+  "commentsInputHint": "Scrivi un commento…",
+  "commentsLoginHint": "Accedi per commentare",
+  "commentsPostError": "Impossibile pubblicare il commento",
+  "commentsDeleteTitle": "Elimina commento",
+  "commentsDeleteBody": "Vuoi davvero eliminare questo commento?",
+  "commentsDeleted": "Commento eliminato",
+  "commentsDeleteError": "Impossibile eliminare il commento",
+  "commentsJustNow": "ora",
+  "commentsMinutesAgo": "{m} min fa",
+  "@commentsMinutesAgo": { "placeholders": { "m": {"type": "int"} } },
+  "commentsHoursAgo": "{h} h fa",
+  "@commentsHoursAgo": { "placeholders": { "h": {"type": "int"} } },
+  "commentsDaysAgo": "{d} g fa",
+  "@commentsDaysAgo": { "placeholders": { "d": {"type": "int"} } }
 }

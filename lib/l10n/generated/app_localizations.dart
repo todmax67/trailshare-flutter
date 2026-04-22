@@ -7375,6 +7375,84 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Vedi sfida'**
   String get discoveryChallengeCta;
+
+  /// No description provided for @commentsTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =0{Commenti} =1{Commenti · 1} other{Commenti · {count}}}'**
+  String commentsTitle(int count);
+
+  /// No description provided for @commentsEmpty.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun commento. Lascia il primo.'**
+  String get commentsEmpty;
+
+  /// No description provided for @commentsInputHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Scrivi un commento…'**
+  String get commentsInputHint;
+
+  /// No description provided for @commentsLoginHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Accedi per commentare'**
+  String get commentsLoginHint;
+
+  /// No description provided for @commentsPostError.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile pubblicare il commento'**
+  String get commentsPostError;
+
+  /// No description provided for @commentsDeleteTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Elimina commento'**
+  String get commentsDeleteTitle;
+
+  /// No description provided for @commentsDeleteBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Vuoi davvero eliminare questo commento?'**
+  String get commentsDeleteBody;
+
+  /// No description provided for @commentsDeleted.
+  ///
+  /// In it, this message translates to:
+  /// **'Commento eliminato'**
+  String get commentsDeleted;
+
+  /// No description provided for @commentsDeleteError.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile eliminare il commento'**
+  String get commentsDeleteError;
+
+  /// No description provided for @commentsJustNow.
+  ///
+  /// In it, this message translates to:
+  /// **'ora'**
+  String get commentsJustNow;
+
+  /// No description provided for @commentsMinutesAgo.
+  ///
+  /// In it, this message translates to:
+  /// **'{m} min fa'**
+  String commentsMinutesAgo(int m);
+
+  /// No description provided for @commentsHoursAgo.
+  ///
+  /// In it, this message translates to:
+  /// **'{h} h fa'**
+  String commentsHoursAgo(int h);
+
+  /// No description provided for @commentsDaysAgo.
+  ///
+  /// In it, this message translates to:
+  /// **'{d} g fa'**
+  String commentsDaysAgo(int d);
 }
 
 class _AppLocalizationsDelegate

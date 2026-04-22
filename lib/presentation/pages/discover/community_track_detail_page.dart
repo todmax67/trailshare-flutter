@@ -22,6 +22,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/share_card_widget.dart';
+import '../../widgets/track_comments_section.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/models/recording_reference.dart';
 import '../record/record_page.dart';
@@ -258,6 +259,14 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
 
                   // Azioni
                   _buildActions(),
+
+                  const SizedBox(height: 28),
+
+                  // Commenti community
+                  TrackCommentsSection(
+                    trackId: widget.track.id,
+                    ownerId: widget.track.ownerId,
+                  ),
                 ],
               ),
             ),

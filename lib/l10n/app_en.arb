@@ -1420,5 +1420,23 @@
 
   "discoveryChallengeTitle": "New challenge of the week",
   "discoveryChallengeDesc": "A new personalized challenge is waiting for you. Check the Dashboard.",
-  "discoveryChallengeCta": "View challenge"
+  "discoveryChallengeCta": "View challenge",
+
+  "commentsTitle": "{count, plural, =0{Comments} =1{Comments · 1} other{Comments · {count}}}",
+  "@commentsTitle": { "placeholders": { "count": {"type": "int"} } },
+  "commentsEmpty": "No comments yet. Be the first.",
+  "commentsInputHint": "Write a comment…",
+  "commentsLoginHint": "Sign in to comment",
+  "commentsPostError": "Unable to post comment",
+  "commentsDeleteTitle": "Delete comment",
+  "commentsDeleteBody": "Do you really want to delete this comment?",
+  "commentsDeleted": "Comment deleted",
+  "commentsDeleteError": "Unable to delete comment",
+  "commentsJustNow": "just now",
+  "commentsMinutesAgo": "{m} min ago",
+  "@commentsMinutesAgo": { "placeholders": { "m": {"type": "int"} } },
+  "commentsHoursAgo": "{h} h ago",
+  "@commentsHoursAgo": { "placeholders": { "h": {"type": "int"} } },
+  "commentsDaysAgo": "{d} d ago",
+  "@commentsDaysAgo": { "placeholders": { "d": {"type": "int"} } }
 }
