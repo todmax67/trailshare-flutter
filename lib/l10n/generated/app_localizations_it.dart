@@ -3970,4 +3970,64 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get compassHeadingUp => 'Direzione in alto';
+
+  @override
+  String get weeklyChallengeTitle => 'SFIDA DELLA SETTIMANA';
+
+  @override
+  String get weeklyChallengeCompleted => 'Completata';
+
+  @override
+  String weeklyChallengeDistanceTitle(String km) {
+    return 'Cammina $km km entro domenica';
+  }
+
+  @override
+  String weeklyChallengeElevationTitle(String m) {
+    return 'Scala $m metri di dislivello';
+  }
+
+  @override
+  String weeklyChallengeTracksTitle(int count) {
+    return 'Registra $count tracce';
+  }
+
+  @override
+  String weeklyChallengeDurationTitle(String hours) {
+    return 'Muoviti per $hours ore';
+  }
+
+  @override
+  String weeklyChallengeRemaining(String value, String unit) {
+    return '–$value $unit alla fine';
+  }
+
+  @override
+  String weeklyChallengeTracksRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tracce alla fine',
+      one: '1 traccia alla fine',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get weeklyChallengeCompletedDialogTitle => 'Sfida completata!';
+
+  @override
+  String weeklyChallengeCompletedDialogBody(int xp) {
+    return 'Hai vinto $xp XP bonus. Vedrai una nuova sfida lunedì prossimo.';
+  }
+
+  @override
+  String get discoveryChallengeTitle => 'Nuova sfida della settimana';
+
+  @override
+  String get discoveryChallengeDesc =>
+      'Una nuova sfida personalizzata ti aspetta. Guarda la Dashboard per scoprirla.';
+
+  @override
+  String get discoveryChallengeCta => 'Vedi sfida';
 }

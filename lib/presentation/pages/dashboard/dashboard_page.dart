@@ -7,6 +7,7 @@ import '../../../data/repositories/dashboard_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../widgets/stat_number.dart';
 import '../../widgets/topo_empty_state.dart';
+import '../../widgets/weekly_challenge_card.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -107,6 +108,11 @@ class _DashboardPageState extends State<DashboardPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Sfida della settimana (sopra a tutto: "cosa devi fare questa
+            // settimana"). Si auto-collassa se non ci sono sfide.
+            const WeeklyChallengeCard(),
+            const SizedBox(height: 16),
+
             // Stats Grid
             _buildStatsGrid(),
             const SizedBox(height: 24),

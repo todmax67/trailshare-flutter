@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/l10n_extension.dart';
+import '../../core/services/weekly_challenges_service.dart';
 import '../../data/models/discovery_prompt.dart';
+import '../pages/dashboard/dashboard_page.dart';
 import '../pages/settings/emergency_contacts_page.dart';
 import '../pages/tours/tour_edit_page.dart';
 
@@ -18,6 +20,33 @@ class DiscoveryPromptsRegistry {
     final l10n = context.l10n;
 
     return [
+      // ─── 0. Sfida settimanale (priority max: questa e' la feature
+      //      headline di v1.9.0, la vogliamo sempre top). Il service
+      //      garantisce che esista una sfida; qui non verifichiamo
+      //      direttamente — la card scompare quando l'utente apre la
+      //      Dashboard (la sfida non e' nuova, e' gia' stata vista)? No:
+      //      teniamo il prompt sempre utile finche' non dismissato.
+      DiscoveryPrompt(
+        id: 'weekly_challenge_current',
+        title: l10n.discoveryChallengeTitle,
+        description: l10n.discoveryChallengeDesc,
+        icon: Icons.flag_outlined,
+        accentColor: const Color(0xFFE07B4C),
+        ctaLabel: l10n.discoveryChallengeCta,
+        priority: 100,
+        condition: (_) {
+          // Visibile solo se esiste una sfida attiva non completata.
+          final c = WeeklyChallengesService().cached;
+          return c != null && c.isActive && !c.isCompleted;
+        },
+        onCta: (ctx) {
+          Navigator.push(
+            ctx,
+            MaterialPageRoute(builder: (_) => const DashboardPage()),
+          );
+        },
+      ),
+
       // ─── 1. Attiva Lifeline (sicurezza) ────────────────────────────
       DiscoveryPrompt(
         id: 'lifeline_setup',

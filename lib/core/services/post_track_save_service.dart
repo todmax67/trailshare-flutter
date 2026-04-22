@@ -4,8 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'gamification_service.dart';
 import 'challenges_service.dart';
 import 'segment_matching_service.dart';
+import 'weekly_challenges_service.dart';
+import '../extensions/l10n_extension.dart';
 import '../../data/models/segment.dart';
 import '../../data/models/track.dart';
+import '../../data/models/weekly_challenge.dart';
 import '../../data/repositories/segments_repository.dart';
 import '../../presentation/widgets/level_up_dialog.dart';
 import '../../presentation/widgets/segment_results_dialog.dart';
@@ -284,6 +287,37 @@ class PostTrackSaveService {
       }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 5: Aggiorna progresso sfida settimanale personale
+    // ═══════════════════════════════════════════════════════════════
+    WeeklyChallenge? weeklyChallengeCompleted;
+    if (track != null) {
+      try {
+        final before = WeeklyChallengesService().cached;
+        final after = await WeeklyChallengesService().onTrackSaved(track);
+        if (after != null &&
+            after.isCompleted &&
+            (before == null || !before.isCompleted)) {
+          weeklyChallengeCompleted = after;
+          debugPrint('[PostTrackSave] 🏆 Sfida settimanale completata! +${after.xpReward} XP');
+        }
+      } catch (e) {
+        debugPrint('[PostTrackSave] ⚠️ Errore weekly challenge: $e');
+      }
+    }
+
+    // Dialog di celebrazione sfida (post-tutti gli altri dialogs).
+    if (weeklyChallengeCompleted != null &&
+        showDialogs &&
+        context != null &&
+        context.mounted) {
+      try {
+        await _showChallengeCompletedDialog(context, weeklyChallengeCompleted);
+      } catch (e) {
+        debugPrint('[PostTrackSave] ⚠️ Errore dialog sfida: $e');
+      }
+    }
+
     debugPrint('[PostTrackSave] ═══════════════════════════════════════');
 
     return PostTrackSaveResult(
@@ -292,6 +326,27 @@ class PostTrackSaveService {
       newLevel: newLevel,
       newBadges: newBadges,
       segmentResults: segmentResults,
+      weeklyChallengeCompleted: weeklyChallengeCompleted,
+    );
+  }
+
+  static Future<void> _showChallengeCompletedDialog(
+    BuildContext context,
+    WeeklyChallenge c,
+  ) async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.emoji_events, size: 48, color: Color(0xFFFFA726)),
+        title: Text(ctx.l10n.weeklyChallengeCompletedDialogTitle),
+        content: Text(ctx.l10n.weeklyChallengeCompletedDialogBody(c.xpReward)),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(ctx.l10n.gotItAction),
+          ),
+        ],
+      ),
     );
   }
 
@@ -314,11 +369,16 @@ class PostTrackSaveResult {
   final List<GameBadge> newBadges;
   final List<SegmentMatchResult> segmentResults;
 
+  /// Non-null se la sfida settimanale è stata completata con questa
+  /// traccia. Contiene la challenge in stato `completed`.
+  final WeeklyChallenge? weeklyChallengeCompleted;
+
   const PostTrackSaveResult({
     this.xpGranted = 0,
     this.leveledUp = false,
     this.newLevel,
     this.newBadges = const [],
     this.segmentResults = const [],
+    this.weeklyChallengeCompleted,
   });
 }

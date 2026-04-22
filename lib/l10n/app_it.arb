@@ -1397,5 +1397,28 @@
 
   "compassToggleTooltip": "Orientamento mappa",
   "compassNorthUp": "Nord in alto",
-  "compassHeadingUp": "Direzione in alto"
+  "compassHeadingUp": "Direzione in alto",
+
+  "weeklyChallengeTitle": "SFIDA DELLA SETTIMANA",
+  "weeklyChallengeCompleted": "Completata",
+  "weeklyChallengeDistanceTitle": "Cammina {km} km entro domenica",
+  "@weeklyChallengeDistanceTitle": { "placeholders": { "km": {"type": "String"} } },
+  "weeklyChallengeElevationTitle": "Scala {m} metri di dislivello",
+  "@weeklyChallengeElevationTitle": { "placeholders": { "m": {"type": "String"} } },
+  "weeklyChallengeTracksTitle": "Registra {count} tracce",
+  "@weeklyChallengeTracksTitle": { "placeholders": { "count": {"type": "int"} } },
+  "weeklyChallengeDurationTitle": "Muoviti per {hours} ore",
+  "@weeklyChallengeDurationTitle": { "placeholders": { "hours": {"type": "String"} } },
+  "weeklyChallengeRemaining": "–{value} {unit} alla fine",
+  "@weeklyChallengeRemaining": { "placeholders": { "value": {"type": "String"}, "unit": {"type": "String"} } },
+  "weeklyChallengeTracksRemaining": "{count, plural, =1{1 traccia alla fine} other{{count} tracce alla fine}}",
+  "@weeklyChallengeTracksRemaining": { "placeholders": { "count": {"type": "int"} } },
+
+  "weeklyChallengeCompletedDialogTitle": "Sfida completata!",
+  "weeklyChallengeCompletedDialogBody": "Hai vinto {xp} XP bonus. Vedrai una nuova sfida lunedì prossimo.",
+  "@weeklyChallengeCompletedDialogBody": { "placeholders": { "xp": {"type": "int"} } },
+
+  "discoveryChallengeTitle": "Nuova sfida della settimana",
+  "discoveryChallengeDesc": "Una nuova sfida personalizzata ti aspetta. Guarda la Dashboard per scoprirla.",
+  "discoveryChallengeCta": "Vedi sfida"
 }

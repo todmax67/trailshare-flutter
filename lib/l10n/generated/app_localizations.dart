@@ -7297,6 +7297,84 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Direzione in alto'**
   String get compassHeadingUp;
+
+  /// No description provided for @weeklyChallengeTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'SFIDA DELLA SETTIMANA'**
+  String get weeklyChallengeTitle;
+
+  /// No description provided for @weeklyChallengeCompleted.
+  ///
+  /// In it, this message translates to:
+  /// **'Completata'**
+  String get weeklyChallengeCompleted;
+
+  /// No description provided for @weeklyChallengeDistanceTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Cammina {km} km entro domenica'**
+  String weeklyChallengeDistanceTitle(String km);
+
+  /// No description provided for @weeklyChallengeElevationTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Scala {m} metri di dislivello'**
+  String weeklyChallengeElevationTitle(String m);
+
+  /// No description provided for @weeklyChallengeTracksTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Registra {count} tracce'**
+  String weeklyChallengeTracksTitle(int count);
+
+  /// No description provided for @weeklyChallengeDurationTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Muoviti per {hours} ore'**
+  String weeklyChallengeDurationTitle(String hours);
+
+  /// No description provided for @weeklyChallengeRemaining.
+  ///
+  /// In it, this message translates to:
+  /// **'–{value} {unit} alla fine'**
+  String weeklyChallengeRemaining(String value, String unit);
+
+  /// No description provided for @weeklyChallengeTracksRemaining.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{1 traccia alla fine} other{{count} tracce alla fine}}'**
+  String weeklyChallengeTracksRemaining(int count);
+
+  /// No description provided for @weeklyChallengeCompletedDialogTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Sfida completata!'**
+  String get weeklyChallengeCompletedDialogTitle;
+
+  /// No description provided for @weeklyChallengeCompletedDialogBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Hai vinto {xp} XP bonus. Vedrai una nuova sfida lunedì prossimo.'**
+  String weeklyChallengeCompletedDialogBody(int xp);
+
+  /// No description provided for @discoveryChallengeTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Nuova sfida della settimana'**
+  String get discoveryChallengeTitle;
+
+  /// No description provided for @discoveryChallengeDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Una nuova sfida personalizzata ti aspetta. Guarda la Dashboard per scoprirla.'**
+  String get discoveryChallengeDesc;
+
+  /// No description provided for @discoveryChallengeCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Vedi sfida'**
+  String get discoveryChallengeCta;
 }
 
 class _AppLocalizationsDelegate

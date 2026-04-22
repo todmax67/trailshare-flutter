@@ -3954,4 +3954,64 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get compassHeadingUp => 'Heading up';
+
+  @override
+  String get weeklyChallengeTitle => 'CHALLENGE OF THE WEEK';
+
+  @override
+  String get weeklyChallengeCompleted => 'Completed';
+
+  @override
+  String weeklyChallengeDistanceTitle(String km) {
+    return 'Walk $km km by Sunday';
+  }
+
+  @override
+  String weeklyChallengeElevationTitle(String m) {
+    return 'Climb $m meters of elevation';
+  }
+
+  @override
+  String weeklyChallengeTracksTitle(int count) {
+    return 'Record $count tracks';
+  }
+
+  @override
+  String weeklyChallengeDurationTitle(String hours) {
+    return 'Move for $hours hours';
+  }
+
+  @override
+  String weeklyChallengeRemaining(String value, String unit) {
+    return '–$value $unit to go';
+  }
+
+  @override
+  String weeklyChallengeTracksRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tracks to go',
+      one: '1 track to go',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get weeklyChallengeCompletedDialogTitle => 'Challenge completed!';
+
+  @override
+  String weeklyChallengeCompletedDialogBody(int xp) {
+    return 'You earned $xp bonus XP. A new challenge will appear next Monday.';
+  }
+
+  @override
+  String get discoveryChallengeTitle => 'New challenge of the week';
+
+  @override
+  String get discoveryChallengeDesc =>
+      'A new personalized challenge is waiting for you. Check the Dashboard.';
+
+  @override
+  String get discoveryChallengeCta => 'View challenge';
 }
