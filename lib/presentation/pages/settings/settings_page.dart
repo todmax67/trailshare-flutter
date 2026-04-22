@@ -22,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'health_dashboard_page.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/push_notification_service.dart';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -38,6 +39,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _healthSyncEnabled = false;
   int _maxHR = 0;
   bool _isAdminUser = false;
+  bool _newsUpdatesEnabled = true;
 
   @override
   void initState() {
@@ -45,6 +47,12 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadAppVersion();
     _loadHealthSync();
     _loadAdminStatus();
+    _loadNewsUpdatesPref();
+  }
+
+  Future<void> _loadNewsUpdatesPref() async {
+    final enabled = await PushNotificationService().getNewsUpdatesEnabled();
+    if (mounted) setState(() => _newsUpdatesEnabled = enabled);
   }
 
   Future<void> _loadAdminStatus() async {
@@ -169,6 +177,26 @@ class _SettingsPageState extends State<SettingsPage> {
               title: context.l10n.signOutTitle,
               subtitle: context.l10n.signOutSubtitle,
               onTap: () => _signOut(context),
+            ),
+            const Divider(height: 32),
+
+            // Sezione Notifiche
+            _buildSectionHeader('Notifiche'),
+            SwitchListTile(
+              secondary: Icon(
+                Icons.campaign_outlined,
+                color: _newsUpdatesEnabled ? AppColors.primary : context.textSecondary,
+              ),
+              title: const Text('Novita e aggiornamenti'),
+              subtitle: const Text(
+                'Ricevi notifiche quando aggiungiamo nuove funzionalita',
+              ),
+              value: _newsUpdatesEnabled,
+              activeColor: AppColors.primary,
+              onChanged: (value) async {
+                setState(() => _newsUpdatesEnabled = value);
+                await PushNotificationService().setNewsUpdatesEnabled(value);
+              },
             ),
             const Divider(height: 32),
           ],

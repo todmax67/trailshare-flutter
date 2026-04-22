@@ -74,15 +74,67 @@ class PushNotificationService {
     if (user == null) return;
 
     try {
+      final email = user.email ?? '';
       await _firestore.collection('user_profiles').doc(user.uid).set({
         'fcmTokens': FieldValue.arrayUnion([token]),
-        'email': user.email,
+        'email': email,
+        'isPrivateRelayEmail': email.endsWith('@privaterelay.appleid.com'),
         'lastActive': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
       debugPrint('[Push] Token salvato su Firestore');
     } catch (e) {
       debugPrint('[Push] Errore salvataggio token: $e');
+    }
+  }
+
+  /// Aggiorna `lastOpenedAt` nel profilo utente.
+  /// Va chiamato all'avvio app e ad ogni resume dal background.
+  /// Distinto da `lastActive` (aggiornato solo al login/refresh token),
+  /// permette di segmentare utenti realmente dormienti per campagne push.
+  Future<void> updateLastOpened() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final email = user.email ?? '';
+      await _firestore.collection('user_profiles').doc(user.uid).set({
+        'lastOpenedAt': FieldValue.serverTimestamp(),
+        'isPrivateRelayEmail': email.endsWith('@privaterelay.appleid.com'),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[Push] Errore update lastOpenedAt: $e');
+    }
+  }
+
+  /// Legge la preferenza opt-in per notifiche di novità / campagne.
+  /// Default: true (opt-in implicito per utenti storici).
+  Future<bool> getNewsUpdatesEnabled() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return true;
+
+    try {
+      final doc = await _firestore.collection('user_profiles').doc(user.uid).get();
+      final prefs = doc.data()?['notificationPreferences'] as Map<String, dynamic>?;
+      final value = prefs?['newsUpdates'];
+      return value is bool ? value : true;
+    } catch (e) {
+      debugPrint('[Push] Errore lettura notificationPreferences: $e');
+      return true;
+    }
+  }
+
+  /// Aggiorna la preferenza opt-in per notifiche di novità.
+  Future<void> setNewsUpdatesEnabled(bool enabled) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      await _firestore.collection('user_profiles').doc(user.uid).set({
+        'notificationPreferences': {'newsUpdates': enabled},
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[Push] Errore salvataggio notificationPreferences: $e');
     }
   }
 

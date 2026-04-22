@@ -25,7 +25,7 @@ class TrailShareApp extends StatefulWidget {
   State<TrailShareApp> createState() => _TrailShareAppState();
 }
 
-class _TrailShareAppState extends State<TrailShareApp> {
+class _TrailShareAppState extends State<TrailShareApp> with WidgetsBindingObserver {
   final ThemeService _themeService = ThemeService();
   StreamSubscription? _intentSub;
 
@@ -33,14 +33,25 @@ class _TrailShareAppState extends State<TrailShareApp> {
   void initState() {
     super.initState();
     _themeService.addListener(_onThemeChanged);
+    WidgetsBinding.instance.addObserver(this);
     _listenForSharedFiles();
+    // Primo tracking apertura app (se utente gia loggato).
+    PushNotificationService().updateLastOpened();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _themeService.removeListener(_onThemeChanged);
     _intentSub?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      PushNotificationService().updateLastOpened();
+    }
   }
 
   void _onThemeChanged() {

@@ -49,3 +49,6 @@ functions/serviceAccountKey.json
 functions/serviceAccountKey.json
 functions/serviceAccountKey.json
 **/*serviceAccountKey*
+
+# Social lab — asset pesanti (foto/video) non versionati
+social_lab/assets/
