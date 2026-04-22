@@ -1889,7 +1889,28 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         if (state.points.length >= 2) PolylineLayer(polylines: [Polyline(points: state.points.map((p) => LatLng(p.latitude, p.longitude)).toList(), strokeWidth: 4, color: state.isRecording ? AppColors.trackRecording : AppColors.primary)]),
         if (state.points.isNotEmpty) MarkerLayer(markers: [
           Marker(point: LatLng(state.points.first.latitude, state.points.first.longitude), width: 24, height: 24, child: Container(decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)), child: const Icon(Icons.flag, color: Colors.white, size: 14))),
-          Marker(point: LatLng(state.points.last.latitude, state.points.last.longitude), width: 32, height: 32, child: Container(decoration: BoxDecoration(color: state.isRecording ? AppColors.trackRecording : AppColors.primary, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3), boxShadow: [BoxShadow(color: (state.isRecording ? AppColors.trackRecording : AppColors.primary).withOpacity(0.4), blurRadius: 8, spreadRadius: 2)]), child: const Icon(Icons.navigation, color: Colors.white, size: 18))),
+          Marker(
+            point: LatLng(state.points.last.latitude, state.points.last.longitude),
+            width: 32, height: 32,
+            child: ListenableBuilder(
+              listenable: HeadingService(),
+              builder: (_, __) {
+                final h = HeadingService().currentHeading ?? 0;
+                return Container(
+                  decoration: BoxDecoration(
+                    color: state.isRecording ? AppColors.trackRecording : AppColors.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: [BoxShadow(color: (state.isRecording ? AppColors.trackRecording : AppColors.primary).withOpacity(0.4), blurRadius: 8, spreadRadius: 2)],
+                  ),
+                  child: Transform.rotate(
+                    angle: h * math.pi / 180,
+                    child: const Icon(Icons.navigation, color: Colors.white, size: 18),
+                  ),
+                );
+              },
+            ),
+          ),
         ]),
         // Marker posizione utente (solo quando idle)
         if (state.isIdle && _userPosition != null)

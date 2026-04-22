@@ -854,24 +854,30 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                 point: _userPosition!,
                 width: 36,
                 height: 36,
-                child: Transform.rotate(
-                  angle: (_userHeading ?? 0) * math.pi / 180,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _isOffTrail ? AppColors.danger : Colors.blue,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (_isOffTrail ? AppColors.danger : Colors.blue)
-                              .withOpacity(0.4),
-                          blurRadius: 12,
-                          spreadRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.navigation, color: Colors.white, size: 18),
-                  ),
+                child: ListenableBuilder(
+                  listenable: HeadingService(),
+                  builder: (_, __) {
+                    final h = HeadingService().currentHeading ?? _userHeading ?? 0;
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: _isOffTrail ? AppColors.danger : Colors.blue,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_isOffTrail ? AppColors.danger : Colors.blue)
+                                .withOpacity(0.4),
+                            blurRadius: 12,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Transform.rotate(
+                        angle: h * math.pi / 180,
+                        child: const Icon(Icons.navigation, color: Colors.white, size: 18),
+                      ),
+                    );
+                  },
                 ),
               ),
           ],
