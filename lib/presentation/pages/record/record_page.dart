@@ -1319,25 +1319,26 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   /// l'utente lo trova anche sotto stress). Long-press 1.5s per
   /// attivarlo (evita tap accidentali con l'indice mentre cammina/
   /// corre). Tap breve mostra un hint.
-  Widget _buildSosButton() {
-    // Posizione dinamica: sempre sotto tutti i banner visibili per evitare
-    // sovrapposizioni (stats header + banner guida + banner lifeline).
+  /// Calcola l'offset verticale a cui posizionare i controlli top-right
+  /// (SOS + compass toggle): sotto stats header + banner vari.
+  double _topRightControlsOffset() {
     double topOffset = MediaQuery.of(context).padding.top;
-    // Stats header
     topOffset += _statsExpanded ? 165.0 : 60.0;
-    // Banner guida (in modalità guidata)
     if (_isGuided) {
       final guidedExpanded = _overlayExpanded || _refOffTrail;
-      final lifelineExtra = _lifelineActive ? 28.0 : 0.0; // chip inline
+      final lifelineExtra = _lifelineActive ? 28.0 : 0.0;
       topOffset += (guidedExpanded ? 150.0 : 55.0) + lifelineExtra + 8;
     } else if (_lifelineActive) {
-      // Banner lifeline standalone (~38px)
       topOffset += 38.0 + 8;
     } else {
       topOffset += 8;
     }
+    return topOffset;
+  }
+
+  Widget _buildSosButton() {
     return Positioned(
-      top: topOffset,
+      top: _topRightControlsOffset(),
       right: 8,
       child: _SosFab(
         onTriggered: _handleSosActivated,
@@ -1565,9 +1566,13 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           if (!state.isIdle) _buildSosButton(),
           // Battery saver toggle: sempre visibile durante registrazione.
           if (!state.isIdle) _buildBatterySaverButton(),
-          // Compass toggle (north-up / heading-up): sempre visibile.
+          // Compass toggle (north-up / heading-up): posizionato subito
+          // sotto il SOS button. Quando SOS non e' visibile (state.isIdle)
+          // il compass resta nello stesso posto, l'allineamento col SOS
+          // button rimane quando si avvia la registrazione.
           Positioned(
-            top: MediaQuery.of(context).padding.top + 12,
+            // SOS size = 56 + 10 gap
+            top: _topRightControlsOffset() + 66,
             right: 12,
             child: const MapHeadingToggle(),
           ),
