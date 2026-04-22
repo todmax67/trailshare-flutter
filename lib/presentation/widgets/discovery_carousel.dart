@@ -36,7 +36,12 @@ class _DiscoveryCarouselState extends State<DiscoveryCarousel> {
   void initState() {
     super.initState();
     debugPrint('[Discovery] Carousel initState — inizio caricamento prompts');
-    _load();
+    // Chiamiamo _load dopo il primo frame: durante initState gli
+    // InheritedWidget (context.l10n) non sono ancora accessibili perche'
+    // il widget non ha ancora risolto le sue dipendenze.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   @override
