@@ -66,14 +66,24 @@ class DiscoveryPromptService {
     final snap = await snapshot();
     final prefs = await SharedPreferences.getInstance();
 
+    debugPrint('[Discovery] snapshot: tracks=${snap.trackCount} '
+        'lifeline=${snap.hasLifelineContacts} '
+        'public=${snap.hasPublishedTrack} tours=${snap.tourCount} '
+        'fit=${snap.hasExportedFit} planner=${snap.hasUsedPlanner}');
+
     final active = <DiscoveryPrompt>[];
     for (final p in candidates) {
-      if (prefs.getBool('$_dismissedPrefix${p.id}') == true) continue;
-      if (p.condition != null && !p.condition!(snap)) continue;
+      final dismissed = prefs.getBool('$_dismissedPrefix${p.id}') == true;
+      final condOk = p.condition == null || p.condition!(snap);
+      debugPrint('[Discovery] prompt ${p.id}: dismissed=$dismissed cond=$condOk');
+      if (dismissed) continue;
+      if (!condOk) continue;
       active.add(p);
     }
     active.sort((a, b) => b.priority.compareTo(a.priority));
-    return active.take(maxPrompts).toList();
+    final result = active.take(maxPrompts).toList();
+    debugPrint('[Discovery] ${result.length} prompt attivi: ${result.map((p) => p.id).toList()}');
+    return result;
   }
 
   Future<void> dismiss(String promptId) async {
