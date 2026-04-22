@@ -17,7 +17,9 @@ import '../../../data/repositories/tracks_repository.dart';
 import '../../widgets/live_track_button.dart';
 import '../../widgets/heart_rate_widget.dart';
 import '../../../core/services/feature_tips.dart';
+import '../../../core/services/heading_service.dart';
 import '../../../core/services/recording_status_service.dart';
+import '../../widgets/map_heading_toggle.dart';
 import '../../widgets/map_overlays.dart';
 import '../../../core/services/track_photos_service.dart';
 import '../../widgets/photo_gallery_widget.dart';
@@ -157,6 +159,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _trackingBloc = TrackingBloc(LocationService());
     _trackingBloc.addListener(_onTrackingUpdate);
+    // Ruota la mappa secondo heading (se l'utente ha attivato heading-up).
+    HeadingService().addListener(_onHeadingChanged);
+    HeadingService().loadPreference();
     if (widget.initialActivityType != null) {
       _selectedActivity = widget.initialActivityType!;
     }
@@ -459,10 +464,34 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     }
   }
 
+  void _onHeadingChanged() {
+    if (!mounted) return;
+    final service = HeadingService();
+    if (!service.isHeadingUp) {
+      // Se l'utente ha appena disattivato heading-up, riporta a nord.
+      if (_mapController.camera.rotation != 0) {
+        _mapController.rotate(0);
+      }
+      return;
+    }
+    final h = service.currentHeading;
+    if (h == null) return;
+    // flutter_map ruota il viewport: per avere "heading in alto" bisogna
+    // ruotare di -heading (senso antiorario rispetto al nord fisico).
+    _mapController.rotate(-h);
+  }
+
   void _onTrackingUpdate() {
     if (_followUser && _trackingBloc.state.points.isNotEmpty) {
       final lastPoint = _trackingBloc.state.points.last;
       _mapController.move(LatLng(lastPoint.latitude, lastPoint.longitude), _mapController.camera.zoom);
+      // Aggiorna la sorgente GPS del HeadingService (usa velocita + heading
+      // del punto appena registrato; il service fa low-pass + fallback
+      // bussola internamente).
+      HeadingService().updateFromSpeedAndHeading(
+        speed: lastPoint.speed,
+        heading: lastPoint.heading,
+      );
     }
     final state = _trackingBloc.state;
     if (!state.isIdle && state.points.length % 5 == 0) _saveStateToBackup();
@@ -752,6 +781,12 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _trackingBloc.removeListener(_onTrackingUpdate);
+    HeadingService().removeListener(_onHeadingChanged);
+    // Alla chiusura della pagina ripristina north-up per evitare che altre
+    // mappe (Discover, Community) si aprano ruotate.
+    if (_mapController.camera.rotation != 0) {
+      _mapController.rotate(0);
+    }
     _batterySubscription?.cancel();
     _lifelineSub?.cancel();
     _voice?.dispose();
@@ -1530,6 +1565,12 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           if (!state.isIdle) _buildSosButton(),
           // Battery saver toggle: sempre visibile durante registrazione.
           if (!state.isIdle) _buildBatterySaverButton(),
+          // Compass toggle (north-up / heading-up): sempre visibile.
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 12,
+            right: 12,
+            child: const MapHeadingToggle(),
+          ),
           // Scrim sotto i controlli: protegge leggibilita del bottone REC
           // (e di eventuali toast) su tile mappa ad alta luminosita.
           const Positioned(

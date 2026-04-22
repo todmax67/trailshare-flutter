@@ -15,9 +15,11 @@ import '../../../core/constants/map_styles.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
+import '../../../core/services/heading_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/map_heading_toggle.dart';
 
 /// Pagina per seguire una traccia in tempo reale
 ///
@@ -111,14 +113,34 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
     _precalculateTrailData();
     _prepareAlertSounds();
     _startGps();
+    HeadingService().addListener(_onHeadingChanged);
+    HeadingService().loadPreference();
   }
 
   @override
   void dispose() {
+    HeadingService().removeListener(_onHeadingChanged);
+    if (_mapController.camera.rotation != 0) {
+      _mapController.rotate(0);
+    }
     _positionSub?.cancel();
     _alertPlayer.dispose();
     _recDurationTimer?.cancel();
     super.dispose();
+  }
+
+  void _onHeadingChanged() {
+    if (!mounted) return;
+    final service = HeadingService();
+    if (!service.isHeadingUp) {
+      if (_mapController.camera.rotation != 0) {
+        _mapController.rotate(0);
+      }
+      return;
+    }
+    final h = service.currentHeading;
+    if (h == null) return;
+    _mapController.rotate(-h);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -393,6 +415,11 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
     if (_followUser) {
       _mapController.move(userPos, _mapController.camera.zoom);
     }
+    // Feed heading service con dati GPS correnti (velocita + heading).
+    HeadingService().updateFromSpeedAndHeading(
+      speed: pos.speed,
+      heading: pos.heading,
+    );
   }
 
   /// Vibrazione + suono di allarme
@@ -668,6 +695,13 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
 
           // Controlli mappa (destra)
           _buildMapControls(),
+
+          // Compass toggle (north-up / heading-up)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 12,
+            right: 12,
+            child: const MapHeadingToggle(),
+          ),
 
           // ⏺ Pulsante registrazione (sinistra)
           _buildRecButton(),

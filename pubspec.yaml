@@ -24,10 +24,16 @@ dependencies:
   # Mappe
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
-  
+
   # Location
   geolocator: ^14.0.2
   permission_handler: ^11.3.1
+
+  # Preferenze utente persistenti (theme, onboarding, heading toggle, ecc.)
+  shared_preferences: ^2.2.0
+  # Bussola magnetica (fallback heading quando il GPS non fornisce
+  # direzione affidabile, es. fermi o velocita bassa).
+  flutter_compass: ^0.8.1
 
   # State management
   provider: ^6.1.2

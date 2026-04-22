@@ -7279,6 +7279,24 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Scorri per altre proposte'**
   String get discoveryCarouselHint;
+
+  /// No description provided for @compassToggleTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Orientamento mappa'**
+  String get compassToggleTooltip;
+
+  /// No description provided for @compassNorthUp.
+  ///
+  /// In it, this message translates to:
+  /// **'Nord in alto'**
+  String get compassNorthUp;
+
+  /// No description provided for @compassHeadingUp.
+  ///
+  /// In it, this message translates to:
+  /// **'Direzione in alto'**
+  String get compassHeadingUp;
 }
 
 class _AppLocalizationsDelegate

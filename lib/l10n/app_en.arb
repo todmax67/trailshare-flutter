@@ -1393,5 +1393,9 @@
   "discoveryPlannerCta": "How it works",
   "discoveryPlannerInfo": "Go to Tracks → Plan tab. Tap the map to add points; the router computes the path. Save, then from Discover/Tracks you can follow it with turn-by-turn voice guidance.",
 
-  "discoveryCarouselHint": "Swipe for more"
+  "discoveryCarouselHint": "Swipe for more",
+
+  "compassToggleTooltip": "Map orientation",
+  "compassNorthUp": "North up",
+  "compassHeadingUp": "Heading up"
 }

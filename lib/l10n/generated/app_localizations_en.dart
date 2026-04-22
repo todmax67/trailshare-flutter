@@ -3945,4 +3945,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discoveryCarouselHint => 'Swipe for more';
+
+  @override
+  String get compassToggleTooltip => 'Map orientation';
+
+  @override
+  String get compassNorthUp => 'North up';
+
+  @override
+  String get compassHeadingUp => 'Heading up';
 }

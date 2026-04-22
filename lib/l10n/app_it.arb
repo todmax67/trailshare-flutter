@@ -1393,5 +1393,9 @@
   "discoveryPlannerCta": "Come funziona",
   "discoveryPlannerInfo": "Vai su Tracce → scheda Pianifica. Tocca la mappa per aggiungere punti, il router calcola il percorso. Salva e poi da Scopri/Tracce puoi seguirlo con guida vocale come una navigazione turn-by-turn.",
 
-  "discoveryCarouselHint": "Scorri per altre proposte"
+  "discoveryCarouselHint": "Scorri per altre proposte",
+
+  "compassToggleTooltip": "Orientamento mappa",
+  "compassNorthUp": "Nord in alto",
+  "compassHeadingUp": "Direzione in alto"
 }
