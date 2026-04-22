@@ -8,6 +8,7 @@ import '../dashboard/dashboard_page.dart';
 import '../wishlist/wishlist_page.dart';
 import '../follow/follow_list_page.dart';
 import '../leaderboard/leaderboard_page.dart';
+import '../leaderboard/regional_leaderboard_page.dart';
 import '../settings/settings_page.dart';
 import '../badges/badges_page.dart';
 import '../challenges/challenges_page.dart';
@@ -368,6 +369,16 @@ class _ProfilePageState extends State<ProfilePage> {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => LeaderboardPage()),
+                            ),
+                          ),
+                          _buildActionTile(
+                            icon: Icons.flag_circle_outlined,
+                            label: context.l10n.regionalLeaderboardTitle,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RegionalLeaderboardPage(),
+                              ),
                             ),
                           ),
                         ]),

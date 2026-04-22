@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/l10n_extension.dart';
 import '../../core/services/monthly_report_service.dart';
+import '../../core/services/user_region_service.dart';
 import '../../core/services/weekly_challenges_service.dart';
 import '../../data/models/discovery_prompt.dart';
 import '../../data/models/monthly_report.dart';
 import '../pages/dashboard/dashboard_page.dart';
+import '../pages/leaderboard/regional_leaderboard_page.dart';
 import '../pages/monthly_report/monthly_report_page.dart';
 import '../pages/settings/emergency_contacts_page.dart';
 import '../pages/tours/tour_edit_page.dart';
@@ -69,6 +71,29 @@ class DiscoveryPromptsRegistry {
             ctx,
             MaterialPageRoute(
               builder: (_) => MonthlyReportPage(initialYearMonthId: prevId),
+            ),
+          );
+        },
+      ),
+
+      // ─── 0.7 Imposta la regione (prerequisito classifiche) ────────
+      DiscoveryPrompt(
+        id: 'set_region_for_leaderboard',
+        title: l10n.discoveryRegionTitle,
+        description: l10n.discoveryRegionDesc,
+        icon: Icons.flag_circle_outlined,
+        accentColor: const Color(0xFF00897B),
+        ctaLabel: l10n.discoveryRegionCta,
+        priority: 85,
+        condition: (s) =>
+            s.trackCount >= 2 && !UserRegionService().hasRegionSet,
+        onCta: (ctx) {
+          // Apriamo direttamente la pagina della classifica regionale:
+          // se la regione non e' impostata, la page mostra il picker CTA.
+          Navigator.push(
+            ctx,
+            MaterialPageRoute(
+              builder: (_) => const RegionalLeaderboardPage(),
             ),
           );
         },

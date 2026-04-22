@@ -1467,5 +1467,28 @@
 
   "discoveryMonthlyReportTitle": "Il tuo mese è pronto",
   "discoveryMonthlyReportDesc": "Stats, record e badge del mese scorso. Guarda come sei andato.",
-  "discoveryMonthlyReportCta": "Apri report"
+  "discoveryMonthlyReportCta": "Apri report",
+
+  "regionalLeaderboardTitle": "Classifica regionale",
+  "regionalLeaderboardTabAllTime": "Totale",
+  "regionalLeaderboardTabMonthly": "Questo mese",
+  "regionalLeaderboardYourRegion": "La tua regione",
+  "regionalLeaderboardChangeRegion": "Cambia regione",
+  "regionalLeaderboardYouBadge": "TU",
+  "regionalLeaderboardTracksCount": "{count, plural, =0{nessuna traccia} =1{1 traccia} other{{count} tracce}}",
+  "@regionalLeaderboardTracksCount": { "placeholders": { "count": {"type": "int"} } },
+  "regionalLeaderboardNoRegionTitle": "Nessuna regione impostata",
+  "regionalLeaderboardNoRegionBody": "Seleziona la tua regione per vedere come ti posizioni rispetto agli altri utenti della tua zona.",
+  "regionalLeaderboardSetRegionCta": "Imposta regione",
+  "regionalLeaderboardEmptyTitle": "Classifica vuota",
+  "regionalLeaderboardEmptyAllTime": "Sii il primo a registrare tracce in questa regione.",
+  "regionalLeaderboardEmptyMonthly": "Ancora nessuno ha registrato tracce questo mese. Potresti essere il primo!",
+
+  "regionPickerTitle": "Scegli la tua regione",
+  "regionPickerSubtitle": "Verrà usata per le classifiche regionali e le tracce pubbliche nella tua zona.",
+  "regionPickerSaveError": "Errore durante il salvataggio",
+
+  "discoveryRegionTitle": "Sfida la tua regione",
+  "discoveryRegionDesc": "Imposta la tua regione e scopri come ti posizioni tra gli altri escursionisti della zona.",
+  "discoveryRegionCta": "Imposta regione"
 }

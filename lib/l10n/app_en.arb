@@ -1467,5 +1467,28 @@
 
   "discoveryMonthlyReportTitle": "Your month is ready",
   "discoveryMonthlyReportDesc": "Stats, records and badges from last month. See how you did.",
-  "discoveryMonthlyReportCta": "Open report"
+  "discoveryMonthlyReportCta": "Open report",
+
+  "regionalLeaderboardTitle": "Regional leaderboard",
+  "regionalLeaderboardTabAllTime": "All time",
+  "regionalLeaderboardTabMonthly": "This month",
+  "regionalLeaderboardYourRegion": "Your region",
+  "regionalLeaderboardChangeRegion": "Change region",
+  "regionalLeaderboardYouBadge": "YOU",
+  "regionalLeaderboardTracksCount": "{count, plural, =0{no tracks} =1{1 track} other{{count} tracks}}",
+  "@regionalLeaderboardTracksCount": { "placeholders": { "count": {"type": "int"} } },
+  "regionalLeaderboardNoRegionTitle": "No region set",
+  "regionalLeaderboardNoRegionBody": "Pick your region to see how you rank among other users in your area.",
+  "regionalLeaderboardSetRegionCta": "Set region",
+  "regionalLeaderboardEmptyTitle": "Empty leaderboard",
+  "regionalLeaderboardEmptyAllTime": "Be the first to record tracks in this region.",
+  "regionalLeaderboardEmptyMonthly": "No one has recorded tracks this month yet. You could be the first!",
+
+  "regionPickerTitle": "Pick your region",
+  "regionPickerSubtitle": "Used for regional leaderboards and public tracks in your area.",
+  "regionPickerSaveError": "Error while saving",
+
+  "discoveryRegionTitle": "Challenge your region",
+  "discoveryRegionDesc": "Set your region and see where you rank among other hikers in your area.",
+  "discoveryRegionCta": "Set region"
 }

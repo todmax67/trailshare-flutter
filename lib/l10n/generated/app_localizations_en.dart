@@ -4161,4 +4161,75 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discoveryMonthlyReportCta => 'Open report';
+
+  @override
+  String get regionalLeaderboardTitle => 'Regional leaderboard';
+
+  @override
+  String get regionalLeaderboardTabAllTime => 'All time';
+
+  @override
+  String get regionalLeaderboardTabMonthly => 'This month';
+
+  @override
+  String get regionalLeaderboardYourRegion => 'Your region';
+
+  @override
+  String get regionalLeaderboardChangeRegion => 'Change region';
+
+  @override
+  String get regionalLeaderboardYouBadge => 'YOU';
+
+  @override
+  String regionalLeaderboardTracksCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tracks',
+      one: '1 track',
+      zero: 'no tracks',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get regionalLeaderboardNoRegionTitle => 'No region set';
+
+  @override
+  String get regionalLeaderboardNoRegionBody =>
+      'Pick your region to see how you rank among other users in your area.';
+
+  @override
+  String get regionalLeaderboardSetRegionCta => 'Set region';
+
+  @override
+  String get regionalLeaderboardEmptyTitle => 'Empty leaderboard';
+
+  @override
+  String get regionalLeaderboardEmptyAllTime =>
+      'Be the first to record tracks in this region.';
+
+  @override
+  String get regionalLeaderboardEmptyMonthly =>
+      'No one has recorded tracks this month yet. You could be the first!';
+
+  @override
+  String get regionPickerTitle => 'Pick your region';
+
+  @override
+  String get regionPickerSubtitle =>
+      'Used for regional leaderboards and public tracks in your area.';
+
+  @override
+  String get regionPickerSaveError => 'Error while saving';
+
+  @override
+  String get discoveryRegionTitle => 'Challenge your region';
+
+  @override
+  String get discoveryRegionDesc =>
+      'Set your region and see where you rank among other hikers in your area.';
+
+  @override
+  String get discoveryRegionCta => 'Set region';
 }

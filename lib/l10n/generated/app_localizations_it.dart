@@ -4178,4 +4178,75 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get discoveryMonthlyReportCta => 'Apri report';
+
+  @override
+  String get regionalLeaderboardTitle => 'Classifica regionale';
+
+  @override
+  String get regionalLeaderboardTabAllTime => 'Totale';
+
+  @override
+  String get regionalLeaderboardTabMonthly => 'Questo mese';
+
+  @override
+  String get regionalLeaderboardYourRegion => 'La tua regione';
+
+  @override
+  String get regionalLeaderboardChangeRegion => 'Cambia regione';
+
+  @override
+  String get regionalLeaderboardYouBadge => 'TU';
+
+  @override
+  String regionalLeaderboardTracksCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tracce',
+      one: '1 traccia',
+      zero: 'nessuna traccia',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get regionalLeaderboardNoRegionTitle => 'Nessuna regione impostata';
+
+  @override
+  String get regionalLeaderboardNoRegionBody =>
+      'Seleziona la tua regione per vedere come ti posizioni rispetto agli altri utenti della tua zona.';
+
+  @override
+  String get regionalLeaderboardSetRegionCta => 'Imposta regione';
+
+  @override
+  String get regionalLeaderboardEmptyTitle => 'Classifica vuota';
+
+  @override
+  String get regionalLeaderboardEmptyAllTime =>
+      'Sii il primo a registrare tracce in questa regione.';
+
+  @override
+  String get regionalLeaderboardEmptyMonthly =>
+      'Ancora nessuno ha registrato tracce questo mese. Potresti essere il primo!';
+
+  @override
+  String get regionPickerTitle => 'Scegli la tua regione';
+
+  @override
+  String get regionPickerSubtitle =>
+      'Verrà usata per le classifiche regionali e le tracce pubbliche nella tua zona.';
+
+  @override
+  String get regionPickerSaveError => 'Errore durante il salvataggio';
+
+  @override
+  String get discoveryRegionTitle => 'Sfida la tua regione';
+
+  @override
+  String get discoveryRegionDesc =>
+      'Imposta la tua regione e scopri come ti posizioni tra gli altri escursionisti della zona.';
+
+  @override
+  String get discoveryRegionCta => 'Imposta regione';
 }

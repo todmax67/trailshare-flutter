@@ -288,6 +288,20 @@ class PostTrackSaveService {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // STEP 6: Denormalizza stats mensili sul profilo utente
+    // (usate dalle classifiche regionali — 3.3)
+    // ═══════════════════════════════════════════════════════════════
+    try {
+      await _updateMonthlyDenormalizedStats(
+        userId: user.uid,
+        distance: distanceMeters,
+        elevation: elevationGain,
+      );
+    } catch (e) {
+      debugPrint('[PostTrackSave] ⚠️ Errore stats mensili: $e');
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // STEP 5: Aggiorna progresso sfida settimanale personale
     // ═══════════════════════════════════════════════════════════════
     WeeklyChallenge? weeklyChallengeCompleted;
@@ -348,6 +362,78 @@ class PostTrackSaveService {
         ],
       ),
     );
+  }
+
+  /// Denormalizza sul documento `user_profiles/{uid}` i contatori mensili
+  /// usati dalle classifiche regionali (3.3).
+  ///
+  /// Campi aggiornati:
+  /// - `monthlyStatsMonthId`: `yyyy-MM` del mese in corso.
+  /// - `monthlyDistanceCurrent`, `monthlyElevationCurrent`,
+  ///   `monthlyTracksCurrent`: somma del mese in corso.
+  /// - `totalDistance`, `totalElevation`, `totalTracks`: totali all-time
+  ///   incrementali.
+  ///
+  /// Se il mese è cambiato rispetto al valore salvato, i contatori mensili
+  /// vengono resettati ai valori della traccia corrente prima dell'increment.
+  /// Usa una transaction per evitare race condition tra tracce vicine.
+  static Future<void> _updateMonthlyDenormalizedStats({
+    required String userId,
+    required double distance,
+    required double elevation,
+  }) async {
+    final now = DateTime.now();
+    final currentMonthId =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+
+    final profileRef =
+        _firestore.collection('user_profiles').doc(userId);
+
+    await _firestore.runTransaction((transaction) async {
+      final snap = await transaction.get(profileRef);
+      final data = snap.data() ?? {};
+      final storedMonthId = data['monthlyStatsMonthId']?.toString();
+
+      final bool sameMonth = storedMonthId == currentMonthId;
+      final double prevDist = sameMonth
+          ? ((data['monthlyDistanceCurrent'] as num?)?.toDouble() ?? 0)
+          : 0;
+      final double prevEle = sameMonth
+          ? ((data['monthlyElevationCurrent'] as num?)?.toDouble() ?? 0)
+          : 0;
+      final int prevTracks = sameMonth
+          ? ((data['monthlyTracksCurrent'] as num?)?.toInt() ?? 0)
+          : 0;
+
+      final double newMonthDist = prevDist + distance;
+      final double newMonthEle = prevEle + elevation;
+      final int newMonthTracks = prevTracks + 1;
+
+      // Totali all-time: sempre incrementali, anche se il mese cambia.
+      final double totalDist =
+          ((data['totalDistance'] as num?)?.toDouble() ?? 0) + distance;
+      final double totalEle =
+          ((data['totalElevation'] as num?)?.toDouble() ?? 0) + elevation;
+      final int totalTracks =
+          ((data['totalTracks'] as num?)?.toInt() ?? 0) + 1;
+
+      transaction.set(
+        profileRef,
+        {
+          'monthlyStatsMonthId': currentMonthId,
+          'monthlyDistanceCurrent': newMonthDist,
+          'monthlyElevationCurrent': newMonthEle,
+          'monthlyTracksCurrent': newMonthTracks,
+          'totalDistance': totalDist,
+          'totalElevation': totalEle,
+          'totalTracks': totalTracks,
+          'lastTrackAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    });
+    debugPrint('[PostTrackSave] ✅ Stats mensili aggiornate ($currentMonthId): '
+        '+${(distance / 1000).toStringAsFixed(1)}km, +${elevation.toStringAsFixed(0)}m');
   }
 
   /// Ottiene XP corrente per dialogs

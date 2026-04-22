@@ -7597,6 +7597,120 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Apri report'**
   String get discoveryMonthlyReportCta;
+
+  /// No description provided for @regionalLeaderboardTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Classifica regionale'**
+  String get regionalLeaderboardTitle;
+
+  /// No description provided for @regionalLeaderboardTabAllTime.
+  ///
+  /// In it, this message translates to:
+  /// **'Totale'**
+  String get regionalLeaderboardTabAllTime;
+
+  /// No description provided for @regionalLeaderboardTabMonthly.
+  ///
+  /// In it, this message translates to:
+  /// **'Questo mese'**
+  String get regionalLeaderboardTabMonthly;
+
+  /// No description provided for @regionalLeaderboardYourRegion.
+  ///
+  /// In it, this message translates to:
+  /// **'La tua regione'**
+  String get regionalLeaderboardYourRegion;
+
+  /// No description provided for @regionalLeaderboardChangeRegion.
+  ///
+  /// In it, this message translates to:
+  /// **'Cambia regione'**
+  String get regionalLeaderboardChangeRegion;
+
+  /// No description provided for @regionalLeaderboardYouBadge.
+  ///
+  /// In it, this message translates to:
+  /// **'TU'**
+  String get regionalLeaderboardYouBadge;
+
+  /// No description provided for @regionalLeaderboardTracksCount.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =0{nessuna traccia} =1{1 traccia} other{{count} tracce}}'**
+  String regionalLeaderboardTracksCount(int count);
+
+  /// No description provided for @regionalLeaderboardNoRegionTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna regione impostata'**
+  String get regionalLeaderboardNoRegionTitle;
+
+  /// No description provided for @regionalLeaderboardNoRegionBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Seleziona la tua regione per vedere come ti posizioni rispetto agli altri utenti della tua zona.'**
+  String get regionalLeaderboardNoRegionBody;
+
+  /// No description provided for @regionalLeaderboardSetRegionCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Imposta regione'**
+  String get regionalLeaderboardSetRegionCta;
+
+  /// No description provided for @regionalLeaderboardEmptyTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Classifica vuota'**
+  String get regionalLeaderboardEmptyTitle;
+
+  /// No description provided for @regionalLeaderboardEmptyAllTime.
+  ///
+  /// In it, this message translates to:
+  /// **'Sii il primo a registrare tracce in questa regione.'**
+  String get regionalLeaderboardEmptyAllTime;
+
+  /// No description provided for @regionalLeaderboardEmptyMonthly.
+  ///
+  /// In it, this message translates to:
+  /// **'Ancora nessuno ha registrato tracce questo mese. Potresti essere il primo!'**
+  String get regionalLeaderboardEmptyMonthly;
+
+  /// No description provided for @regionPickerTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Scegli la tua regione'**
+  String get regionPickerTitle;
+
+  /// No description provided for @regionPickerSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Verrà usata per le classifiche regionali e le tracce pubbliche nella tua zona.'**
+  String get regionPickerSubtitle;
+
+  /// No description provided for @regionPickerSaveError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore durante il salvataggio'**
+  String get regionPickerSaveError;
+
+  /// No description provided for @discoveryRegionTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Sfida la tua regione'**
+  String get discoveryRegionTitle;
+
+  /// No description provided for @discoveryRegionDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Imposta la tua regione e scopri come ti posizioni tra gli altri escursionisti della zona.'**
+  String get discoveryRegionDesc;
+
+  /// No description provided for @discoveryRegionCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Imposta regione'**
+  String get discoveryRegionCta;
 }
 
 class _AppLocalizationsDelegate
