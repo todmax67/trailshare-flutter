@@ -7453,6 +7453,150 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'{d} g fa'**
   String commentsDaysAgo(int d);
+
+  /// No description provided for @monthlyReportTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Il mio mese'**
+  String get monthlyReportTitle;
+
+  /// No description provided for @monthlyReportPrevious.
+  ///
+  /// In it, this message translates to:
+  /// **'Mese precedente'**
+  String get monthlyReportPrevious;
+
+  /// No description provided for @monthlyReportNext.
+  ///
+  /// In it, this message translates to:
+  /// **'Mese successivo'**
+  String get monthlyReportNext;
+
+  /// No description provided for @monthlyReportHeroLabel.
+  ///
+  /// In it, this message translates to:
+  /// **'DISTANZA TOTALE'**
+  String get monthlyReportHeroLabel;
+
+  /// No description provided for @monthlyReportStatsSection.
+  ///
+  /// In it, this message translates to:
+  /// **'STATISTICHE'**
+  String get monthlyReportStatsSection;
+
+  /// No description provided for @monthlyReportRecords.
+  ///
+  /// In it, this message translates to:
+  /// **'RECORD DEL MESE'**
+  String get monthlyReportRecords;
+
+  /// No description provided for @monthlyReportActivities.
+  ///
+  /// In it, this message translates to:
+  /// **'ATTIVITÀ'**
+  String get monthlyReportActivities;
+
+  /// No description provided for @monthlyReportBadges.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{1 BADGE SBLOCCATO} other{{count} BADGE SBLOCCATI}}'**
+  String monthlyReportBadges(int count);
+
+  /// No description provided for @monthlyReportActiveDays.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{1 giorno attivo} other{{count} giorni attivi}}'**
+  String monthlyReportActiveDays(int count);
+
+  /// No description provided for @monthlyReportActiveDaysSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Giorni con almeno una traccia registrata'**
+  String get monthlyReportActiveDaysSubtitle;
+
+  /// No description provided for @monthlyReportRecordLongest.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia più lunga'**
+  String get monthlyReportRecordLongest;
+
+  /// No description provided for @monthlyReportRecordHighest.
+  ///
+  /// In it, this message translates to:
+  /// **'Dislivello maggiore'**
+  String get monthlyReportRecordHighest;
+
+  /// No description provided for @monthlyReportVsPrevious.
+  ///
+  /// In it, this message translates to:
+  /// **'vs mese scorso'**
+  String get monthlyReportVsPrevious;
+
+  /// No description provided for @monthlyReportNoPrevious.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dato per il mese scorso'**
+  String get monthlyReportNoPrevious;
+
+  /// No description provided for @monthlyReportXpEarned.
+  ///
+  /// In it, this message translates to:
+  /// **'+{xp} XP questo mese'**
+  String monthlyReportXpEarned(int xp);
+
+  /// No description provided for @monthlyReportXpSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Continua così per salire di livello'**
+  String get monthlyReportXpSubtitle;
+
+  /// No description provided for @monthlyReportEmptyTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna attività'**
+  String get monthlyReportEmptyTitle;
+
+  /// No description provided for @monthlyReportEmptyCurrent.
+  ///
+  /// In it, this message translates to:
+  /// **'Registra la tua prima traccia del mese per vedere il tuo report.'**
+  String get monthlyReportEmptyCurrent;
+
+  /// No description provided for @monthlyReportEmptyPast.
+  ///
+  /// In it, this message translates to:
+  /// **'Non ci sono tracce registrate in questo mese.'**
+  String get monthlyReportEmptyPast;
+
+  /// No description provided for @monthlyReportEntryTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Il tuo mese'**
+  String get monthlyReportEntryTitle;
+
+  /// No description provided for @monthlyReportEntrySubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Vedi stats, record e progressi'**
+  String get monthlyReportEntrySubtitle;
+
+  /// No description provided for @discoveryMonthlyReportTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Il tuo mese è pronto'**
+  String get discoveryMonthlyReportTitle;
+
+  /// No description provided for @discoveryMonthlyReportDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Stats, record e badge del mese scorso. Guarda come sei andato.'**
+  String get discoveryMonthlyReportDesc;
+
+  /// No description provided for @discoveryMonthlyReportCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri report'**
+  String get discoveryMonthlyReportCta;
 }
 
 class _AppLocalizationsDelegate

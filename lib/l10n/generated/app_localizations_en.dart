@@ -4068,4 +4068,97 @@ class AppLocalizationsEn extends AppLocalizations {
   String commentsDaysAgo(int d) {
     return '$d d ago';
   }
+
+  @override
+  String get monthlyReportTitle => 'My month';
+
+  @override
+  String get monthlyReportPrevious => 'Previous month';
+
+  @override
+  String get monthlyReportNext => 'Next month';
+
+  @override
+  String get monthlyReportHeroLabel => 'TOTAL DISTANCE';
+
+  @override
+  String get monthlyReportStatsSection => 'STATS';
+
+  @override
+  String get monthlyReportRecords => 'RECORDS OF THE MONTH';
+
+  @override
+  String get monthlyReportActivities => 'ACTIVITIES';
+
+  @override
+  String monthlyReportBadges(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count BADGES UNLOCKED',
+      one: '1 BADGE UNLOCKED',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String monthlyReportActiveDays(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count active days',
+      one: '1 active day',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get monthlyReportActiveDaysSubtitle =>
+      'Days with at least one recorded track';
+
+  @override
+  String get monthlyReportRecordLongest => 'Longest track';
+
+  @override
+  String get monthlyReportRecordHighest => 'Highest elevation';
+
+  @override
+  String get monthlyReportVsPrevious => 'vs last month';
+
+  @override
+  String get monthlyReportNoPrevious => 'No data from last month';
+
+  @override
+  String monthlyReportXpEarned(int xp) {
+    return '+$xp XP this month';
+  }
+
+  @override
+  String get monthlyReportXpSubtitle => 'Keep going to level up';
+
+  @override
+  String get monthlyReportEmptyTitle => 'No activity';
+
+  @override
+  String get monthlyReportEmptyCurrent =>
+      'Record your first track of the month to see your report.';
+
+  @override
+  String get monthlyReportEmptyPast => 'No tracks recorded this month.';
+
+  @override
+  String get monthlyReportEntryTitle => 'Your month';
+
+  @override
+  String get monthlyReportEntrySubtitle => 'See stats, records and progress';
+
+  @override
+  String get discoveryMonthlyReportTitle => 'Your month is ready';
+
+  @override
+  String get discoveryMonthlyReportDesc =>
+      'Stats, records and badges from last month. See how you did.';
+
+  @override
+  String get discoveryMonthlyReportCta => 'Open report';
 }

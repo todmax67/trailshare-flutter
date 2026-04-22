@@ -5,6 +5,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/dashboard_stats.dart';
 import '../../../data/repositories/dashboard_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/monthly_report_entry_card.dart';
 import '../../widgets/stat_number.dart';
 import '../../widgets/topo_empty_state.dart';
 import '../../widgets/weekly_challenge_card.dart';
@@ -111,6 +112,11 @@ class _DashboardPageState extends State<DashboardPage> {
             // Sfida della settimana (sopra a tutto: "cosa devi fare questa
             // settimana"). Si auto-collassa se non ci sono sfide.
             const WeeklyChallengeCard(),
+            const SizedBox(height: 12),
+
+            // Report mensile "Il tuo mese" — entry point verso la pagina di
+            // riepilogo. Si nasconde se utente senza tracce nel mese.
+            const MonthlyReportEntryCard(),
             const SizedBox(height: 16),
 
             // Stats Grid

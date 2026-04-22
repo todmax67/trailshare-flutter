@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/l10n_extension.dart';
+import '../../core/services/monthly_report_service.dart';
 import '../../core/services/weekly_challenges_service.dart';
 import '../../data/models/discovery_prompt.dart';
+import '../../data/models/monthly_report.dart';
 import '../pages/dashboard/dashboard_page.dart';
+import '../pages/monthly_report/monthly_report_page.dart';
 import '../pages/settings/emergency_contacts_page.dart';
 import '../pages/tours/tour_edit_page.dart';
 
@@ -43,6 +46,30 @@ class DiscoveryPromptsRegistry {
           Navigator.push(
             ctx,
             MaterialPageRoute(builder: (_) => const DashboardPage()),
+          );
+        },
+      ),
+
+      // ─── 0.5 Report mensile pronto (primi 7gg del mese nuovo) ─────
+      DiscoveryPrompt(
+        id: 'monthly_report_ready',
+        title: l10n.discoveryMonthlyReportTitle,
+        description: l10n.discoveryMonthlyReportDesc,
+        icon: Icons.insert_chart_outlined,
+        accentColor: const Color(0xFF7C4DFF),
+        ctaLabel: l10n.discoveryMonthlyReportCta,
+        priority: 98,
+        condition: (_) => MonthlyReportService().hasNewReportCached,
+        onCta: (ctx) {
+          // Il prompt è del mese scorso: apriamo la pagina direttamente su
+          // quel mese così l'utente vede il report "appena chiuso".
+          final prevId =
+              MonthBoundaries.forNow().previous().yearMonthId;
+          Navigator.push(
+            ctx,
+            MaterialPageRoute(
+              builder: (_) => MonthlyReportPage(initialYearMonthId: prevId),
+            ),
           );
         },
       ),

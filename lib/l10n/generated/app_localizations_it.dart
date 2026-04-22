@@ -4084,4 +4084,98 @@ class AppLocalizationsIt extends AppLocalizations {
   String commentsDaysAgo(int d) {
     return '$d g fa';
   }
+
+  @override
+  String get monthlyReportTitle => 'Il mio mese';
+
+  @override
+  String get monthlyReportPrevious => 'Mese precedente';
+
+  @override
+  String get monthlyReportNext => 'Mese successivo';
+
+  @override
+  String get monthlyReportHeroLabel => 'DISTANZA TOTALE';
+
+  @override
+  String get monthlyReportStatsSection => 'STATISTICHE';
+
+  @override
+  String get monthlyReportRecords => 'RECORD DEL MESE';
+
+  @override
+  String get monthlyReportActivities => 'ATTIVITÀ';
+
+  @override
+  String monthlyReportBadges(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count BADGE SBLOCCATI',
+      one: '1 BADGE SBLOCCATO',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String monthlyReportActiveDays(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count giorni attivi',
+      one: '1 giorno attivo',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get monthlyReportActiveDaysSubtitle =>
+      'Giorni con almeno una traccia registrata';
+
+  @override
+  String get monthlyReportRecordLongest => 'Traccia più lunga';
+
+  @override
+  String get monthlyReportRecordHighest => 'Dislivello maggiore';
+
+  @override
+  String get monthlyReportVsPrevious => 'vs mese scorso';
+
+  @override
+  String get monthlyReportNoPrevious => 'Nessun dato per il mese scorso';
+
+  @override
+  String monthlyReportXpEarned(int xp) {
+    return '+$xp XP questo mese';
+  }
+
+  @override
+  String get monthlyReportXpSubtitle => 'Continua così per salire di livello';
+
+  @override
+  String get monthlyReportEmptyTitle => 'Nessuna attività';
+
+  @override
+  String get monthlyReportEmptyCurrent =>
+      'Registra la tua prima traccia del mese per vedere il tuo report.';
+
+  @override
+  String get monthlyReportEmptyPast =>
+      'Non ci sono tracce registrate in questo mese.';
+
+  @override
+  String get monthlyReportEntryTitle => 'Il tuo mese';
+
+  @override
+  String get monthlyReportEntrySubtitle => 'Vedi stats, record e progressi';
+
+  @override
+  String get discoveryMonthlyReportTitle => 'Il tuo mese è pronto';
+
+  @override
+  String get discoveryMonthlyReportDesc =>
+      'Stats, record e badge del mese scorso. Guarda come sei andato.';
+
+  @override
+  String get discoveryMonthlyReportCta => 'Apri report';
 }

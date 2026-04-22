@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/extensions/l10n_extension.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 import '../../core/services/discovery_prompt_service.dart';
+import '../../core/services/monthly_report_service.dart';
 import '../../core/services/weekly_challenges_service.dart';
 import '../../data/models/discovery_prompt.dart';
 import 'discovery_prompts_registry.dart';
@@ -56,6 +57,9 @@ class _DiscoveryCarouselState extends State<DiscoveryCarousel> {
     // Assicura che la sfida settimanale sia caricata prima del collect:
     // il prompt weekly_challenge valuta WeeklyChallengesService().cached.
     await WeeklyChallengesService().ensureCurrent();
+    // Stessa cosa per il report mensile: il prompt monthly_report_ready
+    // legge MonthlyReportService().hasNewReportCached (sync).
+    await MonthlyReportService().refreshHasNewReportFlag();
     if (!mounted) return;
     final candidates = DiscoveryPromptsRegistry.all(context);
     final active = await _service.collect(candidates);
