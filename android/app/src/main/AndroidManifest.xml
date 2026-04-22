@@ -1,4 +1,20 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- RIMOZIONE ESPLICITA di permessi media-library non usati
+         (Google Play Policy: consentiti solo ad app con accesso
+         continuativo a foto/video come core della funzionalità).
+         L'app usa Photo Picker per selezionare foto, che non richiede
+         runtime permission. Se una dipendenza libraria tentasse di
+         aggiungerli via manifest merging, questi tools:node="remove"
+         li eliminano nel manifest finale. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+        tools:node="remove" />
+
 <!-- Permessi GPS -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -14,12 +30,13 @@
     <!-- BLE feature -->
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
-    <!--Gestione foto-->
-
+    <!-- Gestione foto -->
+    <!-- Scatto: CAMERA. Scelta dalla galleria: usiamo Android Photo Picker
+         (image_picker 1.x) che NON richiede READ_MEDIA_IMAGES — e' il
+         meccanismo raccomandato da Google Play policies. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    
+
     <!-- Health Connect -->
         <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
         <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
