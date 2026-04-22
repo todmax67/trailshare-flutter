@@ -35,6 +35,7 @@ class _DiscoveryCarouselState extends State<DiscoveryCarousel> {
   @override
   void initState() {
     super.initState();
+    debugPrint('[Discovery] Carousel initState — inizio caricamento prompts');
     _load();
   }
 
