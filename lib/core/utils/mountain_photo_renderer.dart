@@ -112,6 +112,25 @@ class MountainPhotoRenderer {
 
   // ─── Layout interno ───────────────────────────────────────────────
 
+  /// Numero massimo di righe nella label-band superiore.
+  static const int _maxRows = 3;
+
+  /// Cap del numero totale di label visibili (priorità ai più centrati +
+  /// alti). Oltre questo numero la foto diventa illeggibile.
+  static const int _maxVisibleLabels = 16;
+
+  /// Algoritmo di layout: distribuisce le label in una **fascia
+  /// orizzontale superiore** (massimo [_maxRows] righe) con leader
+  /// lines che le collegano ai dot reali sull'immagine.
+  ///
+  /// Strategia (PeakFinder/PeakVisor-style):
+  /// 1. Cap a [_maxVisibleLabels] (drop gli excess in fondo al ranking)
+  /// 2. Sort by dotX (sinistra→destra)
+  /// 3. Per ogni peak, prova a inserirlo nella prima riga libera al
+  ///    suo dotX. Se occupato, prova le righe successive. Se nessuna
+  ///    libera, push laterale per fare spazio.
+  /// 4. Le label sono dimensionate in % dell'immagine con cap assoluti
+  ///    per evitare label gigantesche su immagini ad alta risoluzione.
   static List<_RenderLayout> _layoutLabels(
     List<ProjectedPeak> peaks,
     double scaleX,
@@ -121,64 +140,103 @@ class MountainPhotoRenderer {
     required double imgWidth,
     required double imgHeight,
   }) {
-    final scaleFactor = (scaleX + scaleY) / 2;
-    final labelW = 360.0 * scaleFactor; // 180 pt * scale
-    final labelH = 110.0 * scaleFactor; // 55 pt * scale
-    final gap = 12.0 * scaleFactor;
-    final defaultOffsetY = 80.0 * scaleFactor;
+    if (peaks.isEmpty) return const [];
 
+    // ─── Dimensioni label adattive ma limitate ─────────────────────
+    // labelH: ~4.5% dell'altezza immagine, clampato 60-110 px
+    final labelH = (imgHeight * 0.045).clamp(60.0, 110.0);
+    // labelW: 28% larghezza immagine, clampato 280-460 px
+    final labelW = (imgWidth * 0.28).clamp(280.0, 460.0);
+    final gapY = labelH * 0.18;
+    final gapX = labelW * 0.05;
+    final topMargin = labelH * 0.5 + 8;
+    // Scale factor solo per testo/dots (il box è absoluto).
+    final scaleFactor = (labelH / 88.0).clamp(0.8, 2.5);
+
+    // ─── Cap a _maxVisibleLabels (preserva ranking originale) ─────
+    final capped = peaks.length > _maxVisibleLabels
+        ? peaks.sublist(0, _maxVisibleLabels)
+        : List<ProjectedPeak>.from(peaks);
+
+    // ─── Sort by dotX per layout sinistra→destra ─────────────────
+    capped.sort((a, b) {
+      final ax = offsetX + a.screenX * scaleX;
+      final bx = offsetX + b.screenX * scaleX;
+      return ax.compareTo(bx);
+    });
+
+    // ─── Top-band layout multi-riga ──────────────────────────────
+    // Ogni riga è una lista di label già piazzate (per check collisione).
+    final rows = List<List<_RenderLayout>>.generate(_maxRows, (_) => []);
     final placed = <_RenderLayout>[];
+    final halfW = labelW / 2;
 
-    for (final p in peaks) {
-      // Coordinate dot nello spazio immagine
+    for (final p in capped) {
       final dotX = offsetX + p.screenX * scaleX;
       final dotY = offsetY + p.screenY * scaleY;
-      // Posizione label iniziale: sopra il dot
-      double labelY = dotY - defaultOffsetY;
-      bool collides = true;
-      int safety = 0;
-      while (collides && safety < 30) {
-        collides = false;
-        for (final pl in placed) {
-          final dx = (dotX - pl.labelX).abs();
-          final dy = (labelY - pl.labelY).abs();
-          if (dx < labelW * 0.85 && dy < labelH + gap) {
-            labelY = pl.labelY - labelH - gap;
-            collides = true;
-            break;
-          }
+
+      _RenderLayout? best;
+      double bestDistance = double.infinity;
+      int bestRow = -1;
+      double bestX = dotX;
+
+      // Per ogni riga, calcola la X minima dove la label può essere
+      // posizionata senza overlap con le label già nella riga.
+      for (var r = 0; r < _maxRows; r++) {
+        final row = rows[r];
+        // X minima ammessa: dopo l'ultima label della riga (con gap).
+        final minXInRow = row.isEmpty
+            ? halfW + 8 // bordo sinistro + padding
+            : row.last.labelX + halfW + gapX + halfW;
+        // Candidate X: il più vicino possibile a dotX, ma rispettando
+        // sia il minimo (no overlap a sinistra) sia il bordo dx.
+        var candidateX = dotX.clamp(minXInRow, imgWidth - halfW - 8);
+        // Se candidateX < minXInRow significa che la riga è già piena
+        // a destra del dot → non possiamo mettere la label nella sua
+        // posizione naturale, ma possiamo tentarla a minXInRow.
+        candidateX = candidateX < minXInRow ? minXInRow : candidateX;
+        if (candidateX > imgWidth - halfW - 8) continue; // riga piena
+
+        final distance = (candidateX - dotX).abs();
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestRow = r;
+          bestX = candidateX;
         }
-        safety++;
       }
 
-      // Limite superiore: non mettere label sotto il bordo top
-      if (labelY < labelH / 2 + 8 * scaleFactor) {
-        labelY = labelH / 2 + 8 * scaleFactor;
+      if (bestRow == -1) {
+        // Nessuna riga ha spazio: scartiamo questa label
+        continue;
       }
 
-      placed.add(_RenderLayout(
+      final labelY = topMargin + bestRow * (labelH + gapY) + labelH / 2;
+      best = _RenderLayout(
         peak: p,
         dotX: dotX,
         dotY: dotY,
-        labelX: dotX,
+        labelX: bestX,
         labelY: labelY,
         labelW: labelW,
         labelH: labelH,
         scale: scaleFactor,
-      ));
+      );
+      rows[bestRow].add(best);
+      placed.add(best);
     }
+
     return placed;
   }
 
   static void _drawConnectorLine(Canvas canvas, _RenderLayout l) {
-    if ((l.labelY - l.dotY).abs() < l.labelH * 0.6) return;
+    // Disegna sempre la leader line (anche corte) per chiarezza visiva.
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.65)
-      ..strokeWidth = 1.5 * l.scale
+      ..color = Colors.white.withValues(alpha: 0.55)
+      ..strokeWidth = (l.labelH * 0.025).clamp(1.0, 3.0)
       ..style = PaintingStyle.stroke;
     canvas.drawLine(
       Offset(l.labelX, l.labelY + l.labelH / 2),
-      Offset(l.dotX, l.dotY - 6 * l.scale),
+      Offset(l.dotX, l.dotY - l.labelH * 0.10),
       paint,
     );
   }
@@ -187,6 +245,12 @@ class MountainPhotoRenderer {
     final isVolcano = l.peak.peak.type == 'volcano';
     final borderColor =
         isVolcano ? const Color(0xFFE85751) : const Color(0xFFFFD700);
+
+    // Font sizes proporzionali a labelH (size totali ragionevoli).
+    final nameFontSize = l.labelH * 0.34;
+    final subtitleFontSize = l.labelH * 0.24;
+    final padding = l.labelH * 0.18;
+    final borderWidth = (l.labelH * 0.025).clamp(1.5, 3.0);
 
     final rect = Rect.fromCenter(
       center: Offset(l.labelX, l.labelY),
@@ -199,15 +263,15 @@ class MountainPhotoRenderer {
     // Background nero semi-opaco
     canvas.drawRRect(
       rrect,
-      Paint()..color = Colors.black.withValues(alpha: 0.78),
+      Paint()..color = Colors.black.withValues(alpha: 0.80),
     );
 
     // Bordo
     canvas.drawRRect(
       rrect,
       Paint()
-        ..color = borderColor.withValues(alpha: 0.85)
-        ..strokeWidth = 2 * l.scale
+        ..color = borderColor.withValues(alpha: 0.9)
+        ..strokeWidth = borderWidth
         ..style = PaintingStyle.stroke,
     );
 
@@ -217,8 +281,8 @@ class MountainPhotoRenderer {
       style: TextStyle(
         color: Colors.white,
         fontWeight: FontWeight.w800,
-        fontSize: 28 * l.scale,
-        height: 1.0,
+        fontSize: nameFontSize,
+        height: 1.05,
       ),
     );
     final subtitleSpan = TextSpan(
@@ -226,8 +290,8 @@ class MountainPhotoRenderer {
       style: TextStyle(
         color: borderColor,
         fontWeight: FontWeight.w700,
-        fontSize: 22 * l.scale,
-        height: 1.0,
+        fontSize: subtitleFontSize,
+        height: 1.05,
       ),
     );
 
@@ -237,7 +301,7 @@ class MountainPhotoRenderer {
       textDirection: TextDirection.ltr,
       maxLines: 1,
       ellipsis: '…',
-    )..layout(maxWidth: l.labelW - 24 * l.scale);
+    )..layout(maxWidth: l.labelW - padding * 2);
 
     final subtitlePainter = TextPainter(
       text: subtitleSpan,
@@ -245,7 +309,8 @@ class MountainPhotoRenderer {
       textDirection: TextDirection.ltr,
     )..layout();
 
-    final totalH = namePainter.height + 4 * l.scale + subtitlePainter.height;
+    final spacer = l.labelH * 0.06;
+    final totalH = namePainter.height + spacer + subtitlePainter.height;
     final startY = l.labelY - totalH / 2;
 
     namePainter.paint(
@@ -256,7 +321,7 @@ class MountainPhotoRenderer {
       canvas,
       Offset(
         l.labelX - subtitlePainter.width / 2,
-        startY + namePainter.height + 4 * l.scale,
+        startY + namePainter.height + spacer,
       ),
     );
   }
@@ -266,15 +331,17 @@ class MountainPhotoRenderer {
     final color = isVolcano
         ? const Color(0xFFE85751)
         : const Color(0xFFFFD700);
-    // Outer ring bianco
+    // Dimensioni dot proporzionali a labelH (no più scale moltiplicativo).
+    final outerR = (l.labelH * 0.10).clamp(8.0, 14.0);
+    final innerR = outerR * 0.72;
     canvas.drawCircle(
       Offset(l.dotX, l.dotY),
-      8 * l.scale,
+      outerR,
       Paint()..color = Colors.white,
     );
     canvas.drawCircle(
       Offset(l.dotX, l.dotY),
-      6 * l.scale,
+      innerR,
       Paint()..color = color,
     );
   }
