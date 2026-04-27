@@ -6,25 +6,28 @@ Riferimento per il social-manager. **Non citare feature non presenti qui**. Per 
 
 ## Core tracking
 
-**Cosa c'e**: GPS real-time, 40+ tipi di attivita (trekking, trail running, MTB, sci, snowshoe, ciclismo, ecc.), bussola integrata con compass-up navigation, mappe interattive, campionamento intelligente dei punti, correzione elevazione da API OpenTopoData.
+**Cosa c'e**: GPS real-time, **14 sport supportati ufficialmente** (trekking, trail running, MTB, sci, snowshoe, ciclismo, ecc. — il numero comunicato e' 14, anche se il modello dati interno gestisce piu' tipi), bussola integrata con compass-up navigation, mappe interattive, campionamento intelligente dei punti, correzione elevazione da API OpenTopoData, **rilevamento automatico crash/inattivita**, **auto-detect attivita** (l'app riconosce se inizi a correre/camminare), **battery saver** ottimizzato.
 
 **Angle social**: "l'app che si adatta a qualsiasi attivita outdoor", "bussola integrata gratis, niente app separate", "tracce precise anche con GPS impreciso".
 
-**Non dire**: numeri di precisione GPS in metri (dipende dal dispositivo).
+**Non dire**: numeri di precisione GPS in metri (dipende dal dispositivo). Non dire "40+ attivita" (vecchio numero) — ufficialmente comunichiamo **14 sport**.
 
 ---
 
 ## Lifeline (SOS / sicurezza) — **il differenziatore numero 1**
 
-**Cosa c'e**:
+**Cosa c'e** (vedi slide 04):
+- **Live tracking** — i tuoi cari vedono in tempo reale dove sei (link pubblico aggiornato live)
+- **Auto-alert inattivita** — se durante la registrazione non tocchi lo schermo per X minuti → allarme sonoro + vibrazione + wake-screen forzato anche con telefono in tasca + notifica heads-up Android max priority. Se non confermi "tutto bene" → escalation automatica
+- **Pulsante 112** — sempre accessibile in un tap dalla schermata di registrazione. Chiama direttamente il numero unico di emergenza europeo
+- **Health Check Live** — usa i dati HR (cardiofrequenzimetro BLE / wearable) per rilevare anomalie durante l'attivita
+- **SMS Fallback** — se non c'e dati ma c'e segnale GSM, comunica con i contatti emergenza via SMS
+- **Backup & Retry** — sistema multi-canale: la notifica viene re-tentata in piu' modi se il primo fallisce
 - Contatti emergenza configurabili (fino a 3)
-- Inactivity alert: se durante la registrazione non tocchi lo schermo per X minuti → allarme sonoro + vibrazione + wake-screen forzato anche con telefono in tasca + notifica heads-up Android max priority
-- Auto-alert 2-step: se non confermi "tutto bene" entro 5 minuti → SMS automatico ai contatti emergenza
-- Live track sharing: link pubblico real-time durante la registrazione, condiviso con chi vuoi
 
-**Angle social**: "vai in montagna da solo con piu' sicurezza", "nessuno sa dove sei? Lifeline lo dice per te se ti succede qualcosa", "Strava e Komoot non hanno niente di simile".
+**Angle social**: "vai in montagna da solo con piu' sicurezza", "nessuno sa dove sei? Lifeline lo dice per te se ti succede qualcosa", "112 in un tap, anche con guanti", "Strava e Komoot non hanno niente di simile".
 
-**Non dire**: "salva vite" (legale complicato), "sostituisce il soccorso alpino" (non e' vero — affianca).
+**Non dire**: "salva vite" (legale complicato), "sostituisce il soccorso alpino" (non e' vero — affianca), "garantito" (dipende da segnale).
 
 ---
 
@@ -130,14 +133,40 @@ Riferimento per il social-manager. **Non citare feature non presenti qui**. Per 
 
 ---
 
+## TrailShare PRO — **in arrivo**, comunicazione cauta
+
+**Cosa esiste**: piano premium annunciato come **"Coming Soon"** sul materiale promozionale (slide 11 carousel intro). Prezzo annunciato: **da €2,90/mese**.
+
+**Feature in roadmap PRO** (citate sulla slide):
+- Mountain Recognition AI (riconoscimento vette dall'inquadratura camera)
+- 3D fly-through replay delle tracce
+- Mappe topografiche premium (IGM, Geoplan)
+- Allenamenti HR personalizzati
+- Trail conditions con AI a meta etá
+
+**Come comunicare**:
+- OK: "TrailShare PRO sta arrivando con feature avanzate", "stay tuned per il PRO"
+- OK: "tutto il core resta gratuito per sempre, il PRO aggiunge feature premium opzionali"
+- **NO**: dare date precise di rilascio
+- **NO**: promettere singole feature PRO ("a giugno avremo Mountain Recognition") finche non sono confermate
+- **NO**: usare il PRO come hook principale dei post di acquisizione (l'hook resta "100% gratuita")
+- **NO**: confondere utenti facendogli pensare che il free verra' depotenziato — chiarire sempre che il PRO e' **aggiuntivo**, non sostitutivo
+
+**Quando usarlo nei contenuti**:
+- Slide finale carousel intro (gia' c'e)
+- Pinned comment sotto i reel "PS: e' arrivata anche la PRO con feature avanzate, scopri di piu' sul profilo"
+- Stories teaser puntuali (1 ogni 2-3 settimane, non di piu')
+
+---
+
 ## Feature che **NON** esistono (evita di comunicarle)
 
-- Web dashboard (non deployato)
+- Web dashboard pubblico (non deployato — l'HTML carousel e' interno/asset, non e' un dashboard utente)
 - Social login via Facebook (solo Google + Apple)
 - Meteo predittivo oltre 3 giorni (solo previsioni base)
-- Chiamate emergenza automatiche (solo SMS, non chiamate)
 - Analytics biomeccanica tipo Stryd power (non ce l'abbiamo)
-- Pianificazione itinerari tipo Komoot (import sentieri CAI si, planning avanzato no)
+- Pianificazione itinerari tipo Komoot avanzata (import sentieri CAI si, planning turn-by-turn da zero no)
 - Live tracking di altri utenti in real-time (solo link pubblico della propria traccia)
+- Mountain Recognition AI, 3D fly-through, mappe IGM (sono **PRO Coming Soon**, vedi sezione sopra — non descrivere come disponibili)
 
 Se un draft tocca queste aree, il social-manager deve **segnalarlo al founder** invece di scriverle.

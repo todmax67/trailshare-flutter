@@ -4,7 +4,12 @@
       "Bash(flutter analyze:*)",
       "Bash(xargs basename *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'chore: track social_lab/assets structure while excluding media files *)"
+      "Bash(git commit -m 'chore: track social_lab/assets structure while excluding media files *)",
+      "Bash(mkdir -p /Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/carousel_intro /Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/web)",
+      "Bash(cp /Volumes/Lexar/Sviluppo/trailshare_flutter/adv/slide_*.png /Volumes/Lexar/Sviluppo/trailshare_flutter/adv/logo.png /Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/carousel_intro/)",
+      "Bash(cp /Volumes/Lexar/Sviluppo/trailshare_flutter/adv/TrailShare_carousel.html /Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/web/)",
+      "Read(//Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/**)",
+      "Bash(git commit -m 'feat\\(social\\): add IG carousel draft + integrate 11 promo slides *)"
     ]
   }
 }
