@@ -575,8 +575,8 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           ),
         ),
       );
-    } catch (e) {
-      debugPrint('[MountainFinder] capture error: $e');
+    } catch (e, stack) {
+      debugPrint('[MountainFinder] capture error: $e\n$stack');
       if (mounted) {
         setState(() => _processingCapture = false);
         AppSnackBar.error(

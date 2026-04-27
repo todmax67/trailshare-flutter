@@ -188,14 +188,17 @@ class MountainPhotoRenderer {
         final minXInRow = row.isEmpty
             ? halfW + 8 // bordo sinistro + padding
             : row.last.labelX + halfW + gapX + halfW;
+        final maxXInRow = imgWidth - halfW - 8;
+
+        // Riga gia piena verso destra: nessun posto. Critico fare
+        // questo check PRIMA del clamp, che altrimenti lancerebbe
+        // ArgumentError quando minXInRow > maxXInRow.
+        if (minXInRow > maxXInRow) continue;
+
         // Candidate X: il più vicino possibile a dotX, ma rispettando
         // sia il minimo (no overlap a sinistra) sia il bordo dx.
-        var candidateX = dotX.clamp(minXInRow, imgWidth - halfW - 8);
-        // Se candidateX < minXInRow significa che la riga è già piena
-        // a destra del dot → non possiamo mettere la label nella sua
-        // posizione naturale, ma possiamo tentarla a minXInRow.
-        candidateX = candidateX < minXInRow ? minXInRow : candidateX;
-        if (candidateX > imgWidth - halfW - 8) continue; // riga piena
+        final candidateX =
+            dotX.clamp(minXInRow, maxXInRow).toDouble();
 
         final distance = (candidateX - dotX).abs();
         if (distance < bestDistance) {
