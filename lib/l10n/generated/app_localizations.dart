@@ -7808,6 +7808,36 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 cima riconosciuta} other{{count} cime riconosciute}}'**
   String mfPeaksInView(int count);
 
+  /// No description provided for @mfDetailElevation.
+  ///
+  /// In it, this message translates to:
+  /// **'ALTITUDINE'**
+  String get mfDetailElevation;
+
+  /// No description provided for @mfDetailDistance.
+  ///
+  /// In it, this message translates to:
+  /// **'DISTANZA'**
+  String get mfDetailDistance;
+
+  /// No description provided for @mfDetailBearing.
+  ///
+  /// In it, this message translates to:
+  /// **'DIREZIONE'**
+  String get mfDetailBearing;
+
+  /// No description provided for @mfDetailOpenOsm.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri su OpenStreetMap'**
+  String get mfDetailOpenOsm;
+
+  /// No description provided for @mfDetailDataSource.
+  ///
+  /// In it, this message translates to:
+  /// **'Dati da OpenStreetMap (ODbL 1.0)'**
+  String get mfDetailDataSource;
+
   /// No description provided for @discoveryMountainTitle.
   ///
   /// In it, this message translates to:

@@ -4299,6 +4299,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get mfDetailElevation => 'ELEVATION';
+
+  @override
+  String get mfDetailDistance => 'DISTANCE';
+
+  @override
+  String get mfDetailBearing => 'BEARING';
+
+  @override
+  String get mfDetailOpenOsm => 'Open on OpenStreetMap';
+
+  @override
+  String get mfDetailDataSource => 'Data from OpenStreetMap (ODbL 1.0)';
+
+  @override
   String get discoveryMountainTitle => 'Point at the mountains';
 
   @override

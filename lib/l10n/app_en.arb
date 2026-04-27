@@ -1511,6 +1511,11 @@
   "mfNoPeaksInView": "Rotate your phone to find peaks",
   "mfPeaksInView": "{count, plural, =1{1 peak identified} other{{count} peaks identified}}",
   "@mfPeaksInView": { "placeholders": { "count": {"type": "int"} } },
+  "mfDetailElevation": "ELEVATION",
+  "mfDetailDistance": "DISTANCE",
+  "mfDetailBearing": "BEARING",
+  "mfDetailOpenOsm": "Open on OpenStreetMap",
+  "mfDetailDataSource": "Data from OpenStreetMap (ODbL 1.0)",
 
   "discoveryMountainTitle": "Point at the mountains",
   "discoveryMountainDesc": "Open the camera and discover peak names around you. Works anywhere in Italy.",

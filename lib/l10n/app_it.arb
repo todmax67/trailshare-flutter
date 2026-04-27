@@ -1511,6 +1511,11 @@
   "mfNoPeaksInView": "Ruota il telefono per cercare le cime",
   "mfPeaksInView": "{count, plural, =1{1 cima riconosciuta} other{{count} cime riconosciute}}",
   "@mfPeaksInView": { "placeholders": { "count": {"type": "int"} } },
+  "mfDetailElevation": "ALTITUDINE",
+  "mfDetailDistance": "DISTANZA",
+  "mfDetailBearing": "DIREZIONE",
+  "mfDetailOpenOsm": "Apri su OpenStreetMap",
+  "mfDetailDataSource": "Dati da OpenStreetMap (ODbL 1.0)",
 
   "discoveryMountainTitle": "Punta verso le montagne",
   "discoveryMountainDesc": "Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.",

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -168,6 +169,18 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     }
   }
 
+  /// Apre un bottom sheet con i dettagli completi della cima toccata.
+  void _showPeakDetail(ProjectedPeak p) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _PeakDetailSheet(projected: p),
+    );
+  }
+
   /// Aggiorna [_candidatePeaks] interrogando il dataset OSM con la
   /// posizione data, ma solo se l'utente si è spostato più di
   /// [_candidateRefreshThresholdMeters] dall'ultimo aggiornamento.
@@ -297,13 +310,18 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             ),
 
             // Pin AR per le cime visibili.
-            for (final p in projected)
-              Positioned(
-                left: p.screenX - 80,
-                top: p.screenY - 50,
-                width: 160,
-                height: 100,
-                child: _PeakPin(projected: p, viewport: viewport),
+            // - Animazione di posizionamento smooth quando l'utente ruota
+            //   (AnimatedPositioned 200ms ease)
+            // - Ranking visivo: scaling proporzionale alla "centratura"
+            //   nel viewfinder (più centrato = più grande/opaco)
+            // - Tap → bottom sheet con dettagli cima
+            for (var i = 0; i < projected.length; i++)
+              _AnimatedPeakPin(
+                key: ValueKey(projected[i].peak.id),
+                projected: projected[i],
+                rank: i, // 0 = più centrato
+                viewport: viewport,
+                onTap: () => _showPeakDetail(projected[i]),
               ),
           ],
         );
@@ -494,24 +512,85 @@ class _CrosshairPainter extends CustomPainter {
 }
 
 /// Pin di una cima nel viewport AR.
-class _PeakPin extends StatelessWidget {
+/// Pin animato di una cima nel viewport AR.
+///
+/// Animazioni:
+/// - **AnimatedPositioned** smooth movement quando l'utente ruota il
+///   telefono (200ms easeOut).
+/// - **AnimatedScale** in base al ranking di centratura: la cima più
+///   centrata è grande (1.0), le secondarie scalano fino a 0.78.
+/// - **AnimatedOpacity**: la cima centrata è completamente opaca,
+///   le altre sono leggermente trasparenti (focus visivo).
+/// - **Highlight gold** quando il pin è entro il 10% dal centro
+///   (utente sta puntando bene).
+class _AnimatedPeakPin extends StatelessWidget {
+  final ProjectedPeak projected;
+  final int rank; // 0 = più centrato; 1, 2, 3, 4 secondari
+  final Size viewport;
+  final VoidCallback onTap;
+
+  const _AnimatedPeakPin({
+    super.key,
+    required this.projected,
+    required this.rank,
+    required this.viewport,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Scale graduale: 1.0 per il top, scendendo fino a 0.78 per gli altri.
+    final scale = rank == 0 ? 1.0 : (1.0 - rank * 0.07).clamp(0.78, 1.0);
+    final opacity = rank == 0 ? 1.0 : (1.0 - rank * 0.06).clamp(0.74, 1.0);
+
+    return AnimatedPositioned(
+      key: ValueKey('pos_${projected.peak.id}'),
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      left: projected.screenX - 80,
+      top: projected.screenY - 50,
+      width: 160,
+      height: 100,
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutBack,
+        scale: scale,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: opacity,
+          child: GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.opaque,
+            child: _PeakPinContent(
+              projected: projected,
+              viewport: viewport,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PeakPinContent extends StatelessWidget {
   final ProjectedPeak projected;
   final Size viewport;
 
-  const _PeakPin({required this.projected, required this.viewport});
+  const _PeakPinContent({required this.projected, required this.viewport});
 
   @override
   Widget build(BuildContext context) {
     final centered = projected.isCentered(viewport);
     final isVolcano = projected.peak.type == 'volcano';
-    final accent =
-        isVolcano ? AppColors.danger : (centered ? AppColors.warning : Colors.white);
+    final accent = isVolcano
+        ? AppColors.danger
+        : (centered ? AppColors.warning : Colors.white);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Label compatta
+        // Label
         Container(
           padding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -522,6 +601,15 @@ class _PeakPin extends StatelessWidget {
               color: accent.withValues(alpha: 0.7),
               width: centered ? 1.5 : 1,
             ),
+            boxShadow: centered
+                ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -551,7 +639,7 @@ class _PeakPin extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        // Pin punto + linea
+        // Pin dot
         Container(
           width: 10,
           height: 10,
@@ -578,5 +666,264 @@ class _PeakPin extends StatelessWidget {
         dist < 10 ? dist.toStringAsFixed(1) : dist.toStringAsFixed(0);
     if (ele == null) return '$distStr km';
     return '${ele.round()} m · $distStr km';
+  }
+}
+
+/// Bottom sheet con i dettagli completi di una cima toccata nel viewfinder.
+class _PeakDetailSheet extends StatelessWidget {
+  final ProjectedPeak projected;
+
+  const _PeakDetailSheet({required this.projected});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = projected.peak;
+    final isVolcano = p.type == 'volcano';
+    final accent = isVolcano ? AppColors.danger : AppColors.primary;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.themedBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Header con icona e nome
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    isVolcano
+                        ? Icons.local_fire_department
+                        : Icons.terrain,
+                    color: accent,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.name,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: context.textPrimary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (p.region != null && p.region!.isNotEmpty)
+                        Text(
+                          p.region!,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: context.textSecondary,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            // Stats grid
+            Row(
+              children: [
+                Expanded(
+                  child: _StatTile(
+                    icon: Icons.height,
+                    label: context.l10n.mfDetailElevation,
+                    value: p.elevation == null
+                        ? '—'
+                        : '${p.elevation!.round()}',
+                    unit: 'm',
+                    color: AppColors.success,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _StatTile(
+                    icon: Icons.straighten,
+                    label: context.l10n.mfDetailDistance,
+                    value:
+                        (projected.distanceMeters / 1000) < 10
+                            ? (projected.distanceMeters / 1000)
+                                .toStringAsFixed(1)
+                            : (projected.distanceMeters / 1000)
+                                .toStringAsFixed(0),
+                    unit: 'km',
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _StatTile(
+                    icon: Icons.explore,
+                    label: context.l10n.mfDetailBearing,
+                    value: projected.bearingDeg.toStringAsFixed(0),
+                    unit: '°',
+                    color: const Color(0xFF6D4C41),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Coordinate
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.pin_drop_outlined,
+                      size: 16, color: context.textSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: context.textSecondary,
+                        fontFeatures:
+                            const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Pulsante OSM
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _openOsm(p),
+                icon: const Icon(Icons.public),
+                label: Text(context.l10n.mfDetailOpenOsm),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: BorderSide(color: accent.withValues(alpha: 0.5)),
+                  foregroundColor: accent,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                context.l10n.mfDetailDataSource,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: context.textMuted,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openOsm(MountainPeak peak) async {
+    final url = Uri.parse(
+      'https://www.openstreetmap.org/?mlat=${peak.latitude}&mlon=${peak.longitude}#map=14/${peak.latitude}/${peak.longitude}',
+    );
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String unit;
+  final Color color;
+
+  const _StatTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.unit,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.20)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: context.textPrimary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(width: 2),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  unit,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: context.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: context.textMuted,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

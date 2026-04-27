@@ -139,7 +139,7 @@ restano **sempre gratis** — la sicurezza non si paga.
 
 | # | Feature | Priorità | Effort | Tier | Status |
 |---|---|---|---|---|---|
-| 6.1 | Mountain recognition AR live (top 5 cime) | 🟧 | M | Free | ☐ |
+| 6.1 | Mountain recognition AR live (top 5 cime) | 🟧 | M | Free | ✅ |
 | 6.2 | Mountain recognition photo + analisi completa + share | 🟧 | L | Pro | ☐ |
 | 6.3 | 3D fly-through replay delle tracce | 🟨 | L | Pro | ☐ |
 | 6.4 | Mappe topografiche premium offline (IGM, Swisstopo, Tirol Atlas) | 🟧 | M | Pro | ☐ |
