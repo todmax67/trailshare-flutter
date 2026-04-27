@@ -222,10 +222,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// con quelle già piazzate. Iterativo con safety counter per evitare
   /// loop infiniti su casi pathological.
   List<_PinLayout> _layoutPins(List<ProjectedPeak> peaks) {
-    const labelHalfWidth = 80.0; // metà larghezza label box
-    const labelHeight = 44.0; // altezza label box (compatta)
+    // Costanti di dimensione label coerenti con _AnimatedPeakLabel.
+    const labelHalfWidth = 88.0; // metà larghezza label box (176/2)
+    const labelHeight = 56.0; // altezza label box
     const gap = 6.0;
-    const defaultLabelOffsetY = 36.0; // label centrata sopra il dot
+    const defaultLabelOffsetY = 42.0; // label centrata sopra il dot
 
     final placed = <_PinLayout>[];
 
@@ -711,10 +712,10 @@ class _AnimatedPeakLabel extends StatelessWidget {
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
-      left: layout.labelX - 80,
-      top: layout.labelY - 22, // centratura sulla labelY
-      width: 160,
-      height: 44,
+      left: layout.labelX - 88,
+      top: layout.labelY - 28, // centratura sulla labelY (height/2)
+      width: 176,
+      height: 56,
       child: AnimatedScale(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutBack,
@@ -751,7 +752,8 @@ class _LabelBox extends StatelessWidget {
 
     return Center(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: isCentered ? 0.85 : 0.6),
           borderRadius: BorderRadius.circular(999),
@@ -778,18 +780,20 @@ class _LabelBox extends StatelessWidget {
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
-                fontSize: isCentered ? 13 : 12,
+                fontSize: isCentered ? 15 : 14,
+                height: 1.1,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 1),
+            const SizedBox(height: 2),
             Text(
               _subtitle(projected),
               style: TextStyle(
                 color: accent,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
+                height: 1.1,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
