@@ -4311,6 +4311,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mfDetailOpenOsm => 'Open on OpenStreetMap';
 
   @override
+  String get mfDetailOpenError =>
+      'Unable to open the link. Make sure you have a default browser set.';
+
+  @override
   String get mfDetailDataSource => 'Data from OpenStreetMap (ODbL 1.0)';
 
   @override

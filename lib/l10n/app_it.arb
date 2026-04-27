@@ -1515,6 +1515,7 @@
   "mfDetailDistance": "DISTANZA",
   "mfDetailBearing": "DIREZIONE",
   "mfDetailOpenOsm": "Apri su OpenStreetMap",
+  "mfDetailOpenError": "Impossibile aprire il link. Verifica di avere un browser predefinito.",
   "mfDetailDataSource": "Dati da OpenStreetMap (ODbL 1.0)",
 
   "discoveryMountainTitle": "Punta verso le montagne",

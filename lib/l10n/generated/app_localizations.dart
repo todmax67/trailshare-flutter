@@ -7832,6 +7832,12 @@ abstract class AppLocalizations {
   /// **'Apri su OpenStreetMap'**
   String get mfDetailOpenOsm;
 
+  /// No description provided for @mfDetailOpenError.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire il link. Verifica di avere un browser predefinito.'**
+  String get mfDetailOpenError;
+
   /// No description provided for @mfDetailDataSource.
   ///
   /// In it, this message translates to:

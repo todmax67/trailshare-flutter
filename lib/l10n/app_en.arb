@@ -1515,6 +1515,7 @@
   "mfDetailDistance": "DISTANCE",
   "mfDetailBearing": "BEARING",
   "mfDetailOpenOsm": "Open on OpenStreetMap",
+  "mfDetailOpenError": "Unable to open the link. Make sure you have a default browser set.",
   "mfDetailDataSource": "Data from OpenStreetMap (ODbL 1.0)",
 
   "discoveryMountainTitle": "Point at the mountains",

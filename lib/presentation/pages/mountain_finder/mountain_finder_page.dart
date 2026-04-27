@@ -169,6 +169,99 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     }
   }
 
+  /// Costruisce il layer dei pin AR con algoritmo anti-collisione: le
+  /// label vengono impilate verticalmente quando le cime sono allineate
+  /// sullo stesso bearing. Il "dot" resta sempre alla posizione reale
+  /// della cima, una sottile linea connette label e dot quando sono
+  /// distanziati.
+  List<Widget> _buildPinLayer(List<ProjectedPeak> projected) {
+    if (projected.isEmpty) return const [];
+
+    final layouts = _layoutPins(projected);
+
+    return [
+      // Linee connettrici (sotto tutto, non assorbono tap).
+      Positioned.fill(
+        child: IgnorePointer(
+          child: CustomPaint(
+            painter: _PinLinesPainter(layouts),
+          ),
+        ),
+      ),
+      // Dot punto fisso alla posizione reale della cima.
+      for (var i = 0; i < layouts.length; i++)
+        AnimatedPositioned(
+          key: ValueKey('dot_${layouts[i].peak.peak.id}'),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          left: layouts[i].dotX - 6,
+          top: layouts[i].dotY - 6,
+          width: 12,
+          height: 12,
+          child: IgnorePointer(
+            child: _PeakDot(
+              isVolcano: layouts[i].peak.peak.type == 'volcano',
+              isCentered: i == 0,
+            ),
+          ),
+        ),
+      // Label box (separabile dal dot, può essere offset verticalmente).
+      for (var i = 0; i < layouts.length; i++)
+        _AnimatedPeakLabel(
+          key: ValueKey('label_${layouts[i].peak.peak.id}'),
+          layout: layouts[i],
+          rank: i,
+          viewport: Size.zero, // viewport non più necessario per centratura
+          isCentered: i == 0,
+          onTap: () => _showPeakDetail(layouts[i].peak),
+        ),
+    ];
+  }
+
+  /// Algoritmo di layout: spinge verso l'alto le label che collidono
+  /// con quelle già piazzate. Iterativo con safety counter per evitare
+  /// loop infiniti su casi pathological.
+  List<_PinLayout> _layoutPins(List<ProjectedPeak> peaks) {
+    const labelHalfWidth = 80.0; // metà larghezza label box
+    const labelHeight = 44.0; // altezza label box (compatta)
+    const gap = 6.0;
+    const defaultLabelOffsetY = 36.0; // label centrata sopra il dot
+
+    final placed = <_PinLayout>[];
+
+    for (final p in peaks) {
+      double labelY = p.screenY - defaultLabelOffsetY;
+      bool collides = true;
+      int safety = 0;
+      while (collides && safety < 30) {
+        collides = false;
+        for (final pl in placed) {
+          final dx = (p.screenX - pl.labelX).abs();
+          final dy = (labelY - pl.labelY).abs();
+          // Considera collisione se i centri label sono entro la
+          // bounding box reciproca con un piccolo overlap minimo.
+          if (dx < (labelHalfWidth * 2 - 30) && dy < labelHeight + gap) {
+            // Spostamento verso l'alto
+            labelY = pl.labelY - labelHeight - gap;
+            collides = true;
+            break;
+          }
+        }
+        safety++;
+      }
+
+      placed.add(_PinLayout(
+        peak: p,
+        dotX: p.screenX,
+        dotY: p.screenY,
+        labelX: p.screenX,
+        labelY: labelY,
+      ));
+    }
+
+    return placed;
+  }
+
   /// Apre un bottom sheet con i dettagli completi della cima toccata.
   void _showPeakDetail(ProjectedPeak p) {
     showModalBottomSheet(
@@ -309,20 +402,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
               child: _Crosshair(),
             ),
 
-            // Pin AR per le cime visibili.
-            // - Animazione di posizionamento smooth quando l'utente ruota
-            //   (AnimatedPositioned 200ms ease)
-            // - Ranking visivo: scaling proporzionale alla "centratura"
-            //   nel viewfinder (più centrato = più grande/opaco)
-            // - Tap → bottom sheet con dettagli cima
-            for (var i = 0; i < projected.length; i++)
-              _AnimatedPeakPin(
-                key: ValueKey(projected[i].peak.id),
-                projected: projected[i],
-                rank: i, // 0 = più centrato
-                viewport: viewport,
-                onTap: () => _showPeakDetail(projected[i]),
-              ),
+            // Pin AR: layout anti-collisione + linee connettrici + label
+            // animate. Le label si impilano verticalmente quando le cime
+            // sono allineate sullo stesso bearing per evitare overlap.
+            ..._buildPinLayer(projected),
           ],
         );
       },
@@ -523,34 +606,115 @@ class _CrosshairPainter extends CustomPainter {
 ///   le altre sono leggermente trasparenti (focus visivo).
 /// - **Highlight gold** quando il pin è entro il 10% dal centro
 ///   (utente sta puntando bene).
-class _AnimatedPeakPin extends StatelessWidget {
-  final ProjectedPeak projected;
-  final int rank; // 0 = più centrato; 1, 2, 3, 4 secondari
+/// Risultato dell'algoritmo di layout anti-collisione: dot sempre alla
+/// posizione reale della cima, label eventualmente offset verticalmente.
+class _PinLayout {
+  final ProjectedPeak peak;
+  final double dotX;
+  final double dotY;
+  final double labelX; // X centro label
+  final double labelY; // Y centro label
+  const _PinLayout({
+    required this.peak,
+    required this.dotX,
+    required this.dotY,
+    required this.labelX,
+    required this.labelY,
+  });
+}
+
+/// Painter delle linee connettrici label↔dot. Disegnata sotto le label
+/// con IgnorePointer così non intercetta tap.
+class _PinLinesPainter extends CustomPainter {
+  final List<_PinLayout> layouts;
+
+  _PinLinesPainter(this.layouts);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.55)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    for (final l in layouts) {
+      // Salta linea se label e dot sono allineati (no offset).
+      if ((l.labelY - l.dotY).abs() < 30) continue;
+      final from = Offset(l.labelX, l.labelY + 18); // bottom della label
+      final to = Offset(l.dotX, l.dotY - 5); // top del dot
+      canvas.drawLine(from, to, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PinLinesPainter oldDelegate) =>
+      oldDelegate.layouts != layouts;
+}
+
+/// Solo il dot della cima — sempre alla posizione reale, mai spostato.
+class _PeakDot extends StatelessWidget {
+  final bool isVolcano;
+  final bool isCentered;
+
+  const _PeakDot({required this.isVolcano, required this.isCentered});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isVolcano
+        ? AppColors.danger
+        : (isCentered ? AppColors.warning : Colors.white);
+    return Container(
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 4,
+          ),
+          if (isCentered)
+            BoxShadow(
+              color: color.withValues(alpha: 0.5),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Label box animata della cima con tap → bottom sheet dettagli.
+/// Spostabile verticalmente dall'algoritmo anti-collisione.
+class _AnimatedPeakLabel extends StatelessWidget {
+  final _PinLayout layout;
+  final int rank;
   final Size viewport;
+  final bool isCentered;
   final VoidCallback onTap;
 
-  const _AnimatedPeakPin({
+  const _AnimatedPeakLabel({
     super.key,
-    required this.projected,
+    required this.layout,
     required this.rank,
     required this.viewport,
+    required this.isCentered,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Scale graduale: 1.0 per il top, scendendo fino a 0.78 per gli altri.
     final scale = rank == 0 ? 1.0 : (1.0 - rank * 0.07).clamp(0.78, 1.0);
     final opacity = rank == 0 ? 1.0 : (1.0 - rank * 0.06).clamp(0.74, 1.0);
 
     return AnimatedPositioned(
-      key: ValueKey('pos_${projected.peak.id}'),
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
-      left: projected.screenX - 80,
-      top: projected.screenY - 50,
+      left: layout.labelX - 80,
+      top: layout.labelY - 22, // centratura sulla labelY
       width: 160,
-      height: 100,
+      height: 44,
       child: AnimatedScale(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutBack,
@@ -561,9 +725,9 @@ class _AnimatedPeakPin extends StatelessWidget {
           child: GestureDetector(
             onTap: onTap,
             behavior: HitTestBehavior.opaque,
-            child: _PeakPinContent(
-              projected: projected,
-              viewport: viewport,
+            child: _LabelBox(
+              projected: layout.peak,
+              isCentered: isCentered,
             ),
           ),
         ),
@@ -572,90 +736,66 @@ class _AnimatedPeakPin extends StatelessWidget {
   }
 }
 
-class _PeakPinContent extends StatelessWidget {
+class _LabelBox extends StatelessWidget {
   final ProjectedPeak projected;
-  final Size viewport;
+  final bool isCentered;
 
-  const _PeakPinContent({required this.projected, required this.viewport});
+  const _LabelBox({required this.projected, required this.isCentered});
 
   @override
   Widget build(BuildContext context) {
-    final centered = projected.isCentered(viewport);
     final isVolcano = projected.peak.type == 'volcano';
     final accent = isVolcano
         ? AppColors.danger
-        : (centered ? AppColors.warning : Colors.white);
+        : (isCentered ? AppColors.warning : Colors.white);
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Label
-        Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: centered ? 0.85 : 0.6),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: accent.withValues(alpha: 0.7),
-              width: centered ? 1.5 : 1,
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: isCentered ? 0.85 : 0.6),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: accent.withValues(alpha: 0.7),
+            width: isCentered ? 1.5 : 1,
+          ),
+          boxShadow: isCentered
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.4),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              projected.peak.name,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: isCentered ? 13 : 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            boxShadow: centered
-                ? [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                projected.peak.name,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: centered ? 13 : 12,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            const SizedBox(height: 1),
+            Text(
+              _subtitle(projected),
+              style: TextStyle(
+                color: accent,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
-              const SizedBox(height: 1),
-              Text(
-                _subtitle(projected),
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        // Pin dot
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: accent,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 4,
-              ),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -821,7 +961,7 @@ class _PeakDetailSheet extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () => _openOsm(p),
+                onPressed: () => _openOsm(p, context),
                 icon: const Icon(Icons.public),
                 label: Text(context.l10n.mfDetailOpenOsm),
                 style: OutlinedButton.styleFrom(
@@ -847,12 +987,26 @@ class _PeakDetailSheet extends StatelessWidget {
     );
   }
 
-  Future<void> _openOsm(MountainPeak peak) async {
+  Future<void> _openOsm(MountainPeak peak, BuildContext context) async {
     final url = Uri.parse(
       'https://www.openstreetmap.org/?mlat=${peak.latitude}&mlon=${peak.longitude}#map=14/${peak.latitude}/${peak.longitude}',
     );
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
+    try {
+      // externalApplication non richiede canLaunchUrl, lancia direttamente
+      // un Intent VIEW: gestito sia da browser che da app OSM-compatibili.
+      final ok = await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.mfDetailOpenError)),
+        );
+      }
+    } catch (e) {
+      debugPrint('[MountainFinder] _openOsm error: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.mfDetailOpenError)),
+        );
+      }
     }
   }
 }
