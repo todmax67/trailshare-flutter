@@ -2,7 +2,7 @@ name: trailshare_flutter
 description: "TrailShare - GPS Tracking per escursioni e trail running"
 publish_to: 'none'
 
-version: 1.10.0+53
+version: 2.0.0+54
 
 environment:
   sdk: ^3.10.4
@@ -34,6 +34,9 @@ dependencies:
   # Bussola magnetica (fallback heading quando il GPS non fornisce
   # direzione affidabile, es. fermi o velocita bassa).
   flutter_compass: ^0.8.1
+  # 6.1 — Mountain Recognition AR
+  camera: ^0.11.0+2
+  sensors_plus: ^6.0.1
 
   # State management
   provider: ^6.1.2

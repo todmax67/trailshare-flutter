@@ -4273,6 +4273,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get preStartLifelineNoContacts => 'Add an emergency contact to use it';
 
   @override
+  String get mfTitle => 'Identify peaks';
+
+  @override
+  String get mfCameraNotAvailable => 'Camera not available on this device';
+
+  @override
+  String get mfDebugTitle => 'DEBUG · 5 NEAREST PEAKS';
+
+  @override
+  String get mfDebugWaitingGps => 'Waiting for GPS…';
+
+  @override
+  String get discoveryMountainTitle => 'Point at the mountains';
+
+  @override
+  String get discoveryMountainDesc =>
+      'Open the camera and discover peak names around you. Works anywhere in Italy.';
+
+  @override
+  String get discoveryMountainCta => 'Open Mountain Finder';
+
+  @override
   String get autoPauseTriggered => 'Auto-pause: idle for more than 5 minutes';
 
   @override

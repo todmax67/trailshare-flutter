@@ -38,6 +38,7 @@ import '../../../core/config/app_config.dart';
 import '../../../data/models/navigation_step.dart';
 import '../../../data/models/recording_reference.dart';
 import '../../widgets/pre_start_preview_sheet.dart';
+import '../mountain_finder/mountain_finder_page.dart';
 import '../settings/emergency_contacts_page.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
@@ -1340,6 +1341,34 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     );
   }
 
+  /// 6.1 — Pulsante per aprire il Mountain Finder AR. Disponibile sia in
+  /// idle (per esplorare le cime intorno) sia durante registrazione.
+  Widget _buildMountainFinderButton() {
+    return Material(
+      elevation: 3,
+      shape: const CircleBorder(),
+      color: Colors.white,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const MountainFinderPage()),
+          );
+        },
+        child: const SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            Icons.terrain,
+            color: Color(0xFF6D4C41),
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Chip battery saver: posizionato in basso-sinistra durante recording.
   Widget _buildBatterySaverButton() {
     return Positioned(
@@ -1649,6 +1678,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             top: _topRightControlsOffset() + 66,
             right: 12,
             child: const MapHeadingToggle(),
+          ),
+          // 6.1 — Mountain Finder AR (v2.0.0): pulsante per puntare il
+          // telefono e riconoscere le cime. Posizionato sotto il toggle
+          // bussola (bussola = 56 + 8 gap = 64 da SOS+66).
+          Positioned(
+            top: _topRightControlsOffset() + 66 + 64,
+            right: 12,
+            child: _buildMountainFinderButton(),
           ),
           // Scrim sotto i controlli: protegge leggibilita del bottone REC
           // (e di eventuali toast) su tile mappa ad alta luminosita.

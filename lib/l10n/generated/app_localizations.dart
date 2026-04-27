@@ -7772,6 +7772,48 @@ abstract class AppLocalizations {
   /// **'Aggiungi un contatto di emergenza per usarla'**
   String get preStartLifelineNoContacts;
 
+  /// No description provided for @mfTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosci le cime'**
+  String get mfTitle;
+
+  /// No description provided for @mfCameraNotAvailable.
+  ///
+  /// In it, this message translates to:
+  /// **'Fotocamera non disponibile su questo dispositivo'**
+  String get mfCameraNotAvailable;
+
+  /// No description provided for @mfDebugTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'DEBUG · 5 CIME PIÙ VICINE'**
+  String get mfDebugTitle;
+
+  /// No description provided for @mfDebugWaitingGps.
+  ///
+  /// In it, this message translates to:
+  /// **'In attesa del GPS…'**
+  String get mfDebugWaitingGps;
+
+  /// No description provided for @discoveryMountainTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Punta verso le montagne'**
+  String get discoveryMountainTitle;
+
+  /// No description provided for @discoveryMountainDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.'**
+  String get discoveryMountainDesc;
+
+  /// No description provided for @discoveryMountainCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri Mountain Finder'**
+  String get discoveryMountainCta;
+
   /// No description provided for @autoPauseTriggered.
   ///
   /// In it, this message translates to:

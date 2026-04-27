@@ -4291,6 +4291,29 @@ class AppLocalizationsIt extends AppLocalizations {
       'Aggiungi un contatto di emergenza per usarla';
 
   @override
+  String get mfTitle => 'Riconosci le cime';
+
+  @override
+  String get mfCameraNotAvailable =>
+      'Fotocamera non disponibile su questo dispositivo';
+
+  @override
+  String get mfDebugTitle => 'DEBUG · 5 CIME PIÙ VICINE';
+
+  @override
+  String get mfDebugWaitingGps => 'In attesa del GPS…';
+
+  @override
+  String get discoveryMountainTitle => 'Punta verso le montagne';
+
+  @override
+  String get discoveryMountainDesc =>
+      'Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.';
+
+  @override
+  String get discoveryMountainCta => 'Apri Mountain Finder';
+
+  @override
   String get autoPauseTriggered =>
       'Pausa automatica: sei fermo da oltre 5 minuti';
 

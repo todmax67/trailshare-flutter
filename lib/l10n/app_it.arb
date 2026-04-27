@@ -1504,6 +1504,15 @@
   "@preStartLifelineOn": { "placeholders": { "count": {"type": "int"} } },
   "preStartLifelineNoContacts": "Aggiungi un contatto di emergenza per usarla",
 
+  "mfTitle": "Riconosci le cime",
+  "mfCameraNotAvailable": "Fotocamera non disponibile su questo dispositivo",
+  "mfDebugTitle": "DEBUG · 5 CIME PIÙ VICINE",
+  "mfDebugWaitingGps": "In attesa del GPS…",
+
+  "discoveryMountainTitle": "Punta verso le montagne",
+  "discoveryMountainDesc": "Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.",
+  "discoveryMountainCta": "Apri Mountain Finder",
+
   "autoPauseTriggered": "Pausa automatica: sei fermo da oltre 5 minuti",
   "autoPauseResumed": "Registrazione ripresa automaticamente",
 

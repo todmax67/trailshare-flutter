@@ -1504,6 +1504,15 @@
   "@preStartLifelineOn": { "placeholders": { "count": {"type": "int"} } },
   "preStartLifelineNoContacts": "Add an emergency contact to use it",
 
+  "mfTitle": "Identify peaks",
+  "mfCameraNotAvailable": "Camera not available on this device",
+  "mfDebugTitle": "DEBUG · 5 NEAREST PEAKS",
+  "mfDebugWaitingGps": "Waiting for GPS…",
+
+  "discoveryMountainTitle": "Point at the mountains",
+  "discoveryMountainDesc": "Open the camera and discover peak names around you. Works anywhere in Italy.",
+  "discoveryMountainCta": "Open Mountain Finder",
+
   "autoPauseTriggered": "Auto-pause: idle for more than 5 minutes",
   "autoPauseResumed": "Recording resumed automatically",
 

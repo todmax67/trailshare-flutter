@@ -10,6 +10,7 @@ import '../../data/models/monthly_report.dart';
 import '../pages/dashboard/dashboard_page.dart';
 import '../pages/leaderboard/regional_leaderboard_page.dart';
 import '../pages/monthly_report/monthly_report_page.dart';
+import '../pages/mountain_finder/mountain_finder_page.dart';
 import '../pages/settings/emergency_contacts_page.dart';
 import '../pages/tours/tour_edit_page.dart';
 
@@ -72,6 +73,27 @@ class DiscoveryPromptsRegistry {
             MaterialPageRoute(
               builder: (_) => MonthlyReportPage(initialYearMonthId: prevId),
             ),
+          );
+        },
+      ),
+
+      // ─── 0.6 Mountain Finder AR (v2.0.0 hero feature) ────────────
+      // Card persistente in cima alla discover: la "wow demo" che porta
+      // l'utente a provare il riconoscimento cime AR. Priorita 99 cosi
+      // resta sopra alla maggioranza dei prompt funzionali.
+      DiscoveryPrompt(
+        id: 'mountain_finder_intro',
+        title: l10n.discoveryMountainTitle,
+        description: l10n.discoveryMountainDesc,
+        icon: Icons.terrain,
+        accentColor: const Color(0xFF6D4C41),
+        ctaLabel: l10n.discoveryMountainCta,
+        priority: 99,
+        condition: (_) => true, // sempre disponibile
+        onCta: (ctx) {
+          Navigator.push(
+            ctx,
+            MaterialPageRoute(builder: (_) => const MountainFinderPage()),
           );
         },
       ),
