@@ -4434,6 +4434,40 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mapStyleTooltip => 'Stile mappa';
 
   @override
+  String get savedPeaksTitle => 'Le mie cime';
+
+  @override
+  String savedPeaksCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cime salvate',
+      one: '1 cima salvata',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedPeaksEmptyTitle => 'Nessuna cima salvata';
+
+  @override
+  String get savedPeaksEmptyBody =>
+      'Apri il Mountain Finder, riconosci una cima e tocca \"Salva\" nei dettagli.';
+
+  @override
+  String get savedPeaksOpenFinder => 'Apri Mountain Finder';
+
+  @override
+  String get discoverySavePeakTitle => 'Salva la tua prima cima';
+
+  @override
+  String get discoverySavePeakDesc =>
+      'Apri il Mountain Finder, punta verso una cima e salvala nei preferiti per ritrovarla qui.';
+
+  @override
+  String get discoverySavePeakCta => 'Riconosci cime';
+
+  @override
   String get discoveryMountainTitle => 'Punta verso le montagne';
 
   @override

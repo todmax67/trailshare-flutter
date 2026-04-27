@@ -1549,6 +1549,17 @@
   "mfDetailViewOnMap": "View on map",
   "mapStyleTooltip": "Map style",
 
+  "savedPeaksTitle": "My peaks",
+  "savedPeaksCount": "{count, plural, =1{1 saved peak} other{{count} saved peaks}}",
+  "@savedPeaksCount": { "placeholders": { "count": {"type": "int"} } },
+  "savedPeaksEmptyTitle": "No saved peaks yet",
+  "savedPeaksEmptyBody": "Open Mountain Finder, identify a peak and tap \"Save\" in the details.",
+  "savedPeaksOpenFinder": "Open Mountain Finder",
+
+  "discoverySavePeakTitle": "Save your first peak",
+  "discoverySavePeakDesc": "Open Mountain Finder, point at a peak and save it to find it later in your collection.",
+  "discoverySavePeakCta": "Identify peaks",
+
   "discoveryMountainTitle": "Point at the mountains",
   "discoveryMountainDesc": "Open the camera and discover peak names around you. Works anywhere in Italy.",
   "discoveryMountainCta": "Open Mountain Finder",

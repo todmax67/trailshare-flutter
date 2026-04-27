@@ -4415,6 +4415,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mapStyleTooltip => 'Map style';
 
   @override
+  String get savedPeaksTitle => 'My peaks';
+
+  @override
+  String savedPeaksCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count saved peaks',
+      one: '1 saved peak',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedPeaksEmptyTitle => 'No saved peaks yet';
+
+  @override
+  String get savedPeaksEmptyBody =>
+      'Open Mountain Finder, identify a peak and tap \"Save\" in the details.';
+
+  @override
+  String get savedPeaksOpenFinder => 'Open Mountain Finder';
+
+  @override
+  String get discoverySavePeakTitle => 'Save your first peak';
+
+  @override
+  String get discoverySavePeakDesc =>
+      'Open Mountain Finder, point at a peak and save it to find it later in your collection.';
+
+  @override
+  String get discoverySavePeakCta => 'Identify peaks';
+
+  @override
   String get discoveryMountainTitle => 'Point at the mountains';
 
   @override

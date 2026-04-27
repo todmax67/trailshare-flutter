@@ -9,6 +9,9 @@ import '../wishlist/wishlist_page.dart';
 import '../follow/follow_list_page.dart';
 import '../leaderboard/leaderboard_page.dart';
 import '../leaderboard/regional_leaderboard_page.dart';
+import '../mountain_finder/saved_peaks_page.dart';
+import '../../../data/repositories/saved_peaks_repository.dart';
+import '../../../data/models/mountain_peak.dart';
 import '../settings/settings_page.dart';
 import '../badges/badges_page.dart';
 import '../challenges/challenges_page.dart';
@@ -392,6 +395,17 @@ class _ProfilePageState extends State<ProfilePage> {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const BadgesPage()),
+                            ),
+                          ),
+                          _buildActionTile(
+                            icon: Icons.terrain,
+                            label: context.l10n.savedPeaksTitle,
+                            trailing: _buildSavedPeaksBadge(),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SavedPeaksPage(),
+                              ),
                             ),
                           ),
                           _buildActionTile(
@@ -820,6 +834,36 @@ class _ProfilePageState extends State<ProfilePage> {
           color: AppColors.primary,
         ),
       ),
+    );
+  }
+
+  /// Badge inline col conteggio delle cime salvate. StreamBuilder
+  /// realtime così si aggiorna se l'utente salva/rimuove una cima
+  /// senza dover refreshare il profilo.
+  Widget _buildSavedPeaksBadge() {
+    return StreamBuilder<List<MountainPeak>>(
+      stream: SavedPeaksRepository().watchAll(),
+      builder: (context, snap) {
+        final count = snap.data?.length ?? 0;
+        if (count == 0) return const SizedBox.shrink();
+        return Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        );
+      },
     );
   }
 }

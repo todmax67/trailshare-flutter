@@ -8000,6 +8000,54 @@ abstract class AppLocalizations {
   /// **'Stile mappa'**
   String get mapStyleTooltip;
 
+  /// No description provided for @savedPeaksTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Le mie cime'**
+  String get savedPeaksTitle;
+
+  /// No description provided for @savedPeaksCount.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{1 cima salvata} other{{count} cime salvate}}'**
+  String savedPeaksCount(int count);
+
+  /// No description provided for @savedPeaksEmptyTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna cima salvata'**
+  String get savedPeaksEmptyTitle;
+
+  /// No description provided for @savedPeaksEmptyBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri il Mountain Finder, riconosci una cima e tocca \"Salva\" nei dettagli.'**
+  String get savedPeaksEmptyBody;
+
+  /// No description provided for @savedPeaksOpenFinder.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri Mountain Finder'**
+  String get savedPeaksOpenFinder;
+
+  /// No description provided for @discoverySavePeakTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Salva la tua prima cima'**
+  String get discoverySavePeakTitle;
+
+  /// No description provided for @discoverySavePeakDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri il Mountain Finder, punta verso una cima e salvala nei preferiti per ritrovarla qui.'**
+  String get discoverySavePeakDesc;
+
+  /// No description provided for @discoverySavePeakCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosci cime'**
+  String get discoverySavePeakCta;
+
   /// No description provided for @discoveryMountainTitle.
   ///
   /// In it, this message translates to:

@@ -1549,6 +1549,17 @@
   "mfDetailViewOnMap": "Apri sulla mappa",
   "mapStyleTooltip": "Stile mappa",
 
+  "savedPeaksTitle": "Le mie cime",
+  "savedPeaksCount": "{count, plural, =1{1 cima salvata} other{{count} cime salvate}}",
+  "@savedPeaksCount": { "placeholders": { "count": {"type": "int"} } },
+  "savedPeaksEmptyTitle": "Nessuna cima salvata",
+  "savedPeaksEmptyBody": "Apri il Mountain Finder, riconosci una cima e tocca \"Salva\" nei dettagli.",
+  "savedPeaksOpenFinder": "Apri Mountain Finder",
+
+  "discoverySavePeakTitle": "Salva la tua prima cima",
+  "discoverySavePeakDesc": "Apri il Mountain Finder, punta verso una cima e salvala nei preferiti per ritrovarla qui.",
+  "discoverySavePeakCta": "Riconosci cime",
+
   "discoveryMountainTitle": "Punta verso le montagne",
   "discoveryMountainDesc": "Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.",
   "discoveryMountainCta": "Apri Mountain Finder",

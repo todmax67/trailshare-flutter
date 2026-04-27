@@ -77,6 +77,24 @@ class DiscoveryPromptsRegistry {
         },
       ),
 
+      // ─── 0.55 Salva la prima cima (post 5+ tracce, 0 cime salvate) ─
+      DiscoveryPrompt(
+        id: 'save_first_peak',
+        title: l10n.discoverySavePeakTitle,
+        description: l10n.discoverySavePeakDesc,
+        icon: Icons.bookmark_outline,
+        accentColor: const Color(0xFFFFB300),
+        ctaLabel: l10n.discoverySavePeakCta,
+        priority: 92,
+        condition: (s) => s.trackCount >= 5 && s.savedPeaksCount == 0,
+        onCta: (ctx) {
+          Navigator.push(
+            ctx,
+            MaterialPageRoute(builder: (_) => const MountainFinderPage()),
+          );
+        },
+      ),
+
       // ─── 0.6 Mountain Finder AR (v2.0.0 hero feature) ────────────
       // Card persistente in cima alla discover: la "wow demo" che porta
       // l'utente a provare il riconoscimento cime AR. Priorita 99 cosi

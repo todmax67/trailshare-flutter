@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/models/discovery_prompt.dart';
 import '../../data/repositories/emergency_contacts_repository.dart';
+import '../../data/repositories/saved_peaks_repository.dart';
 import '../../data/repositories/tours_repository.dart';
 import '../../data/repositories/tracks_repository.dart';
 
@@ -25,14 +26,17 @@ class DiscoveryPromptService {
   final TracksRepository _tracksRepo;
   final ToursRepository _toursRepo;
   final EmergencyContactsRepository _contactsRepo;
+  final SavedPeaksRepository _peaksRepo;
 
   DiscoveryPromptService({
     TracksRepository? tracksRepo,
     ToursRepository? toursRepo,
     EmergencyContactsRepository? contactsRepo,
+    SavedPeaksRepository? peaksRepo,
   })  : _tracksRepo = tracksRepo ?? TracksRepository(),
         _toursRepo = toursRepo ?? ToursRepository(),
-        _contactsRepo = contactsRepo ?? EmergencyContactsRepository();
+        _contactsRepo = contactsRepo ?? EmergencyContactsRepository(),
+        _peaksRepo = peaksRepo ?? SavedPeaksRepository();
 
   /// Calcola lo snapshot in parallelo (tutte le letture avvengono
   /// simultaneamente tramite Future.wait).
@@ -42,10 +46,12 @@ class DiscoveryPromptService {
       _tracksRepo.getMyTracks(),
       _toursRepo.getMyTours(),
       _contactsRepo.getContacts(),
+      _peaksRepo.getAll(limit: 1), // ci basta sapere se ce ne sono
     ]);
     final tracks = results[0] as List;
     final tours = results[1] as List;
     final contacts = results[2] as List;
+    final peaks = results[3] as List;
 
     return UserActivitySnapshot(
       trackCount: tracks.length,
@@ -54,6 +60,7 @@ class DiscoveryPromptService {
       tourCount: tours.length,
       hasExportedFit: prefs.getBool(_fitExportedKey) ?? false,
       hasUsedPlanner: prefs.getBool(_plannerUsedKey) ?? false,
+      savedPeaksCount: peaks.length,
     );
   }
 
