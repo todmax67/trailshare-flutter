@@ -16,9 +16,11 @@ import '../../../core/services/pro_gate_service.dart';
 import '../../../core/utils/mountain_photo_renderer.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
+import '../../../data/repositories/saved_peaks_repository.dart';
 import '../../widgets/app_snackbar.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
+import 'peak_map_page.dart';
 
 /// **Mountain Finder AR** — punta il telefono e riconosci le cime.
 ///
@@ -86,6 +88,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
   /// True durante la cattura+annotazione foto (overlay loader).
   bool _processingCapture = false;
+
+  /// AR lock: quando true, ignoriamo i sensori e congeliamo la
+  /// proiezione corrente per permettere all'utente di leggere le
+  /// label senza muoversi. Toggle dall'icona lock nell'HUD.
+  bool _arLocked = false;
 
   @override
   void initState() {
@@ -200,7 +207,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       // fermo i pin si "ancorano" alle cime (alpha basso = molto smooth);
       // quando ruoti rapidamente, i pin seguono senza lag (alpha alto).
       _compassSub = FlutterCompass.events?.listen((event) {
-        if (!mounted) return;
+        if (!mounted || _arLocked) return;
         final raw = event.heading;
         if (raw == null) return;
         final normalized = raw < 0 ? raw + 360 : raw;
@@ -230,7 +237,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
       // Accelerometer: pitch del telefono con smoothing adattivo.
       _accelSub = accelerometerEventStream().listen((event) {
-        if (!mounted) return;
+        if (!mounted || _arLocked) return;
         final rawPitch = MountainProjection.pitchFromAccelerometer(
           event.x,
           event.y,
@@ -848,7 +855,24 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             ),
           ),
           const SizedBox(width: 8),
-          // Gear: apre la pagina di calibrazione FOV.
+          // AR lock: congela il puntamento per leggere le label.
+          Material(
+            color: _arLocked
+                ? AppColors.warning
+                : Colors.black.withValues(alpha: 0.5),
+            shape: const CircleBorder(),
+            child: IconButton(
+              onPressed: () => setState(() => _arLocked = !_arLocked),
+              icon: Icon(
+                _arLocked ? Icons.lock : Icons.lock_open,
+                color: Colors.white,
+              ),
+              tooltip: _arLocked
+                  ? context.l10n.mfArUnlock
+                  : context.l10n.mfArLock,
+            ),
+          ),
+          const SizedBox(width: 4),
           // Filtro distanza
           Material(
             color: Colors.black.withValues(alpha: 0.5),
@@ -1235,13 +1259,72 @@ class _LabelBox extends StatelessWidget {
 }
 
 /// Bottom sheet con i dettagli completi di una cima toccata nel viewfinder.
-class _PeakDetailSheet extends StatelessWidget {
+class _PeakDetailSheet extends StatefulWidget {
   final ProjectedPeak projected;
 
   const _PeakDetailSheet({required this.projected});
 
   @override
+  State<_PeakDetailSheet> createState() => _PeakDetailSheetState();
+}
+
+class _PeakDetailSheetState extends State<_PeakDetailSheet> {
+  final SavedPeaksRepository _savedRepo = SavedPeaksRepository();
+  bool _saved = false;
+  bool _loadingSave = false;
+  bool _toggling = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedState();
+  }
+
+  Future<void> _loadSavedState() async {
+    setState(() => _loadingSave = true);
+    final s = await _savedRepo.isSaved(widget.projected.peak.id);
+    if (!mounted) return;
+    setState(() {
+      _saved = s;
+      _loadingSave = false;
+    });
+  }
+
+  Future<void> _toggleSave() async {
+    if (_toggling) return;
+    setState(() => _toggling = true);
+    try {
+      final nowSaved = await _savedRepo.toggle(widget.projected.peak);
+      if (!mounted) return;
+      setState(() => _saved = nowSaved);
+      AppSnackBar.success(
+        context,
+        nowSaved
+            ? context.l10n.mfDetailSaveAdded
+            : context.l10n.mfDetailSaveRemoved,
+      );
+    } catch (e) {
+      debugPrint('[PeakDetail] toggle save error: $e');
+      if (mounted) {
+        AppSnackBar.error(context, context.l10n.mfDetailSaveError);
+      }
+    } finally {
+      if (mounted) setState(() => _toggling = false);
+    }
+  }
+
+  void _openOnMap() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PeakMapPage(peak: widget.projected.peak),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final projected = widget.projected;
     final p = projected.peak;
     final isVolcano = p.type == 'volcano';
     final accent = isVolcano ? AppColors.danger : AppColors.primary;
@@ -1387,21 +1470,69 @@ class _PeakDetailSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            // Pulsante OSM
+            // Salva cima + Apri mappa (riga di 2 pulsanti)
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed:
+                        (_toggling || _loadingSave) ? null : _toggleSave,
+                    icon: _toggling
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Icon(_saved
+                            ? Icons.bookmark
+                            : Icons.bookmark_outline),
+                    label: Text(
+                      _saved
+                          ? context.l10n.mfDetailSaved
+                          : context.l10n.mfDetailSave,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _saved ? accent : accent.withValues(alpha: 0.85),
+                      foregroundColor: Colors.white,
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _openOnMap,
+                    icon: const Icon(Icons.map_outlined),
+                    label: Text(context.l10n.mfDetailViewOnMap),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: BorderSide(
+                          color: accent.withValues(alpha: 0.5)),
+                      foregroundColor: accent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Pulsante OSM (secondario)
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
+              child: TextButton.icon(
                 onPressed: () => _openOsm(p, context),
-                icon: const Icon(Icons.public),
+                icon: const Icon(Icons.public, size: 18),
                 label: Text(context.l10n.mfDetailOpenOsm),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  side: BorderSide(color: accent.withValues(alpha: 0.5)),
-                  foregroundColor: accent,
+                style: TextButton.styleFrom(
+                  foregroundColor: context.textSecondary,
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Center(
               child: Text(
                 context.l10n.mfDetailDataSource,

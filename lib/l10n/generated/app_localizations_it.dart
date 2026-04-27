@@ -4407,6 +4407,33 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mfPhotoShareError => 'Impossibile condividere la foto';
 
   @override
+  String get mfArLock => 'Blocca puntamento';
+
+  @override
+  String get mfArUnlock => 'Sblocca puntamento';
+
+  @override
+  String get mfDetailSave => 'Salva cima';
+
+  @override
+  String get mfDetailSaved => 'Salvata';
+
+  @override
+  String get mfDetailSaveAdded => 'Cima salvata nei preferiti';
+
+  @override
+  String get mfDetailSaveRemoved => 'Cima rimossa dai preferiti';
+
+  @override
+  String get mfDetailSaveError => 'Operazione non riuscita';
+
+  @override
+  String get mfDetailViewOnMap => 'Apri sulla mappa';
+
+  @override
+  String get mapStyleTooltip => 'Stile mappa';
+
+  @override
   String get discoveryMountainTitle => 'Punta verso le montagne';
 
   @override

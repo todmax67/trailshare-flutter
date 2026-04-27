@@ -4388,6 +4388,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mfPhotoShareError => 'Unable to share the photo';
 
   @override
+  String get mfArLock => 'Lock pointing';
+
+  @override
+  String get mfArUnlock => 'Unlock pointing';
+
+  @override
+  String get mfDetailSave => 'Save peak';
+
+  @override
+  String get mfDetailSaved => 'Saved';
+
+  @override
+  String get mfDetailSaveAdded => 'Peak saved to your list';
+
+  @override
+  String get mfDetailSaveRemoved => 'Peak removed from your list';
+
+  @override
+  String get mfDetailSaveError => 'Operation failed';
+
+  @override
+  String get mfDetailViewOnMap => 'View on map';
+
+  @override
+  String get mapStyleTooltip => 'Map style';
+
+  @override
   String get discoveryMountainTitle => 'Point at the mountains';
 
   @override

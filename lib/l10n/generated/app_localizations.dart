@@ -7946,6 +7946,60 @@ abstract class AppLocalizations {
   /// **'Impossibile condividere la foto'**
   String get mfPhotoShareError;
 
+  /// No description provided for @mfArLock.
+  ///
+  /// In it, this message translates to:
+  /// **'Blocca puntamento'**
+  String get mfArLock;
+
+  /// No description provided for @mfArUnlock.
+  ///
+  /// In it, this message translates to:
+  /// **'Sblocca puntamento'**
+  String get mfArUnlock;
+
+  /// No description provided for @mfDetailSave.
+  ///
+  /// In it, this message translates to:
+  /// **'Salva cima'**
+  String get mfDetailSave;
+
+  /// No description provided for @mfDetailSaved.
+  ///
+  /// In it, this message translates to:
+  /// **'Salvata'**
+  String get mfDetailSaved;
+
+  /// No description provided for @mfDetailSaveAdded.
+  ///
+  /// In it, this message translates to:
+  /// **'Cima salvata nei preferiti'**
+  String get mfDetailSaveAdded;
+
+  /// No description provided for @mfDetailSaveRemoved.
+  ///
+  /// In it, this message translates to:
+  /// **'Cima rimossa dai preferiti'**
+  String get mfDetailSaveRemoved;
+
+  /// No description provided for @mfDetailSaveError.
+  ///
+  /// In it, this message translates to:
+  /// **'Operazione non riuscita'**
+  String get mfDetailSaveError;
+
+  /// No description provided for @mfDetailViewOnMap.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri sulla mappa'**
+  String get mfDetailViewOnMap;
+
+  /// No description provided for @mapStyleTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Stile mappa'**
+  String get mapStyleTooltip;
+
   /// No description provided for @discoveryMountainTitle.
   ///
   /// In it, this message translates to:
