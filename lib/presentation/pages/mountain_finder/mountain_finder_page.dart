@@ -49,8 +49,20 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   StreamSubscription<CompassEvent>? _compassSub;
   StreamSubscription<AccelerometerEvent>? _accelSub;
 
-  // Smoothing low-pass alpha (più basso = più fluido ma più lento)
-  static const double _alpha = 0.18;
+  // Smoothing low-pass adattivo: alpha basso (0.06) quando il telefono
+  // e' fermo → pin "ancorati", stabili. Alpha alto (0.30) quando si
+  // ruota rapidamente → pin reattivi. Lerp lineare in mezzo.
+  static const double _alphaMin = 0.06;
+  static const double _alphaMax = 0.30;
+  static const double _rateForMaxAlpha = 30.0; // °/s per alpha max
+  DateTime? _lastHeadingTime;
+  DateTime? _lastPitchTime;
+  double _lastRawPitch = 0;
+
+  double _adaptiveAlpha(double ratePerSec) {
+    final t = (ratePerSec / _rateForMaxAlpha).clamp(0.0, 1.0);
+    return _alphaMin + t * (_alphaMax - _alphaMin);
+  }
 
   List<ProjectedPeak> _visiblePeaks = const [];
 
@@ -184,27 +196,39 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         await _refreshCandidatePeaksIfNeeded(_userPosition!);
       }
 
-      // Compass: smoothing low-pass per evitare jitter delle label.
+      // Compass: smoothing low-pass ADATTIVO. Quando il telefono e'
+      // fermo i pin si "ancorano" alle cime (alpha basso = molto smooth);
+      // quando ruoti rapidamente, i pin seguono senza lag (alpha alto).
       _compassSub = FlutterCompass.events?.listen((event) {
         if (!mounted) return;
         final raw = event.heading;
         if (raw == null) return;
         final normalized = raw < 0 ? raw + 360 : raw;
+        final now = DateTime.now();
         final prev = _heading;
-        // Gestisci wraparound 359°→0°
-        double smoothed;
         if (prev == null) {
-          smoothed = normalized;
-        } else {
-          double delta = normalized - prev;
-          if (delta > 180) delta -= 360;
-          if (delta < -180) delta += 360;
-          smoothed = (prev + _alpha * delta + 360) % 360;
+          _heading = normalized;
+          _lastHeadingTime = now;
+          setState(() {});
+          return;
         }
+        // Gestisci wraparound 359°→0°
+        double delta = normalized - prev;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        // Calcola la velocità angolare per alpha adattivo
+        final dt = _lastHeadingTime == null
+            ? 0.05
+            : (now.difference(_lastHeadingTime!).inMilliseconds / 1000.0)
+                .clamp(0.01, 0.5);
+        final rate = (delta / dt).abs();
+        final alpha = _adaptiveAlpha(rate);
+        final smoothed = (prev + alpha * delta + 360) % 360;
+        _lastHeadingTime = now;
         setState(() => _heading = smoothed);
       });
 
-      // Accelerometer: pitch del telefono (smoothed).
+      // Accelerometer: pitch del telefono con smoothing adattivo.
       _accelSub = accelerometerEventStream().listen((event) {
         if (!mounted) return;
         final rawPitch = MountainProjection.pitchFromAccelerometer(
@@ -212,7 +236,16 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           event.y,
           event.z,
         );
-        final smoothed = _pitchDeg + _alpha * (rawPitch - _pitchDeg);
+        final now = DateTime.now();
+        final dt = _lastPitchTime == null
+            ? 0.05
+            : (now.difference(_lastPitchTime!).inMilliseconds / 1000.0)
+                .clamp(0.01, 0.5);
+        final rate = ((rawPitch - _lastRawPitch) / dt).abs();
+        final alpha = _adaptiveAlpha(rate);
+        final smoothed = _pitchDeg + alpha * (rawPitch - _pitchDeg);
+        _lastRawPitch = rawPitch;
+        _lastPitchTime = now;
         setState(() => _pitchDeg = smoothed);
       });
 

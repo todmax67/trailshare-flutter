@@ -53,8 +53,21 @@ class _MountainFinderCalibrationPageState
   StreamSubscription<CompassEvent>? _compassSub;
   StreamSubscription<AccelerometerEvent>? _accelSub;
 
-  static const double _alpha = 0.18;
+  // Smoothing adattivo: vedi MountainFinderPage per il razionale.
+  // In calibrazione vogliamo i pin il più reattivi possibile per
+  // valutare l'allineamento, quindi range leggermente più alto.
+  static const double _alphaMin = 0.08;
+  static const double _alphaMax = 0.35;
+  static const double _rateForMaxAlpha = 30.0;
   static const double _candidateRadiusKm = 60;
+  DateTime? _lastHeadingTime;
+  DateTime? _lastPitchTime;
+  double _lastRawPitch = 0;
+
+  double _adaptiveAlpha(double ratePerSec) {
+    final t = (ratePerSec / _rateForMaxAlpha).clamp(0.0, 1.0);
+    return _alphaMin + t * (_alphaMax - _alphaMin);
+  }
 
   // Zoom (replica di MountainFinderPage per fine-tuning anche in calibrazione)
   double _zoomLevel = 1.0;
@@ -145,16 +158,25 @@ class _MountainFinderCalibrationPageState
         final raw = event.heading;
         if (raw == null) return;
         final normalized = raw < 0 ? raw + 360 : raw;
+        final now = DateTime.now();
         final prev = _heading;
-        double smoothed;
         if (prev == null) {
-          smoothed = normalized;
-        } else {
-          double delta = normalized - prev;
-          if (delta > 180) delta -= 360;
-          if (delta < -180) delta += 360;
-          smoothed = (prev + _alpha * delta + 360) % 360;
+          _heading = normalized;
+          _lastHeadingTime = now;
+          setState(() {});
+          return;
         }
+        double delta = normalized - prev;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        final dt = _lastHeadingTime == null
+            ? 0.05
+            : (now.difference(_lastHeadingTime!).inMilliseconds / 1000.0)
+                .clamp(0.01, 0.5);
+        final rate = (delta / dt).abs();
+        final alpha = _adaptiveAlpha(rate);
+        final smoothed = (prev + alpha * delta + 360) % 360;
+        _lastHeadingTime = now;
         setState(() => _heading = smoothed);
       });
 
@@ -165,7 +187,16 @@ class _MountainFinderCalibrationPageState
           event.y,
           event.z,
         );
-        final smoothed = _pitchDeg + _alpha * (rawPitch - _pitchDeg);
+        final now = DateTime.now();
+        final dt = _lastPitchTime == null
+            ? 0.05
+            : (now.difference(_lastPitchTime!).inMilliseconds / 1000.0)
+                .clamp(0.01, 0.5);
+        final rate = ((rawPitch - _lastRawPitch) / dt).abs();
+        final alpha = _adaptiveAlpha(rate);
+        final smoothed = _pitchDeg + alpha * (rawPitch - _pitchDeg);
+        _lastRawPitch = rawPitch;
+        _lastPitchTime = now;
         setState(() => _pitchDeg = smoothed);
       });
 
