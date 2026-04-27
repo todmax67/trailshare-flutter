@@ -264,12 +264,21 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   }
 
   /// Apre un bottom sheet con i dettagli completi della cima toccata.
+  /// In landscape l'altezza disponibile e' ridotta: usiamo
+  /// `isScrollControlled` + scroll interno cosi il contenuto resta sempre
+  /// raggiungibile.
   void _showPeakDetail(ProjectedPeak p) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      // Limitiamo l'altezza max al 90% per lasciare visibile il backdrop.
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
       builder: (ctx) => _PeakDetailSheet(projected: p),
     );
@@ -825,13 +834,18 @@ class _PeakDetailSheet extends StatelessWidget {
     final isVolcano = p.type == 'volcano';
     final accent = isVolcano ? AppColors.danger : AppColors.primary;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return SingleChildScrollView(
+      // Padding bottom dinamico per IME / safe-area in landscape.
+      padding: EdgeInsets.fromLTRB(
+        20,
+        12,
+        20,
+        20 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
             // Drag handle
             Center(
               child: Container(
@@ -987,7 +1001,6 @@ class _PeakDetailSheet extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 
