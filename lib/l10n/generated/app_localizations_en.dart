@@ -4285,6 +4285,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mfDebugWaitingGps => 'Waiting for GPS…';
 
   @override
+  String get mfNoPeaksInView => 'Rotate your phone to find peaks';
+
+  @override
+  String mfPeaksInView(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count peaks identified',
+      one: '1 peak identified',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get discoveryMountainTitle => 'Point at the mountains';
 
   @override

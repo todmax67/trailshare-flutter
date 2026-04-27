@@ -1508,6 +1508,9 @@
   "mfCameraNotAvailable": "Camera not available on this device",
   "mfDebugTitle": "DEBUG · 5 NEAREST PEAKS",
   "mfDebugWaitingGps": "Waiting for GPS…",
+  "mfNoPeaksInView": "Rotate your phone to find peaks",
+  "mfPeaksInView": "{count, plural, =1{1 peak identified} other{{count} peaks identified}}",
+  "@mfPeaksInView": { "placeholders": { "count": {"type": "int"} } },
 
   "discoveryMountainTitle": "Point at the mountains",
   "discoveryMountainDesc": "Open the camera and discover peak names around you. Works anywhere in Italy.",

@@ -7796,6 +7796,18 @@ abstract class AppLocalizations {
   /// **'In attesa del GPS…'**
   String get mfDebugWaitingGps;
 
+  /// No description provided for @mfNoPeaksInView.
+  ///
+  /// In it, this message translates to:
+  /// **'Ruota il telefono per cercare le cime'**
+  String get mfNoPeaksInView;
+
+  /// No description provided for @mfPeaksInView.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{1 cima riconosciuta} other{{count} cime riconosciute}}'**
+  String mfPeaksInView(int count);
+
   /// No description provided for @discoveryMountainTitle.
   ///
   /// In it, this message translates to:

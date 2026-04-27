@@ -1508,6 +1508,9 @@
   "mfCameraNotAvailable": "Fotocamera non disponibile su questo dispositivo",
   "mfDebugTitle": "DEBUG · 5 CIME PIÙ VICINE",
   "mfDebugWaitingGps": "In attesa del GPS…",
+  "mfNoPeaksInView": "Ruota il telefono per cercare le cime",
+  "mfPeaksInView": "{count, plural, =1{1 cima riconosciuta} other{{count} cime riconosciute}}",
+  "@mfPeaksInView": { "placeholders": { "count": {"type": "int"} } },
 
   "discoveryMountainTitle": "Punta verso le montagne",
   "discoveryMountainDesc": "Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.",

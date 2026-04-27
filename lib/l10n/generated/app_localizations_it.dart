@@ -4304,6 +4304,20 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mfDebugWaitingGps => 'In attesa del GPS…';
 
   @override
+  String get mfNoPeaksInView => 'Ruota il telefono per cercare le cime';
+
+  @override
+  String mfPeaksInView(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cime riconosciute',
+      one: '1 cima riconosciuta',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get discoveryMountainTitle => 'Punta verso le montagne';
 
   @override

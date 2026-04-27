@@ -1,29 +1,25 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
 
-/// **Mountain Finder AR** — schermata "punta il telefono e riconosci le cime".
+/// **Mountain Finder AR** — punta il telefono e riconosci le cime.
 ///
-/// **Step 1 (v2.0.0)**: scaffolding tecnico.
-/// Mostra:
-/// - preview live della fotocamera posteriore
-/// - GPS dell'utente
-/// - heading dalla bussola
-/// - lista debug delle 5 cime più vicine fra [famousItalianPeaks]
+/// **Step 2 (v2.0.0)**: math di proiezione AR completa.
+/// I pin sono posizionati correttamente sopra le cime nella camera live
+/// usando bearing (bussola) + pitch (accelerometro) + altitudine cima.
 ///
-/// La math di proiezione (bearing → x viewport, altitude+distance → y) e
-/// l'overlay AR sui peak verranno implementati nello Step 2. Qui ci
-/// limitiamo a verificare che camera + sensori + GPS funzionino sui
-/// dispositivi reali.
+/// In Step 3 il dataset hardcoded sarà sostituito da quello OSM completo
+/// (~12k cime italiane) caricato come asset bundled.
 class MountainFinderPage extends StatefulWidget {
   const MountainFinderPage({super.key});
 
@@ -31,25 +27,28 @@ class MountainFinderPage extends StatefulWidget {
   State<MountainFinderPage> createState() => _MountainFinderPageState();
 }
 
-class _MountainFinderPageState extends State<MountainFinderPage>
-    with WidgetsBindingObserver {
+class _MountainFinderPageState extends State<MountainFinderPage> {
   CameraController? _camera;
   bool _initializing = true;
   String? _error;
 
   // Sensor state
   Position? _userPosition;
-  double? _heading; // gradi 0-360, 0 = Nord
+  double? _heading; // 0..360, 0 = Nord (smoothed)
+  double _pitchDeg = 0; // -90..+90, 0 = orizzonte (smoothed)
+
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<CompassEvent>? _compassSub;
+  StreamSubscription<AccelerometerEvent>? _accelSub;
 
-  // Debug: le 5 cime più vicine all'utente.
-  List<_NearbyPeak> _nearbyPeaks = const [];
+  // Smoothing low-pass alpha (più basso = più fluido ma più lento)
+  static const double _alpha = 0.18;
+
+  List<ProjectedPeak> _visiblePeaks = const [];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBindingObserver;
     _bootstrap();
   }
 
@@ -57,16 +56,17 @@ class _MountainFinderPageState extends State<MountainFinderPage>
   void dispose() {
     _positionSub?.cancel();
     _compassSub?.cancel();
+    _accelSub?.cancel();
     _camera?.dispose();
     super.dispose();
   }
 
   Future<void> _bootstrap() async {
     try {
-      // Camera permission e inizializzazione (la permission Camera è
-      // gestita dal plugin in modo cross-platform al primo accesso).
+      // Camera
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
+        if (!mounted) return;
         setState(() {
           _initializing = false;
           _error = context.l10n.mfCameraNotAvailable;
@@ -85,7 +85,7 @@ class _MountainFinderPageState extends State<MountainFinderPage>
       );
       await _camera!.initialize();
 
-      // GPS: prima posizione + stream.
+      // GPS — prima posizione + stream.
       try {
         _userPosition = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
@@ -93,40 +93,55 @@ class _MountainFinderPageState extends State<MountainFinderPage>
             timeLimit: Duration(seconds: 10),
           ),
         );
-      } catch (_) {
-        // proseguiamo anche senza posizione iniziale
-      }
+      } catch (_) {}
       _positionSub = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
           distanceFilter: 5,
         ),
-      ).listen(
-        (pos) {
-          if (!mounted) return;
-          setState(() {
-            _userPosition = pos;
-            _nearbyPeaks = _computeNearby(pos);
-          });
-        },
-      );
-
-      // Compass.
-      _compassSub = FlutterCompass.events?.listen((event) {
+      ).listen((pos) {
         if (!mounted) return;
-        final h = event.heading;
-        if (h == null) return;
-        // FlutterCompass restituisce -180..180; normalizzo a 0..360
-        final normalized = h < 0 ? h + 360 : h;
-        setState(() => _heading = normalized);
+        setState(() => _userPosition = pos);
+        _recomputeProjection();
       });
 
-      if (_userPosition != null) {
-        _nearbyPeaks = _computeNearby(_userPosition!);
-      }
+      // Compass: smoothing low-pass per evitare jitter delle label.
+      _compassSub = FlutterCompass.events?.listen((event) {
+        if (!mounted) return;
+        final raw = event.heading;
+        if (raw == null) return;
+        final normalized = raw < 0 ? raw + 360 : raw;
+        final prev = _heading;
+        // Gestisci wraparound 359°→0°
+        double smoothed;
+        if (prev == null) {
+          smoothed = normalized;
+        } else {
+          double delta = normalized - prev;
+          if (delta > 180) delta -= 360;
+          if (delta < -180) delta += 360;
+          smoothed = (prev + _alpha * delta + 360) % 360;
+        }
+        setState(() => _heading = smoothed);
+        _recomputeProjection();
+      });
+
+      // Accelerometer: pitch del telefono (smoothed).
+      _accelSub = accelerometerEventStream().listen((event) {
+        if (!mounted) return;
+        final rawPitch = MountainProjection.pitchFromAccelerometer(
+          event.x,
+          event.y,
+          event.z,
+        );
+        final smoothed = _pitchDeg + _alpha * (rawPitch - _pitchDeg);
+        setState(() => _pitchDeg = smoothed);
+        _recomputeProjection();
+      });
 
       if (!mounted) return;
       setState(() => _initializing = false);
+      _recomputeProjection();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -136,57 +151,27 @@ class _MountainFinderPageState extends State<MountainFinderPage>
     }
   }
 
-  /// Calcola le 5 cime più vicine alla posizione utente. In Step 1 usa il
-  /// dataset hardcoded; in Step 3 sarà sostituito dal dataset OSM full.
-  List<_NearbyPeak> _computeNearby(Position pos) {
-    final list = famousItalianPeaks
-        .map((p) => _NearbyPeak(
-              peak: p,
-              distanceMeters: _haversine(
-                pos.latitude,
-                pos.longitude,
-                p.latitude,
-                p.longitude,
-              ),
-              bearingDeg: _initialBearing(
-                pos.latitude,
-                pos.longitude,
-                p.latitude,
-                p.longitude,
-              ),
-            ))
-        .toList()
-      ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
-    return list.take(5).toList();
-  }
+  /// Ricalcola le cime visibili date posizione/heading/pitch correnti e
+  /// dimensioni del viewport (ottenute dal LayoutBuilder).
+  void _recomputeProjection({Size? viewport}) {
+    final pos = _userPosition;
+    final heading = _heading;
+    if (pos == null || heading == null || viewport == null) return;
 
-  // Haversine: distanza tra due lat/lng in metri.
-  double _haversine(double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371000.0;
-    final dLat = _toRad(lat2 - lat1);
-    final dLng = _toRad(lng2 - lng1);
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(_toRad(lat1)) *
-            math.cos(_toRad(lat2)) *
-            math.sin(dLng / 2) *
-            math.sin(dLng / 2);
-    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-  }
+    final visible = MountainProjection.projectAll(
+      peaks: famousItalianPeaks,
+      observerLat: pos.latitude,
+      observerLng: pos.longitude,
+      observerAltitudeMeters: pos.altitude,
+      phoneHeadingDeg: heading,
+      phonePitchDeg: _pitchDeg,
+      viewport: viewport,
+      maxVisible: 5,
+    );
 
-  /// Bearing iniziale da p1 a p2 in gradi (0 = Nord).
-  double _initialBearing(
-      double lat1, double lng1, double lat2, double lng2) {
-    final y = math.sin(_toRad(lng2 - lng1)) * math.cos(_toRad(lat2));
-    final x = math.cos(_toRad(lat1)) * math.sin(_toRad(lat2)) -
-        math.sin(_toRad(lat1)) *
-            math.cos(_toRad(lat2)) *
-            math.cos(_toRad(lng2 - lng1));
-    final brng = _toDeg(math.atan2(y, x));
-    return (brng + 360) % 360;
+    if (!mounted) return;
+    setState(() => _visiblePeaks = visible);
   }
-
-  double _toRad(double deg) => deg * math.pi / 180;
-  double _toDeg(double rad) => rad * 180 / math.pi;
 
   @override
   Widget build(BuildContext context) {
@@ -202,20 +187,20 @@ class _MountainFinderPageState extends State<MountainFinderPage>
             else if (_error != null)
               _buildError(_error!)
             else if (_camera != null && _camera!.value.isInitialized)
-              _buildCameraPreview()
+              _buildCameraWithOverlay()
             else
               const SizedBox.shrink(),
 
-            // HUD: titolo + stato sensori (sempre visibile).
+            // HUD top
             _buildTopHUD(),
 
-            // Debug card: lista 5 cime più vicine.
+            // Card info in basso (X cime visibili)
             if (!_initializing && _error == null)
               Positioned(
                 left: 12,
                 right: 12,
                 bottom: 12,
-                child: _buildDebugCard(),
+                child: _buildInfoCard(),
               ),
           ],
         ),
@@ -223,12 +208,63 @@ class _MountainFinderPageState extends State<MountainFinderPage>
     );
   }
 
-  Widget _buildCameraPreview() {
-    return Positioned.fill(
-      child: AspectRatio(
-        aspectRatio: _camera!.value.aspectRatio,
-        child: CameraPreview(_camera!),
-      ),
+  Widget _buildCameraWithOverlay() {
+    // LayoutBuilder fornisce le dimensioni reali del viewport e ricalcoliamo
+    // la proiezione ogni volta che cambia (rotation, etc.).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+        final pos = _userPosition;
+        final heading = _heading;
+
+        // Ricalcola sincrono con la dimensione corrente. L'output viene
+        // applicato in setState dal sensor listener; qui semplicemente
+        // ri-proiettiamo in tempo reale per ridurre latenza.
+        final projected = (pos != null && heading != null)
+            ? MountainProjection.projectAll(
+                peaks: famousItalianPeaks,
+                observerLat: pos.latitude,
+                observerLng: pos.longitude,
+                observerAltitudeMeters: pos.altitude,
+                phoneHeadingDeg: heading,
+                phonePitchDeg: _pitchDeg,
+                viewport: viewport,
+                maxVisible: 5,
+              )
+            : <ProjectedPeak>[];
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // Camera preview "fill" (nasconde le bande nere).
+            Positioned.fill(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _camera!.value.previewSize?.height ?? viewport.width,
+                  height: _camera!.value.previewSize?.width ?? viewport.height,
+                  child: CameraPreview(_camera!),
+                ),
+              ),
+            ),
+
+            // Reticolo centrale (mirino).
+            const Center(
+              child: _Crosshair(),
+            ),
+
+            // Pin AR per le cime visibili.
+            for (final p in projected)
+              Positioned(
+                left: p.screenX - 80,
+                top: p.screenY - 50,
+                width: 160,
+                height: 100,
+                child: _PeakPin(projected: p, viewport: viewport),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -239,7 +275,6 @@ class _MountainFinderPageState extends State<MountainFinderPage>
       right: 8,
       child: Row(
         children: [
-          // Back
           Material(
             color: Colors.black.withValues(alpha: 0.5),
             shape: const CircleBorder(),
@@ -252,16 +287,14 @@ class _MountainFinderPageState extends State<MountainFinderPage>
           const SizedBox(width: 8),
           Expanded(
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.terrain,
-                      color: Colors.white, size: 18),
+                  const Icon(Icons.terrain, color: Colors.white, size: 18),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -275,13 +308,14 @@ class _MountainFinderPageState extends State<MountainFinderPage>
                     ),
                   ),
                   const SizedBox(width: 8),
+                  // Bearing live + pitch (debug).
                   Text(
                     _heading != null
-                        ? '${_heading!.toStringAsFixed(0)}°'
+                        ? '${_heading!.toStringAsFixed(0)}° · ${_pitchDeg.toStringAsFixed(0)}°'
                         : '—°',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       fontFeatures: [FontFeature.tabularFigures()],
                     ),
@@ -328,130 +362,44 @@ class _MountainFinderPageState extends State<MountainFinderPage>
     );
   }
 
-  Widget _buildDebugCard() {
-    final pos = _userPosition;
+  Widget _buildInfoCard() {
+    final count = _visiblePeaks.length;
     final scheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: scheme.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: context.themedBorder),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.bug_report_outlined,
-                  size: 16, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text(
-                context.l10n.mfDebugTitle,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: AppColors.primary,
-                ),
-              ),
-              const Spacer(),
-              if (pos != null)
-                Text(
-                  '${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: context.textMuted,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (_nearbyPeaks.isEmpty)
-            Text(
-              context.l10n.mfDebugWaitingGps,
-              style: TextStyle(
-                fontSize: 12,
-                color: context.textSecondary,
-                fontStyle: FontStyle.italic,
-              ),
-            )
-          else
-            ..._nearbyPeaks.map((np) => _buildPeakRow(np)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPeakRow(_NearbyPeak np) {
-    final relativeBearing = _heading == null
-        ? null
-        : ((np.bearingDeg - _heading!) + 540) % 360 - 180; // -180..180
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Icon(
-            np.peak.type == 'volcano' ? Icons.local_fire_department : Icons.terrain,
-            size: 16,
-            color: np.peak.type == 'volcano'
-                ? AppColors.danger
-                : AppColors.primary,
+            count > 0 ? Icons.check_circle : Icons.search,
+            size: 18,
+            color: count > 0 ? AppColors.success : context.textMuted,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  np.peak.name,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: context.textPrimary,
-                  ),
-                ),
-                Text(
-                  '${(np.distanceMeters / 1000).toStringAsFixed(1)} km · '
-                  '${np.bearingDeg.toStringAsFixed(0)}°'
-                  '${np.peak.elevation != null ? ' · ${np.peak.elevation!.round()} m' : ''}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: context.textMuted,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ],
+            child: Text(
+              count == 0
+                  ? context.l10n.mfNoPeaksInView
+                  : context.l10n.mfPeaksInView(count),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: context.textPrimary,
+              ),
             ),
           ),
-          if (relativeBearing != null)
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: relativeBearing.abs() < 30
-                    ? AppColors.success.withValues(alpha: 0.18)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: relativeBearing.abs() < 30
-                      ? AppColors.success
-                      : context.themedBorder,
-                ),
-              ),
-              child: Text(
-                '${relativeBearing > 0 ? '→' : '←'} ${relativeBearing.abs().toStringAsFixed(0)}°',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: relativeBearing.abs() < 30
-                      ? AppColors.success
-                      : context.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+          if (_userPosition != null)
+            Text(
+              '${(_userPosition!.altitude).toStringAsFixed(0)} m',
+              style: TextStyle(
+                fontSize: 12,
+                color: context.textMuted,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
         ],
@@ -460,15 +408,132 @@ class _MountainFinderPageState extends State<MountainFinderPage>
   }
 }
 
-/// Peak con distanza e bearing pre-calcolati rispetto alla posizione utente.
-class _NearbyPeak {
-  final MountainPeak peak;
-  final double distanceMeters;
-  final double bearingDeg;
+/// Mirino centrale per aiutare l'utente ad allineare lo sguardo.
+class _Crosshair extends StatelessWidget {
+  const _Crosshair();
 
-  const _NearbyPeak({
-    required this.peak,
-    required this.distanceMeters,
-    required this.bearingDeg,
-  });
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 60,
+      height: 60,
+      child: CustomPaint(
+        painter: _CrosshairPainter(),
+      ),
+    );
+  }
+}
+
+class _CrosshairPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.6)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    // Cerchio sottile
+    canvas.drawCircle(Offset(cx, cy), 18, paint);
+
+    // 4 tick a croce
+    final tick = Paint()
+      ..color = Colors.white.withValues(alpha: 0.6)
+      ..strokeWidth = 2;
+    canvas.drawLine(Offset(cx - 6, cy), Offset(cx + 6, cy), tick);
+    canvas.drawLine(Offset(cx, cy - 6), Offset(cx, cy + 6), tick);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Pin di una cima nel viewport AR.
+class _PeakPin extends StatelessWidget {
+  final ProjectedPeak projected;
+  final Size viewport;
+
+  const _PeakPin({required this.projected, required this.viewport});
+
+  @override
+  Widget build(BuildContext context) {
+    final centered = projected.isCentered(viewport);
+    final isVolcano = projected.peak.type == 'volcano';
+    final accent =
+        isVolcano ? AppColors.danger : (centered ? AppColors.warning : Colors.white);
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Label compatta
+        Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: centered ? 0.85 : 0.6),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: accent.withValues(alpha: 0.7),
+              width: centered ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                projected.peak.name,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: centered ? 13 : 12,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 1),
+              Text(
+                _subtitle(projected),
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Pin punto + linea
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: accent,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _subtitle(ProjectedPeak p) {
+    final ele = p.peak.elevation;
+    final dist = p.distanceMeters / 1000;
+    final distStr =
+        dist < 10 ? dist.toStringAsFixed(1) : dist.toStringAsFixed(0);
+    if (ele == null) return '$distStr km';
+    return '${ele.round()} m · $distStr km';
+  }
 }
