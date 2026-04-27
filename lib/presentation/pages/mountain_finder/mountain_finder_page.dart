@@ -9,6 +9,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/peaks_dataset_service.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
 
@@ -46,6 +47,18 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
   List<ProjectedPeak> _visiblePeaks = const [];
 
+  /// Cime candidate (entro 60 km dalla posizione utente). Aggiornata quando
+  /// la posizione si sposta significativamente. Tipicamente ~50-300 cime,
+  /// quindi `projectAll` su questo subset è praticamente gratis.
+  List<MountainPeak> _candidatePeaks = const [];
+
+  /// Ultima posizione usata per calcolare le candidate. Quando l'utente si
+  /// sposta più di 5 km ricomputiamo il subset (evitiamo lavoro inutile
+  /// per piccoli aggiornamenti GPS).
+  Position? _lastCandidatePosition;
+  static const double _candidateRefreshThresholdMeters = 5000;
+  static const double _candidateRadiusKm = 60;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +76,9 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
   Future<void> _bootstrap() async {
     try {
+      // Pre-carica il dataset OSM (in parallelo con camera/GPS).
+      unawaited(PeaksDatasetService().ensureLoaded());
+
       // Camera
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -99,11 +115,15 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           accuracy: LocationAccuracy.best,
           distanceFilter: 5,
         ),
-      ).listen((pos) {
+      ).listen((pos) async {
         if (!mounted) return;
         setState(() => _userPosition = pos);
-        _recomputeProjection();
+        await _refreshCandidatePeaksIfNeeded(pos);
       });
+
+      if (_userPosition != null) {
+        await _refreshCandidatePeaksIfNeeded(_userPosition!);
+      }
 
       // Compass: smoothing low-pass per evitare jitter delle label.
       _compassSub = FlutterCompass.events?.listen((event) {
@@ -123,7 +143,6 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           smoothed = (prev + _alpha * delta + 360) % 360;
         }
         setState(() => _heading = smoothed);
-        _recomputeProjection();
       });
 
       // Accelerometer: pitch del telefono (smoothed).
@@ -136,12 +155,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         );
         final smoothed = _pitchDeg + _alpha * (rawPitch - _pitchDeg);
         setState(() => _pitchDeg = smoothed);
-        _recomputeProjection();
       });
 
       if (!mounted) return;
       setState(() => _initializing = false);
-      _recomputeProjection();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -151,26 +168,43 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     }
   }
 
-  /// Ricalcola le cime visibili date posizione/heading/pitch correnti e
-  /// dimensioni del viewport (ottenute dal LayoutBuilder).
-  void _recomputeProjection({Size? viewport}) {
-    final pos = _userPosition;
-    final heading = _heading;
-    if (pos == null || heading == null || viewport == null) return;
+  /// Aggiorna [_candidatePeaks] interrogando il dataset OSM con la
+  /// posizione data, ma solo se l'utente si è spostato più di
+  /// [_candidateRefreshThresholdMeters] dall'ultimo aggiornamento.
+  Future<void> _refreshCandidatePeaksIfNeeded(Position pos) async {
+    final last = _lastCandidatePosition;
+    if (last != null) {
+      final moved = Geolocator.distanceBetween(
+        last.latitude,
+        last.longitude,
+        pos.latitude,
+        pos.longitude,
+      );
+      if (moved < _candidateRefreshThresholdMeters &&
+          _candidatePeaks.isNotEmpty) {
+        return;
+      }
+    }
 
-    final visible = MountainProjection.projectAll(
-      peaks: famousItalianPeaks,
-      observerLat: pos.latitude,
-      observerLng: pos.longitude,
-      observerAltitudeMeters: pos.altitude,
-      phoneHeadingDeg: heading,
-      phonePitchDeg: _pitchDeg,
-      viewport: viewport,
-      maxVisible: 5,
+    final ds = PeaksDatasetService();
+    if (!ds.isLoaded) {
+      await ds.ensureLoaded();
+    }
+    final candidates = ds.findWithinRadius(
+      pos.latitude,
+      pos.longitude,
+      radiusKm: _candidateRadiusKm,
     );
-
     if (!mounted) return;
-    setState(() => _visiblePeaks = visible);
+    setState(() {
+      _candidatePeaks = candidates.isEmpty
+          // Fallback ai peak iconici se il dataset è vuoto / offline
+          ? famousItalianPeaks
+          : candidates;
+      _lastCandidatePosition = pos;
+    });
+    debugPrint('[MountainFinder] candidate peaks aggiornate: '
+        '${_candidatePeaks.length} entro ${_candidateRadiusKm}km');
   }
 
   @override
@@ -222,7 +256,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         // ri-proiettiamo in tempo reale per ridurre latenza.
         final projected = (pos != null && heading != null)
             ? MountainProjection.projectAll(
-                peaks: famousItalianPeaks,
+                peaks: _candidatePeaks,
                 observerLat: pos.latitude,
                 observerLng: pos.longitude,
                 observerAltitudeMeters: pos.altitude,
@@ -232,6 +266,15 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                 maxVisible: 5,
               )
             : <ProjectedPeak>[];
+
+        // Riallinea il count per la info card al prossimo frame.
+        if (projected.length != _visiblePeaks.length) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && projected.length != _visiblePeaks.length) {
+              setState(() => _visiblePeaks = projected);
+            }
+          });
+        }
 
         return Stack(
           fit: StackFit.expand,

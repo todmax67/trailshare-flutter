@@ -103,4 +103,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/
+    - assets/data/peaks_italy.json
 
