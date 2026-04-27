@@ -50,6 +50,13 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
   List<ProjectedPeak> _visiblePeaks = const [];
 
+  // Zoom camera: lo zoom effettivo cambia il FOV. A 2x zoom il FOV si
+  // dimezza, quindi i pin vanno riposizionati di conseguenza.
+  double _zoomLevel = 1.0;
+  double _baseZoom = 1.0; // Snapshot allo start del pinch
+  double _minZoom = 1.0;
+  double _maxZoom = 1.0;
+
   /// Cime candidate (entro 60 km dalla posizione utente). Aggiornata quando
   /// la posizione si sposta significativamente. Tipicamente ~50-300 cime,
   /// quindi `projectAll` su questo subset è praticamente gratis.
@@ -112,6 +119,17 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
       await _camera!.initialize();
+
+      // Zoom range: tipicamente 1x → 8/10x sui dispositivi moderni.
+      try {
+        _minZoom = await _camera!.getMinZoomLevel();
+        _maxZoom = await _camera!.getMaxZoomLevel();
+        // Cap pratico: oltre 6x la qualita' digitale e' troppo bassa.
+        _maxZoom = _maxZoom.clamp(_minZoom, 6.0);
+      } catch (_) {
+        // Su alcuni device il plugin non espone questi metodi: lasciamo
+        // i default (1.0, 1.0) che disabilitano il pinch-to-zoom.
+      }
 
       // GPS — prima posizione + stream.
       try {
@@ -382,6 +400,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         // applicato in setState dal sensor listener; qui semplicemente
         // ri-proiettiamo in tempo reale per ridurre latenza.
         final settings = MountainFinderSettings();
+        // FOV effettivo = FOV calibrato / zoom level. A 2x lo zoom dimezza
+        // l'angolo visibile, quindi i pin nel cono FOV diventano meno ma
+        // piu' precisi (le cime fuori non vengono piu' proiettate).
+        final effectiveHFov = settings.horizontalFovDeg / _zoomLevel;
+        final effectiveVFov = settings.verticalFovDeg / _zoomLevel;
         final projected = (pos != null && heading != null)
             ? MountainProjection.projectAll(
                 peaks: _candidatePeaks,
@@ -392,8 +415,8 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                 phonePitchDeg: _pitchDeg,
                 viewport: viewport,
                 maxVisible: 5,
-                horizontalFovDeg: settings.horizontalFovDeg,
-                verticalFovDeg: settings.verticalFovDeg,
+                horizontalFovDeg: effectiveHFov,
+                verticalFovDeg: effectiveVFov,
               )
             : <ProjectedPeak>[];
 
@@ -409,14 +432,38 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         return Stack(
           fit: StackFit.expand,
           children: [
-            // Camera preview "fill" (nasconde le bande nere).
+            // Camera preview "fill" (nasconde le bande nere). Avvolta in
+            // GestureDetector per il pinch-to-zoom.
             Positioned.fill(
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: _camera!.value.previewSize?.height ?? viewport.width,
-                  height: _camera!.value.previewSize?.width ?? viewport.height,
-                  child: CameraPreview(_camera!),
+              child: GestureDetector(
+                onScaleStart: (_) {
+                  _baseZoom = _zoomLevel;
+                },
+                onScaleUpdate: (details) {
+                  if (_maxZoom <= _minZoom) return; // device senza zoom
+                  final next = (_baseZoom * details.scale)
+                      .clamp(_minZoom, _maxZoom);
+                  if ((next - _zoomLevel).abs() < 0.02) return;
+                  _zoomLevel = next;
+                  _camera?.setZoomLevel(next);
+                  setState(() {});
+                },
+                onDoubleTap: () {
+                  // Doppio tap: toggle 1x / 2x rapido
+                  final target = _zoomLevel > 1.5
+                      ? _minZoom
+                      : (2.0).clamp(_minZoom, _maxZoom);
+                  _zoomLevel = target;
+                  _camera?.setZoomLevel(target);
+                  setState(() {});
+                },
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _camera!.value.previewSize?.height ?? viewport.width,
+                    height: _camera!.value.previewSize?.width ?? viewport.height,
+                    child: CameraPreview(_camera!),
+                  ),
                 ),
               ),
             ),
@@ -430,6 +477,22 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             // animate. Le label si impilano verticalmente quando le cime
             // sono allineate sullo stesso bearing per evitare overlap.
             ..._buildPinLayer(projected),
+
+            // Indicatore zoom: visibile solo quando zoom > 1.05x.
+            if (_zoomLevel > 1.05)
+              Positioned(
+                top: 70,
+                left: 0,
+                right: 0,
+                child: Center(child: _ZoomChip(
+                  level: _zoomLevel,
+                  onReset: () {
+                    _zoomLevel = _minZoom;
+                    _camera?.setZoomLevel(_minZoom);
+                    setState(() {});
+                  },
+                )),
+              ),
           ],
         );
       },
@@ -1126,6 +1189,56 @@ class _StatTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+/// Chip che mostra lo zoom corrente. Tap per resettare a 1x.
+class _ZoomChip extends StatelessWidget {
+  final double level;
+  final VoidCallback onReset;
+
+  const _ZoomChip({required this.level, required this.onReset});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onReset,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.zoom_in, color: Colors.white, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                '${level.toStringAsFixed(1)}x',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.close,
+                color: Colors.white.withValues(alpha: 0.6),
+                size: 14,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

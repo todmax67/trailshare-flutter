@@ -56,6 +56,12 @@ class _MountainFinderCalibrationPageState
   static const double _alpha = 0.18;
   static const double _candidateRadiusKm = 60;
 
+  // Zoom (replica di MountainFinderPage per fine-tuning anche in calibrazione)
+  double _zoomLevel = 1.0;
+  double _baseZoom = 1.0;
+  double _minZoom = 1.0;
+  double _maxZoom = 1.0;
+
   List<MountainPeak> _candidatePeaks = const [];
 
   @override
@@ -103,6 +109,12 @@ class _MountainFinderCalibrationPageState
         enableAudio: false,
       );
       await _camera!.initialize();
+
+      try {
+        _minZoom = await _camera!.getMinZoomLevel();
+        _maxZoom = await _camera!.getMaxZoomLevel();
+        _maxZoom = _maxZoom.clamp(_minZoom, 6.0);
+      } catch (_) {}
 
       try {
         _userPosition = await Geolocator.getCurrentPosition(
@@ -221,6 +233,12 @@ class _MountainFinderCalibrationPageState
         final pos = _userPosition;
         final heading = _heading;
 
+        // FOV effettivo = FOV calibrato / zoom level. Stesso accorgimento
+        // della MountainFinderPage cosi i pin restano coerenti durante lo
+        // zoom anche in calibrazione.
+        final effectiveHFov = settings.horizontalFovDeg / _zoomLevel;
+        final effectiveVFov = settings.verticalFovDeg / _zoomLevel;
+
         // Mostriamo fino a 8 pin (più del normale 5) così l'utente ha
         // riferimenti multipli per giudicare l'allineamento.
         final projected = (pos != null && heading != null)
@@ -233,8 +251,8 @@ class _MountainFinderCalibrationPageState
                 phonePitchDeg: _pitchDeg,
                 viewport: viewport,
                 maxVisible: 8,
-                horizontalFovDeg: settings.horizontalFovDeg,
-                verticalFovDeg: settings.verticalFovDeg,
+                horizontalFovDeg: effectiveHFov,
+                verticalFovDeg: effectiveVFov,
               )
             : <ProjectedPeak>[];
 
@@ -242,14 +260,36 @@ class _MountainFinderCalibrationPageState
           fit: StackFit.expand,
           children: [
             Positioned.fill(
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: _camera!.value.previewSize?.height ??
-                      viewport.width,
-                  height: _camera!.value.previewSize?.width ??
-                      viewport.height,
-                  child: CameraPreview(_camera!),
+              child: GestureDetector(
+                onScaleStart: (_) {
+                  _baseZoom = _zoomLevel;
+                },
+                onScaleUpdate: (details) {
+                  if (_maxZoom <= _minZoom) return;
+                  final next = (_baseZoom * details.scale)
+                      .clamp(_minZoom, _maxZoom);
+                  if ((next - _zoomLevel).abs() < 0.02) return;
+                  _zoomLevel = next;
+                  _camera?.setZoomLevel(next);
+                  setState(() {});
+                },
+                onDoubleTap: () {
+                  final target = _zoomLevel > 1.5
+                      ? _minZoom
+                      : (2.0).clamp(_minZoom, _maxZoom);
+                  _zoomLevel = target;
+                  _camera?.setZoomLevel(target);
+                  setState(() {});
+                },
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _camera!.value.previewSize?.height ??
+                        viewport.width,
+                    height: _camera!.value.previewSize?.width ??
+                        viewport.height,
+                    child: CameraPreview(_camera!),
+                  ),
                 ),
               ),
             ),
@@ -272,6 +312,23 @@ class _MountainFinderCalibrationPageState
                 height: 32,
                 child: IgnorePointer(
                   child: _CalibrationPin(projected: p),
+                ),
+              ),
+            // Indicatore zoom (visibile solo > 1.05x)
+            if (_zoomLevel > 1.05)
+              Positioned(
+                top: 70,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _CalibZoomChip(
+                    level: _zoomLevel,
+                    onReset: () {
+                      _zoomLevel = _minZoom;
+                      _camera?.setZoomLevel(_minZoom);
+                      setState(() {});
+                    },
+                  ),
                 ),
               ),
           ],
@@ -564,6 +621,55 @@ class _CalibrationPin extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Chip indicatore zoom nella pagina di calibrazione.
+class _CalibZoomChip extends StatelessWidget {
+  final double level;
+  final VoidCallback onReset;
+
+  const _CalibZoomChip({required this.level, required this.onReset});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onReset,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.zoom_in, color: Colors.white, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                '${level.toStringAsFixed(1)}x',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.close,
+                color: Colors.white.withValues(alpha: 0.6),
+                size: 14,
+              ),
+            ],
+          ),
         ),
       ),
     );
