@@ -1518,6 +1518,13 @@
   "mfDetailOpenError": "Unable to open the link. Make sure you have a default browser set.",
   "mfDetailDataSource": "Data from OpenStreetMap (ODbL 1.0)",
 
+  "mfCalibrationTitle": "Calibrate Mountain Finder",
+  "mfCalibrationHelp": "Point at a known peak and adjust until the pin centers on the real peak.",
+  "mfCalibrationHorizontalFov": "Horizontal FOV",
+  "mfCalibrationVerticalFov": "Vertical FOV",
+  "mfCalibrationReset": "Default",
+  "mfCalibrationDone": "Done",
+
   "discoveryMountainTitle": "Point at the mountains",
   "discoveryMountainDesc": "Open the camera and discover peak names around you. Works anywhere in Italy.",
   "discoveryMountainCta": "Open Mountain Finder",

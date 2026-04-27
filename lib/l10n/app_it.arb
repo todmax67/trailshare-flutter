@@ -1518,6 +1518,13 @@
   "mfDetailOpenError": "Impossibile aprire il link. Verifica di avere un browser predefinito.",
   "mfDetailDataSource": "Dati da OpenStreetMap (ODbL 1.0)",
 
+  "mfCalibrationTitle": "Calibra Mountain Finder",
+  "mfCalibrationHelp": "Punta verso una cima nota e regola finché il pin si centra sulla cima reale.",
+  "mfCalibrationHorizontalFov": "FOV orizzontale",
+  "mfCalibrationVerticalFov": "FOV verticale",
+  "mfCalibrationReset": "Predefinito",
+  "mfCalibrationDone": "Fatto",
+
   "discoveryMountainTitle": "Punta verso le montagne",
   "discoveryMountainDesc": "Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.",
   "discoveryMountainCta": "Apri Mountain Finder",

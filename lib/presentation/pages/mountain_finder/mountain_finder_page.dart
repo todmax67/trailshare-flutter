@@ -10,9 +10,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/mountain_finder_settings.dart';
 import '../../../core/services/peaks_dataset_service.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
+import 'mountain_finder_calibration_page.dart';
 
 /// **Mountain Finder AR** — punta il telefono e riconosci le cime.
 ///
@@ -63,16 +65,25 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   @override
   void initState() {
     super.initState();
+    // Il service e' un ChangeNotifier: ascoltiamo cosi i pin si
+    // ri-proiettano in tempo reale durante la calibrazione.
+    MountainFinderSettings().load();
+    MountainFinderSettings().addListener(_onSettingsChanged);
     _bootstrap();
   }
 
   @override
   void dispose() {
+    MountainFinderSettings().removeListener(_onSettingsChanged);
     _positionSub?.cancel();
     _compassSub?.cancel();
     _accelSub?.cancel();
     _camera?.dispose();
     super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _bootstrap() async {
@@ -370,6 +381,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         // Ricalcola sincrono con la dimensione corrente. L'output viene
         // applicato in setState dal sensor listener; qui semplicemente
         // ri-proiettiamo in tempo reale per ridurre latenza.
+        final settings = MountainFinderSettings();
         final projected = (pos != null && heading != null)
             ? MountainProjection.projectAll(
                 peaks: _candidatePeaks,
@@ -380,6 +392,8 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                 phonePitchDeg: _pitchDeg,
                 viewport: viewport,
                 maxVisible: 5,
+                horizontalFovDeg: settings.horizontalFovDeg,
+                verticalFovDeg: settings.verticalFovDeg,
               )
             : <ProjectedPeak>[];
 
@@ -476,6 +490,24 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Gear: apre la pagina di calibrazione FOV.
+          Material(
+            color: Colors.black.withValues(alpha: 0.5),
+            shape: const CircleBorder(),
+            child: IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MountainFinderCalibrationPage(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.tune, color: Colors.white),
+              tooltip: context.l10n.mfCalibrationTitle,
             ),
           ),
         ],

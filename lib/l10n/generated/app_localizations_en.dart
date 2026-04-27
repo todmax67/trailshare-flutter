@@ -4318,6 +4318,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mfDetailDataSource => 'Data from OpenStreetMap (ODbL 1.0)';
 
   @override
+  String get mfCalibrationTitle => 'Calibrate Mountain Finder';
+
+  @override
+  String get mfCalibrationHelp =>
+      'Point at a known peak and adjust until the pin centers on the real peak.';
+
+  @override
+  String get mfCalibrationHorizontalFov => 'Horizontal FOV';
+
+  @override
+  String get mfCalibrationVerticalFov => 'Vertical FOV';
+
+  @override
+  String get mfCalibrationReset => 'Default';
+
+  @override
+  String get mfCalibrationDone => 'Done';
+
+  @override
   String get discoveryMountainTitle => 'Point at the mountains';
 
   @override

@@ -7844,6 +7844,42 @@ abstract class AppLocalizations {
   /// **'Dati da OpenStreetMap (ODbL 1.0)'**
   String get mfDetailDataSource;
 
+  /// No description provided for @mfCalibrationTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Calibra Mountain Finder'**
+  String get mfCalibrationTitle;
+
+  /// No description provided for @mfCalibrationHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Punta verso una cima nota e regola finché il pin si centra sulla cima reale.'**
+  String get mfCalibrationHelp;
+
+  /// No description provided for @mfCalibrationHorizontalFov.
+  ///
+  /// In it, this message translates to:
+  /// **'FOV orizzontale'**
+  String get mfCalibrationHorizontalFov;
+
+  /// No description provided for @mfCalibrationVerticalFov.
+  ///
+  /// In it, this message translates to:
+  /// **'FOV verticale'**
+  String get mfCalibrationVerticalFov;
+
+  /// No description provided for @mfCalibrationReset.
+  ///
+  /// In it, this message translates to:
+  /// **'Predefinito'**
+  String get mfCalibrationReset;
+
+  /// No description provided for @mfCalibrationDone.
+  ///
+  /// In it, this message translates to:
+  /// **'Fatto'**
+  String get mfCalibrationDone;
+
   /// No description provided for @discoveryMountainTitle.
   ///
   /// In it, this message translates to:
