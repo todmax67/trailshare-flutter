@@ -1528,6 +1528,18 @@
   "mfDistanceFilterTitle": "Distanza massima",
   "mfDistanceFilterHelp": "Limita le cime mostrate a questa distanza dalla tua posizione.",
 
+  "mfPhotoProcessing": "Identificazione cime in corso…",
+  "mfPhotoNoSensors": "Sensori non pronti, aspetta qualche secondo",
+  "mfPhotoProUpsell": "Photo Mode è una funzione TrailShare Pro",
+  "mfPhotoResultTitle": "Cime identificate",
+  "mfPhotoIdentifiedCount": "{count, plural, =0{Nessuna cima identificata} =1{1 cima identificata} other{{count} cime identificate}}",
+  "@mfPhotoIdentifiedCount": { "placeholders": { "count": {"type": "int"} } },
+  "mfPhotoShareButton": "Condividi foto annotata",
+  "mfPhotoShareSubject": "Cime identificate con TrailShare",
+  "mfPhotoShareText": "{count, plural, =1{Ho identificato 1 cima con TrailShare} other{Ho identificato {count} cime con TrailShare}}",
+  "@mfPhotoShareText": { "placeholders": { "count": {"type": "int"} } },
+  "mfPhotoShareError": "Impossibile condividere la foto",
+
   "discoveryMountainTitle": "Punta verso le montagne",
   "discoveryMountainDesc": "Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.",
   "discoveryMountainCta": "Apri Mountain Finder",

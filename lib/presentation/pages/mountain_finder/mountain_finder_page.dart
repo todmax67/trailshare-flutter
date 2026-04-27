@@ -12,9 +12,13 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/services/mountain_finder_settings.dart';
 import '../../../core/services/peaks_dataset_service.dart';
+import '../../../core/services/pro_gate_service.dart';
+import '../../../core/utils/mountain_photo_renderer.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
+import '../../widgets/app_snackbar.dart';
 import 'mountain_finder_calibration_page.dart';
+import 'mountain_photo_result_page.dart';
 
 /// **Mountain Finder AR** — punta il telefono e riconosci le cime.
 ///
@@ -68,6 +72,9 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   Position? _lastCandidatePosition;
   static const double _candidateRefreshThresholdMeters = 5000;
 
+  /// True durante la cattura+annotazione foto (overlay loader).
+  bool _processingCapture = false;
+
   @override
   void initState() {
     super.initState();
@@ -75,17 +82,26 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     // ri-proiettano in tempo reale durante la calibrazione.
     MountainFinderSettings().load();
     MountainFinderSettings().addListener(_onSettingsChanged);
+    // Pro gate: serve a sapere se mostrare lo shutter sbloccato o
+    // l'upsell paywall.
+    ProGateService().load();
+    ProGateService().addListener(_onProChanged);
     _bootstrap();
   }
 
   @override
   void dispose() {
     MountainFinderSettings().removeListener(_onSettingsChanged);
+    ProGateService().removeListener(_onProChanged);
     _positionSub?.cancel();
     _compassSub?.cancel();
     _accelSub?.cancel();
     _camera?.dispose();
     super.dispose();
+  }
+
+  void _onProChanged() {
+    if (mounted) setState(() {});
   }
 
   /// Settings precedenti per detection del cambio distanza (che richiede
@@ -393,13 +409,180 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
               Positioned(
                 left: 12,
                 right: 12,
-                bottom: 12,
+                bottom: 96,
                 child: _buildInfoCard(),
+              ),
+
+            // Shutter button (Pro): cattura foto + annota cime + apre il
+            // result page con preview e share. Sotto la card info.
+            if (!_initializing && _error == null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 16,
+                child: Center(child: _buildShutterButton()),
+              ),
+
+            // Loader durante il processing post-capture
+            if (_processingCapture)
+              Container(
+                color: Colors.black.withValues(alpha: 0.6),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(color: Colors.white),
+                      const SizedBox(height: 16),
+                      Text(
+                        context.l10n.mfPhotoProcessing,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
               ),
           ],
         ),
       ),
     );
+  }
+
+  /// Pulsante shutter Pro. Tap → cattura foto + projecta tutte le cime
+  /// candidate sull'immagine + annota e apre la result page.
+  Widget _buildShutterButton() {
+    final isPro = ProGateService().isPro;
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _processingCapture
+            ? null
+            : (isPro ? _capturePhoto : _showProUpsell),
+        child: Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.6),
+              width: 4,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                ),
+              ),
+              if (!isPro)
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFFFFD700),
+                    ),
+                    child: const Icon(Icons.lock,
+                        size: 12, color: Colors.black),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Stub upsell paywall: per ora solo snackbar informativa, sarà
+  /// sostituito dal vero PaywallSheet con 6.B4.
+  void _showProUpsell() {
+    AppSnackBar.info(context, context.l10n.mfPhotoProUpsell);
+  }
+
+  /// Cattura una foto e processa l'annotazione di TUTTE le cime
+  /// candidate visibili nel cono FOV (nessun limite a 5 come in live).
+  Future<void> _capturePhoto() async {
+    final cam = _camera;
+    final pos = _userPosition;
+    final heading = _heading;
+    if (cam == null || pos == null || heading == null) {
+      AppSnackBar.error(context, context.l10n.mfPhotoNoSensors);
+      return;
+    }
+    setState(() => _processingCapture = true);
+    try {
+      final settings = MountainFinderSettings();
+      final effHFov = settings.horizontalFovDeg / _zoomLevel;
+      final effVFov = settings.verticalFovDeg / _zoomLevel;
+
+      // Snapshot del viewport corrente per la math di proiezione.
+      final mq = MediaQuery.of(context);
+      final viewport = Size(
+        mq.size.width,
+        mq.size.height - mq.padding.top - mq.padding.bottom,
+      );
+
+      // Tutti i peak nel cono FOV — niente cap come in live
+      // (la differenza Free vs Pro!).
+      final allVisible = MountainProjection.projectAll(
+        peaks: _candidatePeaks,
+        observerLat: pos.latitude,
+        observerLng: pos.longitude,
+        observerAltitudeMeters: pos.altitude,
+        phoneHeadingDeg: heading,
+        phonePitchDeg: _pitchDeg,
+        viewport: viewport,
+        maxVisible: 9999, // illimitato
+        horizontalFovDeg: effHFov,
+        verticalFovDeg: effVFov,
+      );
+
+      // Cattura
+      final xfile = await cam.takePicture();
+      final bytes = await xfile.readAsBytes();
+
+      // Render annotato
+      final annotated = await MountainPhotoRenderer.render(
+        imageBytes: bytes,
+        projected: allVisible,
+        originalViewport: viewport,
+      );
+
+      if (!mounted) return;
+      setState(() => _processingCapture = false);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MountainPhotoResultPage(
+            annotatedImage: annotated,
+            peaks: allVisible,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[MountainFinder] capture error: $e');
+      if (mounted) {
+        setState(() => _processingCapture = false);
+        AppSnackBar.error(
+            context, context.l10n.errorWithDetails(e.toString()));
+      }
+    }
   }
 
   Widget _buildCameraWithOverlay() {

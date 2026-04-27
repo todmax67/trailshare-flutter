@@ -4344,6 +4344,50 @@ class AppLocalizationsEn extends AppLocalizations {
       'Limit shown peaks to this distance from your location.';
 
   @override
+  String get mfPhotoProcessing => 'Identifying peaks…';
+
+  @override
+  String get mfPhotoNoSensors => 'Sensors not ready, wait a few seconds';
+
+  @override
+  String get mfPhotoProUpsell => 'Photo Mode is a TrailShare Pro feature';
+
+  @override
+  String get mfPhotoResultTitle => 'Identified peaks';
+
+  @override
+  String mfPhotoIdentifiedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count peaks identified',
+      one: '1 peak identified',
+      zero: 'No peaks identified',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get mfPhotoShareButton => 'Share annotated photo';
+
+  @override
+  String get mfPhotoShareSubject => 'Peaks identified with TrailShare';
+
+  @override
+  String mfPhotoShareText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'I identified $count peaks with TrailShare',
+      one: 'I identified 1 peak with TrailShare',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get mfPhotoShareError => 'Unable to share the photo';
+
+  @override
   String get discoveryMountainTitle => 'Point at the mountains';
 
   @override

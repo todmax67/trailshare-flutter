@@ -1528,6 +1528,18 @@
   "mfDistanceFilterTitle": "Max distance",
   "mfDistanceFilterHelp": "Limit shown peaks to this distance from your location.",
 
+  "mfPhotoProcessing": "Identifying peaks…",
+  "mfPhotoNoSensors": "Sensors not ready, wait a few seconds",
+  "mfPhotoProUpsell": "Photo Mode is a TrailShare Pro feature",
+  "mfPhotoResultTitle": "Identified peaks",
+  "mfPhotoIdentifiedCount": "{count, plural, =0{No peaks identified} =1{1 peak identified} other{{count} peaks identified}}",
+  "@mfPhotoIdentifiedCount": { "placeholders": { "count": {"type": "int"} } },
+  "mfPhotoShareButton": "Share annotated photo",
+  "mfPhotoShareSubject": "Peaks identified with TrailShare",
+  "mfPhotoShareText": "{count, plural, =1{I identified 1 peak with TrailShare} other{I identified {count} peaks with TrailShare}}",
+  "@mfPhotoShareText": { "placeholders": { "count": {"type": "int"} } },
+  "mfPhotoShareError": "Unable to share the photo",
+
   "discoveryMountainTitle": "Point at the mountains",
   "discoveryMountainDesc": "Open the camera and discover peak names around you. Works anywhere in Italy.",
   "discoveryMountainCta": "Open Mountain Finder",

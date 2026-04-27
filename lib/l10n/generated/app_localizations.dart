@@ -7892,6 +7892,60 @@ abstract class AppLocalizations {
   /// **'Limita le cime mostrate a questa distanza dalla tua posizione.'**
   String get mfDistanceFilterHelp;
 
+  /// No description provided for @mfPhotoProcessing.
+  ///
+  /// In it, this message translates to:
+  /// **'Identificazione cime in corso…'**
+  String get mfPhotoProcessing;
+
+  /// No description provided for @mfPhotoNoSensors.
+  ///
+  /// In it, this message translates to:
+  /// **'Sensori non pronti, aspetta qualche secondo'**
+  String get mfPhotoNoSensors;
+
+  /// No description provided for @mfPhotoProUpsell.
+  ///
+  /// In it, this message translates to:
+  /// **'Photo Mode è una funzione TrailShare Pro'**
+  String get mfPhotoProUpsell;
+
+  /// No description provided for @mfPhotoResultTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Cime identificate'**
+  String get mfPhotoResultTitle;
+
+  /// No description provided for @mfPhotoIdentifiedCount.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =0{Nessuna cima identificata} =1{1 cima identificata} other{{count} cime identificate}}'**
+  String mfPhotoIdentifiedCount(int count);
+
+  /// No description provided for @mfPhotoShareButton.
+  ///
+  /// In it, this message translates to:
+  /// **'Condividi foto annotata'**
+  String get mfPhotoShareButton;
+
+  /// No description provided for @mfPhotoShareSubject.
+  ///
+  /// In it, this message translates to:
+  /// **'Cime identificate con TrailShare'**
+  String get mfPhotoShareSubject;
+
+  /// No description provided for @mfPhotoShareText.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{Ho identificato 1 cima con TrailShare} other{Ho identificato {count} cime con TrailShare}}'**
+  String mfPhotoShareText(int count);
+
+  /// No description provided for @mfPhotoShareError.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile condividere la foto'**
+  String get mfPhotoShareError;
+
   /// No description provided for @discoveryMountainTitle.
   ///
   /// In it, this message translates to:

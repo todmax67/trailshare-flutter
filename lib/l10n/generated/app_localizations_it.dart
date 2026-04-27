@@ -4363,6 +4363,50 @@ class AppLocalizationsIt extends AppLocalizations {
       'Limita le cime mostrate a questa distanza dalla tua posizione.';
 
   @override
+  String get mfPhotoProcessing => 'Identificazione cime in corso…';
+
+  @override
+  String get mfPhotoNoSensors => 'Sensori non pronti, aspetta qualche secondo';
+
+  @override
+  String get mfPhotoProUpsell => 'Photo Mode è una funzione TrailShare Pro';
+
+  @override
+  String get mfPhotoResultTitle => 'Cime identificate';
+
+  @override
+  String mfPhotoIdentifiedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cime identificate',
+      one: '1 cima identificata',
+      zero: 'Nessuna cima identificata',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get mfPhotoShareButton => 'Condividi foto annotata';
+
+  @override
+  String get mfPhotoShareSubject => 'Cime identificate con TrailShare';
+
+  @override
+  String mfPhotoShareText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Ho identificato $count cime con TrailShare',
+      one: 'Ho identificato 1 cima con TrailShare',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get mfPhotoShareError => 'Impossibile condividere la foto';
+
+  @override
   String get discoveryMountainTitle => 'Punta verso le montagne';
 
   @override
