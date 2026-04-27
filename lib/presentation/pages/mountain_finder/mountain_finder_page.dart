@@ -437,24 +437,12 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             // HUD top
             _buildTopHUD(),
 
-            // Card info in basso (X cime visibili)
+            // Card info + shutter: layout orientation-aware. In portrait
+            // sono entrambi sotto, in landscape vanno sul lato destro
+            // (info card sopra, shutter sotto) per non rubare spazio
+            // verticale alla preview camera.
             if (!_initializing && _error == null)
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 96,
-                child: _buildInfoCard(),
-              ),
-
-            // Shutter button (Pro): cattura foto + annota cime + apre il
-            // result page con preview e share. Sotto la card info.
-            if (!_initializing && _error == null)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 16,
-                child: Center(child: _buildShutterButton()),
-              ),
+              ..._buildBottomControls(),
 
             // Loader durante il processing post-capture
             if (_processingCapture)
@@ -479,6 +467,52 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         ),
       ),
     );
+  }
+
+  /// Layout dei controlli inferiori (info card + shutter button) con
+  /// supporto orientation-aware: in **portrait** entrambi al centro
+  /// in basso (classico camera UI). In **landscape** spostati a destra,
+  /// info card in alto/centro, shutter sotto, allineati lateralmente
+  /// per non rubare spazio verticale alla preview.
+  List<Widget> _buildBottomControls() {
+    final mq = MediaQuery.of(context);
+    final isPortrait = mq.size.height >= mq.size.width;
+
+    if (isPortrait) {
+      return [
+        // Info card full-width sopra lo shutter
+        Positioned(
+          left: 12,
+          right: 12,
+          bottom: 96,
+          child: _buildInfoCard(),
+        ),
+        // Shutter centrato in basso
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 16,
+          child: Center(child: _buildShutterButton()),
+        ),
+      ];
+    }
+
+    // Landscape: layout sulla colonna destra. La preview ha tutta
+    // l'altezza disponibile. Right column larga ~200px.
+    return [
+      Positioned(
+        right: 12,
+        top: 70, // sotto al top HUD
+        width: 200,
+        child: _buildInfoCard(),
+      ),
+      Positioned(
+        right: 16,
+        bottom: 0,
+        top: 0,
+        child: Center(child: _buildShutterButton()),
+      ),
+    ];
   }
 
   /// Pulsante shutter Pro. Tap → cattura foto + projecta tutte le cime

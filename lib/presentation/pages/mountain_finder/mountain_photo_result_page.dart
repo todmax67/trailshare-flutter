@@ -117,71 +117,75 @@ class _MountainPhotoResultPageState extends State<MountainPhotoResultPage> {
               ),
             ),
           ),
-          // Card con lista cime + bottone share full-width
+          // Card con lista cime + bottone share. Constrainata a max
+          // 50% schermo cosi non mangia l'immagine, e tutto il contenuto
+          // e' avvolto in SingleChildScrollView per non avere overflow
+          // quando ci sono molte cime (es. 50+).
           Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.5,
+            ),
             decoration: BoxDecoration(
               color: scheme.surface,
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(20)),
             ),
-            padding: EdgeInsets.fromLTRB(
-              16,
-              14,
-              16,
-              16 + MediaQuery.of(context).padding.bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.terrain, color: AppColors.primary, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        context.l10n
-                            .mfPhotoIdentifiedCount(widget.peaks.length),
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: context.textPrimary,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                14,
+                16,
+                16 + MediaQuery.of(context).padding.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.terrain, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          context.l10n
+                              .mfPhotoIdentifiedCount(widget.peaks.length),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: context.textPrimary,
+                          ),
                         ),
                       ),
+                    ],
+                  ),
+                  if (widget.peaks.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final p in widget.peaks)
+                          _PeakChip(projected: p),
+                      ],
                     ),
                   ],
-                ),
-                if (widget.peaks.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 160),
-                    child: SingleChildScrollView(
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (final p in widget.peaks)
-                            _PeakChip(projected: p),
-                        ],
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _sharing ? null : _share,
+                      icon: const Icon(Icons.ios_share),
+                      label: Text(context.l10n.mfPhotoShareButton),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
                   ),
                 ],
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _sharing ? null : _share,
-                    icon: const Icon(Icons.ios_share),
-                    label: Text(context.l10n.mfPhotoShareButton),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],
