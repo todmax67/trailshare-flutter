@@ -67,7 +67,6 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// per piccoli aggiornamenti GPS).
   Position? _lastCandidatePosition;
   static const double _candidateRefreshThresholdMeters = 5000;
-  static const double _candidateRadiusKm = 60;
 
   @override
   void initState() {
@@ -89,8 +88,22 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     super.dispose();
   }
 
+  /// Settings precedenti per detection del cambio distanza (che richiede
+  /// un re-fetch delle candidate, mentre il FOV no).
+  double _lastSeenDistanceKm = MountainFinderSettings.defaultDistanceKm;
+
   void _onSettingsChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final newDist = MountainFinderSettings().maxDistanceKmValue;
+    if ((newDist - _lastSeenDistanceKm).abs() > 0.5) {
+      _lastSeenDistanceKm = newDist;
+      // La distanza è cambiata: rifetcha le candidate dal dataset.
+      final pos = _userPosition;
+      if (pos != null) {
+        _refreshCandidatePeaksIfNeeded(pos, force: true);
+      }
+    }
+    setState(() {});
   }
 
   Future<void> _bootstrap() async {
@@ -316,9 +329,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// Aggiorna [_candidatePeaks] interrogando il dataset OSM con la
   /// posizione data, ma solo se l'utente si è spostato più di
   /// [_candidateRefreshThresholdMeters] dall'ultimo aggiornamento.
-  Future<void> _refreshCandidatePeaksIfNeeded(Position pos) async {
+  Future<void> _refreshCandidatePeaksIfNeeded(Position pos,
+      {bool force = false}) async {
     final last = _lastCandidatePosition;
-    if (last != null) {
+    if (!force && last != null) {
       final moved = Geolocator.distanceBetween(
         last.latitude,
         last.longitude,
@@ -335,10 +349,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     if (!ds.isLoaded) {
       await ds.ensureLoaded();
     }
+    final radius = MountainFinderSettings().maxDistanceKmValue;
     final candidates = ds.findWithinRadius(
       pos.latitude,
       pos.longitude,
-      radiusKm: _candidateRadiusKm,
+      radiusKm: radius,
     );
     if (!mounted) return;
     setState(() {
@@ -349,7 +364,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       _lastCandidatePosition = pos;
     });
     debugPrint('[MountainFinder] candidate peaks aggiornate: '
-        '${_candidatePeaks.length} entro ${_candidateRadiusKm}km');
+        '${_candidatePeaks.length} entro ${radius}km');
   }
 
   @override
@@ -557,6 +572,18 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           ),
           const SizedBox(width: 8),
           // Gear: apre la pagina di calibrazione FOV.
+          // Filtro distanza
+          Material(
+            color: Colors.black.withValues(alpha: 0.5),
+            shape: const CircleBorder(),
+            child: IconButton(
+              onPressed: _showDistanceFilterSheet,
+              icon: const Icon(Icons.straighten, color: Colors.white),
+              tooltip: context.l10n.mfDistanceFilterTitle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Calibrazione FOV
           Material(
             color: Colors.black.withValues(alpha: 0.5),
             shape: const CircleBorder(),
@@ -575,6 +602,19 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Bottom sheet con slider e preset chips per filtrare le cime
+  /// per distanza dal punto di osservazione.
+  void _showDistanceFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => const _DistanceFilterSheet(),
     );
   }
 
@@ -1238,6 +1278,167 @@ class _ZoomChip extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet per regolare la distanza massima delle cime mostrate.
+/// Pensata per ridurre il numero di pin nel viewfinder quando si è in
+/// zone dense (es. Alpi) o aumentarlo per orizzonti lontani (es. mare).
+class _DistanceFilterSheet extends StatefulWidget {
+  const _DistanceFilterSheet();
+
+  @override
+  State<_DistanceFilterSheet> createState() => _DistanceFilterSheetState();
+}
+
+class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
+  late double _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = MountainFinderSettings().maxDistanceKmValue;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.themedBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.straighten,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.l10n.mfDistanceFilterTitle,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: context.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        context.l10n.mfDistanceFilterHelp,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: context.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            // Valore corrente
+            Center(
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: _value.toStringAsFixed(0),
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' km',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: context.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Slider
+            Slider(
+              value: _value.clamp(
+                MountainFinderSettings.minDistanceKm,
+                MountainFinderSettings.maxDistanceKm,
+              ),
+              min: MountainFinderSettings.minDistanceKm,
+              max: MountainFinderSettings.maxDistanceKm,
+              divisions: (MountainFinderSettings.maxDistanceKm -
+                      MountainFinderSettings.minDistanceKm)
+                  .toInt(),
+              activeColor: AppColors.primary,
+              onChanged: (v) {
+                setState(() => _value = v);
+                MountainFinderSettings().setMaxDistanceKm(v);
+              },
+            ),
+            const SizedBox(height: 8),
+            // Preset chips
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final preset
+                    in MountainFinderSettings.distancePresetsKm)
+                  ChoiceChip(
+                    label: Text('${preset.toInt()} km'),
+                    selected: (_value - preset).abs() < 0.5,
+                    onSelected: (_) {
+                      setState(() => _value = preset);
+                      MountainFinderSettings().setMaxDistanceKm(preset);
+                    },
+                    selectedColor:
+                        AppColors.primary.withValues(alpha: 0.18),
+                    labelStyle: TextStyle(
+                      fontWeight: (_value - preset).abs() < 0.5
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                      color: (_value - preset).abs() < 0.5
+                          ? AppColors.primary
+                          : context.textPrimary,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );

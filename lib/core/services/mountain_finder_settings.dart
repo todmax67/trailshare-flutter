@@ -22,6 +22,7 @@ class MountainFinderSettings extends ChangeNotifier {
 
   static const _kHFov = 'mf_hfov_deg';
   static const _kVFov = 'mf_vfov_deg';
+  static const _kMaxDistKm = 'mf_max_distance_km';
 
   // Range ammessi nello slider di calibrazione.
   static const double minHFov = 40;
@@ -29,12 +30,22 @@ class MountainFinderSettings extends ChangeNotifier {
   static const double minVFov = 40;
   static const double maxVFov = 115;
 
+  // Range ammesso per il filtro distanza (km).
+  static const double minDistanceKm = 5;
+  static const double maxDistanceKm = 150;
+  static const double defaultDistanceKm = 60;
+
+  /// Distanze "preset" rapide nel filter sheet.
+  static const List<double> distancePresetsKm = [10, 30, 60, 100];
+
   double _hFovDeg = MountainProjection.defaultHorizontalFovDeg;
   double _vFovDeg = MountainProjection.defaultVerticalFovDeg;
+  double _maxDistKm = defaultDistanceKm;
   bool _loaded = false;
 
   double get horizontalFovDeg => _hFovDeg;
   double get verticalFovDeg => _vFovDeg;
+  double get maxDistanceKmValue => _maxDistKm;
   bool get isLoaded => _loaded;
 
   /// Carica i valori salvati. Idempotente.
@@ -46,11 +57,25 @@ class MountainFinderSettings extends ChangeNotifier {
           MountainProjection.defaultHorizontalFovDeg;
       _vFovDeg = prefs.getDouble(_kVFov) ??
           MountainProjection.defaultVerticalFovDeg;
+      _maxDistKm = prefs.getDouble(_kMaxDistKm) ?? defaultDistanceKm;
       _loaded = true;
       notifyListeners();
     } catch (e) {
       debugPrint('[MFSettings] load error: $e');
       _loaded = true;
+    }
+  }
+
+  Future<void> setMaxDistanceKm(double km) async {
+    final clamped = km.clamp(minDistanceKm, maxDistanceKm).toDouble();
+    if ((clamped - _maxDistKm).abs() < 0.5) return;
+    _maxDistKm = clamped;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_kMaxDistKm, _maxDistKm);
+    } catch (e) {
+      debugPrint('[MFSettings] save maxDist error: $e');
     }
   }
 
@@ -80,9 +105,10 @@ class MountainFinderSettings extends ChangeNotifier {
     }
   }
 
-  /// Reset ai valori di default.
+  /// Reset ai valori di default (FOV + distanza).
   Future<void> reset() async {
     await setHorizontalFov(MountainProjection.defaultHorizontalFovDeg);
     await setVerticalFov(MountainProjection.defaultVerticalFovDeg);
+    await setMaxDistanceKm(defaultDistanceKm);
   }
 }

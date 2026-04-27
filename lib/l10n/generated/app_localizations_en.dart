@@ -4337,6 +4337,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mfCalibrationDone => 'Done';
 
   @override
+  String get mfDistanceFilterTitle => 'Max distance';
+
+  @override
+  String get mfDistanceFilterHelp =>
+      'Limit shown peaks to this distance from your location.';
+
+  @override
   String get discoveryMountainTitle => 'Point at the mountains';
 
   @override

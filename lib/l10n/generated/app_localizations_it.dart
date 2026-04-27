@@ -4356,6 +4356,13 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mfCalibrationDone => 'Fatto';
 
   @override
+  String get mfDistanceFilterTitle => 'Distanza massima';
+
+  @override
+  String get mfDistanceFilterHelp =>
+      'Limita le cime mostrate a questa distanza dalla tua posizione.';
+
+  @override
   String get discoveryMountainTitle => 'Punta verso le montagne';
 
   @override

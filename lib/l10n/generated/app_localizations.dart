@@ -7880,6 +7880,18 @@ abstract class AppLocalizations {
   /// **'Fatto'**
   String get mfCalibrationDone;
 
+  /// No description provided for @mfDistanceFilterTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Distanza massima'**
+  String get mfDistanceFilterTitle;
+
+  /// No description provided for @mfDistanceFilterHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Limita le cime mostrate a questa distanza dalla tua posizione.'**
+  String get mfDistanceFilterHelp;
+
   /// No description provided for @discoveryMountainTitle.
   ///
   /// In it, this message translates to:

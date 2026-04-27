@@ -1525,6 +1525,9 @@
   "mfCalibrationReset": "Default",
   "mfCalibrationDone": "Done",
 
+  "mfDistanceFilterTitle": "Max distance",
+  "mfDistanceFilterHelp": "Limit shown peaks to this distance from your location.",
+
   "discoveryMountainTitle": "Point at the mountains",
   "discoveryMountainDesc": "Open the camera and discover peak names around you. Works anywhere in Italy.",
   "discoveryMountainCta": "Open Mountain Finder",

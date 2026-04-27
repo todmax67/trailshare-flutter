@@ -1525,6 +1525,9 @@
   "mfCalibrationReset": "Predefinito",
   "mfCalibrationDone": "Fatto",
 
+  "mfDistanceFilterTitle": "Distanza massima",
+  "mfDistanceFilterHelp": "Limita le cime mostrate a questa distanza dalla tua posizione.",
+
   "discoveryMountainTitle": "Punta verso le montagne",
   "discoveryMountainDesc": "Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.",
   "discoveryMountainCta": "Apri Mountain Finder",
