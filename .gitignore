@@ -50,5 +50,20 @@ functions/serviceAccountKey.json
 functions/serviceAccountKey.json
 **/*serviceAccountKey*
 
-# Social lab — asset pesanti (foto/video) non versionati
-social_lab/assets/
+# Social lab — asset multimediali (foto/video) esclusi dal repo.
+# Struttura cartelle (.gitkeep) e README restano tracciati.
+social_lab/assets/**/*.jpg
+social_lab/assets/**/*.jpeg
+social_lab/assets/**/*.png
+social_lab/assets/**/*.webp
+social_lab/assets/**/*.heic
+social_lab/assets/**/*.heif
+social_lab/assets/**/*.gif
+social_lab/assets/**/*.mp4
+social_lab/assets/**/*.mov
+social_lab/assets/**/*.m4v
+social_lab/assets/**/*.avi
+social_lab/assets/**/*.mkv
+social_lab/assets/**/*.webm
+social_lab/assets/**/*.psd
+social_lab/assets/**/*.ai
