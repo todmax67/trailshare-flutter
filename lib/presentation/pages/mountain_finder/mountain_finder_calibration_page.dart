@@ -233,11 +233,16 @@ class _MountainFinderCalibrationPageState
         final pos = _userPosition;
         final heading = _heading;
 
-        // FOV effettivo = FOV calibrato / zoom level. Stesso accorgimento
-        // della MountainFinderPage cosi i pin restano coerenti durante lo
-        // zoom anche in calibrazione.
-        final effectiveHFov = settings.horizontalFovDeg / _zoomLevel;
-        final effectiveVFov = settings.verticalFovDeg / _zoomLevel;
+        // FOV effettivo: orientation-aware + zoom adjustment. Vedi
+        // commento su MountainFinderPage. La calibrazione H/V e' fatta
+        // assumendo portrait; in landscape vanno scambiati.
+        final isPortrait = viewport.height >= viewport.width;
+        final calibH = settings.horizontalFovDeg;
+        final calibV = settings.verticalFovDeg;
+        final effectiveHFov =
+            (isPortrait ? calibH : calibV) / _zoomLevel;
+        final effectiveVFov =
+            (isPortrait ? calibV : calibH) / _zoomLevel;
 
         // Mostriamo fino a 8 pin (più del normale 5) così l'utente ha
         // riferimenti multipli per giudicare l'allineamento.
@@ -281,16 +286,7 @@ class _MountainFinderCalibrationPageState
                   _camera?.setZoomLevel(target);
                   setState(() {});
                 },
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: _camera!.value.previewSize?.height ??
-                        viewport.width,
-                    height: _camera!.value.previewSize?.width ??
-                        viewport.height,
-                    child: CameraPreview(_camera!),
-                  ),
-                ),
+                child: _buildCameraPreviewBox(viewport),
               ),
             ),
             // Reticolo centrale
@@ -334,6 +330,26 @@ class _MountainFinderCalibrationPageState
           ],
         );
       },
+    );
+  }
+
+  /// Camera preview con BoxFit.cover orientation-aware (vedi nota in
+  /// MountainFinderPage). In portrait swap di width/height del buffer
+  /// camera, in landscape lasciamo nativo per evitare la deformazione.
+  Widget _buildCameraPreviewBox(Size viewport) {
+    final ps = _camera!.value.previewSize;
+    final bufW = ps?.width ?? viewport.width;
+    final bufH = ps?.height ?? viewport.height;
+    final isPortrait = viewport.height >= viewport.width;
+    final boxW = isPortrait ? bufH : bufW;
+    final boxH = isPortrait ? bufW : bufH;
+    return FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: boxW,
+        height: boxH,
+        child: CameraPreview(_camera!),
+      ),
     );
   }
 

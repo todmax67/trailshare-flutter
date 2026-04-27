@@ -528,8 +528,6 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     setState(() => _processingCapture = true);
     try {
       final settings = MountainFinderSettings();
-      final effHFov = settings.horizontalFovDeg / _zoomLevel;
-      final effVFov = settings.verticalFovDeg / _zoomLevel;
 
       // Snapshot del viewport corrente per la math di proiezione.
       final mq = MediaQuery.of(context);
@@ -537,6 +535,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         mq.size.width,
         mq.size.height - mq.padding.top - mq.padding.bottom,
       );
+
+      // FOV: orientation-aware (swap H/V in landscape, vedi note in
+      // _buildCameraWithOverlay). Diviso per zoom per ridurre il cono.
+      final isPortrait = viewport.height >= viewport.width;
+      final calibH = settings.horizontalFovDeg;
+      final calibV = settings.verticalFovDeg;
+      final effHFov = (isPortrait ? calibH : calibV) / _zoomLevel;
+      final effVFov = (isPortrait ? calibV : calibH) / _zoomLevel;
 
       // Tutti i peak nel cono FOV — niente cap come in live
       // (la differenza Free vs Pro!).
@@ -594,15 +600,19 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         final pos = _userPosition;
         final heading = _heading;
 
-        // Ricalcola sincrono con la dimensione corrente. L'output viene
-        // applicato in setState dal sensor listener; qui semplicemente
-        // ri-proiettiamo in tempo reale per ridurre latenza.
+        // Ricalcola sincrono con la dimensione corrente.
         final settings = MountainFinderSettings();
-        // FOV effettivo = FOV calibrato / zoom level. A 2x lo zoom dimezza
-        // l'angolo visibile, quindi i pin nel cono FOV diventano meno ma
-        // piu' precisi (le cime fuori non vengono piu' proiettate).
-        final effectiveHFov = settings.horizontalFovDeg / _zoomLevel;
-        final effectiveVFov = settings.verticalFovDeg / _zoomLevel;
+        // FOV effettivo: la calibrazione H/V è fatta in portrait
+        // (sensor long-axis verticale). In landscape il long-axis e'
+        // orizzontale: H/V vanno scambiati per applicare correttamente
+        // la math di proiezione allo schermo.
+        final isPortrait = viewport.height >= viewport.width;
+        final calibH = settings.horizontalFovDeg;
+        final calibV = settings.verticalFovDeg;
+        final effectiveHFov =
+            (isPortrait ? calibH : calibV) / _zoomLevel;
+        final effectiveVFov =
+            (isPortrait ? calibV : calibH) / _zoomLevel;
         final projected = (pos != null && heading != null)
             ? MountainProjection.projectAll(
                 peaks: _candidatePeaks,
@@ -655,14 +665,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                   _camera?.setZoomLevel(target);
                   setState(() {});
                 },
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: _camera!.value.previewSize?.height ?? viewport.width,
-                    height: _camera!.value.previewSize?.width ?? viewport.height,
-                    child: CameraPreview(_camera!),
-                  ),
-                ),
+                child: _buildCameraPreviewBox(viewport),
               ),
             ),
 
@@ -694,6 +697,30 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           ],
         );
       },
+    );
+  }
+
+  /// Camera preview con BoxFit.cover **orientation-aware**.
+  ///
+  /// Il buffer della camera è sempre nella sua orientazione native
+  /// (tipicamente landscape: width > height). In **portrait** ruotiamo
+  /// il box swappando width/height. In **landscape** lo lasciamo
+  /// nativo. Senza questo check la preview in landscape veniva
+  /// schiacciata orizzontalmente.
+  Widget _buildCameraPreviewBox(Size viewport) {
+    final ps = _camera!.value.previewSize;
+    final bufW = ps?.width ?? viewport.width;
+    final bufH = ps?.height ?? viewport.height;
+    final isPortrait = viewport.height >= viewport.width;
+    final boxW = isPortrait ? bufH : bufW;
+    final boxH = isPortrait ? bufW : bufH;
+    return FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: boxW,
+        height: boxH,
+        child: CameraPreview(_camera!),
+      ),
     );
   }
 
