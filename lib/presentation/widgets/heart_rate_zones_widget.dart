@@ -1,10 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/utils/heart_rate_zones.dart';
+import '../../core/extensions/l10n_extension.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/utils/heart_rate_zones.dart';
+import '../pages/settings/settings_page.dart';
 
-/// Widget che mostra la distribuzione del tempo nelle zone cardio
+/// Widget che mostra la distribuzione del tempo nelle zone cardio (Z1-Z5).
+///
+/// 4.6 — Migliorato in v1.10.0:
+/// - Localizzazione completa (IT/EN) di etichette e messaggi
+/// - Fallback automatico: se l'utente non ha impostato la FC max, usiamo
+///   il 105% del picco osservato in questa traccia come stima di lavoro
+///   (con badge "stimata" e CTA per impostare il valore reale)
+/// - Header con FC media + FC max della sessione
+/// - Tap sull'header CTA porta alle impostazioni
 class HeartRateZonesWidget extends StatefulWidget {
   final Map<DateTime, int> heartRateData;
 
@@ -18,7 +28,8 @@ class HeartRateZonesWidget extends StatefulWidget {
 }
 
 class _HeartRateZonesWidgetState extends State<HeartRateZonesWidget> {
-  int _maxHR = 0;
+  /// Valore impostato manualmente dall'utente; 0 se non settato.
+  int _userMaxHR = 0;
 
   @override
   void initState() {
@@ -29,45 +40,37 @@ class _HeartRateZonesWidgetState extends State<HeartRateZonesWidget> {
   Future<void> _loadMaxHR() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getInt('user_max_hr') ?? 0;
-    if (mounted) setState(() => _maxHR = saved);
+    if (mounted) setState(() => _userMaxHR = saved);
+  }
+
+  /// Calcola la FC media e di picco di questa sessione.
+  ({int avg, int peak, bool hasData}) _sessionStats() {
+    if (widget.heartRateData.isEmpty) {
+      return (avg: 0, peak: 0, hasData: false);
+    }
+    final values = widget.heartRateData.values.toList();
+    final sum = values.fold<int>(0, (s, v) => s + v);
+    final avg = (sum / values.length).round();
+    final peak = values.fold<int>(0, (m, v) => v > m ? v : m);
+    return (avg: avg, peak: peak, hasData: true);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_maxHR == 0) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(Icons.monitor_heart, color: AppColors.danger.withOpacity(0.5)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Zone Cardio',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Imposta la tua FC massima nelle Impostazioni per vedere le zone cardio.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: context.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+    final stats = _sessionStats();
+    if (!stats.hasData) {
+      return const SizedBox.shrink();
     }
 
-    final zones = HeartRateZones(maxHR: _maxHR);
+    // Fallback automatico: se l'utente non ha settato la FC max usiamo il
+    // 105% del picco osservato (è una stima conservativa che tipicamente
+    // non sottostima i valori reali).
+    final isEstimated = _userMaxHR == 0;
+    final effectiveMaxHR = isEstimated
+        ? (stats.peak * 1.05).round().clamp(120, 220)
+        : _userMaxHR;
+
+    final zones = HeartRateZones(maxHR: effectiveMaxHR);
     final distribution = zones.calculateDistribution(widget.heartRateData);
 
     if (distribution.totalSeconds == 0) {
@@ -80,21 +83,22 @@ class _HeartRateZonesWidgetState extends State<HeartRateZonesWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Header con titolo + stats sessione
             Row(
               children: [
-                const Icon(Icons.monitor_heart, color: AppColors.danger, size: 20),
+                Icon(Icons.monitor_heart,
+                    color: AppColors.danger, size: 20),
                 const SizedBox(width: 8),
-                const Text(
-                  'Zone Cardio',
-                  style: TextStyle(
+                Text(
+                  context.l10n.hrZonesTitle,
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
                 const Spacer(),
                 Text(
-                  'FC Max: $_maxHR',
+                  context.l10n.hrZonesAvgPeak(stats.avg, stats.peak),
                   style: TextStyle(
                     fontSize: 12,
                     color: context.textMuted,
@@ -102,7 +106,56 @@ class _HeartRateZonesWidgetState extends State<HeartRateZonesWidget> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 6),
+
+            // Riga FC max + chip "stimata" + CTA
+            Row(
+              children: [
+                Text(
+                  context.l10n.hrZonesMaxHR(effectiveMaxHR),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (isEstimated) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      context.l10n.hrZonesEstimated,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                if (isEstimated)
+                  TextButton(
+                    onPressed: _openSettings,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 0),
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      context.l10n.hrZonesSetCta,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
 
             // Barre zone (dal 5 all'1, ordine classico)
             for (int z = 5; z >= 1; z--)
@@ -118,14 +171,28 @@ class _HeartRateZonesWidgetState extends State<HeartRateZonesWidget> {
     );
   }
 
+  Future<void> _openSettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsPage()),
+    );
+    if (mounted) _loadMaxHR();
+  }
+
   Color _zoneColor(int zone) {
     switch (zone) {
-      case 1: return const Color(0xFF90CAF9); // Azzurro chiaro
-      case 2: return const Color(0xFF66BB6A); // Verde
-      case 3: return const Color(0xFFFFCA28); // Giallo
-      case 4: return const Color(0xFFFF7043); // Arancione
-      case 5: return const Color(0xFFEF5350); // Rosso
-      default: return Colors.grey;
+      case 1:
+        return const Color(0xFF90CAF9); // Azzurro chiaro - Recupero
+      case 2:
+        return const Color(0xFF66BB6A); // Verde - Base aerobica
+      case 3:
+        return const Color(0xFFFFCA28); // Giallo - Aerobica
+      case 4:
+        return const Color(0xFFFF7043); // Arancione - Soglia
+      case 5:
+        return const Color(0xFFEF5350); // Rosso - Massimo
+      default:
+        return Colors.grey;
     }
   }
 }
@@ -168,7 +235,6 @@ class _ZoneBar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Barra colorata
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: Stack(
@@ -177,7 +243,7 @@ class _ZoneBar extends StatelessWidget {
                       Container(
                         height: 20,
                         decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.1),
+                          color: Colors.grey.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -187,7 +253,7 @@ class _ZoneBar extends StatelessWidget {
                         child: Container(
                           height: 20,
                           decoration: BoxDecoration(
-                            color: color.withOpacity(0.7),
+                            color: color.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           alignment: Alignment.centerLeft,

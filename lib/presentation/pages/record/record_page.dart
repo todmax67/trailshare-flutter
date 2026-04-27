@@ -37,6 +37,7 @@ import '../../../core/services/lifeline_service.dart';
 import '../../../core/config/app_config.dart';
 import '../../../data/models/navigation_step.dart';
 import '../../../data/models/recording_reference.dart';
+import '../../widgets/pre_start_preview_sheet.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
 import '../../widgets/poi_editor_sheet.dart';
@@ -113,6 +114,12 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   DateTime? _refLastOffTrailAnnouncement;
   final Set<String> _refSpokenThresholds = {};
   bool _refAutoStartRequested = false;
+
+  /// 4.1 — Pre-start preview: quando in modalità guidata, mostra al volo
+  /// distanza/dislivello/ETA prima di avviare la registrazione, così
+  /// l'utente può decidere se ha tempo. Una volta tappato "Inizia" la
+  /// flag diventa false e la registrazione parte normalmente.
+  bool _showPreStartPreview = true;
 
   // ── POI voice announcement (guided) ─────────────────────────────────
   /// POI associati al reference (trail o track) caricati al start della
@@ -195,7 +202,11 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     await FeatureTipsService().markTipShown(AppTips.firstTrack);
   }
 
-  /// Modalità guidata: inizializza voce + parte automaticamente la registrazione.
+  /// Modalità guidata: pre-carica POI + voce + servizio routing, ma NON
+  /// avvia automaticamente la registrazione. L'avvio reale è demandato a
+  /// [_startGuidedRecording] chiamato dal pulsante "Inizia" nel
+  /// [PreStartPreviewSheet] (4.1).
+  ///
   /// NON fa check backup perché ci si aspetta che l'utente abbia appena
   /// avviato il follow e la pagina entri subito in registrazione.
   Future<void> _initGuidedMode() async {
@@ -206,29 +217,39 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _routingSvc = RoutingService(proxyBaseUrl: AppConfig.orsProxyBaseUrl);
 
     // Carica POI del trail/track di riferimento + preferenze voce.
-    // Non blocca l'inizio della registrazione (fire-and-forget).
+    // Non blocca l'avvio (fire-and-forget).
     unawaited(_loadGuidedPois());
 
-    // Inizializza TTS solo se abbiamo step turn-by-turn (planner).
-    // Per le tracce pubbliche la guida vocale completa non ha senso (niente
-    // svolte), ma teniamo un messaggio di benvenuto e gli alert off-trail.
+    // Inizializza TTS in anticipo così, quando l'utente tappa "Inizia",
+    // possiamo parlare immediatamente senza freeze percepibile.
     _voice = VoiceGuidanceService();
     await _voice!.init();
+  }
 
-    if (ref.isPlanner && ref.hasTurnByTurn) {
-      final next = ref.steps.length > 1 ? ref.steps[1] : null;
-      final welcome = next != null
-          ? 'Registrazione avviata. Prima manovra: ${next.maneuver.italianAction.toLowerCase()}'
-          : 'Registrazione avviata lungo il percorso pianificato';
-      await _voice!.speak(welcome);
-    } else {
-      await _voice!.speak('Registrazione avviata. Seguo la traccia ${ref.name}.');
+  /// Chiamato quando l'utente tappa "Inizia" nel pre-start preview sheet.
+  /// Avvia la registrazione e l'eventuale messaggio vocale di benvenuto.
+  Future<void> _startGuidedRecording() async {
+    if (_refAutoStartRequested) return;
+    final ref = widget.reference!;
+    setState(() {
+      _showPreStartPreview = false;
+      _refAutoStartRequested = true;
+    });
+
+    // Messaggio vocale di benvenuto (solo per planner con turn-by-turn).
+    if (_voice != null) {
+      if (ref.isPlanner && ref.hasTurnByTurn) {
+        final next = ref.steps.length > 1 ? ref.steps[1] : null;
+        final welcome = next != null
+            ? 'Registrazione avviata. Prima manovra: ${next.maneuver.italianAction.toLowerCase()}'
+            : 'Registrazione avviata lungo il percorso pianificato';
+        unawaited(_voice!.speak(welcome));
+      } else {
+        unawaited(_voice!.speak('Registrazione avviata. Seguo la traccia ${ref.name}.'));
+      }
     }
 
-    // Avvia la registrazione al prossimo frame (dopo che il widget è montato
-    // e il tracking bloc è pronto).
-    if (!mounted || _refAutoStartRequested) return;
-    _refAutoStartRequested = true;
+    if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _trackingBloc.startRecording(activityType: _selectedActivity);
@@ -481,6 +502,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _mapController.rotate(-h);
   }
 
+  /// Stato precedente per detection delle transizioni (usato da 4.3).
+  bool _wasAutoPaused = false;
+
   void _onTrackingUpdate() {
     if (_followUser && _trackingBloc.state.points.isNotEmpty) {
       final lastPoint = _trackingBloc.state.points.last;
@@ -507,6 +531,16 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     } else {
       RecordingStatusService().markIdle();
     }
+
+    // 4.3 — Notifica utente quando l'auto-pausa scatta o si auto-risolve.
+    final isAutoNow = _trackingBloc.isAutoPaused;
+    if (isAutoNow && !_wasAutoPaused) {
+      _showSnackBar(context.l10n.autoPauseTriggered);
+    } else if (!isAutoNow && _wasAutoPaused && state.isRecording) {
+      _showSnackBar(context.l10n.autoPauseResumed);
+    }
+    _wasAutoPaused = isAutoNow;
+
     setState(() {});
   }
 
@@ -1600,6 +1634,27 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           ])),
           // Tutorial primo record: overlay con freccia che indica il REC.
           if (_showRecTutorial && state.isIdle && !_isGuided) _buildRecTutorialOverlay(),
+
+          // 4.1 — Pre-start preview overlay: visibile solo in modalità
+          // guidata, prima dell'avvio della registrazione.
+          if (_isGuided && _showPreStartPreview && state.isIdle)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: PreStartPreviewSheet(
+                reference: widget.reference!,
+                activityType: _selectedActivity,
+                onStart: _startGuidedRecording,
+                onCancel: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    setState(() => _showPreStartPreview = false);
+                  }
+                },
+              ),
+            ),
         ],
       ),
       floatingActionButton: !state.isIdle && state.isRecording

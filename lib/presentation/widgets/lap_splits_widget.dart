@@ -18,6 +18,10 @@ class LapData {
   final int startPointIndex;
   final int endPointIndex;
 
+  /// Tempo cumulativo dall'inizio della traccia fino al termine di
+  /// questo lap (4.8). Riempito dal widget dopo il loop di calcolo.
+  final Duration cumulativeTime;
+
   const LapData({
     required this.lapNumber,
     required this.time,
@@ -28,7 +32,35 @@ class LapData {
     this.avgHeartRate,
     required this.startPointIndex,
     required this.endPointIndex,
+    this.cumulativeTime = Duration.zero,
   });
+
+  /// Crea una copia di questo lap con i campi sovrascritti.
+  LapData copyWith({Duration? cumulativeTime}) {
+    return LapData(
+      lapNumber: lapNumber,
+      time: time,
+      distance: distance,
+      elevationGain: elevationGain,
+      elevationLoss: elevationLoss,
+      avgSpeed: avgSpeed,
+      avgHeartRate: avgHeartRate,
+      startPointIndex: startPointIndex,
+      endPointIndex: endPointIndex,
+      cumulativeTime: cumulativeTime ?? this.cumulativeTime,
+    );
+  }
+
+  /// Tempo cumulativo formattato hh:mm:ss (o mm:ss sotto l'ora).
+  String get cumulativeTimeFormatted {
+    final h = cumulativeTime.inHours;
+    final m = cumulativeTime.inMinutes % 60;
+    final s = cumulativeTime.inSeconds % 60;
+    if (h > 0) {
+      return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
 
   /// Passo in formato mm:ss per km
   String get paceFormatted {
@@ -306,6 +338,13 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
       debugPrint('[LapSplits] Lap $currentLap (parziale ${remainingDistance.toStringAsFixed(0)}m): ${lapTime.inMinutes}m${lapTime.inSeconds % 60}s, +${lapElevationGain.toStringAsFixed(0)}m/-${lapElevationLoss.toStringAsFixed(0)}m');
     }
 
+    // 4.8 — Popola tempo cumulativo: somma incrementale dei tempi di lap.
+    var cumSeconds = 0;
+    for (int i = 0; i < laps.length; i++) {
+      cumSeconds += laps[i].time.inSeconds;
+      laps[i] = laps[i].copyWith(cumulativeTime: Duration(seconds: cumSeconds));
+    }
+
     setState(() => _laps = laps);
     debugPrint('[LapSplits] Totale laps: ${_laps.length}');
   }
@@ -402,7 +441,7 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                 children: [
                   SizedBox(width: 40, child: Text('Km', style: _headerStyle)),
                   Expanded(child: Text('Passo', style: _headerStyle, textAlign: TextAlign.center)),
-                  Expanded(child: Text('Vel.', style: _headerStyle, textAlign: TextAlign.center)),
+                  Expanded(child: Text('Cum.', style: _headerStyle, textAlign: TextAlign.center)),
                   Expanded(child: Text('Disliv.', style: _headerStyle, textAlign: TextAlign.center)),
                 ],
               ),
@@ -452,7 +491,7 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                         ),
                         Expanded(
                           child: Text(
-                            '${lap.avgSpeed.toStringAsFixed(1)}',
+                            lap.cumulativeTimeFormatted,
                             textAlign: TextAlign.center,
                             style: _valueStyle,
                           ),

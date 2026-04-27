@@ -1490,5 +1490,23 @@
 
   "discoveryRegionTitle": "Sfida la tua regione",
   "discoveryRegionDesc": "Imposta la tua regione e scopri come ti posizioni tra gli altri escursionisti della zona.",
-  "discoveryRegionCta": "Imposta regione"
+  "discoveryRegionCta": "Imposta regione",
+
+  "preStartReadyToGo": "PRONTO A PARTIRE",
+  "preStartDistance": "DISTANZA",
+  "preStartElevation": "DISLIVELLO",
+  "preStartEta": "TEMPO STIMATO",
+  "preStartStartButton": "Inizia",
+  "preStartEtaDisclaimer": "Stima basata sul tuo passo medio e sul dislivello. Cambia in base al tuo ritmo reale.",
+
+  "autoPauseTriggered": "Pausa automatica: sei fermo da oltre 5 minuti",
+  "autoPauseResumed": "Registrazione ripresa automaticamente",
+
+  "hrZonesTitle": "Zone Cardio",
+  "hrZonesAvgPeak": "Media {avg} · Max {peak}",
+  "@hrZonesAvgPeak": { "placeholders": { "avg": {"type": "int"}, "peak": {"type": "int"} } },
+  "hrZonesMaxHR": "FC Max: {bpm}",
+  "@hrZonesMaxHR": { "placeholders": { "bpm": {"type": "int"} } },
+  "hrZonesEstimated": "STIMATA",
+  "hrZonesSetCta": "Imposta"
 }

@@ -7711,6 +7711,84 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Imposta regione'**
   String get discoveryRegionCta;
+
+  /// No description provided for @preStartReadyToGo.
+  ///
+  /// In it, this message translates to:
+  /// **'PRONTO A PARTIRE'**
+  String get preStartReadyToGo;
+
+  /// No description provided for @preStartDistance.
+  ///
+  /// In it, this message translates to:
+  /// **'DISTANZA'**
+  String get preStartDistance;
+
+  /// No description provided for @preStartElevation.
+  ///
+  /// In it, this message translates to:
+  /// **'DISLIVELLO'**
+  String get preStartElevation;
+
+  /// No description provided for @preStartEta.
+  ///
+  /// In it, this message translates to:
+  /// **'TEMPO STIMATO'**
+  String get preStartEta;
+
+  /// No description provided for @preStartStartButton.
+  ///
+  /// In it, this message translates to:
+  /// **'Inizia'**
+  String get preStartStartButton;
+
+  /// No description provided for @preStartEtaDisclaimer.
+  ///
+  /// In it, this message translates to:
+  /// **'Stima basata sul tuo passo medio e sul dislivello. Cambia in base al tuo ritmo reale.'**
+  String get preStartEtaDisclaimer;
+
+  /// No description provided for @autoPauseTriggered.
+  ///
+  /// In it, this message translates to:
+  /// **'Pausa automatica: sei fermo da oltre 5 minuti'**
+  String get autoPauseTriggered;
+
+  /// No description provided for @autoPauseResumed.
+  ///
+  /// In it, this message translates to:
+  /// **'Registrazione ripresa automaticamente'**
+  String get autoPauseResumed;
+
+  /// No description provided for @hrZonesTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Zone Cardio'**
+  String get hrZonesTitle;
+
+  /// No description provided for @hrZonesAvgPeak.
+  ///
+  /// In it, this message translates to:
+  /// **'Media {avg} · Max {peak}'**
+  String hrZonesAvgPeak(int avg, int peak);
+
+  /// No description provided for @hrZonesMaxHR.
+  ///
+  /// In it, this message translates to:
+  /// **'FC Max: {bpm}'**
+  String hrZonesMaxHR(int bpm);
+
+  /// No description provided for @hrZonesEstimated.
+  ///
+  /// In it, this message translates to:
+  /// **'STIMATA'**
+  String get hrZonesEstimated;
+
+  /// No description provided for @hrZonesSetCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Imposta'**
+  String get hrZonesSetCta;
 }
 
 class _AppLocalizationsDelegate

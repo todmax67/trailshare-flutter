@@ -76,6 +76,24 @@ class TrackingBloc extends ChangeNotifier {
   static const double _minAccuracy = 50.0;     // Ignora punti con accuracy > 50m
   static const double _maxSpeed = 50.0;        // Ignora speed > 180 km/h (50 m/s)
   static const double _minDistance = 3.0;      // Distanza minima tra punti (3m)
+
+  // 4.3 — Auto-pause su inattività
+  /// Timer periodico che controlla se l'utente è fermo da troppo tempo.
+  Timer? _autoIdleTimer;
+  /// Ultimo istante in cui l'utente ha realmente "mosso" (punto valido che
+  /// ha superato il filtro [_minDistance]).
+  DateTime? _lastMovementTime;
+  /// True se la pausa corrente è stata avviata automaticamente dal sistema
+  /// (non dall'utente). Permette il resume automatico al primo movimento.
+  bool _autoPaused = false;
+  /// Soglia di inattività oltre la quale scatta la pausa automatica.
+  static const Duration _autoIdleTimeout = Duration(minutes: 5);
+  /// Frequenza del check di inattività.
+  static const Duration _autoIdleCheckInterval = Duration(seconds: 30);
+
+  /// True se la registrazione è stata messa in pausa automaticamente.
+  /// Letta dalla UI per mostrare un banner/snackbar informativo.
+  bool get isAutoPaused => _autoPaused && _state.isPaused;
   /// Tracker elevazione con smoothing e isteresi (spike removal + dead band)
   ElevationTracker? _elevationTracker;
 
@@ -113,15 +131,35 @@ class TrackingBloc extends ChangeNotifier {
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _updateDuration();
     });
+
+    // 4.3 — Avvia il watchdog di inattività
+    _lastMovementTime = DateTime.now();
+    _startAutoIdleWatcher();
   }
 
-  /// Metti in pausa
+  /// Metti in pausa (manualmente, dall'utente).
   Future<void> pauseRecording() async {
     if (!_state.isRecording) return;
+    _autoPaused = false;
+    await _doPause();
+  }
 
+  /// Pausa automatica per inattività (4.3). Differente da [pauseRecording]
+  /// solo per il flag [_autoPaused] che permette il resume automatico
+  /// al primo movimento successivo.
+  Future<void> _autoPause() async {
+    if (!_state.isRecording) return;
+    debugPrint('[TrackingBloc] 🟡 Auto-pausa per inattività >5 min');
+    _autoPaused = true;
+    await _doPause();
+  }
+
+  /// Logica comune di pausa.
+  Future<void> _doPause() async {
     await _locationService.pauseTracking();
     _pauseStartTime = DateTime.now();
     _durationTimer?.cancel();
+    _autoIdleTimer?.cancel();
 
     _state = _state.copyWith(status: TrackingStatus.paused);
     notifyListeners();
@@ -148,6 +186,7 @@ class TrackingBloc extends ChangeNotifier {
       );
     }
     _pauseStartTime = null;
+    _autoPaused = false;
 
     _state = _state.copyWith(status: TrackingStatus.recording);
     notifyListeners();
@@ -159,6 +198,23 @@ class TrackingBloc extends ChangeNotifier {
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _updateDuration();
     });
+
+    // 4.3 — Riavvia watchdog inattività
+    _lastMovementTime = DateTime.now();
+    _startAutoIdleWatcher();
+  }
+
+  /// Avvia il timer periodico che controlla se l'utente è fermo da troppo
+  /// tempo e in tal caso scatta [_autoPause].
+  void _startAutoIdleWatcher() {
+    _autoIdleTimer?.cancel();
+    _autoIdleTimer = Timer.periodic(_autoIdleCheckInterval, (_) {
+      if (!_state.isRecording || _lastMovementTime == null) return;
+      final idleFor = DateTime.now().difference(_lastMovementTime!);
+      if (idleFor >= _autoIdleTimeout) {
+        _autoPause();
+      }
+    });
   }
 
   /// Ferma e restituisci la traccia
@@ -167,7 +223,10 @@ class TrackingBloc extends ChangeNotifier {
     await _locationService.stopTrackingKeepService();
     _locationSubscription?.cancel();
     _durationTimer?.cancel();
+    _autoIdleTimer?.cancel();
     _pauseStartTime = null;
+    _autoPaused = false;
+    _lastMovementTime = null;
 
     if (_state.points.isEmpty) {
       _state = const TrackingState();
@@ -353,6 +412,18 @@ class TrackingBloc extends ChangeNotifier {
       }
     }
 
+    // 4.3 — Il punto ha superato il filtro distanza: l'utente si sta
+    // muovendo davvero. Aggiorna il timestamp dell'ultimo movimento e,
+    // se eravamo in auto-pausa, riprendi automaticamente.
+    _lastMovementTime = DateTime.now();
+    if (_autoPaused && _state.isPaused) {
+      debugPrint('[TrackingBloc] 🟢 Auto-resume: utente in movimento');
+      // Fire-and-forget: il resume è asincrono ma non vogliamo bloccare
+      // l'elaborazione del punto corrente.
+      unawaited(resumeRecording());
+      return;
+    }
+
     // Alimenta il tracker elevazione (incrementale, 1 punto alla volta)
       if (point.elevation != null) {
       _elevationTracker?.addPoint(point.elevation);
@@ -458,6 +529,7 @@ class TrackingBloc extends ChangeNotifier {
   void dispose() {
     _locationSubscription?.cancel();
     _durationTimer?.cancel();
+    _autoIdleTimer?.cancel();
     _locationService.dispose();
     super.dispose();
   }

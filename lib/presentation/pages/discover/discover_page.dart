@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/utils/text_search.dart';
 // ⭐ Repository con cache e clustering
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../core/services/trails_cache_service.dart';
@@ -165,11 +166,17 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   List<PublicTrail> get _filteredTrails {
     var list = _trails.where((trail) {
-      // Ricerca testuale
+      // 4.4 — Ricerca testuale full-text accent-insensitive su:
+      // nome, ref (numerazione CAI/SAT), network, operator, regione.
       if (_searchQuery.isNotEmpty) {
-        final matchName = trail.name.toLowerCase().contains(_searchQuery);
-        final matchRef = trail.ref?.toLowerCase().contains(_searchQuery) ?? false;
-        if (!matchName && !matchRef) return false;
+        final hit = TextSearch.matchesAny(_searchQuery, [
+          trail.name,
+          trail.ref,
+          trail.network,
+          trail.operator,
+          trail.region,
+        ]);
+        if (!hit) return false;
       }
 
       // Difficoltà

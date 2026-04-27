@@ -1490,5 +1490,23 @@
 
   "discoveryRegionTitle": "Challenge your region",
   "discoveryRegionDesc": "Set your region and see where you rank among other hikers in your area.",
-  "discoveryRegionCta": "Set region"
+  "discoveryRegionCta": "Set region",
+
+  "preStartReadyToGo": "READY TO GO",
+  "preStartDistance": "DISTANCE",
+  "preStartElevation": "ELEVATION",
+  "preStartEta": "ETA",
+  "preStartStartButton": "Start",
+  "preStartEtaDisclaimer": "Estimate based on average pace and elevation. May vary with your actual rhythm.",
+
+  "autoPauseTriggered": "Auto-pause: idle for more than 5 minutes",
+  "autoPauseResumed": "Recording resumed automatically",
+
+  "hrZonesTitle": "Heart Rate Zones",
+  "hrZonesAvgPeak": "Avg {avg} · Peak {peak}",
+  "@hrZonesAvgPeak": { "placeholders": { "avg": {"type": "int"}, "peak": {"type": "int"} } },
+  "hrZonesMaxHR": "Max HR: {bpm}",
+  "@hrZonesMaxHR": { "placeholders": { "bpm": {"type": "int"} } },
+  "hrZonesEstimated": "ESTIMATED",
+  "hrZonesSetCta": "Set"
 }

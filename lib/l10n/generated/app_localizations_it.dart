@@ -4249,4 +4249,49 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get discoveryRegionCta => 'Imposta regione';
+
+  @override
+  String get preStartReadyToGo => 'PRONTO A PARTIRE';
+
+  @override
+  String get preStartDistance => 'DISTANZA';
+
+  @override
+  String get preStartElevation => 'DISLIVELLO';
+
+  @override
+  String get preStartEta => 'TEMPO STIMATO';
+
+  @override
+  String get preStartStartButton => 'Inizia';
+
+  @override
+  String get preStartEtaDisclaimer =>
+      'Stima basata sul tuo passo medio e sul dislivello. Cambia in base al tuo ritmo reale.';
+
+  @override
+  String get autoPauseTriggered =>
+      'Pausa automatica: sei fermo da oltre 5 minuti';
+
+  @override
+  String get autoPauseResumed => 'Registrazione ripresa automaticamente';
+
+  @override
+  String get hrZonesTitle => 'Zone Cardio';
+
+  @override
+  String hrZonesAvgPeak(int avg, int peak) {
+    return 'Media $avg · Max $peak';
+  }
+
+  @override
+  String hrZonesMaxHR(int bpm) {
+    return 'FC Max: $bpm';
+  }
+
+  @override
+  String get hrZonesEstimated => 'STIMATA';
+
+  @override
+  String get hrZonesSetCta => 'Imposta';
 }

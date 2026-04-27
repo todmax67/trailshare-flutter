@@ -4232,4 +4232,48 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discoveryRegionCta => 'Set region';
+
+  @override
+  String get preStartReadyToGo => 'READY TO GO';
+
+  @override
+  String get preStartDistance => 'DISTANCE';
+
+  @override
+  String get preStartElevation => 'ELEVATION';
+
+  @override
+  String get preStartEta => 'ETA';
+
+  @override
+  String get preStartStartButton => 'Start';
+
+  @override
+  String get preStartEtaDisclaimer =>
+      'Estimate based on average pace and elevation. May vary with your actual rhythm.';
+
+  @override
+  String get autoPauseTriggered => 'Auto-pause: idle for more than 5 minutes';
+
+  @override
+  String get autoPauseResumed => 'Recording resumed automatically';
+
+  @override
+  String get hrZonesTitle => 'Heart Rate Zones';
+
+  @override
+  String hrZonesAvgPeak(int avg, int peak) {
+    return 'Avg $avg · Peak $peak';
+  }
+
+  @override
+  String hrZonesMaxHR(int bpm) {
+    return 'Max HR: $bpm';
+  }
+
+  @override
+  String get hrZonesEstimated => 'ESTIMATED';
+
+  @override
+  String get hrZonesSetCta => 'Set';
 }
