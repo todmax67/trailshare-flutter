@@ -1498,6 +1498,11 @@
   "preStartEta": "ETA",
   "preStartStartButton": "Start",
   "preStartEtaDisclaimer": "Estimate based on average pace and elevation. May vary with your actual rhythm.",
+  "preStartLifelineLabel": "Lifeline",
+  "preStartLifelineOff": "Tap to enable safe live tracking",
+  "preStartLifelineOn": "{count, plural, =1{On · 1 contact} other{On · {count} contacts}}",
+  "@preStartLifelineOn": { "placeholders": { "count": {"type": "int"} } },
+  "preStartLifelineNoContacts": "Add an emergency contact to use it",
 
   "autoPauseTriggered": "Auto-pause: idle for more than 5 minutes",
   "autoPauseResumed": "Recording resumed automatically",

@@ -4270,6 +4270,27 @@ class AppLocalizationsIt extends AppLocalizations {
       'Stima basata sul tuo passo medio e sul dislivello. Cambia in base al tuo ritmo reale.';
 
   @override
+  String get preStartLifelineLabel => 'Lifeline';
+
+  @override
+  String get preStartLifelineOff => 'Tocca per attivare la condivisione sicura';
+
+  @override
+  String preStartLifelineOn(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Attiva · $count contatti',
+      one: 'Attiva · 1 contatto',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get preStartLifelineNoContacts =>
+      'Aggiungi un contatto di emergenza per usarla';
+
+  @override
   String get autoPauseTriggered =>
       'Pausa automatica: sei fermo da oltre 5 minuti';
 

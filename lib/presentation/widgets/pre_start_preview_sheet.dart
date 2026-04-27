@@ -29,12 +29,27 @@ class PreStartPreviewSheet extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onCancel;
 
+  /// Stato del toggle Lifeline. Quando l'utente tappa il toggle viene
+  /// chiamato [onLifelineToggle]. Se [hasLifelineContacts] è false il
+  /// toggle è in stato disabilitato e mostra una CTA per impostare i
+  /// contatti.
+  final bool lifelineEnabled;
+  final bool hasLifelineContacts;
+  final int contactsCount;
+  final VoidCallback? onLifelineToggle;
+  final VoidCallback? onLifelineSetup;
+
   const PreStartPreviewSheet({
     super.key,
     required this.reference,
     required this.activityType,
     required this.onStart,
     required this.onCancel,
+    this.lifelineEnabled = false,
+    this.hasLifelineContacts = false,
+    this.contactsCount = 0,
+    this.onLifelineToggle,
+    this.onLifelineSetup,
   });
 
   @override
@@ -179,7 +194,12 @@ class PreStartPreviewSheet extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // Toggle Lifeline: visibile sempre. Se l'utente non ha
+            // contatti la riga porta direttamente al setup.
+            _buildLifelineRow(context),
+            const SizedBox(height: 14),
 
             // Pulsante Inizia (full-width primario)
             SizedBox(
@@ -214,6 +234,121 @@ class PreStartPreviewSheet extends StatelessWidget {
                 color: context.textMuted,
               ),
               textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLifelineRow(BuildContext context) {
+    if (!hasLifelineContacts) {
+      // Stato "non configurato": mostra CTA per impostare i contatti.
+      return InkWell(
+        onTap: onLifelineSetup,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.info.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.info.withValues(alpha: 0.25),
+              style: BorderStyle.solid,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.shield_outlined,
+                  size: 20, color: AppColors.info),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.l10n.preStartLifelineLabel,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: context.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      context.l10n.preStartLifelineNoContacts,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: context.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right,
+                  size: 18, color: AppColors.info),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final on = lifelineEnabled;
+    return InkWell(
+      onTap: onLifelineToggle,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: on
+              ? AppColors.info.withValues(alpha: 0.14)
+              : Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: on
+                ? AppColors.info
+                : AppColors.info.withValues(alpha: 0.30),
+            width: on ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              on ? Icons.shield : Icons.shield_outlined,
+              size: 20,
+              color: AppColors.info,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.l10n.preStartLifelineLabel,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: context.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    on
+                        ? context.l10n.preStartLifelineOn(contactsCount)
+                        : context.l10n.preStartLifelineOff,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: on ? AppColors.info : context.textSecondary,
+                      fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: on,
+              onChanged: (_) => onLifelineToggle?.call(),
+              activeThumbColor: AppColors.info,
             ),
           ],
         ),

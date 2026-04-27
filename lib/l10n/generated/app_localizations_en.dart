@@ -4253,6 +4253,26 @@ class AppLocalizationsEn extends AppLocalizations {
       'Estimate based on average pace and elevation. May vary with your actual rhythm.';
 
   @override
+  String get preStartLifelineLabel => 'Lifeline';
+
+  @override
+  String get preStartLifelineOff => 'Tap to enable safe live tracking';
+
+  @override
+  String preStartLifelineOn(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'On · $count contacts',
+      one: 'On · 1 contact',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get preStartLifelineNoContacts => 'Add an emergency contact to use it';
+
+  @override
   String get autoPauseTriggered => 'Auto-pause: idle for more than 5 minutes';
 
   @override

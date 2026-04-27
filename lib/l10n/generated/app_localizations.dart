@@ -7748,6 +7748,30 @@ abstract class AppLocalizations {
   /// **'Stima basata sul tuo passo medio e sul dislivello. Cambia in base al tuo ritmo reale.'**
   String get preStartEtaDisclaimer;
 
+  /// No description provided for @preStartLifelineLabel.
+  ///
+  /// In it, this message translates to:
+  /// **'Lifeline'**
+  String get preStartLifelineLabel;
+
+  /// No description provided for @preStartLifelineOff.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca per attivare la condivisione sicura'**
+  String get preStartLifelineOff;
+
+  /// No description provided for @preStartLifelineOn.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{Attiva · 1 contatto} other{Attiva · {count} contatti}}'**
+  String preStartLifelineOn(int count);
+
+  /// No description provided for @preStartLifelineNoContacts.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi un contatto di emergenza per usarla'**
+  String get preStartLifelineNoContacts;
+
   /// No description provided for @autoPauseTriggered.
   ///
   /// In it, this message translates to:

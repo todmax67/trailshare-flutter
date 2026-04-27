@@ -1498,6 +1498,11 @@
   "preStartEta": "TEMPO STIMATO",
   "preStartStartButton": "Inizia",
   "preStartEtaDisclaimer": "Stima basata sul tuo passo medio e sul dislivello. Cambia in base al tuo ritmo reale.",
+  "preStartLifelineLabel": "Lifeline",
+  "preStartLifelineOff": "Tocca per attivare la condivisione sicura",
+  "preStartLifelineOn": "{count, plural, =1{Attiva · 1 contatto} other{Attiva · {count} contatti}}",
+  "@preStartLifelineOn": { "placeholders": { "count": {"type": "int"} } },
+  "preStartLifelineNoContacts": "Aggiungi un contatto di emergenza per usarla",
 
   "autoPauseTriggered": "Pausa automatica: sei fermo da oltre 5 minuti",
   "autoPauseResumed": "Registrazione ripresa automaticamente",

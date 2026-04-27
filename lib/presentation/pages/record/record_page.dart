@@ -38,6 +38,7 @@ import '../../../core/config/app_config.dart';
 import '../../../data/models/navigation_step.dart';
 import '../../../data/models/recording_reference.dart';
 import '../../widgets/pre_start_preview_sheet.dart';
+import '../settings/emergency_contacts_page.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
 import '../../widgets/poi_editor_sheet.dart';
@@ -227,10 +228,49 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   }
 
   /// Chiamato quando l'utente tappa "Inizia" nel pre-start preview sheet.
-  /// Avvia la registrazione e l'eventuale messaggio vocale di benvenuto.
+  /// Avvia Lifeline (se richiesto), la registrazione e l'eventuale
+  /// messaggio vocale di benvenuto.
   Future<void> _startGuidedRecording() async {
     if (_refAutoStartRequested) return;
     final ref = widget.reference!;
+
+    // ─── Lifeline: attivazione opzionale prima dello start ────────────
+    // Replica della logica di [_onStartPressed] ma adattata al flusso
+    // guidato. Se l'utente ha tappato il toggle Lifeline e ha contatti
+    // configurati, mostriamo disclaimer (al primo uso) e avviamo il
+    // servizio prima di partire con la registrazione.
+    if (_lifelineToggleOn && _emergencyContacts.isNotEmpty) {
+      final accepted = await _ensureLifelineDisclaimerAccepted();
+      if (!accepted) return; // utente ha rifiutato: non parte nulla
+      try {
+        final userName = FirebaseAuth.instance.currentUser?.displayName ??
+            FirebaseAuth.instance.currentUser?.email ??
+            'Utente TrailShare';
+        final drafts = await _lifeline.start(
+          contacts: _emergencyContacts,
+          userName: userName,
+          activityName: _selectedActivity.displayName,
+          referenceName: ref.name,
+          customTemplate: _lifelineTemplate,
+        );
+        _lifelineActive = drafts.isNotEmpty;
+        if (drafts.isNotEmpty && mounted) {
+          await _showLifelineDraftsDialog(drafts);
+        }
+      } catch (e) {
+        debugPrint('[RecordPage] Errore avvio Lifeline (guided): $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Impossibile avviare Lifeline: $e'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
       _showPreStartPreview = false;
       _refAutoStartRequested = true;
@@ -1636,7 +1676,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           if (_showRecTutorial && state.isIdle && !_isGuided) _buildRecTutorialOverlay(),
 
           // 4.1 — Pre-start preview overlay: visibile solo in modalità
-          // guidata, prima dell'avvio della registrazione.
+          // guidata, prima dell'avvio della registrazione. Include toggle
+          // Lifeline per non perdere la possibilità di attivarlo.
           if (_isGuided && _showPreStartPreview && state.isIdle)
             Positioned(
               left: 0,
@@ -1645,6 +1686,20 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               child: PreStartPreviewSheet(
                 reference: widget.reference!,
                 activityType: _selectedActivity,
+                lifelineEnabled: _lifelineToggleOn,
+                hasLifelineContacts: _emergencyContacts.isNotEmpty,
+                contactsCount: _emergencyContacts.length,
+                onLifelineToggle: () => setState(
+                    () => _lifelineToggleOn = !_lifelineToggleOn),
+                onLifelineSetup: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EmergencyContactsPage(),
+                    ),
+                  );
+                  if (mounted) await _loadLifelineConfig();
+                },
                 onStart: _startGuidedRecording,
                 onCancel: () {
                   if (Navigator.canPop(context)) {
