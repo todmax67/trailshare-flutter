@@ -49,6 +49,12 @@ void main() async {
   // così la UI parte con il valore corretto, niente flicker di paywall.
   await ProGateService().load();
 
+  // Apre il sync con Firestore: ascolta authStateChanges e allinea Pro
+  // con users/{uid}.proStatus (sorgente autorevole, scritta da
+  // validateAppleReceipt). Garantisce cross-device sync e gestisce
+  // logout. Non bloccante.
+  ProGateService().initFirestoreSync();
+
   // Inizializza il manager degli abbonamenti (in_app_purchase). Non
   // bloccante: lo store può essere lento e a noi basta che parta in
   // parallelo. Il PaywallSheet aspetta la lista prodotti via listener.
