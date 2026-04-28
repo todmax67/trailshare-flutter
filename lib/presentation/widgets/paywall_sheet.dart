@@ -50,6 +50,33 @@ Future<bool?> showPaywallSheet(
       builder: (ctx) => const _AndroidFreeProSheet(),
     );
   }
+
+  // Routing context-aware in base allo stato Pro corrente:
+  // - Yearly attivo  → "Sei Pro" + manage (no purchase)
+  // - Monthly attivo → "Passa ad Annuale e risparmia" (upgrade flow)
+  // - Free           → PaywallSheet standard con 2 piani
+  final gate = ProGateService();
+  if (gate.isPro && gate.isYearly) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (ctx) => const _AlreadyProYearlySheet(),
+    );
+  }
+  if (gate.isPro && gate.isMonthly) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (ctx) => const _UpgradeToYearlySheet(),
+    );
+  }
+
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
@@ -58,6 +85,18 @@ Future<bool?> showPaywallSheet(
     barrierColor: Colors.black.withValues(alpha: 0.55),
     builder: (ctx) => PaywallSheet(trigger: trigger),
   );
+}
+
+/// URL per gestire l'abbonamento dalla pagina Apple/Play Store.
+/// - iOS: deep link nativo che apre Settings → Apple ID → Abbonamenti
+/// - Android (futuro): deep link a Play Store app management
+String _manageSubscriptionUrl() {
+  if (Platform.isIOS) {
+    return 'https://apps.apple.com/account/subscriptions';
+  }
+  // Android: quando attiveremo la monetizzazione (6.B Android), usare:
+  // 'https://play.google.com/store/account/subscriptions?package=<id>'
+  return 'https://apps.apple.com/account/subscriptions';
 }
 
 /// Sheet di upgrade a TrailShare Pro.
@@ -1057,4 +1096,530 @@ class _AndroidFeatureRow {
       ],
     );
   }
+}
+
+// ─── 6.B1.5 — Sheet "Sei già Pro" — variante per piano Annuale ─────────
+//
+// L'utente ha già il piano top (yearly). Niente upgrade possibile, mostriamo
+// solo conferma + link manage.
+
+class _AlreadyProYearlySheet extends StatelessWidget {
+  const _AlreadyProYearlySheet();
+
+  Future<void> _openManage() async {
+    await launchUrl(
+      Uri.parse(_manageSubscriptionUrl()),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    return Container(
+      constraints: BoxConstraints(maxHeight: size.height * 0.85),
+      decoration: BoxDecoration(
+        color: context.themedSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHero(
+                  badgeIcon: Icons.workspace_premium,
+                  badgeLabel: 'TRAILSHARE PRO ANNUALE',
+                  title: 'Sei TrailShare Pro 🎉',
+                  subtitle:
+                      'Hai accesso a tutte le funzioni avanzate per la montagna. '
+                      'Grazie per supportare lo sviluppo!',
+                ),
+                const SizedBox(height: 24),
+                _buildFeaturesList(context),
+                const SizedBox(height: 28),
+                _buildManageButton(context),
+                const SizedBox(height: 14),
+                _buildFooterCaption(
+                  context,
+                  'Apri le impostazioni Apple per modificare o cancellare '
+                  'l\'abbonamento.',
+                ),
+              ],
+            ),
+          ),
+          _buildCloseButton(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManageButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: SizedBox(
+        height: 54,
+        child: OutlinedButton.icon(
+          onPressed: _openManage,
+          icon: const Icon(Icons.settings_outlined, size: 20),
+          label: const Text(
+            'Gestisci abbonamento',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            side: const BorderSide(color: AppColors.primary, width: 1.5),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── 6.B1.5 — Sheet "Passa ad Annuale" — variante per piano Mensile ────
+//
+// L'utente ha il monthly: gli proponiamo upgrade ad annuale (gestito da
+// Apple come crossgrade immediato grazie ai subscription levels). Layout
+// più focalizzato: niente plan selector multiplo, una sola CTA che lancia
+// il purchase del prodotto annuale.
+
+class _UpgradeToYearlySheet extends StatefulWidget {
+  const _UpgradeToYearlySheet();
+
+  @override
+  State<_UpgradeToYearlySheet> createState() => _UpgradeToYearlySheetState();
+}
+
+class _UpgradeToYearlySheetState extends State<_UpgradeToYearlySheet> {
+  bool _purchasing = false;
+
+  static const _yearlyFallbackPrice = '€19,99';
+  static const _monthlyEquivalent = '€1,67';
+
+  String get _yearlyDisplayPrice =>
+      SubscriptionManager().productById(ProProducts.yearly)?.price ??
+      _yearlyFallbackPrice;
+
+  Future<void> _onUpgrade() async {
+    if (_purchasing) return;
+    setState(() => _purchasing = true);
+    final outcome =
+        await SubscriptionManager().purchase(ProProducts.yearly);
+    if (!mounted) return;
+    setState(() => _purchasing = false);
+
+    switch (outcome) {
+      case PurchaseOutcome.success:
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎉 Sei passato a TrailShare Pro Annuale!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        break;
+      case PurchaseOutcome.canceled:
+        break;
+      case PurchaseOutcome.pending:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Upgrade in attesa di conferma.'),
+          ),
+        );
+        break;
+      case PurchaseOutcome.error:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              SubscriptionManager().lastError ??
+                  'Upgrade non riuscito. Riprova più tardi.',
+            ),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+        break;
+    }
+  }
+
+  Future<void> _openManage() async {
+    await launchUrl(
+      Uri.parse(_manageSubscriptionUrl()),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    return Container(
+      constraints: BoxConstraints(maxHeight: size.height * 0.92),
+      decoration: BoxDecoration(
+        color: context.themedSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHero(
+                  badgeIcon: Icons.trending_up,
+                  badgeLabel: 'OFFERTA UPGRADE',
+                  title: 'Passa ad Annuale\ne risparmia 44%',
+                  subtitle:
+                      'Stai pagando il piano Mensile. Con l\'Annuale spendi '
+                      'meno e supporti meglio lo sviluppo.',
+                ),
+                const SizedBox(height: 24),
+                _buildPriceComparison(context),
+                const SizedBox(height: 24),
+                _buildUpgradeCta(context),
+                const SizedBox(height: 12),
+                _buildFooterCaption(
+                  context,
+                  'L\'upgrade è immediato. Apple rimborsa la parte non '
+                  'utilizzata del piano mensile.',
+                ),
+                const SizedBox(height: 18),
+                Center(
+                  child: TextButton(
+                    onPressed: _purchasing ? null : _openManage,
+                    child: const Text(
+                      'Gestisci abbonamento',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildCloseButton(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceComparison(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.25),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _PriceColumn(
+                    label: 'Adesso',
+                    price: '€2,99',
+                    suffix: '/mese',
+                    detail: '€35,88/anno',
+                    isOld: true,
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(Icons.arrow_forward,
+                      color: AppColors.primary, size: 24),
+                ),
+                Expanded(
+                  child: _PriceColumn(
+                    label: 'Con Annuale',
+                    price: _yearlyDisplayPrice,
+                    suffix: '/anno',
+                    detail: '$_monthlyEquivalent al mese',
+                    isOld: false,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Risparmi €15,89 all\'anno',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.success,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUpgradeCta(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: SizedBox(
+        height: 54,
+        child: ElevatedButton(
+          onPressed: _purchasing ? null : _onUpgrade,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: _purchasing
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.4,
+                  ),
+                )
+              : Text(
+                  'Passa ad Annuale a $_yearlyDisplayPrice',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PriceColumn extends StatelessWidget {
+  final String label;
+  final String price;
+  final String suffix;
+  final String detail;
+  final bool isOld;
+
+  const _PriceColumn({
+    required this.label,
+    required this.price,
+    required this.suffix,
+    required this.detail,
+    required this.isOld,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: context.textSecondary,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          price,
+          style: TextStyle(
+            fontSize: isOld ? 16 : 22,
+            fontWeight: FontWeight.w800,
+            color: isOld
+                ? context.textSecondary
+                : context.textPrimary,
+            decoration:
+                isOld ? TextDecoration.lineThrough : TextDecoration.none,
+          ),
+        ),
+        Text(
+          suffix,
+          style: TextStyle(
+            fontSize: 10,
+            color: context.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          detail,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 11,
+            color: context.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Helpers condivisi tra le 2 sheet "già pro" ────────────────────────
+
+Widget _buildHero({
+  required IconData badgeIcon,
+  required String badgeLabel,
+  required String title,
+  required String subtitle,
+}) {
+  return Container(
+    padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        colors: [Color(0xFF6D4C41), Color(0xFFE07B4C)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
+    child: Column(
+      children: [
+        Container(
+          width: 48,
+          height: 4,
+          margin: const EdgeInsets.only(bottom: 18),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(badgeIcon, size: 16, color: Colors.white),
+              const SizedBox(width: 6),
+              Text(
+                badgeLabel,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.white.withValues(alpha: 0.92),
+            height: 1.4,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildFeaturesList(BuildContext context) {
+  // Lista feature concise per la sheet "già pro yearly". Riusa lo stile
+  // di _AndroidFeatureRow (icona + testo + check verde) ma compatto.
+  final items = <_AndroidFeatureRow>[
+    _AndroidFeatureRow(
+      icon: Icons.terrain,
+      color: const Color(0xFF6D4C41),
+      title: 'Mountain Finder AR',
+      subtitle: 'Riconoscimento cime in tempo reale.',
+    ),
+    _AndroidFeatureRow(
+      icon: Icons.camera_alt_outlined,
+      color: const Color(0xFF1976D2),
+      title: 'Photo Mode Pro',
+      subtitle: 'Foto annotate con i nomi delle cime.',
+    ),
+    _AndroidFeatureRow(
+      icon: Icons.bookmark_outline,
+      color: const Color(0xFFFFB300),
+      title: 'Cime salvate illimitate',
+      subtitle: 'Album personale di vette riconosciute.',
+    ),
+  ];
+
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    child: Column(
+      children: [
+        for (final f in items) ...[
+          f.build(context),
+          if (f != items.last) const SizedBox(height: 14),
+        ],
+      ],
+    ),
+  );
+}
+
+Widget _buildFooterCaption(BuildContext context, String text) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 28),
+    child: Text(
+      text,
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: 11,
+        color: context.textSecondary,
+        height: 1.4,
+      ),
+    ),
+  );
+}
+
+Widget _buildCloseButton(BuildContext context) {
+  return Positioned(
+    top: 8,
+    right: 8,
+    child: Material(
+      color: Colors.black.withValues(alpha: 0.25),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () => Navigator.pop(context),
+        child: const Padding(
+          padding: EdgeInsets.all(6),
+          child: Icon(Icons.close, size: 20, color: Colors.white),
+        ),
+      ),
+    ),
+  );
 }

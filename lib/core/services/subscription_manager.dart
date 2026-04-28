@@ -266,6 +266,9 @@ class SubscriptionManager extends ChangeNotifier {
           final isValid = await _verifyReceipt(purchase);
           if (isValid && ProProducts.isProProduct(purchase.productID)) {
             await ProGateService().setUnlocked(true);
+            // Salva il productId attivo così la UI sa quale piano
+            // l'utente ha (per mostrare upgrade vs manage).
+            await ProGateService().setCurrentProductId(purchase.productID);
             debugPrint('[SubscriptionManager] Pro UNLOCKED via '
                 '${purchase.status} of ${purchase.productID}');
           } else {
