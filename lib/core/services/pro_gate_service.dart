@@ -1,5 +1,9 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../constants/monetization_config.dart';
 
 /// Feature flag che decide se l'utente ha accesso alle funzioni
 /// **TrailShare Pro** (a pagamento).
@@ -26,7 +30,32 @@ class ProGateService extends ChangeNotifier {
   bool _unlocked = _defaultUnlocked;
   bool _loaded = false;
 
-  bool get isPro => _unlocked;
+  /// Ritorna `true` se l'utente ha accesso alle funzioni Pro.
+  ///
+  /// Su Android, finché [MonetizationConfig.androidMonetizationEnabled]
+  /// è `false` (attesa P.IVA / Google Play merchant), Pro è **sempre**
+  /// sbloccato — gli utenti Android hanno tutto gratis temporaneamente.
+  bool get isPro {
+    if (Platform.isAndroid &&
+        !MonetizationConfig.androidMonetizationEnabled) {
+      return true;
+    }
+    return _unlocked;
+  }
+
+  /// `true` se la monetizzazione è effettivamente attiva su questa
+  /// piattaforma (cioè può esistere un acquisto reale). Usato dalla UI
+  /// per decidere se mostrare il paywall o un messaggio "Pro gratis".
+  bool get isMonetizationActive {
+    if (Platform.isAndroid) {
+      return MonetizationConfig.androidMonetizationEnabled;
+    }
+    if (Platform.isIOS) {
+      return MonetizationConfig.iosMonetizationEnabled;
+    }
+    return false;
+  }
+
   bool get isLoaded => _loaded;
 
   /// Carica lo stato persistito. Idempotente.

@@ -11,6 +11,8 @@ import 'package:flutter/foundation.dart';
 import 'core/services/health_service.dart';
 import 'core/services/offline_tile_provider.dart';
 import 'core/services/garmin_sync_service.dart';
+import 'core/services/pro_gate_service.dart';
+import 'core/services/subscription_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +43,17 @@ void main() async {
   // Inizializza alert notifica Lifeline (canale max priority + permessi)
   LifelineAlertService().initialize().catchError((e) {
     debugPrint('[LifelineAlert] Init fallita: $e');
+  });
+
+  // Carica stato Pro persistito (da SharedPreferences) prima di runApp
+  // così la UI parte con il valore corretto, niente flicker di paywall.
+  await ProGateService().load();
+
+  // Inizializza il manager degli abbonamenti (in_app_purchase). Non
+  // bloccante: lo store può essere lento e a noi basta che parta in
+  // parallelo. Il PaywallSheet aspetta la lista prodotti via listener.
+  SubscriptionManager().init().catchError((e) {
+    debugPrint('[SubscriptionManager] Init fallita: $e');
   });
 
   runApp(const TrailShareApp());

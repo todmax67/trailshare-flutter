@@ -23,6 +23,8 @@ import 'health_dashboard_page.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/services/push_notification_service.dart';
+import '../../../core/services/pro_gate_service.dart';
+import '../../widgets/paywall_sheet.dart';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -204,6 +206,11 @@ class _SettingsPageState extends State<SettingsPage> {
           // Sezione Aspetto
           _buildSectionHeader(context.l10n.appearanceSection),
           _buildThemeTile(),
+          const Divider(height: 32),
+
+          // ─── Sezione TrailShare Pro (mockup paywall) ─────────────────
+          _buildSectionHeader('TrailShare Pro'),
+          _buildProTile(),
           const Divider(height: 32),
 
           // Sezione Salute
@@ -551,6 +558,99 @@ class _SettingsPageState extends State<SettingsPage> {
             )
           : null,
       onTap: onTap,
+    );
+  }
+
+  /// Tile TrailShare Pro: stato corrente + apertura paywall.
+  ///
+  /// Comportamento:
+  /// - **iOS** (monetizzazione attiva): mostra "Passa a Pro" → apre il
+  ///   paywall di acquisto reale.
+  /// - **Android** (monetizzazione disattivata in attesa P.IVA): subtitle
+  ///   spiega che Pro è gratis, tap apre la sheet informativa.
+  Widget _buildProTile() {
+    return AnimatedBuilder(
+      animation: ProGateService(),
+      builder: (context, _) {
+        final gate = ProGateService();
+        final isPro = gate.isPro;
+        final canMonetize = gate.isMonetizationActive;
+
+        // Testo dinamico in base a piattaforma + stato.
+        final String tileTitle;
+        final String tileSubtitle;
+        if (!canMonetize) {
+          // Android: Pro gratis, comunichiamolo chiaramente.
+          tileTitle = 'TrailShare Pro — gratis su Android';
+          tileSubtitle =
+              'Tutte le funzioni avanzate disponibili senza abbonamento';
+        } else if (isPro) {
+          tileTitle = 'TrailShare Pro attivo';
+          tileSubtitle =
+              'Mountain Finder AR, Photo Mode Pro e tutte le novità';
+        } else {
+          tileTitle = 'Passa a TrailShare Pro';
+          tileSubtitle = 'Sblocca AR, photo annotate e funzioni avanzate';
+        }
+
+        return Column(
+          children: [
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6D4C41), Color(0xFFE07B4C)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.workspace_premium,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              title: Text(
+                tileTitle,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                tileSubtitle,
+                style: const TextStyle(fontSize: 13),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showPaywallSheet(
+                context,
+                trigger: PaywallTrigger.settingsManual,
+              ),
+            ),
+            // Toggle dev: solo su piattaforme con monetizzazione attiva
+            // (iOS). Su Android non ha senso testare il paywall di
+            // acquisto perché non è quello che vede l'utente.
+            if (canMonetize && isPro)
+              Padding(
+                padding: const EdgeInsets.only(left: 72, right: 16, bottom: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => ProGateService().setUnlocked(false),
+                    icon: const Icon(Icons.lock_outline, size: 16),
+                    label: const Text('Dev: blocca Pro per test paywall'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textMuted,
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 

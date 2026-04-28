@@ -91,6 +91,9 @@ dependencies:
   health: ^13.3.1
   google_fonts: ^8.0.2
 
+  # 6.B — Paywall / Pro subscription
+  in_app_purchase: ^3.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
