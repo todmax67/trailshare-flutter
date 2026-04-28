@@ -15,6 +15,7 @@ import '../../core/services/subscription_manager.dart';
 enum PaywallTrigger {
   mountainFinderAR,
   photoModePro,
+  mapStylePro,
   discoveryUpsell,
   settingsManual,
   onboarding,
@@ -145,6 +146,8 @@ class _PaywallSheetState extends State<PaywallSheet> {
         return 'Sblocca Mountain Finder AR';
       case PaywallTrigger.photoModePro:
         return 'Sblocca Photo Mode Pro';
+      case PaywallTrigger.mapStylePro:
+        return 'Sblocca le mappe Pro';
       case PaywallTrigger.discoveryUpsell:
         return 'Porta TrailShare al livello Pro';
       case PaywallTrigger.onboarding:
@@ -163,6 +166,9 @@ class _PaywallSheetState extends State<PaywallSheet> {
       case PaywallTrigger.photoModePro:
         return 'Cattura foto annotate con i nomi delle cime e condividile '
             'con amici e community.';
+      case PaywallTrigger.mapStylePro:
+        return 'Topografica dettagliata, satellite con etichette e mappa '
+            'invernale per scialpinismo. Pensate per la montagna.';
       case PaywallTrigger.discoveryUpsell:
         return 'Funzioni AR, photo mode professionale e tutte le novità future, '
             'sempre incluse.';
@@ -466,6 +472,13 @@ class _PaywallSheetState extends State<PaywallSheet> {
             'Foto panoramiche annotate con i nomi delle cime, pronte da condividere.',
       ),
       _Feature(
+        icon: Icons.layers_outlined,
+        color: const Color(0xFF2E7D32),
+        title: 'Mappe topografiche premium',
+        subtitle:
+            'Topo dettagliata, satellite con etichette e mappa invernale per scialpinismo.',
+      ),
+      _Feature(
         icon: Icons.bookmark_outline,
         color: const Color(0xFFFFB300),
         title: 'Cime salvate illimitate',
@@ -477,7 +490,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
         color: const Color(0xFF7C4DFF),
         title: 'Tutte le novità future',
         subtitle:
-            '3D fly-through, mappe IGM, allenamento HR e altro — sempre incluse.',
+            '3D fly-through, allenamento HR e altro — sempre incluse.',
       ),
       _Feature(
         icon: Icons.favorite_outline,

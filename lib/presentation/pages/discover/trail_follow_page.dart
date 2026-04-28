@@ -11,7 +11,9 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/api_keys.dart';
 import '../../../core/constants/map_styles.dart';
+import '../../widgets/map_layer_button.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -754,7 +756,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
         TileLayer(
           urlTemplate: mapStyles[_currentMapStyle].urlTemplate,
           subdomains: mapStyles[_currentMapStyle].subdomains,
-          userAgentPackageName: 'com.trailshare.app',
+          userAgentPackageName: ApiKeys.mapTilerUserAgent,
           tileProvider: OfflineFallbackTileProvider(),
           tileBuilder: mapStyles[_currentMapStyle].tileColorFilter != null
               ? (context, tileWidget, tile) => ColorFiltered(
@@ -1166,16 +1168,11 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Stile mappa
-          _MapBtn(
-            icon: Icons.layers,
-            onTap: () {
-              setState(() {
-                _currentMapStyle =
-                    (_currentMapStyle + 1) % mapStyles.length;
-              });
-            },
-            tooltip: mapStyles[_currentMapStyle].name,
+          // Stile mappa (apre bottom sheet con tutti gli stili,
+          // gestendo il gating Pro per stili premium)
+          MapLayerButton(
+            currentIndex: _currentMapStyle,
+            onChanged: (i) => setState(() => _currentMapStyle = i),
           ),
           const SizedBox(height: 8),
           // Centra su traccia

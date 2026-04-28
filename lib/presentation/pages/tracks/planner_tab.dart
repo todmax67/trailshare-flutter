@@ -12,6 +12,7 @@ import '../../../core/services/routing_service.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../../data/models/track.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/constants/api_keys.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../widgets/map_layer_button.dart';
 import '../record/record_page.dart';
@@ -308,7 +309,7 @@ class _PlannerTabState extends State<PlannerTab> {
             TileLayer(
               urlTemplate: mapStyles[_currentMapStyle].urlTemplate,
               subdomains: mapStyles[_currentMapStyle].subdomains,
-              userAgentPackageName: 'com.trailshare.app',
+              userAgentPackageName: ApiKeys.mapTilerUserAgent,
               tileProvider: OfflineFallbackTileProvider(),
               tileBuilder: mapStyles[_currentMapStyle].tileColorFilter != null
                   ? (context, tileWidget, tile) => ColorFiltered(

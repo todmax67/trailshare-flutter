@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../constants/api_keys.dart';
+
 /// TileProvider che cerca prima offline, poi in rete
 class OfflineFallbackTileProvider extends TileProvider {
   static String? _cachedBasePath;
@@ -28,7 +30,14 @@ class OfflineFallbackTileProvider extends TileProvider {
         .replaceAll('{x}', '${coordinates.x}')
         .replaceAll('{y}', '${coordinates.y}')
         .replaceAll('{s}', 'a');
-    return NetworkImage(url, headers: {'User-Agent': 'TrailShare/1.0'});
+    // Il prefisso UA deve contenere [ApiKeys.mapTilerUserAgent] perchè
+    // la chiave MapTiler è restretta lato dashboard a quel substring.
+    // I provider free (OSM, OpenTopoMap, ArcGIS, CartoDB) accettano
+    // qualsiasi UA, quindi non li impatta.
+    return NetworkImage(
+      url,
+      headers: {'User-Agent': '${ApiKeys.mapTilerUserAgent}/1.0'},
+    );
   }
 
   @override
