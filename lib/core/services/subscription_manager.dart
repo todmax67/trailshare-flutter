@@ -7,6 +7,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import '../constants/monetization_config.dart';
 import '../constants/pro_products.dart';
 import 'pro_gate_service.dart';
+import 'receipt_validator_service.dart';
 
 /// Risultato dell'acquisto restituito a chi ha lanciato `purchase(...)`.
 enum PurchaseOutcome {
@@ -325,25 +326,54 @@ class SubscriptionManager extends ChangeNotifier {
     if (c != null && !c.isCompleted) c.complete(outcome);
   }
 
-  // ───────────── Receipt validation (stub per 6.B2) ─────────────
+  // ───────────── Receipt validation (6.B2) ─────────────
 
-  /// Valida il receipt server-side. **Stub temporaneo** in 6.B1: ritorna
-  /// sempre `true`. In 6.B2 chiameremo una Cloud Function che:
-  /// - iOS: invia `purchase.verificationData.serverVerificationData` ad
-  ///   Apple `https://buy.itunes.apple.com/verifyReceipt` (sandbox in dev).
-  /// - Android: usa Google Play Developer API + service account per
-  ///   verificare `purchase.verificationData.serverVerificationData`
-  ///   (purchase token).
+  /// Valida il receipt server-side via Cloud Function `validateAppleReceipt`.
   ///
-  /// Restituisce `true` solo se il receipt è autentico e l'abbonamento
-  /// è ancora attivo (non scaduto, non rimborsato).
+  /// Flow:
+  /// 1. Su iOS: chiama [ReceiptValidatorService.validateApple] che
+  ///    invoca la Cloud Function. Quest'ultima chiama l'API ufficiale
+  ///    Apple `verifyReceipt` (production o sandbox in fallback) e
+  ///    aggiorna anche `users/{uid}.proStatus` su Firestore (6.B3).
+  /// 2. Su Android: per ora ritorna sempre `true` perché la
+  ///    monetizzazione Android è disabilitata. Quando attiveremo Google
+  ///    Play merchant, questa branch chiamerà `validateGoogleReceipt`.
+  ///
+  /// Strategia in caso di errore: usiamo "fallback trust" — se la
+  /// Cloud Function è irraggiungibile (rete, timeout, server giù),
+  /// non blocchiamo l'utente legittimo che ha appena pagato. La
+  /// verifica autorevole arriverà dai webhook App Store Server
+  /// Notifications V2 (6.B5 todo) che mantengono lo stato sincronizzato
+  /// a posteriori indipendentemente dal client.
   Future<bool> _verifyReceipt(PurchaseDetails purchase) async {
-    debugPrint('[SubscriptionManager] _verifyReceipt STUB (6.B2 todo) '
-        'platform=${Platform.operatingSystem} '
-        'productId=${purchase.productID} '
-        'transactionId=${purchase.purchaseID}');
-    // TODO(6.B2): chiamare Cloud Function `validateReceipt`.
-    return true;
+    if (!Platform.isIOS) {
+      // Android: monetizzazione non attiva, accetta tutto (Pro è già
+      // gratis su Android via MonetizationConfig).
+      debugPrint('[SubscriptionManager] _verifyReceipt skip non-iOS');
+      return true;
+    }
+
+    final receipt = purchase.verificationData.serverVerificationData;
+    final source = purchase.verificationData.source;
+    debugPrint('[SubscriptionManager] _verifyReceipt receipt '
+        'source=$source length=${receipt.length} '
+        'first40=${receipt.length > 40 ? receipt.substring(0, 40) : receipt}');
+    if (receipt.isEmpty) {
+      debugPrint('[SubscriptionManager] _verifyReceipt empty receipt — '
+          'rejecting');
+      return false;
+    }
+
+    final result = await ReceiptValidatorService().validateApple(
+      serverVerificationData: receipt,
+      productId: purchase.productID,
+    );
+
+    debugPrint('[SubscriptionManager] _verifyReceipt result '
+        'valid=${result.valid} fallback=${result.isFallback} '
+        'reason=${result.debugMessage}');
+
+    return result.valid;
   }
 
   // ───────────── Cleanup ─────────────

@@ -1730,3 +1730,215 @@ exports.migrateGeoHash = onRequest({ timeoutSeconds: 540, memory: '1GiB' }, asyn
   logger.info('Migrazione completata:', result);
   res.json(result);
 });
+
+
+
+// ===================================================================
+// 6.B2 — RECEIPT VALIDATION (App Store / Play Billing)
+// ===================================================================
+//
+// Riceve un receipt dal client (dopo un acquisto/restore) e lo valida
+// chiamando l'API ufficiale Apple verifyReceipt.
+//
+// Architettura:
+// 1. Client (Flutter) chiama questa funzione tramite HTTPS Callable
+//    passando il receipt base64 ottenuto da:
+//      purchase.verificationData.serverVerificationData
+// 2. La funzione tenta production endpoint, fallback su sandbox se
+//    Apple risponde status=21007 (receipt è di sandbox)
+// 3. Parsiamo `latest_receipt_info`, prendiamo il transaction più
+//    recente per i nostri productID Pro, e ritorniamo lo stato
+// 4. (6.B3 hook) Aggiorniamo anche `users/{uid}.proStatus` su Firestore
+//    così sopravvive a reinstall e ferma la pirateria client-side
+//
+// Pre-requisiti:
+// - Firebase secret APP_STORE_SHARED_SECRET configurato:
+//     `firebase functions:secrets:set APP_STORE_SHARED_SECRET`
+//   Il valore si ottiene da App Store Connect:
+//     My Apps > TrailShare > App Information > App-Specific Shared Secret
+//   (oppure Users and Access > Integrations > In-App Purchase)
+
+const fs = require('fs');
+const path = require('path');
+const {
+  SignedDataVerifier,
+  Environment,
+} = require('@apple/app-store-server-library');
+
+const PRO_PRODUCT_IDS = [
+  'trailshare_pro_monthly',
+  'trailshare_pro_yearly',
+];
+
+const APP_BUNDLE_ID = 'com.trailshare.app';
+
+// Shared secret legacy (verifyReceipt) — non più usato dopo migrazione
+// a StoreKit 2/JWS. Mantenuto come secret optional per non rompere il
+// deploy esistente; verrà rimosso quando aggiungeremo i webhook V2.
+const appStoreSharedSecret = defineSecret('APP_STORE_SHARED_SECRET');
+
+// Apple root certificates (DER), caricati una volta all'avvio del
+// container. Servono al SignedDataVerifier per validare la catena di
+// certificati nell'header x5c del JWS.
+let _appleRootCertsCache;
+function getAppleRootCerts() {
+  if (_appleRootCertsCache) return _appleRootCertsCache;
+  const dir = path.join(__dirname, 'apple-roots');
+  const files = [
+    'AppleIncRootCertificate.cer',
+    'AppleRootCA-G2.cer',
+    'AppleRootCA-G3.cer',
+  ];
+  _appleRootCertsCache = files.map((f) => fs.readFileSync(path.join(dir, f)));
+  return _appleRootCertsCache;
+}
+
+// Crea un verifier per uno specifico ambiente. Cached per evitare il
+// parse ripetuto dei certificati ad ogni invocazione.
+const _verifierCache = {};
+function getVerifier(environment) {
+  if (_verifierCache[environment]) return _verifierCache[environment];
+  _verifierCache[environment] = new SignedDataVerifier(
+    getAppleRootCerts(),
+    true, // enableOnlineChecks (CRL/OCSP)
+    environment,
+    APP_BUNDLE_ID,
+    undefined // appAppleId — serve solo per webhook V2
+  );
+  return _verifierCache[environment];
+}
+
+exports.validateAppleReceipt = onCall(
+  { secrets: [appStoreSharedSecret] },
+  async (request) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Authentication required'
+      );
+    }
+    const uid = request.auth.uid;
+    const { receipt, productId } = request.data || {};
+
+    if (!receipt || typeof receipt !== 'string') {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Missing or invalid receipt data'
+      );
+    }
+
+    logger.info(
+      `[validateAppleReceipt] uid=${uid} productId=${productId} ` +
+        `receiptLen=${receipt.length}`
+    );
+
+    // Il receipt da StoreKit 2 è un JWS (header.payload.signature).
+    // Tentiamo di decodificarlo prima come Production, fallback Sandbox
+    // se Apple respinge per ambiente sbagliato.
+    let decoded;
+    let environmentUsed;
+    try {
+      const verifier = getVerifier(Environment.PRODUCTION);
+      decoded = await verifier.verifyAndDecodeTransaction(receipt);
+      environmentUsed = Environment.PRODUCTION;
+    } catch (prodErr) {
+      logger.info(
+        `[validateAppleReceipt] prod verify failed (${prodErr.message}), ` +
+          `trying sandbox`
+      );
+      try {
+        const verifier = getVerifier(Environment.SANDBOX);
+        decoded = await verifier.verifyAndDecodeTransaction(receipt);
+        environmentUsed = Environment.SANDBOX;
+      } catch (sandboxErr) {
+        logger.error(
+          `[validateAppleReceipt] both prod+sandbox verify failed: ` +
+            `${sandboxErr.message}`
+        );
+        await updateProStatus(uid, {
+          isPro: false,
+          productId: null,
+          expiresAtMs: null,
+          lastError: `jws_verify_failed: ${sandboxErr.message}`,
+        });
+        return {
+          valid: false,
+          productId: null,
+          expiresAtMs: null,
+          jwsError: sandboxErr.message,
+        };
+      }
+    }
+
+    // decoded contiene il payload JWSTransactionDecodedPayload con tutti
+    // i campi della transazione. Vedi:
+    // https://developer.apple.com/documentation/appstoreserverapi/jwstransactiondecodedpayload
+    const decodedProductId = decoded.productId;
+    const expiresAtMs = decoded.expiresDate; // già in ms
+    const revocationDateMs = decoded.revocationDate || null;
+    const isInTrial = decoded.offerType === 1; // 1 = introductory offer
+    const originalTransactionId = decoded.originalTransactionId;
+
+    if (!PRO_PRODUCT_IDS.includes(decodedProductId)) {
+      logger.warn(
+        `[validateAppleReceipt] productId=${decodedProductId} ` +
+          `not in PRO list`
+      );
+      await updateProStatus(uid, {
+        isPro: false,
+        productId: decodedProductId,
+        expiresAtMs: null,
+      });
+      return { valid: false, productId: decodedProductId, expiresAtMs: null };
+    }
+
+    const now = Date.now();
+    const isActive =
+      expiresAtMs > now && revocationDateMs == null;
+
+    logger.info(
+      `[validateAppleReceipt] result uid=${uid} env=${environmentUsed} ` +
+        `valid=${isActive} productId=${decodedProductId} ` +
+        `expires=${new Date(expiresAtMs).toISOString()} trial=${isInTrial}`
+    );
+
+    await updateProStatus(uid, {
+      isPro: isActive,
+      productId: decodedProductId,
+      expiresAtMs,
+      isInTrial,
+      originalTransactionId,
+      revocationDateMs,
+      environment: environmentUsed,
+      lastError: null, // pulisce eventuali errori da validazioni precedenti
+    });
+
+    return {
+      valid: isActive,
+      productId: decodedProductId,
+      expiresAtMs,
+      isInTrial,
+      originalTransactionId,
+    };
+  }
+);
+
+/// Aggiorna `users/{uid}.proStatus` (subdocument) con lo stato Pro
+/// validato server-side. Usato sia da validateAppleReceipt che, in
+/// futuro, dai webhook App Store Server Notifications.
+async function updateProStatus(uid, data) {
+  try {
+    await db.collection('users').doc(uid).set(
+      {
+        proStatus: {
+          ...data,
+          source: 'apple_iap',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      },
+      { merge: true }
+    );
+  } catch (e) {
+    logger.error(`[updateProStatus] failed for uid=${uid}`, e);
+  }
+}
