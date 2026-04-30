@@ -20,6 +20,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/share_card_widget.dart';
+import '../../widgets/share_track_to_group_sheet.dart';
 import '../../../presentation/widgets/heart_rate_zones_widget.dart';
 import '../../../core/services/health_service.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -132,6 +133,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     case 'unpublish':
                       _showUnpublishDialog();
                       break;
+                    case 'shareToGroup':
+                      showShareTrackToGroupSheet(context, track: _track);
+                      break;
                     case 'delete':
                       _showDeleteDialog();
                       break;
@@ -151,6 +155,14 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     child: ListTile(
                       leading: Icon(_track.isPublic ? Icons.public_off : Icons.public),
                       title: Text(_track.isPublic ? context.l10n.removeFromCommunity : context.l10n.publishToCommunity),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'shareToGroup',
+                    child: ListTile(
+                      leading: Icon(Icons.group_add),
+                      title: Text('Condividi nel gruppo'),
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),

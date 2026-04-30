@@ -378,6 +378,16 @@ class Track {
   final bool isPublic;
   final bool isPlanned;
   final TrackStats stats;
+
+  /// Lista degli ID dei gruppi in cui questa traccia è "consigliata"
+  /// (visibile come percorso nel tab Percorsi del gruppo). Vuota = non
+  /// condivisa con nessun gruppo.
+  ///
+  /// Una traccia può essere consigliata in più gruppi
+  /// contemporaneamente (es. l'admin di un noleggio ebike la condivide
+  /// sia nel gruppo "Stagione 2026" sia in "Tour panoramici").
+  /// Le query lato gruppo usano `array-contains`.
+  final List<String> groupIds;
   
   // 📸 NUOVO: Lista foto
   final List<TrackPhotoMetadata> photos;
@@ -402,6 +412,7 @@ class Track {
     this.isPublic = false,
     this.isPlanned = false,
     this.stats = const TrackStats(),
+    this.groupIds = const [],
     this.photos = const [], // 📸 Default: nessuna foto
     this.heartRateData, // ❤️ Battito cardiaco (opzionale)
     this.healthCalories, // 🔥 Calorie reali (opzionale)
@@ -419,6 +430,7 @@ class Track {
       'userId': userId,
       'isPublic': isPublic,
       'isPlanned': isPlanned,
+      'groupIds': groupIds,
       'distance': stats.distance,
       'elevationGain': stats.elevationGain,
       'elevationLoss': stats.elevationLoss,
@@ -456,6 +468,7 @@ class Track {
     bool? isPublic,
     bool? isPlanned,
     TrackStats? stats,
+    List<String>? groupIds,
     List<TrackPhotoMetadata>? photos, // 📸 NUOVO
     Map<DateTime, int>? heartRateData, // ❤️
     double? healthCalories, // 🔥
@@ -473,6 +486,7 @@ class Track {
       isPublic: isPublic ?? this.isPublic,
       isPlanned: isPlanned ?? this.isPlanned,
       stats: stats ?? this.stats,
+      groupIds: groupIds ?? this.groupIds,
       photos: photos ?? this.photos, // 📸 NUOVO
       heartRateData: heartRateData ?? this.heartRateData, // ❤️
       healthCalories: healthCalories ?? this.healthCalories, // 🔥

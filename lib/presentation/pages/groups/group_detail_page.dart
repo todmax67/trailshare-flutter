@@ -6,6 +6,7 @@ import '../../../data/repositories/groups_repository.dart';
 import 'group_chat_tab.dart';
 import 'group_events_tab.dart';
 import 'group_challenges_tab.dart';
+import 'group_tracks_tab.dart';
 import 'group_members_page.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
@@ -37,7 +38,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadGroup();
   }
 
@@ -214,9 +215,11 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           labelColor: AppColors.primary,
           unselectedLabelColor: context.textMuted,
           indicatorColor: AppColors.primary,
+          isScrollable: true,
           tabs: [
             Tab(icon: const Icon(Icons.chat_bubble_outline), text: context.l10n.chatTab),
             Tab(icon: const Icon(Icons.event), text: context.l10n.eventsTab),
+            const Tab(icon: Icon(Icons.route), text: 'Percorsi'),
             Tab(icon: const Icon(Icons.emoji_events), text: context.l10n.challengesTab),
             Tab(icon: const Icon(Icons.info_outline), text: context.l10n.infoTab),
           ],
@@ -232,6 +235,12 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
 
                 // Tab Eventi
                 GroupEventsTab(
+                  groupId: widget.groupId,
+                  isAdmin: _isAdmin,
+                ),
+
+                // Tab Percorsi (B2B groups feature)
+                GroupTracksTab(
                   groupId: widget.groupId,
                   isAdmin: _isAdmin,
                 ),

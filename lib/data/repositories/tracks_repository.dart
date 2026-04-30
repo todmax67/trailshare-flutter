@@ -226,6 +226,75 @@ class TracksRepository {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // CONDIVISIONE NEI GRUPPI (B2B Groups feature)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Aggiunge [groupId] al campo `groupIds` della traccia, rendendola
+  /// visibile come "percorso consigliato" nel tab Percorsi del gruppo.
+  ///
+  /// Il chiamante deve essere il **proprietario della traccia** (regola
+  /// Firestore) e tipicamente anche admin del gruppo (controllo lato
+  /// UI prima di chiamare). Idempotente — Firestore arrayUnion non
+  /// duplica.
+  Future<void> shareTrackToGroup(String trackId, String groupId) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Utente non autenticato');
+
+    await _tracksCollection(userId).doc(trackId).update({
+      'groupIds': FieldValue.arrayUnion([groupId]),
+    });
+    debugPrint(
+      '[TracksRepository] Traccia $trackId condivisa nel gruppo $groupId',
+    );
+  }
+
+  /// Rimuove [groupId] dal campo `groupIds` della traccia. La traccia
+  /// sparirà dal tab Percorsi del gruppo ma resta nelle "Le mie tracce"
+  /// del proprietario. Idempotente.
+  Future<void> unshareTrackFromGroup(String trackId, String groupId) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Utente non autenticato');
+
+    await _tracksCollection(userId).doc(trackId).update({
+      'groupIds': FieldValue.arrayRemove([groupId]),
+    });
+    debugPrint(
+      '[TracksRepository] Traccia $trackId rimossa dal gruppo $groupId',
+    );
+  }
+
+  /// Restituisce le tracce condivise nel gruppo [groupId] da tutti i
+  /// suoi membri. Usa una `collectionGroup` query su `tracks` con
+  /// `array-contains` su [groupId]. Richiede l'indice composito:
+  ///
+  ///   collection: tracks (collectionGroup), groupIds: ARRAYS asc
+  ///
+  /// Le regole Firestore devono permettere a chi è membro del gruppo
+  /// di leggere i documenti tracks con `request.auth.uid in resource.data.groupIds`
+  /// implicito tramite la membership.
+  Future<List<Track>> getGroupTracks(String groupId) async {
+    try {
+      final snap = await _firestore
+          .collectionGroup('tracks')
+          .where('groupIds', arrayContains: groupId)
+          .orderBy('createdAt', descending: true)
+          .limit(100)
+          .get();
+
+      final tracks = snap.docs
+          .map((d) => _trackFromFirestore(d.id, d.data()))
+          .toList();
+      debugPrint(
+        '[TracksRepository] getGroupTracks($groupId): ${tracks.length} tracce',
+      );
+      return tracks;
+    } catch (e) {
+      debugPrint('[TracksRepository] Errore getGroupTracks: $e');
+      return [];
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // ELIMINAZIONE
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -328,6 +397,9 @@ class TracksRepository {
       'userId': userId,
       'isPublic': track.isPublic,
       'isPlanned': track.isPlanned,
+      // Gruppi in cui la traccia è condivisa come "percorso consigliato"
+      // (B2B groups feature, vedi GroupsRepository.shareTrackToGroup).
+      'groupIds': track.groupIds,
       // Stats RICALCOLATE dai punti (non più da track.stats)
       'distance': stats.distance,
       'elevationGain': stats.elevationGain,
@@ -518,6 +590,10 @@ class TracksRepository {
       userId: data['userId']?.toString(),
       isPublic: data['isPublic'] == true,
       isPlanned: data['isPlanned'] == true,
+      groupIds: (data['groupIds'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
       stats: stats,
       photos: photos, // 📸 Foto
       heartRateData: heartRateData, // ❤️ Battito cardiaco
