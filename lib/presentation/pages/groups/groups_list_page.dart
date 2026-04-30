@@ -6,6 +6,7 @@ import '../../../data/repositories/groups_repository.dart';
 import 'create_group_page.dart';
 import 'group_detail_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class GroupsListPage extends StatefulWidget {
   const GroupsListPage({super.key});
@@ -219,29 +220,8 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              // Avatar gruppo
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppColors.primary, AppColors.primary.withOpacity(0.6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(
-                    group.name.isNotEmpty ? group.name[0].toUpperCase() : 'G',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+              // Avatar gruppo: logo Business o lettera iniziale
+              _GroupListAvatar(group: group),
               const SizedBox(width: 16),
 
               // Info
@@ -249,12 +229,27 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      group.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            group.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (group.isBusinessGroup) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.verified,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ],
                     ),
                     if (group.description != null && group.description!.isNotEmpty) ...[
                       const SizedBox(height: 4),
@@ -320,6 +315,61 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Avatar nella lista gruppi: per i Business mostra il logo se
+/// presente, altrimenti la lettera iniziale come prima.
+class _GroupListAvatar extends StatelessWidget {
+  final Group group;
+
+  const _GroupListAvatar({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLogo = group.hasCustomLogo;
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: hasLogo
+            ? null
+            : LinearGradient(
+                colors: [
+                  AppColors.primary,
+                  AppColors.primary.withValues(alpha: 0.6),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: hasLogo ? Colors.white : null,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasLogo
+          ? CachedNetworkImage(
+              imageUrl: group.avatarUrl!,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              errorWidget: (_, __, ___) => _initialFallback(group.name),
+            )
+          : _initialFallback(group.name),
+    );
+  }
+
+  Widget _initialFallback(String name) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'G',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

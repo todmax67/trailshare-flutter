@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 import 'dart:math';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -18,10 +20,24 @@ class Group {
   final int memberCount;
   final String visibility; // 'public' | 'private' | 'secret'
   final String? inviteCode;
+
+  /// Marca il gruppo come **Business** (B2B): abilita il logo
+  /// personalizzato (avatarUrl), il badge "verificato" accanto al
+  /// nome e — in futuro — cover image, brand color, statistiche
+  /// aggregate.
+  ///
+  /// Settato manualmente dal super admin per i primi clienti gratis.
+  /// Quando lanceremo il piano Business sara' autoset al pagamento.
+  final bool isBusinessGroup;
+
   bool get isPublic => visibility == 'public';
   bool get isPrivate => visibility == 'private';
   bool get isSecret => visibility == 'secret';
   bool get isDiscoverable => visibility != 'secret';
+
+  /// Vero quando il gruppo ha una rappresentazione visuale custom
+  /// (logo caricato dall'admin, possibile solo per gruppi Business).
+  bool get hasCustomLogo => isBusinessGroup && avatarUrl != null && avatarUrl!.isNotEmpty;
 
   const Group({
     required this.id,
@@ -34,6 +50,7 @@ class Group {
     this.memberCount = 0,
     this.visibility = 'secret',
     this.inviteCode,
+    this.isBusinessGroup = false,
   });
 
   factory Group.fromFirestore(DocumentSnapshot doc) {
@@ -49,6 +66,7 @@ class Group {
       memberCount: (data['memberCount'] as num?)?.toInt() ?? 0,
       visibility: _parseVisibility(data),
       inviteCode: data['inviteCode'],
+      isBusinessGroup: data['isBusinessGroup'] == true,
     );
   }
 }
@@ -1301,5 +1319,91 @@ class GroupsRepository {
   String _formatDate(DateTime date) {
     final months = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
     return '${date.day} ${months[date.month - 1]} ${date.year} alle ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // BUSINESS GROUPS (L1)
+  // ─────────────────────────────────────────────────────────────────────
+
+  /// Marca o smarca un gruppo come Business. Solo super admin.
+  ///
+  /// Quando isBusinessGroup=true, l'admin del gruppo sblocca il
+  /// caricamento del logo personalizzato e il badge "verificato".
+  /// In futuro saranno disponibili anche cover image e brand color.
+  ///
+  /// Per ora il flag viene settato manualmente da [AdminPanelPage].
+  /// Quando lanceremo il piano Business sara' autoset al pagamento
+  /// del primo IAP `trailshare_business_*`.
+  Future<bool> setBusinessFlag(String groupId, bool value) async {
+    try {
+      await _groupDoc(groupId).update({
+        'isBusinessGroup': value,
+        // Pulisce avatarUrl se rimuoviamo lo status business: niente
+        // logo se non sei piu' premium.
+        if (!value) 'avatarUrl': FieldValue.delete(),
+      });
+      debugPrint('[GroupsRepo] setBusinessFlag $groupId = $value');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore setBusinessFlag: $e');
+      return false;
+    }
+  }
+
+  /// Carica un logo per il gruppo Business. Restituisce l'URL pubblico
+  /// dell'immagine in Firebase Storage o null su errore.
+  ///
+  /// Path storage: `groups/{groupId}/logo.jpg`. Sostituisce qualsiasi
+  /// logo precedente (overwrite). Il chiamante deve essere admin del
+  /// gruppo E il gruppo deve avere isBusinessGroup=true (controllo lato
+  /// UI prima di mostrare il pulsante upload).
+  Future<String?> uploadGroupLogo(String groupId, File file) async {
+    try {
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('groups')
+          .child(groupId)
+          .child('logo.jpg');
+      final task = await ref.putFile(
+        file,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      final url = await task.ref.getDownloadURL();
+      // Salva l'URL su Firestore cosi' la UI lo legge dal modello Group
+      await _groupDoc(groupId).update({'avatarUrl': url});
+      debugPrint('[GroupsRepo] Logo caricato per $groupId: $url');
+      return url;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore uploadGroupLogo: $e');
+      return null;
+    }
+  }
+
+  /// Rimuove il logo personalizzato del gruppo (sia Storage che il
+  /// puntatore su Firestore). Idempotente.
+  Future<bool> removeGroupLogo(String groupId) async {
+    try {
+      // Prima togli il puntatore Firestore (cosi' la UI non punta a
+      // un'immagine in via di cancellazione)
+      await _groupDoc(groupId).update({
+        'avatarUrl': FieldValue.delete(),
+      });
+      // Poi cancella il file Storage (best-effort, se gia' assente OK)
+      try {
+        await FirebaseStorage.instance
+            .ref()
+            .child('groups')
+            .child(groupId)
+            .child('logo.jpg')
+            .delete();
+      } catch (_) {
+        // Ignora "object not found"
+      }
+      debugPrint('[GroupsRepo] Logo rimosso per $groupId');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore removeGroupLogo: $e');
+      return false;
+    }
   }
 }

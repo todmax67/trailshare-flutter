@@ -8,6 +8,8 @@ import 'group_events_tab.dart';
 import 'group_challenges_tab.dart';
 import 'group_tracks_tab.dart';
 import 'group_members_page.dart';
+import 'group_customize_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -151,7 +153,11 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_group?.name ?? widget.groupName),
+        title: _GroupTitle(
+          name: _group?.name ?? widget.groupName,
+          logoUrl: _group?.hasCustomLogo == true ? _group!.avatarUrl : null,
+          isVerifiedBusiness: _group?.isBusinessGroup == true,
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: context.textPrimary,
@@ -177,6 +183,16 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
+                case 'customize':
+                  if (_group != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GroupCustomizePage(group: _group!),
+                      ),
+                    ).then((_) => _loadGroup());
+                  }
+                  break;
                 case 'leave':
                   _leaveGroup();
                   break;
@@ -186,6 +202,18 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               }
             },
             itemBuilder: (context) => [
+              // "Personalizza" visibile solo se admin di un gruppo Business
+              if (_isAdmin && _group?.isBusinessGroup == true)
+                const PopupMenuItem(
+                  value: 'customize',
+                  child: Row(
+                    children: [
+                      Icon(Icons.brush, size: 20),
+                      SizedBox(width: 8),
+                      Text('Personalizza gruppo'),
+                    ],
+                  ),
+                ),
               PopupMenuItem(
                 value: 'leave',
                 child: Row(
@@ -878,5 +906,60 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
       context.l10n.monthLowerOtt, context.l10n.monthLowerNov, context.l10n.monthLowerDic,
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+}
+
+
+/// Titolo dell'AppBar per i gruppi: include logo (se Business+presente)
+/// e badge "verificato" accanto al nome.
+class _GroupTitle extends StatelessWidget {
+  final String name;
+  final String? logoUrl;
+  final bool isVerifiedBusiness;
+
+  const _GroupTitle({
+    required this.name,
+    required this.logoUrl,
+    required this.isVerifiedBusiness,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (logoUrl != null) ...[
+          ClipOval(
+            child: CachedNetworkImage(
+              imageUrl: logoUrl!,
+              width: 28,
+              height: 28,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 1.5),
+              ),
+              errorWidget: (_, __, ___) => const SizedBox(width: 28, height: 28),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Flexible(
+          child: Text(
+            name,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (isVerifiedBusiness) ...[
+          const SizedBox(width: 6),
+          const Icon(
+            Icons.verified,
+            size: 18,
+            color: AppColors.primary,
+          ),
+        ],
+      ],
+    );
   }
 }

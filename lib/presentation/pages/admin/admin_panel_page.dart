@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/admin_repository.dart';
+import '../../../data/repositories/groups_repository.dart';
 import '../groups/group_detail_page.dart';
 import '../follow/follow_list_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -126,6 +127,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             _buildStatsSection(),
             const SizedBox(height: 24),
             _buildUsersSection(),
+            const SizedBox(height: 24),
+            _buildBusinessGroupsSection(),
           ],
         ),
       ),
@@ -683,5 +686,135 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // GESTIONE GRUPPI BUSINESS (super admin)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  Widget _buildBusinessGroupsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Gruppi Business',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Marca un gruppo come Business per sbloccare la personalizzazione '
+          'visiva (logo, badge verificato). Per ora gratis al primo cliente; '
+          'in futuro autoset al pagamento del piano.',
+          style: TextStyle(color: context.textSecondary, fontSize: 13),
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          icon: const Icon(Icons.search),
+          label: const Text('Cerca e gestisci gruppo'),
+          onPressed: _showGroupSearchDialog,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showGroupSearchDialog() async {
+    final groupsRepo = GroupsRepository();
+    final controller = TextEditingController();
+    Group? foundGroup;
+    bool searching = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          title: const Text('Gruppo Business'),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    labelText: 'Group ID',
+                    hintText: 'es. f4EkwhGPpPEx4ehEXTgP',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (searching)
+                  const CircularProgressIndicator()
+                else if (foundGroup != null) ...[
+                  ListTile(
+                    leading: const Icon(Icons.group),
+                    title: Text(foundGroup!.name),
+                    subtitle: Text('Business: ${foundGroup!.isBusinessGroup}'),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () async {
+                            final newValue = !foundGroup!.isBusinessGroup;
+                            final ok = await groupsRepo.setBusinessFlag(
+                              foundGroup!.id,
+                              newValue,
+                            );
+                            if (ok) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    newValue
+                                        ? 'Gruppo marcato Business ✅'
+                                        : 'Gruppo non più Business',
+                                  ),
+                                ),
+                              );
+                              Navigator.of(ctx).pop();
+                            }
+                          },
+                          child: Text(
+                            foundGroup!.isBusinessGroup
+                                ? 'Rimuovi Business'
+                                : 'Marca come Business',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Chiudi'),
+            ),
+            FilledButton.icon(
+              icon: const Icon(Icons.search),
+              label: const Text('Cerca'),
+              onPressed: () async {
+                if (controller.text.trim().isEmpty) return;
+                setStateDialog(() {
+                  searching = true;
+                  foundGroup = null;
+                });
+                final g = await groupsRepo.getGroup(controller.text.trim());
+                setStateDialog(() {
+                  searching = false;
+                  foundGroup = g;
+                });
+                if (g == null && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Nessun gruppo con questo ID')),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
