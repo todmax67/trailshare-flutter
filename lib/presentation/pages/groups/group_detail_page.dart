@@ -215,7 +215,9 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           labelColor: AppColors.primary,
           unselectedLabelColor: context.textMuted,
           indicatorColor: AppColors.primary,
-          isScrollable: true,
+          // Tab non scrollabile: con 5 tab Flutter divide equamente lo
+          // schermo. Le label sono tutte corte (max 8 char) quindi il
+          // testo non viene troncato sui device standard.
           tabs: [
             Tab(icon: const Icon(Icons.chat_bubble_outline), text: context.l10n.chatTab),
             Tab(icon: const Icon(Icons.event), text: context.l10n.eventsTab),
