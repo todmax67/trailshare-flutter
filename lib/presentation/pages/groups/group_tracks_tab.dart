@@ -4,8 +4,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../track_detail/track_detail_page.dart';
-import '../discover/community_track_detail_page.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 /// Tab "Percorsi" del gruppo. Mostra le tracce condivise dai membri
 /// admin del gruppo (vedi `Track.groupIds`).
@@ -53,13 +51,14 @@ class _GroupTracksTabState extends State<GroupTracksTab> {
   }
 
   void _openTrack(Track track) {
-    final myUid = FirebaseAuth.instance.currentUser?.uid;
-    final isMine = track.userId != null && track.userId == myUid;
+    // Apre sempre TrackDetailPage. Le azioni admin (publish, delete) sono
+    // bloccate lato Firestore rules per i non-proprietari, quindi anche
+    // se un membro vede l'opzione nel menu non puo' eseguirla.
+    // TODO 6.C: mostrare una UI dedicata read-only piu' adatta ai membri
+    // del gruppo (es. solo "Inizia REC seguendo questo percorso").
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => isMine
-            ? TrackDetailPage(track: track)
-            : CommunityTrackDetailPage(track: track),
+        builder: (_) => TrackDetailPage(track: track),
       ),
     );
   }
