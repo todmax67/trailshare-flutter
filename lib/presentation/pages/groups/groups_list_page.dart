@@ -331,6 +331,11 @@ class _GroupListAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasLogo = group.hasCustomLogo;
+    // Diagnostica: aiuta a capire perche' il logo non si vede
+    debugPrint(
+      '[GroupListAvatar] ${group.name}: isBusiness=${group.isBusinessGroup} '
+      'avatarUrl=${group.avatarUrl} hasLogo=$hasLogo',
+    );
     return Container(
       width: 56,
       height: 56,

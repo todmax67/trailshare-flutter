@@ -678,34 +678,49 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           Center(
             child: Column(
               children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.primary, AppColors.primary.withOpacity(0.6)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                // Avatar/logo grande: usa il logo Business se presente,
+                // altrimenti il classico container con lettera iniziale.
+                _InfoTabAvatar(group: group),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        group.name,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Center(
-                    child: Text(
-                      group.name.isNotEmpty ? group.name[0].toUpperCase() : 'G',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
+                    if (group.isBusinessGroup) ...[
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.verified,
+                        color: AppColors.primary,
+                        size: 22,
+                      ),
+                    ],
+                  ],
+                ),
+                if (group.isBusinessGroup) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'BUSINESS VERIFICATO',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  group.name,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
+                ],
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -912,6 +927,10 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
 
 /// Titolo dell'AppBar per i gruppi: include logo (se Business+presente)
 /// e badge "verificato" accanto al nome.
+///
+/// L'AppBar di Material non da' constraint di larghezza ai title widget
+/// custom; serve avvolgere in LayoutBuilder per riempire la riga e
+/// dare un constraint Width al Text che lo fa renderare con ellipsis.
 class _GroupTitle extends StatelessWidget {
   final String name;
   final String? logoUrl;
@@ -925,41 +944,101 @@ class _GroupTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (logoUrl != null) ...[
-          ClipOval(
-            child: CachedNetworkImage(
-              imageUrl: logoUrl!,
-              width: 28,
-              height: 28,
-              fit: BoxFit.cover,
-              placeholder: (_, __) => const SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(strokeWidth: 1.5),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Row(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            if (logoUrl != null) ...[
+              ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: logoUrl!,
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => const SizedBox(
+                    width: 28,
+                    height: 28,
+                  ),
+                  errorWidget: (_, __, ___) =>
+                      const SizedBox(width: 28, height: 28),
+                ),
               ),
-              errorWidget: (_, __, ___) => const SizedBox(width: 28, height: 28),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Text(
+                name,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-        ],
-        Flexible(
-          child: Text(
-            name,
-            overflow: TextOverflow.ellipsis,
-          ),
+            if (isVerifiedBusiness) ...[
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.verified,
+                size: 18,
+                color: AppColors.primary,
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Avatar grande del tab Info: 80x80 con logo Business se presente,
+/// altrimenti il classico container gradient con lettera iniziale.
+class _InfoTabAvatar extends StatelessWidget {
+  final Group group;
+
+  const _InfoTabAvatar({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLogo = group.hasCustomLogo;
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        gradient: hasLogo
+            ? null
+            : LinearGradient(
+                colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: hasLogo ? Colors.white : null,
+        borderRadius: BorderRadius.circular(24),
+        border: hasLogo
+            ? Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 2)
+            : null,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasLogo
+          ? CachedNetworkImage(
+              imageUrl: group.avatarUrl!,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              errorWidget: (_, __, ___) => _initialFallback(group.name),
+            )
+          : _initialFallback(group.name),
+    );
+  }
+
+  Widget _initialFallback(String name) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'G',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 36,
+          fontWeight: FontWeight.bold,
         ),
-        if (isVerifiedBusiness) ...[
-          const SizedBox(width: 6),
-          const Icon(
-            Icons.verified,
-            size: 18,
-            color: AppColors.primary,
-          ),
-        ],
-      ],
+      ),
     );
   }
 }
