@@ -41,9 +41,9 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
     super.dispose();
   }
 
-  Future<void> _loadMyGroups() async {
+  Future<void> _loadMyGroups({bool forceServer = false}) async {
     setState(() => _isLoadingMy = true);
-    final groups = await _repo.getMyGroups();
+    final groups = await _repo.getMyGroups(forceServer: forceServer);
     if (mounted) {
       setState(() {
         _myGroups = groups;
@@ -107,7 +107,8 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
               : _myGroups.isEmpty
                   ? _buildEmptyState()
                   : RefreshIndicator(
-                      onRefresh: _loadMyGroups,
+                      // Pull-to-refresh esplicito = forza fetch server-side
+                      onRefresh: () => _loadMyGroups(forceServer: true),
                       child: ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: _myGroups.length,
@@ -212,7 +213,10 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                     builder: (_) => GroupDetailPage(groupId: group.id, groupName: group.name),
                   ),
                 );
-                _loadMyGroups();
+                // forceServer=true: bypass cache Firestore per intercettare
+                // eventuali modifiche al gruppo fatte dentro il detail
+                // (upload logo, marca Business, rinomina, ecc.)
+                _loadMyGroups(forceServer: true);
               }
             : null,
         borderRadius: BorderRadius.circular(12),

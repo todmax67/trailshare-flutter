@@ -404,15 +404,18 @@ class GroupsRepository {
   }
 
   /// Carica gruppi dell'utente corrente
-  Future<List<Group>> getMyGroups() async {
+  Future<List<Group>> getMyGroups({bool forceServer = false}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
 
     try {
+      // Source.server forza Firestore a ignorare la cache locale e
+      // rifetchare dal server. Utile dopo upload logo o cambio
+      // isBusinessGroup, altrimenti la lista resta stale.
       final snapshot = await _groupsRef
           .where('memberIds', arrayContains: user.uid)
           .orderBy('createdAt', descending: true)
-          .get();
+          .get(forceServer ? const GetOptions(source: Source.server) : null);
 
       return snapshot.docs.map((doc) => Group.fromFirestore(doc)).toList();
     } catch (e) {
