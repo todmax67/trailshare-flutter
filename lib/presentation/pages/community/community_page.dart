@@ -8,6 +8,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../tours/community_tour_detail_page.dart';
@@ -265,9 +266,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // CARICAMENTO: GRUPPI
   // ═══════════════════════════════════════════════════════════════════════
 
-  Future<void> _loadMyGroups() async {
+  Future<void> _loadMyGroups({bool forceServer = false}) async {
     setState(() => _isLoadingMyGroups = true);
-    final groups = await _groupsRepo.getMyGroups();
+    final groups = await _groupsRepo.getMyGroups(forceServer: forceServer);
     if (mounted) {
       setState(() {
         _myGroups = groups;
@@ -1042,7 +1043,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     }
 
     return RefreshIndicator(
-      onRefresh: _loadMyGroups,
+      onRefresh: () => _loadMyGroups(forceServer: true),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _myGroups.length,
@@ -1103,7 +1104,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     builder: (_) => GroupDetailPage(groupId: group.id, groupName: group.name),
                   ),
                 );
-                _loadMyGroups();
+                // forceServer per intercettare upload logo / Business flag
+                _loadMyGroups(forceServer: true);
               }
             : null,
         borderRadius: BorderRadius.circular(12),
@@ -1111,29 +1113,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              // Avatar gruppo
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppColors.primary, AppColors.primary.withOpacity(0.6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(
-                    group.name.isNotEmpty ? group.name[0].toUpperCase() : 'G',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+              // Avatar gruppo: logo Business o lettera iniziale
+              _CommunityGroupAvatar(group: group),
               const SizedBox(width: 16),
 
               // Info
@@ -1141,9 +1122,24 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      group.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            group.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (group.isBusinessGroup) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.verified,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ],
                     ),
                     if (group.description != null && group.description!.isNotEmpty) ...[
                       const SizedBox(height: 4),
@@ -1924,6 +1920,65 @@ class _PublicTourCard extends StatelessWidget {
         const SizedBox(width: 4),
         Text(value, style: TextStyle(fontSize: 13, color: color ?? context.textPrimary, fontWeight: FontWeight.w500)),
       ],
+    );
+  }
+}
+
+/// Avatar nella lista community gruppi: per i Business mostra il logo
+/// se presente, altrimenti la lettera iniziale come prima.
+class _CommunityGroupAvatar extends StatelessWidget {
+  final Group group;
+
+  const _CommunityGroupAvatar({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLogo = group.hasCustomLogo;
+    debugPrint(
+      '[CommunityGroupAvatar] ${group.name}: isBusiness=${group.isBusinessGroup} '
+      'avatarUrl=${group.avatarUrl} hasLogo=$hasLogo',
+    );
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: hasLogo
+            ? null
+            : LinearGradient(
+                colors: [
+                  AppColors.primary,
+                  AppColors.primary.withValues(alpha: 0.6),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: hasLogo ? Colors.white : null,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasLogo
+          ? CachedNetworkImage(
+              imageUrl: group.avatarUrl!,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              errorWidget: (_, __, ___) => _initialFallback(group.name),
+            )
+          : _initialFallback(group.name),
+    );
+  }
+
+  Widget _initialFallback(String name) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'G',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
