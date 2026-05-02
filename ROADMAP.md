@@ -274,30 +274,55 @@ Obiettivo: passare da **app-only** a **piattaforma multi-touch**. Sito web pubbl
 SEO/marketing + dashboard personale Pro + dashboard gestionale Business + landing pages
 brandizzate per gruppi (vetrina hotel pubblica). Tutto stessa Firebase, single sign-on.
 
-**Stack scelto**: SvelteKit (o Next.js se preferiamo React) + Firebase Web SDK +
-Tailwind CSS. Hosting già configurato in `firebase.json` (`public: "www"`).
+### Stack: marketing site + product apps separati
 
-Repository attuale: submodule `trailshare-website/` (placeholder landing page).
+Verifica fatta 2026-05-02: il sito esistente (`trailshare-website/` submodule) è già
+**HTML/CSS/JS vanilla** (non Flutter Web). 8 pagine statiche + 2 dinamiche
+(`pages/track.html`, `pages/tour.html`) + `js/main.js` + Firebase Web SDK.
 
-Piano legacy parcheggiato: [`docs/WEB_DASHBOARD_PLAN.md`](docs/WEB_DASHBOARD_PLAN.md) — da rivedere.
+Decisione: **NON migrare quanto esiste** — il vanilla è perfetto per marketing/SEO.
+Aggiungere SvelteKit SOLO per le dashboard interattive loggate. Pattern industry
+standard: marketing in HTML statico (Apple, Stripe, Linear), product app in framework
+SPA.
 
-### 8.A — Marketing site (target v2.4.0)
+| Categoria | Pagine | Stack | Repository |
+|---|---|---|---|
+| Marketing/SEO | `/`, `/help`, `/privacy`, `/terms`, `/pro`, `/business`, `/g/{groupId}` | HTML/CSS/JS vanilla esistente | `trailshare-website/` |
+| Product Pro | `app.trailshare.app/...` | SvelteKit + Firebase Web SDK + Tailwind | nuovo `dashboards/app/` |
+| Product Business | `business.trailshare.app/...` | SvelteKit + Firebase Web SDK + Tailwind | nuovo `dashboards/business/` |
+
+Hosting: tutti su Firebase Hosting con configurazione **multi-site** in `firebase.json`.
+
+Piano legacy parcheggiato: [`docs/WEB_DASHBOARD_PLAN.md`](docs/WEB_DASHBOARD_PLAN.md) — superato da Epic 8.
+
+### 8.A — Marketing site `trailshare.app` (HTML vanilla, target v2.4.0)
+
+Continua sul codebase esistente `trailshare-website/`. Niente framework, niente
+build tooling — solo aggiungere file HTML nuovi e migliorare quelli esistenti.
 
 | # | Feature | Priorità | Effort | Tier | Status |
 |---|---|---|---|---|---|
-| 8.A1 | Landing pubblica `trailshare.app` con feature carousel + download CTA | 🟥 | M | Free | ⚠️ esistente, da rinnovare |
-| 8.A2 | Pagina `trailshare.app/pro` (pricing, screenshot, trial CTA) | 🟧 | S | Free | ☐ |
-| 8.A3 | Pagina `trailshare.app/business` (B2B pitch + case study + form contatto) | 🟧 | M | Free | ☐ |
+| 8.A1 | Landing pubblica `/` rinnovata: feature carousel + download CTA + screenshot recenti | 🟧 | S | Free | ⚠️ esistente, da rinfrescare |
+| 8.A2 | Pagina `/pro.html` (pricing €2.99/€19.99, screenshot, 14gg trial CTA) | 🟥 | S | Free | ☐ blocking-Apple |
+| 8.A3 | Pagina `/business.html` (B2B pitch + case study Baita del Dutur + form contatto) | 🟧 | M | Free | ☐ |
 | 8.A4 | Blog tecnico (SEO outdoor IT: "5 sentieri Lombardia in autunno" ecc) | 🟨 | M | Free | ☐ |
-| 8.A5 | Privacy policy + terms (richiesti da Apple/Google IAP) | 🟥 | XS | Free | ⚠️ esistente, da rivedere |
+| 8.A5 | Privacy policy + terms aggiornati per IAP Apple/Google | 🟧 | XS | Free | ⚠️ esistente, da rivedere |
+| 8.A6 | OG tags + Twitter card su `/track/{id}` e `/tour/{id}` per condivisioni social | 🟨 | S | Free | ☐ |
+| 8.A7 | Sitemap + robots.txt + Schema.org `MobileApplication` per ranking | 🟨 | XS | Free | ☐ |
 
 ### 8.B — Pro user dashboard `app.trailshare.app` (target v2.5.0)
 
 Per utenti Pro (consumer) loggati con stesso Firebase Auth. Read-only per ora,
 editing è in-app.
 
+**Setup tech (one-time, ~1gg)**: SvelteKit project in `dashboards/app/`, integrazione
+Firebase Web SDK, Tailwind CSS, deploy su `app.trailshare.app` via Firebase multi-site
+hosting (aggiunge entry in `firebase.json hosting` array). Auth condivisa con app
+mobile via stesso Firebase project.
+
 | # | Feature | Priorità | Effort | Tier | Status |
 |---|---|---|---|---|---|
+| 8.B0 | Setup SvelteKit + Firebase Web SDK + Tailwind + multi-site hosting | 🟥 | M | Free | ☐ |
 | 8.B1 | Auth web (Apple Sign-In + Google + email) condivisa con app | 🟥 | M | Free | ☐ |
 | 8.B2 | Lista tracce personali + filtri/ricerca + mappa generale | 🟥 | M | Free | ☐ |
 | 8.B3 | Track detail web con mappa interattiva + grafici elevazione/HR | 🟥 | M | Free | ☐ |
@@ -312,8 +337,13 @@ editing è in-app.
 
 Per admin di gruppi Business. Operativa, non solo consultazione.
 
+**Setup tech (one-time, ~0.5gg)**: SvelteKit project in `dashboards/business/`, riusa
+le configurazioni Firebase + Tailwind di 8.B0. Layout/branding diverso da `/app`
+(più "amministrativo", colori brand del cliente quando dentro un gruppo).
+
 | # | Feature | Priorità | Effort | Tier | Status |
 |---|---|---|---|---|---|
+| 8.C0 | Setup SvelteKit project (riusa stack 8.B0) + deploy multi-site | 🟥 | S | Business | ☐ |
 | 8.C1 | Onboarding "Crea il tuo gruppo Business" guidato (logo upload, nome, ecc) | 🟥 | M | Business | ☐ |
 | 8.C2 | Editor percorsi consigliati: lista + drag&drop ordine + aggiungi/rimuovi | 🟥 | L | Business | ☐ |
 | 8.C3 | Statistiche dashboard: utenti attivi/mese, tracce più aperte, churn | 🟥 | L | Business | ☐ |
@@ -370,15 +400,19 @@ condividere su Booking, Instagram, sito proprio.
 
 - **v2.2.0+57** ✅ in review Apple + Play Store. Contiene: 6.A1, 6.A2, 6.4 (mappe Pro),
   tutta 6.B salvo B6/B8/B9/B10, 6.C1, 7.A1, 7.A2, 7.B1.
+- **Mini-sprint web (~2gg, no version bump app)** — Solo `trailshare-website/`:
+  aggiungi `/pro.html` (8.A2) e `/business.html` (8.A3) al sito vanilla esistente.
+  Sblocca link da Apple/Play Store per pricing details. Update privacy/terms (8.A5).
 - **v2.3.0** — Epic 7 Business L2: cover image + brand color (7.A3, 7.A4) + statistiche
   aggregate (7.B2) + member limit (7.B3). Setup IAP Business (7.C2). Founders pricing
   (7.C5). Discovery prompt Pro (6.B6). Webhook V2 Apple (6.B9).
-- **v2.4.0** — Marketing site rinnovo (8.A1, 8.A2, 8.A3) + acquisition outreach (7.D1,
-  7.D2, 7.D4). Webhook V2 a regime, churn dashboard (6.B8).
-- **v2.5.0** — Pro user dashboard web (8.B1-B7). Onboarding Business web (8.C1).
-  Editor percorsi web (8.C2). Member management (8.C6).
-- **v2.6.0** — Statistiche Business (8.C3) + landing pages pubbliche per gruppi
-  (8.D1-D4) + bulk import tracce (8.C7) + card invito PDF (8.C5).
+- **v2.4.0** — Acquisition outreach (7.D1, 7.D2, 7.D4) + landing rinnovo (8.A1) +
+  blog tecnico (8.A4) + OG cards (8.A6). Webhook V2 a regime, churn dashboard (6.B8).
+- **v2.5.0** — **Setup SvelteKit dashboards (8.B0, 8.C0)** + Pro user dashboard MVP
+  (8.B1-B5). Onboarding Business web (8.C1). Member management (8.C6).
+- **v2.6.0** — Editor percorsi web (8.C2) + statistiche Business (8.C3) + landing
+  pages pubbliche per gruppi (8.D1-D4) + bulk import tracce (8.C7) + card invito
+  PDF (8.C5).
 - **v2.7.0+** — Lifecycle premium completo (6.C2-C5), AI features (6.6 / 6.7),
   3D fly-through (6.3). Custom domain Business enterprise (8.D5).
 
