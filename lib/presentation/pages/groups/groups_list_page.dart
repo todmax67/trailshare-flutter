@@ -6,6 +6,8 @@ import '../../../data/repositories/groups_repository.dart';
 import 'create_group_page.dart';
 import 'group_detail_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/utils/group_brand.dart';
+import '../../widgets/business_group_card_decorations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class GroupsListPage extends StatefulWidget {
@@ -204,6 +206,9 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
   Widget _buildGroupCard(Group group, {required bool isMember}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      shape: businessCardShape(group),
+      color: businessCardSurface(context, group),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: isMember
             ? () async {
@@ -219,10 +224,14 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                 _loadMyGroups(forceServer: true);
               }
             : null,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Hero cover banner: solo Business con cover caricata.
+            BusinessCoverHeader(group: group),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
             children: [
               // Avatar gruppo: logo Business o lettera iniziale
               _GroupListAvatar(group: group),
@@ -247,14 +256,18 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                         ),
                         if (group.isBusinessGroup) ...[
                           const SizedBox(width: 4),
-                          const Icon(
+                          Icon(
                             Icons.verified,
                             size: 16,
-                            color: AppColors.primary,
+                            color: groupAccentColor(group),
                           ),
                         ],
                       ],
                     ),
+                    if (group.isBusinessGroup) ...[
+                      const SizedBox(height: 4),
+                      BusinessPill(group: group),
+                    ],
                     if (group.description != null && group.description!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
@@ -319,6 +332,8 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                 ),
             ],
           ),
+            ),
+          ],
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/group_brand.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'group_chat_tab.dart';
@@ -151,12 +152,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final accent = groupAccentColor(_group);
     return Scaffold(
       appBar: AppBar(
         title: _GroupTitle(
           name: _group?.name ?? widget.groupName,
           logoUrl: _group?.hasCustomLogo == true ? _group!.avatarUrl : null,
           isVerifiedBusiness: _group?.isBusinessGroup == true,
+          accent: accent,
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -240,9 +243,9 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         ],
         bottom: TabBar(
           controller: _tabController,
-          labelColor: AppColors.primary,
+          labelColor: accent,
           unselectedLabelColor: context.textMuted,
-          indicatorColor: AppColors.primary,
+          indicatorColor: accent,
           // Tab non scrollabile: con 5 tab Flutter divide equamente lo
           // schermo. Le label sono tutte corte (max 8 char) quindi il
           // testo non viene troncato sui device standard.
@@ -717,9 +720,9 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     ),
                     if (group.isBusinessGroup) ...[
                       const SizedBox(width: 6),
-                      const Icon(
+                      Icon(
                         Icons.verified,
-                        color: AppColors.primary,
+                        color: groupAccentColor(group),
                         size: 22,
                       ),
                     ],
@@ -730,13 +733,13 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
+                      color: groupAccentColor(group).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Text(
+                    child: Text(
                       'BUSINESS VERIFICATO',
                       style: TextStyle(
-                        color: AppColors.primary,
+                        color: groupAccentColor(group),
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.6,
@@ -958,11 +961,13 @@ class _GroupTitle extends StatelessWidget {
   final String name;
   final String? logoUrl;
   final bool isVerifiedBusiness;
+  final Color accent;
 
   const _GroupTitle({
     required this.name,
     required this.logoUrl,
     required this.isVerifiedBusiness,
+    required this.accent,
   });
 
   @override
@@ -998,10 +1003,10 @@ class _GroupTitle extends StatelessWidget {
             ),
             if (isVerifiedBusiness) ...[
               const SizedBox(width: 6),
-              const Icon(
+              Icon(
                 Icons.verified,
                 size: 18,
-                color: AppColors.primary,
+                color: accent,
               ),
             ],
           ],

@@ -13,6 +13,8 @@ import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../tours/community_tour_detail_page.dart';
 import '../../widgets/discovery_carousel.dart';
+import '../../widgets/business_group_card_decorations.dart';
+import '../../../core/utils/group_brand.dart';
 import '../../../presentation/widgets/following_feed_item.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../presentation/widgets/community_track_card.dart';
@@ -1095,6 +1097,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   Widget _buildGroupCard(Group group, {required bool isMember}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      shape: businessCardShape(group),
+      color: businessCardSurface(context, group),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: isMember
             ? () async {
@@ -1108,10 +1113,13 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 _loadMyGroups(forceServer: true);
               }
             : null,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            BusinessCoverHeader(group: group),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
             children: [
               // Avatar gruppo: logo Business o lettera iniziale
               _CommunityGroupAvatar(group: group),
@@ -1133,14 +1141,18 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         ),
                         if (group.isBusinessGroup) ...[
                           const SizedBox(width: 4),
-                          const Icon(
+                          Icon(
                             Icons.verified,
                             size: 16,
-                            color: AppColors.primary,
+                            color: groupAccentColor(group),
                           ),
                         ],
                       ],
                     ),
+                    if (group.isBusinessGroup) ...[
+                      const SizedBox(height: 4),
+                      BusinessPill(group: group),
+                    ],
                     if (group.description != null && group.description!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
@@ -1236,6 +1248,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 ),
             ],
           ),
+            ),
+          ],
         ),
       ),
     );

@@ -15,6 +15,10 @@ class Group {
   final String? description;
   final String? avatarUrl;
   final String? coverUrl;
+  /// Colore brand custom in formato ARGB int (0xFFRRGGBB). Sostituisce
+  /// l'arancio TrailShare negli accenti UI delle viste interne al
+  /// gruppo (TabBar, badge, ecc.). null = usa default AppColors.primary.
+  final int? brandColor;
   final String createdBy;
   final DateTime createdAt;
   final List<String> memberIds;
@@ -50,6 +54,7 @@ class Group {
     this.description,
     this.avatarUrl,
     this.coverUrl,
+    this.brandColor,
     required this.createdBy,
     required this.createdAt,
     required this.memberIds,
@@ -67,6 +72,7 @@ class Group {
       description: data['description'],
       avatarUrl: data['avatarUrl'],
       coverUrl: data['coverUrl'],
+      brandColor: (data['brandColor'] as num?)?.toInt(),
       createdBy: data['createdBy'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       memberIds: List<String>.from(data['memberIds'] ?? []),
@@ -1386,6 +1392,31 @@ class GroupsRepository {
     } catch (e) {
       debugPrint('[GroupsRepo] Errore uploadGroupLogo: $e');
       return null;
+    }
+  }
+
+  /// Imposta il colore brand custom del gruppo. Salvato come int ARGB
+  /// (0xFFRRGGBB). Solo gruppi Business — controllo lato UI.
+  Future<bool> setBrandColor(String groupId, int colorValue) async {
+    try {
+      await _groupDoc(groupId).update({'brandColor': colorValue});
+      debugPrint('[GroupsRepo] BrandColor $groupId = ${colorValue.toRadixString(16)}');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore setBrandColor: $e');
+      return false;
+    }
+  }
+
+  /// Resetta il colore brand al default (rimuove il campo Firestore).
+  Future<bool> clearBrandColor(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({'brandColor': FieldValue.delete()});
+      debugPrint('[GroupsRepo] BrandColor $groupId resettato');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore clearBrandColor: $e');
+      return false;
     }
   }
 

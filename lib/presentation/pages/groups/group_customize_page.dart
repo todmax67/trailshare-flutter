@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/group_brand.dart';
 import '../../../data/repositories/groups_repository.dart';
 
 /// Pagina di personalizzazione gruppo Business (Livello 1).
@@ -35,12 +36,32 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
   bool _uploadingCover = false;
   String? _currentLogoUrl;
   String? _currentCoverUrl;
+  int? _currentBrandColor;
+  bool _savingBrand = false;
 
   @override
   void initState() {
     super.initState();
     _currentLogoUrl = widget.group.avatarUrl;
     _currentCoverUrl = widget.group.coverUrl;
+    _currentBrandColor = widget.group.brandColor;
+  }
+
+  Future<void> _selectBrandColor(int? colorValue) async {
+    setState(() => _savingBrand = true);
+    final ok = colorValue == null
+        ? await _repo.clearBrandColor(widget.group.id)
+        : await _repo.setBrandColor(widget.group.id, colorValue);
+    if (!mounted) return;
+    setState(() {
+      _savingBrand = false;
+      if (ok) _currentBrandColor = colorValue;
+    });
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Errore nel salvataggio del colore')),
+      );
+    }
   }
 
   Future<void> _pickAndUpload() async {
@@ -285,17 +306,36 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
           const Divider(),
           const SizedBox(height: 16),
 
-          // ── Roadmap (cover, brand color) ─────────────────────────
+          // ── Colore brand ─────────────────────────────────────────
+          Text('Colore brand', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Sostituisce l\'arancio TrailShare negli accenti UI delle '
+            'viste interne al gruppo (tab attivo, badge, evidenziazioni).',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _BrandColorPicker(
+            selected: _currentBrandColor,
+            onSelect: _savingBrand ? null : _selectBrandColor,
+          ),
+          if (_savingBrand) ...[
+            const SizedBox(height: 12),
+            const Center(child: CircularProgressIndicator()),
+          ],
+
+          const SizedBox(height: 32),
+          const Divider(),
+          const SizedBox(height: 16),
+
+          // ── Roadmap ──────────────────────────────────────────────
           Text(
             'In arrivo',
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          _ComingSoonRow(
-            icon: Icons.palette_outlined,
-            title: 'Colore brand personalizzato',
-            subtitle: 'Sostituisce l\'arancio TrailShare negli accenti UI',
-          ),
           _ComingSoonRow(
             icon: Icons.qr_code_2_outlined,
             title: 'Card invito brandizzata',
@@ -464,6 +504,77 @@ class _CoverPreview extends StatelessWidget {
                   ],
                 ),
               ),
+      ),
+    );
+  }
+}
+
+class _BrandColorPicker extends StatelessWidget {
+  /// Valore ARGB attualmente salvato. null = default arancio.
+  final int? selected;
+  final void Function(int? colorValue)? onSelect;
+
+  const _BrandColorPicker({required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        for (int i = 0; i < GroupBrandPalette.swatches.length; i++)
+          _SwatchDot(
+            swatch: GroupBrandPalette.swatches[i],
+            // Index 0 = default arancio: salviamo null per "nessun custom".
+            isSelected: i == 0
+                ? selected == null
+                : selected == GroupBrandPalette.swatches[i].color.toARGB32(),
+            onTap: onSelect == null
+                ? null
+                : () => onSelect!(
+                    i == 0 ? null : GroupBrandPalette.swatches[i].color.toARGB32(),
+                  ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SwatchDot extends StatelessWidget {
+  final GroupBrandSwatch swatch;
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  const _SwatchDot({
+    required this.swatch,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: swatch.label,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: swatch.color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isSelected
+                  ? Theme.of(context).colorScheme.onSurface
+                  : Colors.black.withValues(alpha: 0.1),
+              width: isSelected ? 3 : 1,
+            ),
+          ),
+          child: isSelected
+              ? const Icon(Icons.check, color: Colors.white, size: 22)
+              : null,
+        ),
       ),
     );
   }
