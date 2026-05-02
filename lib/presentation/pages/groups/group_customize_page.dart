@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/csv_export.dart';
 import '../../../core/utils/group_brand.dart';
 import '../../../core/utils/web_layout.dart';
 import '../../../data/repositories/groups_repository.dart';
@@ -409,6 +410,13 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
               if (mounted) setState(() {});
             },
           ),
+
+          const SizedBox(height: 32),
+          const Divider(),
+          const SizedBox(height: 16),
+
+          // ── Esporta membri CSV (Pro) ─────────────────────────────
+          _CsvExportSection(group: widget.group),
         ],
       ),
       ),
@@ -421,6 +429,158 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
 /// - Pro / Enterprise: editor inline con preview, salva su Firestore
 /// - Verified / Trial: teaser di upgrade verso Pro
 /// - non-Business: nascosto
+/// Sezione "Esporta membri (CSV)" della pagina Personalizza.
+/// Tier Pro/Enterprise: bottone download. Verified/Trial: teaser
+/// upgrade. Non-Business: hidden.
+class _CsvExportSection extends StatefulWidget {
+  final Group group;
+  const _CsvExportSection({required this.group});
+
+  @override
+  State<_CsvExportSection> createState() => _CsvExportSectionState();
+}
+
+class _CsvExportSectionState extends State<_CsvExportSection> {
+  final _repo = GroupsRepository();
+  bool _busy = false;
+
+  bool get _isProTier =>
+      widget.group.businessTier == 'pro' ||
+      widget.group.businessTier == 'enterprise';
+
+  Future<void> _export() async {
+    setState(() => _busy = true);
+    try {
+      final csv = await _repo.exportMembersToCsv(widget.group.id);
+      // Sanitizza il nome gruppo per usarlo come filename (no spazi,
+      // no punti, max 30 char) — i sistemi share/download non amano
+      // certi caratteri.
+      final safe = widget.group.name
+          .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')
+          .toLowerCase();
+      final clipped = safe.length > 30 ? safe.substring(0, 30) : safe;
+      final ts = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .substring(0, 16);
+      final filename = 'trailshare_${clipped}_membri_$ts.csv';
+      await exportCsv(csv, filename);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Export CSV pronto')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore export: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = groupAccentColor(widget.group);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Esporta membri', style: theme.textTheme.titleMedium),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: accent.withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                'PRO',
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Scarica la lista membri in formato CSV per importarla nel '
+          'tuo CRM (username, email, ruolo, data iscrizione).',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_isProTier)
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _busy ? null : _export,
+              icon: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.file_download_outlined),
+              label: Text(_busy ? 'Genero CSV…' : 'Scarica CSV membri'),
+            ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: accent.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.workspace_premium, color: accent, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Disponibile con Business Pro',
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'L\'export CSV dei membri è una feature Pro per '
+                        'integrazione con CRM proprio. €49,99/mese o '
+                        '€499/anno.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurface,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _PinnedPostSection extends StatefulWidget {
   final Group group;
   final VoidCallback onSaved;

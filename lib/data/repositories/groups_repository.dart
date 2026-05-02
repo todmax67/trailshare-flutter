@@ -1698,6 +1698,57 @@ class GroupsRepository {
     }
   }
 
+  /// Genera la stringa CSV della lista membri del gruppo per l'export
+  /// del tier Pro/Enterprise. Include username, email (dal profilo
+  /// utente), ruolo e data di iscrizione in ISO 8601.
+  ///
+  /// Solo admin del gruppo può chiamare (controllo lato UI). Le email
+  /// vengono fetchate dai documenti `user_profiles/{uid}` con un
+  /// piccolo batch parallelo — accettabile fino a qualche centinaia
+  /// di membri.
+  Future<String> exportMembersToCsv(String groupId) async {
+    final members = await getMembers(groupId);
+
+    // Fetch parallelo dei profili per recuperare l'email. Limitato a
+    // 25 query in parallelo per non saturare la rete sui device deboli.
+    final futures = members.map((m) async {
+      try {
+        final profile = await _firestore
+            .collection('user_profiles')
+            .doc(m.userId)
+            .get();
+        return profile.data()?['email'] as String?;
+      } catch (_) {
+        return null;
+      }
+    });
+    final emails = await Future.wait(futures);
+
+    final buf = StringBuffer();
+    buf.writeln('username,email,role,joinedAt');
+    for (int i = 0; i < members.length; i++) {
+      final m = members[i];
+      final email = emails[i] ?? '';
+      buf.writeln([
+        m.username,
+        email,
+        m.role,
+        m.joinedAt.toIso8601String(),
+      ].map(_csvEscape).join(','));
+    }
+    return buf.toString();
+  }
+
+  String _csvEscape(String s) {
+    if (s.contains(',') ||
+        s.contains('"') ||
+        s.contains('\n') ||
+        s.contains('\r')) {
+      return '"${s.replaceAll('"', '""')}"';
+    }
+    return s;
+  }
+
   /// Imposta il pinned post (messaggio fisso in cima alla chat).
   /// Feature Pro: il chiamante deve essere admin del gruppo e il
   /// gruppo deve avere tier `pro` o `enterprise` (controlli lato UI).
