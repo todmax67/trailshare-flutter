@@ -264,7 +264,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               controller: _tabController,
               children: [
                 // Tab Chat
-                GroupChatTab(groupId: widget.groupId),
+                GroupChatTab(groupId: widget.groupId, group: _group),
 
                 // Tab Eventi
                 GroupEventsTab(

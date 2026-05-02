@@ -395,8 +395,195 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
               label: const Text('Apri statistiche'),
             ),
           ),
+
+          const SizedBox(height: 32),
+          const Divider(),
+          const SizedBox(height: 16),
+
+          // ── Pinned post (Pro) ────────────────────────────────────
+          _PinnedPostSection(
+            group: widget.group,
+            onSaved: () {
+              // Forza rebuild del banner: nessun-op, la pagina
+              // viene chiusa e GroupDetailPage ricarica al return.
+              if (mounted) setState(() {});
+            },
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Sezione "Messaggio fisso" della pagina Personalizza. Comportamento
+/// per tier:
+/// - Pro / Enterprise: editor inline con preview, salva su Firestore
+/// - Verified / Trial: teaser di upgrade verso Pro
+/// - non-Business: nascosto
+class _PinnedPostSection extends StatefulWidget {
+  final Group group;
+  final VoidCallback onSaved;
+
+  const _PinnedPostSection({required this.group, required this.onSaved});
+
+  @override
+  State<_PinnedPostSection> createState() => _PinnedPostSectionState();
+}
+
+class _PinnedPostSectionState extends State<_PinnedPostSection> {
+  late final TextEditingController _controller;
+  final _repo = GroupsRepository();
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.group.pinnedPostText ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _isProTier =>
+      widget.group.businessTier == 'pro' ||
+      widget.group.businessTier == 'enterprise';
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final ok = _controller.text.trim().isEmpty
+        ? await _repo.clearPinnedPost(widget.group.id)
+        : await _repo.setPinnedPost(widget.group.id, _controller.text);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (ok) {
+      widget.onSaved();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_controller.text.trim().isEmpty
+              ? 'Messaggio fisso rimosso'
+              : 'Messaggio fisso aggiornato'),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Errore nel salvataggio')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = groupAccentColor(widget.group);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Messaggio fisso', style: theme.textTheme.titleMedium),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: accent.withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                'PRO',
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Annuncio fisso in cima al chat del gruppo. Modificabile in '
+          'qualsiasi momento, visibile a tutti i membri.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_isProTier) ...[
+          TextField(
+            controller: _controller,
+            maxLines: 4,
+            maxLength: 500,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Es. "Domenica trail+grigliata, scrivici per i posti."',
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.push_pin),
+              label: Text(_controller.text.trim().isEmpty
+                  ? 'Salva (rimuovi se vuoto)'
+                  : 'Salva messaggio fisso'),
+            ),
+          ),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: accent.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.workspace_premium, color: accent, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Disponibile con Business Pro',
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Il messaggio fisso è una feature Pro. Passa a '
+                        '€49,99/mese o €499/anno per sbloccarla.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurface,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

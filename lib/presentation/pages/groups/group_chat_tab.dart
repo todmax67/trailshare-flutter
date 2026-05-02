@@ -5,13 +5,18 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/utils/group_brand.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 
 class GroupChatTab extends StatefulWidget {
   final String groupId;
 
-  const GroupChatTab({super.key, required this.groupId});
+  /// Group corrente (per il pinned post Pro). Nullable per il primo
+  /// frame prima che GroupDetailPage carichi il documento.
+  final Group? group;
+
+  const GroupChatTab({super.key, required this.groupId, this.group});
 
   @override
   State<GroupChatTab> createState() => _GroupChatTabState();
@@ -91,6 +96,10 @@ class _GroupChatTabState extends State<GroupChatTab> {
 
     return Column(
       children: [
+        // Pinned post (Pro): banner sticky in cima alla chat
+        if (widget.group?.hasActivePinnedPost == true)
+          _PinnedPostBanner(group: widget.group!),
+
         // Messaggi
         Expanded(
           child: StreamBuilder<List<GroupMessage>>(
@@ -415,3 +424,84 @@ class _GroupChatTabState extends State<GroupChatTab> {
     }
   }
 }
+
+class _PinnedPostBanner extends StatefulWidget {
+  final Group group;
+  const _PinnedPostBanner({required this.group});
+
+  @override
+  State<_PinnedPostBanner> createState() => _PinnedPostBannerState();
+}
+
+class _PinnedPostBannerState extends State<_PinnedPostBanner> {
+  bool _expanded = false;
+
+  String _relativeUpdate(DateTime? when) {
+    if (when == null) return "";
+    final diff = DateTime.now().difference(when);
+    if (diff.inMinutes < 1) return "ora";
+    if (diff.inHours < 1) return "${diff.inMinutes} min fa";
+    if (diff.inDays < 1) return "${diff.inHours} h fa";
+    if (diff.inDays < 7) return "${diff.inDays} g fa";
+    return "${(diff.inDays / 7).floor()} sett fa";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = groupAccentColor(widget.group);
+    final text = widget.group.pinnedPostText ?? "";
+    final updated = widget.group.pinnedPostUpdatedAt;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => setState(() => _expanded = !_expanded),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.push_pin, size: 16, color: accent),
+                const SizedBox(width: 6),
+                Text(
+                  "Messaggio fisso",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                    color: accent,
+                  ),
+                ),
+                const Spacer(),
+                if (updated != null)
+                  Text(
+                    _relativeUpdate(updated),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              text,
+              maxLines: _expanded ? null : 3,
+              overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

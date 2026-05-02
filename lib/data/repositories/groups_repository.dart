@@ -53,6 +53,13 @@ class Group {
   /// trailshare://g/{code}). Stat aggregata Verified.
   final int qrJoinCount;
 
+  /// Messaggio fisso (Pinned post) mostrato in cima al tab Chat del
+  /// gruppo. Feature riservata al tier Business **Pro** ed Enterprise:
+  /// la UI lo nasconde se il tier scende a Verified o trial scaduto,
+  /// ma il dato resta su Firestore per riattivazione.
+  final String? pinnedPostText;
+  final DateTime? pinnedPostUpdatedAt;
+
   bool get isPublic => visibility == 'public';
   bool get isPrivate => visibility == 'private';
   bool get isSecret => visibility == 'secret';
@@ -65,6 +72,15 @@ class Group {
   /// Vero quando il gruppo ha una cover image 16:9 caricata
   /// (banner mostrato in cima al tab Info, gruppi Business).
   bool get hasCustomCover => isBusinessGroup && coverUrl != null && coverUrl!.isNotEmpty;
+
+  /// Vero quando il pinned post deve essere visibile: testo presente
+  /// e tier Business attivo Pro o Enterprise.
+  bool get hasActivePinnedPost {
+    final text = pinnedPostText;
+    if (text == null || text.trim().isEmpty) return false;
+    if (!isBusinessActive) return false;
+    return businessTier == 'pro' || businessTier == 'enterprise';
+  }
 
   /// Vero quando il gruppo è in trial Verified (gratis 14 gg).
   bool get isInTrial =>
@@ -131,6 +147,8 @@ class Group {
     this.businessTier = 'none',
     this.businessTrialUntil,
     this.qrJoinCount = 0,
+    this.pinnedPostText,
+    this.pinnedPostUpdatedAt,
   });
 
   factory Group.fromFirestore(DocumentSnapshot doc) {
@@ -157,6 +175,9 @@ class Group {
       businessTrialUntil:
           (data['businessTrialUntil'] as Timestamp?)?.toDate(),
       qrJoinCount: (data['qrJoinCount'] as num?)?.toInt() ?? 0,
+      pinnedPostText: (data['pinnedPostText'] as String?),
+      pinnedPostUpdatedAt:
+          (data['pinnedPostUpdatedAt'] as Timestamp?)?.toDate(),
     );
   }
 }
@@ -1528,6 +1549,44 @@ class GroupsRepository {
       });
     } catch (e) {
       debugPrint('[GroupsRepo] Errore _incrementQrJoinCount: $e');
+    }
+  }
+
+  /// Imposta il pinned post (messaggio fisso in cima alla chat).
+  /// Feature Pro: il chiamante deve essere admin del gruppo e il
+  /// gruppo deve avere tier `pro` o `enterprise` (controlli lato UI).
+  ///
+  /// [text] viene troncato a 500 caratteri lato server (Firestore
+  /// non ha limite ma teniamo la UI leggibile).
+  Future<bool> setPinnedPost(String groupId, String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return clearPinnedPost(groupId);
+    final clipped = trimmed.length > 500 ? trimmed.substring(0, 500) : trimmed;
+    try {
+      await _groupDoc(groupId).update({
+        'pinnedPostText': clipped,
+        'pinnedPostUpdatedAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint('[GroupsRepo] setPinnedPost $groupId (${clipped.length} chars)');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore setPinnedPost: $e');
+      return false;
+    }
+  }
+
+  /// Rimuove il pinned post dal gruppo.
+  Future<bool> clearPinnedPost(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({
+        'pinnedPostText': FieldValue.delete(),
+        'pinnedPostUpdatedAt': FieldValue.delete(),
+      });
+      debugPrint('[GroupsRepo] clearPinnedPost $groupId');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore clearPinnedPost: $e');
+      return false;
     }
   }
 
