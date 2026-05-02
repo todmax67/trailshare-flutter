@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/group_brand.dart';
+import '../../../core/utils/web_layout.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -101,7 +102,8 @@ class _GroupStatsPageState extends State<GroupStatsPage> {
       appBar: AppBar(
         title: const Text('Statistiche gruppo'),
       ),
-      body: RefreshIndicator(
+      body: WebContentWrapper(
+        child: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -201,6 +203,7 @@ class _GroupStatsPageState extends State<GroupStatsPage> {
             ],
           ],
         ),
+      ),
       ),
     );
   }

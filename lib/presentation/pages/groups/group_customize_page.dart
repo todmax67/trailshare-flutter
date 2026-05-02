@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/group_brand.dart';
+import '../../../core/utils/web_layout.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'business_invite_card_page.dart';
 import 'group_stats_page.dart';
@@ -78,7 +77,7 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
     setState(() => _uploading = true);
     final url = await _repo.uploadGroupLogo(
       widget.group.id,
-      File(picked.path),
+      await picked.readAsBytes(),
     );
     if (!mounted) return;
     setState(() {
@@ -141,7 +140,7 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
     setState(() => _uploadingCover = true);
     final url = await _repo.uploadGroupCover(
       widget.group.id,
-      File(picked.path),
+      await picked.readAsBytes(),
     );
     if (!mounted) return;
     setState(() {
@@ -204,7 +203,8 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
       appBar: AppBar(
         title: const Text('Personalizza gruppo'),
       ),
-      body: ListView(
+      body: WebContentWrapper(
+        child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _BusinessBanner(group: widget.group),
@@ -410,6 +410,7 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
             },
           ),
         ],
+      ),
       ),
     );
   }

@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:io';
 import 'dart:math';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1562,15 +1561,15 @@ class GroupsRepository {
   /// logo precedente (overwrite). Il chiamante deve essere admin del
   /// gruppo E il gruppo deve avere isBusinessGroup=true (controllo lato
   /// UI prima di mostrare il pulsante upload).
-  Future<String?> uploadGroupLogo(String groupId, File file) async {
+  Future<String?> uploadGroupLogo(String groupId, Uint8List bytes) async {
     try {
       final ref = FirebaseStorage.instance
           .ref()
           .child('groups')
           .child(groupId)
           .child('logo.jpg');
-      final task = await ref.putFile(
-        file,
+      final task = await ref.putData(
+        bytes,
         SettableMetadata(contentType: 'image/jpeg'),
       );
       final url = await task.ref.getDownloadURL();
@@ -1767,15 +1766,15 @@ class GroupsRepository {
   ///
   /// Path storage: `groups/{groupId}/cover.jpg`. Sostituisce qualsiasi
   /// cover precedente (overwrite). Stesso pattern di [uploadGroupLogo].
-  Future<String?> uploadGroupCover(String groupId, File file) async {
+  Future<String?> uploadGroupCover(String groupId, Uint8List bytes) async {
     try {
       final ref = FirebaseStorage.instance
           .ref()
           .child('groups')
           .child(groupId)
           .child('cover.jpg');
-      final task = await ref.putFile(
-        file,
+      final task = await ref.putData(
+        bytes,
         SettableMetadata(contentType: 'image/jpeg'),
       );
       final url = await task.ref.getDownloadURL();
