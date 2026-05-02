@@ -9,6 +9,12 @@ class BusinessCaps {
   static const int verifiedTrackCap = 10;
   static const int verifiedEventCap = 4;
 
+  /// Numero MASSIMO di admin **aggiuntivi** rispetto al founder per il
+  /// tier Pro. Verified/Trial hanno 0 (solo founder). Enterprise non
+  /// ha limite. Gruppi non Business: ignorato (gestione ruoli libera
+  /// come oggi).
+  static const int proAdminCap = 5;
+
   /// I tier per cui i cap si applicano. Pro/Enterprise hanno
   /// illimitato. I gruppi non Business non hanno cap né
   /// vincoli — restano al comportamento "free" attuale.
@@ -16,6 +22,23 @@ class BusinessCaps {
     if (!group.isBusinessGroup) return false;
     return group.businessTier == 'verified' ||
         group.businessTier == 'trial';
+  }
+
+  /// Numero massimo di admin aggiuntivi (oltre al founder) consentiti
+  /// in base al tier. `null` = illimitato. `0` = solo founder.
+  static int? additionalAdminCap(Group group) {
+    if (!group.isBusinessGroup) return null;
+    switch (group.businessTier) {
+      case 'enterprise':
+        return null;
+      case 'pro':
+        return proAdminCap;
+      case 'verified':
+      case 'trial':
+        return 0;
+      default:
+        return null;
+    }
   }
 }
 
@@ -38,23 +61,60 @@ Future<void> showVerifiedCapReachedSheet(
   );
 }
 
-enum _CapResource { tracks, events }
+enum _CapResource { tracks, events, admins }
 
 extension _CapResourceX on _CapResource {
   int get cap => switch (this) {
         _CapResource.tracks => BusinessCaps.verifiedTrackCap,
         _CapResource.events => BusinessCaps.verifiedEventCap,
+        _CapResource.admins => 0, // Verified non ha admin aggiuntivi
       };
 
   String get noun => switch (this) {
         _CapResource.tracks => 'tracce condivise',
         _CapResource.events => 'eventi attivi',
+        _CapResource.admins => 'admin oltre al founder',
       };
 
   IconData get icon => switch (this) {
         _CapResource.tracks => Icons.route,
         _CapResource.events => Icons.event,
+        _CapResource.admins => Icons.admin_panel_settings,
       };
+
+  String descriptionFor(String tier) {
+    switch (this) {
+      case _CapResource.tracks:
+        return 'Il tier Verified include fino a $cap $noun per gruppo.';
+      case _CapResource.events:
+        return 'Il tier Verified include fino a $cap $noun per gruppo.';
+      case _CapResource.admins:
+        if (tier == 'pro') {
+          return 'Il tier Pro permette fino a ${BusinessCaps.proAdminCap} '
+              'co-admin oltre al founder. Hai raggiunto il limite massimo '
+              'per questo gruppo.';
+        }
+        return 'Sul tier Verified solo il founder è admin del gruppo: '
+            'non puoi promuovere altri membri a co-admin.';
+    }
+  }
+
+  String upgradePitchFor(String tier) {
+    switch (this) {
+      case _CapResource.tracks:
+      case _CapResource.events:
+        return 'Per togliere il limite passa al tier Pro: $noun illimitati, '
+            'statistiche dettagliate, team admin, featured placement.';
+      case _CapResource.admins:
+        if (tier == 'pro') {
+          return 'Per più co-admin contattaci per il tier Enterprise '
+              '(multi-gruppo, white-label, priority support).';
+        }
+        return 'Pro permette fino a ${BusinessCaps.proAdminCap} co-admin '
+            'oltre al founder, più tracce ed eventi illimitati, '
+            'featured placement e statistiche avanzate.';
+    }
+  }
 }
 
 /// Wrapper pubblico per evitare di esporre l'enum interno.
@@ -71,6 +131,26 @@ Future<void> showEventsCapReached(BuildContext context, Group group) =>
       group: group,
       resource: _CapResource.events,
     );
+
+Future<void> showAdminsCapReached(BuildContext context, Group group) =>
+    showVerifiedCapReachedSheet(
+      context,
+      group: group,
+      resource: _CapResource.admins,
+    );
+
+String _titleForTier(String tier) {
+  switch (tier) {
+    case 'pro':
+      return 'Hai raggiunto il limite Pro';
+    case 'enterprise':
+      return 'Hai raggiunto il limite Enterprise';
+    case 'verified':
+    case 'trial':
+    default:
+      return 'Hai raggiunto il limite Verified';
+  }
+}
 
 class _CapReachedSheet extends StatelessWidget {
   final Group group;
@@ -101,17 +181,15 @@ class _CapReachedSheet extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Hai raggiunto il limite Verified',
+              _titleForTier(group.businessTier),
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Il tier Business Verified include fino a ${resource.cap} '
-              '${resource.noun} per gruppo. Per togliere il limite passa al '
-              'tier Pro: ${resource.noun} illimitati, statistiche dettagliate, '
-              'team admin, featured placement nella discovery.',
+              '${resource.descriptionFor(group.businessTier)} '
+              '${resource.upgradePitchFor(group.businessTier)}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 height: 1.45,
@@ -131,7 +209,9 @@ class _CapReachedSheet extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Business Pro — €49,99/mese o €499/anno',
+                      group.businessTier == 'pro'
+                          ? 'Business Enterprise — su preventivo'
+                          : 'Business Pro — €49,99/mese o €499/anno',
                       style: TextStyle(
                         color: accent,
                         fontWeight: FontWeight.w700,
@@ -157,17 +237,22 @@ class _CapReachedSheet extends StatelessWidget {
                     onPressed: () {
                       Navigator.of(context).pop();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'Upgrade a Pro disponibile a breve — '
-                            'pagamenti via Stripe in arrivo',
+                            group.businessTier == 'pro'
+                                ? 'Per Enterprise scrivici a info@trailshare.app'
+                                : 'Upgrade a Pro disponibile a breve — pagamenti via Stripe in arrivo',
                           ),
                         ),
                       );
                     },
                     style: FilledButton.styleFrom(backgroundColor: accent),
                     icon: const Icon(Icons.trending_up),
-                    label: const Text('Passa a Pro'),
+                    label: Text(
+                      group.businessTier == 'pro'
+                          ? 'Contatta Enterprise'
+                          : 'Passa a Pro',
+                    ),
                   ),
                 ),
               ],

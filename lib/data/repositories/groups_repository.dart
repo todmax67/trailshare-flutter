@@ -1698,6 +1698,116 @@ class GroupsRepository {
     }
   }
 
+  /// Promuove un membro a co-admin del gruppo. Solo il founder può
+  /// chiamare (controllo locale + server-side via Firestore rule).
+  ///
+  /// Restituisce un map `{ success: bool, error?: String }`.
+  /// Errori possibili: utente non founder, target non è membro,
+  /// cap admin Pro raggiunto.
+  Future<Map<String, dynamic>> promoteToAdmin(
+    String groupId,
+    String targetUserId,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return {'success': false, 'error': 'Non autenticato'};
+    }
+    try {
+      final group = await getGroup(groupId);
+      if (group == null) return {'success': false, 'error': 'Gruppo non trovato'};
+      if (group.createdBy != user.uid) {
+        return {'success': false, 'error': 'Solo il founder può gestire gli admin'};
+      }
+      final memberDocRef =
+          _groupDoc(groupId).collection('members').doc(targetUserId);
+      final memberSnap = await memberDocRef.get();
+      if (!memberSnap.exists) {
+        return {'success': false, 'error': 'L\'utente non è membro del gruppo'};
+      }
+      if (memberSnap.data()?['role'] == 'admin') {
+        return {'success': false, 'error': 'L\'utente è già admin'};
+      }
+      // Cap check: conta admin attuali (escludendo il founder).
+      final adminsSnap = await _groupDoc(groupId)
+          .collection('members')
+          .where('role', isEqualTo: 'admin')
+          .get();
+      final additionalAdmins = adminsSnap.docs
+          .where((d) => d.id != group.createdBy)
+          .length;
+      // Limite tier-aware: la UI dovrebbe già aver bloccato, ma
+      // teniamo il check server-side come safety.
+      // null = illimitato (Enterprise / non Business)
+      // 0 = solo founder (Verified/Trial)
+      // 5 = Pro
+      final maxAdditional = _additionalAdminCapInternal(group);
+      if (maxAdditional != null && additionalAdmins >= maxAdditional) {
+        return {
+          'success': false,
+          'error': maxAdditional == 0
+              ? 'Tier Verified non supporta co-admin. Passa a Pro.'
+              : 'Hai raggiunto il limite di $maxAdditional co-admin del tier Pro.',
+        };
+      }
+      await memberDocRef.update({'role': 'admin'});
+      debugPrint('[GroupsRepo] $targetUserId promosso ad admin in $groupId');
+      return {'success': true};
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore promoteToAdmin: $e');
+      return {'success': false, 'error': 'Errore: $e'};
+    }
+  }
+
+  /// Demote di un co-admin a member. Solo il founder può chiamare.
+  /// Il founder non può essere demoteato (regola applicata anche
+  /// lato Firestore).
+  Future<Map<String, dynamic>> demoteToMember(
+    String groupId,
+    String targetUserId,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return {'success': false, 'error': 'Non autenticato'};
+    }
+    try {
+      final group = await getGroup(groupId);
+      if (group == null) return {'success': false, 'error': 'Gruppo non trovato'};
+      if (group.createdBy != user.uid) {
+        return {'success': false, 'error': 'Solo il founder può gestire gli admin'};
+      }
+      if (targetUserId == group.createdBy) {
+        return {'success': false, 'error': 'Il founder non può essere demoteato'};
+      }
+      await _groupDoc(groupId)
+          .collection('members')
+          .doc(targetUserId)
+          .update({'role': 'member'});
+      debugPrint('[GroupsRepo] $targetUserId demoteato a member in $groupId');
+      return {'success': true};
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore demoteToMember: $e');
+      return {'success': false, 'error': 'Errore: $e'};
+    }
+  }
+
+  /// Helper interno per il cap admin tier-aware. Replica la logica di
+  /// `BusinessCaps.additionalAdminCap` ma evita una dipendenza
+  /// circolare core/utils ↔ data/repositories.
+  int? _additionalAdminCapInternal(Group group) {
+    if (!group.isBusinessGroup) return null;
+    switch (group.businessTier) {
+      case 'enterprise':
+        return null;
+      case 'pro':
+        return 5;
+      case 'verified':
+      case 'trial':
+        return 0;
+      default:
+        return null;
+    }
+  }
+
   /// Genera la stringa CSV della lista membri del gruppo per l'export
   /// del tier Pro/Enterprise. Include username, email (dal profilo
   /// utente), ruolo e data di iscrizione in ISO 8601.
