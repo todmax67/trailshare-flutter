@@ -86,6 +86,16 @@
 				<string>com.googleusercontent.apps.760969043040-lmk5n7t2v8o3j788jubdu87bqcll2jdl</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>app.trailshare.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>trailshare</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>

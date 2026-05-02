@@ -13,6 +13,7 @@ import 'core/services/offline_tile_provider.dart';
 import 'core/services/garmin_sync_service.dart';
 import 'core/services/pro_gate_service.dart';
 import 'core/services/subscription_manager.dart';
+import 'core/services/deep_link_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,6 +61,12 @@ void main() async {
   // parallelo. Il PaywallSheet aspetta la lista prodotti via listener.
   SubscriptionManager().init().catchError((e) {
     debugPrint('[SubscriptionManager] Init fallita: $e');
+  });
+
+  // Deep link handler (custom scheme trailshare://g/{code} dal QR
+  // della Card invito brandizzata). Non bloccante.
+  DeepLinkService().initialize().catchError((e) {
+    debugPrint('[DeepLink] Init fallita: $e');
   });
 
   runApp(const TrailShareApp());

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/group_brand.dart';
 import '../../../data/repositories/groups_repository.dart';
+import 'business_invite_card_page.dart';
 
 /// Pagina di personalizzazione gruppo Business (Livello 1).
 ///
@@ -330,17 +331,49 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
           const Divider(),
           const SizedBox(height: 16),
 
+          // ── Card invito brandizzata ──────────────────────────────
+          Text('Card invito brandizzata', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Genera una card 9:16 con logo, colore brand e QR del codice '
+            'invito. Pronta per Instagram Stories, WhatsApp, stampa.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: widget.group.inviteCode == null
+                  ? null
+                  : () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BusinessInviteCardPage(
+                            group: widget.group,
+                          ),
+                        ),
+                      );
+                    },
+              icon: const Icon(Icons.qr_code_2),
+              label: Text(widget.group.inviteCode == null
+                  ? 'Genera prima un codice invito'
+                  : 'Apri card invito'),
+            ),
+          ),
+
+          const SizedBox(height: 32),
+          const Divider(),
+          const SizedBox(height: 16),
+
           // ── Roadmap ──────────────────────────────────────────────
           Text(
             'In arrivo',
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          _ComingSoonRow(
-            icon: Icons.qr_code_2_outlined,
-            title: 'Card invito brandizzata',
-            subtitle: 'QR code con il tuo logo per onboarding clienti',
-          ),
           _ComingSoonRow(
             icon: Icons.bar_chart,
             title: 'Statistiche aggregate',

@@ -113,6 +113,15 @@
                             <data android:mimeType="application/octet-stream"/>
                             <data android:pathPattern=".*\\.fit"/>
                         </intent-filter>
+
+                        <!-- Custom scheme deep link: trailshare://g/{code}
+                             usato dal QR di invito ai gruppi Business -->
+                        <intent-filter>
+                            <action android:name="android.intent.action.VIEW"/>
+                            <category android:name="android.intent.category.DEFAULT"/>
+                            <category android:name="android.intent.category.BROWSABLE"/>
+                            <data android:scheme="trailshare"/>
+                        </intent-filter>
         </activity>
         
         <!-- Health Connect -->
