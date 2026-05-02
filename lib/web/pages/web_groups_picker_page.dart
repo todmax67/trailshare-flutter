@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/group_brand.dart';
 import '../../data/repositories/groups_repository.dart';
-import '../../presentation/pages/groups/group_customize_page.dart';
+import 'web_group_dashboard_page.dart';
 
 /// Selettore gruppo per la dashboard B2B web. Mostra solo i gruppi
 /// Business di cui l'utente loggato è admin (founder o coadmin in
@@ -198,14 +198,12 @@ class _GroupTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () {
-          // Per ora riusiamo direttamente la GroupCustomizePage mobile.
-          // Da lì sono accessibili anche Statistiche, Card invito,
-          // Pinned post (Pro). UX desktop dedicato in un round
-          // successivo (sidebar nav + content area).
+          // Apre lo shell dashboard desktop con NavigationRail
+          // (Personalizza / Statistiche / Membri).
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => GroupCustomizePage(group: group),
+              builder: (_) => WebGroupDashboardPage(group: group),
             ),
           );
         },
