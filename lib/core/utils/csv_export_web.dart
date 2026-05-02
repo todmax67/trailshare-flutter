@@ -6,8 +6,18 @@ import 'dart:html' as html;
 /// download tramite anchor element. Standard pattern, supportato da
 /// tutti i browser moderni.
 Future<void> doExportCsv(String csv, String filename) async {
-  final bytes = utf8.encode(csv);
-  final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
+  await doDownloadString(csv, filename, 'text/csv;charset=utf-8');
+}
+
+/// Download generico di una stringa testuale come file (GPX, JSON,
+/// XML, ecc.) — riusa il pattern Blob+anchor del CSV.
+Future<void> doDownloadString(
+  String content,
+  String filename,
+  String mime,
+) async {
+  final bytes = utf8.encode(content);
+  final blob = html.Blob([bytes], mime);
   final url = html.Url.createObjectUrlFromBlob(blob);
   html.AnchorElement(href: url)
     ..setAttribute('download', filename)

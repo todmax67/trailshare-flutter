@@ -14,6 +14,15 @@ import 'csv_export_stub.dart'
 Future<void> exportCsv(String csv, String filename) =>
     doExportCsv(csv, filename);
 
+/// Download/share generico di un contenuto testuale (GPX, JSON, ecc).
+/// Su web triggera download via Blob, su mobile salva temp e share sheet.
+Future<void> downloadString(
+  String content,
+  String filename,
+  String mime,
+) =>
+    doDownloadString(content, filename, mime);
+
 /// Helper per costruire una riga CSV correttamente quotata.
 ///
 /// Regole RFC 4180: se un valore contiene virgola, newline o doppio

@@ -4,8 +4,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/constants/app_colors.dart';
 import '../l10n/generated/app_localizations.dart';
+import 'pages/web_home_page.dart';
 import 'pages/web_login_page.dart';
-import 'pages/web_groups_picker_page.dart';
 
 /// Root MaterialApp della dashboard B2B web.
 ///
@@ -64,7 +64,7 @@ class _AuthGate extends StatelessWidget {
         }
         final user = snapshot.data;
         if (user == null) return const WebLoginPage();
-        return const WebGroupsPickerPage();
+        return const WebHomePage();
       },
     );
   }

@@ -5,3 +5,7 @@
 Future<void> doExportCsv(String csv, String filename) async {
   throw UnsupportedError('CSV export non supportato su questa piattaforma');
 }
+
+Future<void> doDownloadString(String content, String filename, String mime) async {
+  throw UnsupportedError('Download non supportato su questa piattaforma');
+}
