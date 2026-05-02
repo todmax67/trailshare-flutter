@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/utils/business_caps.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_event_page.dart';
 import 'event_detail_page.dart';
@@ -50,6 +51,20 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
+          // Cap check: gruppi Verified/Trial sono limitati a 4 eventi
+          // attivi (futuri o in corso). Pro/Enterprise illimitati.
+          // Gruppi non Business: nessun cap, comportamento "free".
+          final group = await _repo.getGroup(widget.groupId);
+          if (group != null && BusinessCaps.applies(group)) {
+            final upcoming =
+                await _repo.getEvents(widget.groupId, upcomingOnly: true);
+            if (upcoming.length >= BusinessCaps.verifiedEventCap) {
+              if (!context.mounted) return;
+              await showEventsCapReached(context, group);
+              return;
+            }
+          }
+          if (!context.mounted) return;
           final created = await Navigator.push<bool>(
             context,
             MaterialPageRoute(

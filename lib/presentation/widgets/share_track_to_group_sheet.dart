@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/utils/business_caps.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/groups_repository.dart';
 import '../../data/repositories/tracks_repository.dart';
@@ -76,6 +77,22 @@ class _ShareTrackToGroupSheetState extends State<_ShareTrackToGroupSheet> {
     final trackId = widget.track.id;
     if (trackId == null) return;
     final groupId = entry.group.id;
+
+    // Cap check: se il gruppo è Verified/Trial e ha già raggiunto
+    // il limite di 10 tracce condivise, blocca l'aggiunta e propone
+    // upgrade. La rimozione (wantShared=false) non è mai bloccata.
+    if (wantShared && BusinessCaps.applies(entry.group)) {
+      final current = await _tracksRepo.getGroupTracks(groupId);
+      // Se la traccia è già condivisa (toggle off→on dopo rimozione)
+      // l'array contiene il trackId: non conta come superamento.
+      final alreadyIn =
+          current.any((t) => t.id == trackId);
+      if (!alreadyIn && current.length >= BusinessCaps.verifiedTrackCap) {
+        if (!mounted) return;
+        await showTracksCapReached(context, entry.group);
+        return;
+      }
+    }
 
     // Aggiornamento ottimistico
     setState(() {
