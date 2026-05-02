@@ -73,6 +73,28 @@ class _WebLoginPageState extends State<WebLoginPage> {
     }
   }
 
+  Future<void> _signInWithApple() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      // Sign in with Apple su web richiede setup separato (Service ID
+      // + key Apple Developer + provider Apple in Firebase Auth);
+      // vedi docs/APPLE_SIGN_IN_WEB.md.
+      final provider = OAuthProvider('apple.com');
+      provider.addScope('email');
+      provider.addScope('name');
+      await FirebaseAuth.instance.signInWithPopup(provider);
+    } on FirebaseAuthException catch (e) {
+      setState(() => _error = e.message ?? 'Errore Apple');
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -203,6 +225,18 @@ class _WebLoginPageState extends State<WebLoginPage> {
                         ),
                         icon: const Icon(Icons.account_circle_outlined),
                         label: const Text('Continua con Google'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _busy ? null : _signInWithApple,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          side: BorderSide.none,
+                        ),
+                        icon: const Icon(Icons.apple),
+                        label: const Text('Continua con Apple'),
                       ),
                     ],
                   ),
