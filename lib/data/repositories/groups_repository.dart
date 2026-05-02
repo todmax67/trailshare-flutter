@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -35,6 +37,11 @@ class Group {
   /// Quando lanceremo il piano Business sara' autoset al pagamento.
   final bool isBusinessGroup;
 
+  /// Numero cumulativo di utenti che si sono iscritti al gruppo via
+  /// codice invito (sia incollando il codice che via deep link
+  /// trailshare://g/{code}). Stat aggregata Verified.
+  final int qrJoinCount;
+
   bool get isPublic => visibility == 'public';
   bool get isPrivate => visibility == 'private';
   bool get isSecret => visibility == 'secret';
@@ -62,6 +69,7 @@ class Group {
     this.visibility = 'secret',
     this.inviteCode,
     this.isBusinessGroup = false,
+    this.qrJoinCount = 0,
   });
 
   factory Group.fromFirestore(DocumentSnapshot doc) {
@@ -80,6 +88,7 @@ class Group {
       visibility: _parseVisibility(data),
       inviteCode: data['inviteCode'],
       isBusinessGroup: data['isBusinessGroup'] == true,
+      qrJoinCount: (data['qrJoinCount'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -1073,6 +1082,9 @@ class GroupsRepository {
       // Unisciti
       final success = await joinGroup(group.id);
       if (success) {
+        // Stat Verified: conta gli ingressi via codice invito
+        // (sia QR brandizzato che paste manuale).
+        unawaited(_incrementQrJoinCount(group.id));
         return {'success': true, 'groupId': group.id, 'groupName': group.name};
       } else {
         return {'success': false, 'error': 'Errore nell\'unirsi al gruppo'};
@@ -1392,6 +1404,18 @@ class GroupsRepository {
     } catch (e) {
       debugPrint('[GroupsRepo] Errore uploadGroupLogo: $e');
       return null;
+    }
+  }
+
+  /// Increment best-effort del counter qrJoinCount sul gruppo.
+  /// Fallisce silenziosamente — la stat è informativa, non critica.
+  Future<void> _incrementQrJoinCount(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({
+        'qrJoinCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore _incrementQrJoinCount: $e');
     }
   }
 

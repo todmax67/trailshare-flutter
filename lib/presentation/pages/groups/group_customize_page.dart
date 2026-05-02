@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/group_brand.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'business_invite_card_page.dart';
+import 'group_stats_page.dart';
 
 /// Pagina di personalizzazione gruppo Business (Livello 1).
 ///
@@ -368,16 +369,31 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
           const Divider(),
           const SizedBox(height: 16),
 
-          // ── Roadmap ──────────────────────────────────────────────
+          // ── Statistiche aggregate ────────────────────────────────
+          Text('Statistiche', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
           Text(
-            'In arrivo',
-            style: theme.textTheme.titleMedium,
+            'Vista d\'insieme: membri, iscritti via codice, tracce e '
+            'eventi attivi. Statistiche dettagliate disponibili con Pro.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-          const SizedBox(height: 8),
-          _ComingSoonRow(
-            icon: Icons.bar_chart,
-            title: 'Statistiche aggregate',
-            subtitle: 'Quante volte ogni percorso e\' stato seguito',
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => GroupStatsPage(group: widget.group),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.bar_chart),
+              label: const Text('Apri statistiche'),
+            ),
           ),
         ],
       ),
@@ -613,42 +629,3 @@ class _SwatchDot extends StatelessWidget {
   }
 }
 
-class _ComingSoonRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  const _ComingSoonRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: theme.textTheme.bodyMedium),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
