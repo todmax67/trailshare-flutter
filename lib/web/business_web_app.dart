@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/constants/app_colors.dart';
+import '../l10n/generated/app_localizations.dart';
 import 'pages/web_login_page.dart';
 import 'pages/web_groups_picker_page.dart';
 
@@ -27,6 +29,20 @@ class BusinessWebApp extends StatelessWidget {
         scaffoldBackgroundColor: AppColors.background,
         fontFamily: 'Outfit',
       ),
+      // Le pagine condivise con mobile (GroupMembersPage, ecc.) usano
+      // context.l10n: senza i delegate, la chiamata si schianta con
+      // "Null check operator used on a null value" quando il widget
+      // legge una stringa localizzata.
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('it'),
+        Locale('en'),
+      ],
       home: const _AuthGate(),
     );
   }
