@@ -32,12 +32,15 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
   final _repo = GroupsRepository();
   final _picker = ImagePicker();
   bool _uploading = false;
+  bool _uploadingCover = false;
   String? _currentLogoUrl;
+  String? _currentCoverUrl;
 
   @override
   void initState() {
     super.initState();
     _currentLogoUrl = widget.group.avatarUrl;
+    _currentCoverUrl = widget.group.coverUrl;
   }
 
   Future<void> _pickAndUpload() async {
@@ -101,6 +104,75 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
     });
   }
 
+  Future<void> _pickAndUploadCover() async {
+    // Aspect ratio 16:9: chiediamo immagine ampia, lasciamo poi
+    // BoxFit.cover renderizzare il crop. maxWidth 1920 = full HD,
+    // dimensione raccomandata banner web/mobile.
+    final XFile? picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1920,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
+    setState(() => _uploadingCover = true);
+    final url = await _repo.uploadGroupCover(
+      widget.group.id,
+      File(picked.path),
+    );
+    if (!mounted) return;
+    setState(() {
+      _uploadingCover = false;
+      if (url != null) _currentCoverUrl = url;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(url != null
+            ? 'Copertina aggiornata'
+            : 'Errore durante il caricamento'),
+      ),
+    );
+  }
+
+  Future<void> _removeCover() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rimuovere la copertina?'),
+        content: const Text(
+          'Il gruppo tornera\' a mostrare il layout senza banner.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Rimuovi'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() => _uploadingCover = true);
+    final ok = await _repo.removeGroupCover(widget.group.id);
+    if (!mounted) return;
+    setState(() {
+      _uploadingCover = false;
+      if (ok) _currentCoverUrl = null;
+    });
+  }
+
+  void _showPresetGallerySoon() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Galleria sfondi pronti in arrivo'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -114,6 +186,55 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
         children: [
           _BusinessBanner(),
           const SizedBox(height: 24),
+
+          // ── Cover image 16:9 ─────────────────────────────────────
+          Text('Copertina', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Banner 16:9 mostrato in cima alla scheda Info del gruppo. '
+            'Consigliato 1920x1080.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _CoverPreview(coverUrl: _currentCoverUrl),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _uploadingCover ? null : _pickAndUploadCover,
+                  icon: const Icon(Icons.upload),
+                  label: Text(_currentCoverUrl == null
+                      ? 'Carica copertina'
+                      : 'Sostituisci'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _uploadingCover ? null : _showPresetGallerySoon,
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Sfondi'),
+              ),
+              if (_currentCoverUrl != null) ...[
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  onPressed: _uploadingCover ? null : _removeCover,
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Rimuovi copertina',
+                ),
+              ],
+            ],
+          ),
+          if (_uploadingCover) ...[
+            const SizedBox(height: 12),
+            const Center(child: CircularProgressIndicator()),
+          ],
+
+          const SizedBox(height: 32),
+          const Divider(),
+          const SizedBox(height: 16),
 
           // ── Logo del gruppo ──────────────────────────────────────
           Text('Logo', style: theme.textTheme.titleMedium),
@@ -170,11 +291,6 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          _ComingSoonRow(
-            icon: Icons.image_outlined,
-            title: 'Immagine di copertina',
-            subtitle: 'Banner 16:9 sopra il nome del gruppo',
-          ),
           _ComingSoonRow(
             icon: Icons.palette_outlined,
             title: 'Colore brand personalizzato',
@@ -295,6 +411,60 @@ class _LogoPreview extends StatelessWidget {
                 ),
               ),
             ),
+    );
+  }
+}
+
+class _CoverPreview extends StatelessWidget {
+  final String? coverUrl;
+
+  const _CoverPreview({required this.coverUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.25),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: coverUrl != null
+            ? CachedNetworkImage(
+                imageUrl: coverUrl!,
+                fit: BoxFit.cover,
+                placeholder: (_, __) =>
+                    const Center(child: CircularProgressIndicator()),
+                errorWidget: (_, __, ___) => const Center(
+                  child: Icon(Icons.broken_image_outlined, size: 40),
+                ),
+              )
+            : Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.image_outlined,
+                      size: 40,
+                      color: AppColors.primary.withValues(alpha: 0.6),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Nessuna copertina',
+                      style: TextStyle(
+                        color: AppColors.primary.withValues(alpha: 0.7),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+      ),
     );
   }
 }

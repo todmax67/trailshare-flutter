@@ -14,6 +14,7 @@ class Group {
   final String name;
   final String? description;
   final String? avatarUrl;
+  final String? coverUrl;
   final String createdBy;
   final DateTime createdAt;
   final List<String> memberIds;
@@ -39,11 +40,16 @@ class Group {
   /// (logo caricato dall'admin, possibile solo per gruppi Business).
   bool get hasCustomLogo => isBusinessGroup && avatarUrl != null && avatarUrl!.isNotEmpty;
 
+  /// Vero quando il gruppo ha una cover image 16:9 caricata
+  /// (banner mostrato in cima al tab Info, gruppi Business).
+  bool get hasCustomCover => isBusinessGroup && coverUrl != null && coverUrl!.isNotEmpty;
+
   const Group({
     required this.id,
     required this.name,
     this.description,
     this.avatarUrl,
+    this.coverUrl,
     required this.createdBy,
     required this.createdAt,
     required this.memberIds,
@@ -60,6 +66,7 @@ class Group {
       name: data['name'] ?? 'Gruppo',
       description: data['description'],
       avatarUrl: data['avatarUrl'],
+      coverUrl: data['coverUrl'],
       createdBy: data['createdBy'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       memberIds: List<String>.from(data['memberIds'] ?? []),
@@ -1379,6 +1386,57 @@ class GroupsRepository {
     } catch (e) {
       debugPrint('[GroupsRepo] Errore uploadGroupLogo: $e');
       return null;
+    }
+  }
+
+  /// Carica una cover image 16:9 per il gruppo Business. Restituisce
+  /// l'URL pubblico o null su errore.
+  ///
+  /// Path storage: `groups/{groupId}/cover.jpg`. Sostituisce qualsiasi
+  /// cover precedente (overwrite). Stesso pattern di [uploadGroupLogo].
+  Future<String?> uploadGroupCover(String groupId, File file) async {
+    try {
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('groups')
+          .child(groupId)
+          .child('cover.jpg');
+      final task = await ref.putFile(
+        file,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      final url = await task.ref.getDownloadURL();
+      await _groupDoc(groupId).update({'coverUrl': url});
+      debugPrint('[GroupsRepo] Cover caricata per $groupId: $url');
+      return url;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore uploadGroupCover: $e');
+      return null;
+    }
+  }
+
+  /// Rimuove la cover image del gruppo (sia Storage che il puntatore
+  /// su Firestore). Idempotente.
+  Future<bool> removeGroupCover(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({
+        'coverUrl': FieldValue.delete(),
+      });
+      try {
+        await FirebaseStorage.instance
+            .ref()
+            .child('groups')
+            .child(groupId)
+            .child('cover.jpg')
+            .delete();
+      } catch (_) {
+        // Ignora "object not found"
+      }
+      debugPrint('[GroupsRepo] Cover rimossa per $groupId');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore removeGroupCover: $e');
+      return false;
     }
   }
 

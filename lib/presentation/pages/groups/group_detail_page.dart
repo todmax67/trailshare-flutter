@@ -674,6 +674,29 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Cover banner 16:9 (Business con cover caricata)
+          if (group.hasCustomCover) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: CachedNetworkImage(
+                  imageUrl: group.coverUrl!,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    child: const Center(
+                      child: Icon(Icons.broken_image_outlined, size: 40),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           // Header gruppo
           Center(
             child: Column(
