@@ -459,9 +459,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           title: const Text('Gruppo Business'),
           content: SizedBox(
             width: 360,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 TextField(
                   controller: controller,
                   decoration: const InputDecoration(
@@ -476,43 +477,63 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   ListTile(
                     leading: const Icon(Icons.group),
                     title: Text(foundGroup!.name),
-                    subtitle: Text('Business: ${foundGroup!.isBusinessGroup}'),
+                    subtitle: Text(
+                      'Stato: ${foundGroup!.businessTierLabel}',
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  // Picker tier: assegna manualmente prima dell'integrazione
+                  // Stripe (clienti seed, demo, override commerciale).
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      Expanded(
-                        child: FilledButton(
+                      for (final tier in const [
+                        ('trial', 'Trial 14gg'),
+                        ('verified', 'Verified'),
+                        ('pro', 'Pro'),
+                        ('enterprise', 'Enterprise'),
+                      ])
+                        FilledButton.tonal(
                           onPressed: () async {
-                            final newValue = !foundGroup!.isBusinessGroup;
-                            final ok = await groupsRepo.setBusinessFlag(
+                            final ok = await groupsRepo.setBusinessTier(
                               foundGroup!.id,
-                              newValue,
+                              tier.$1,
                             );
-                            if (ok) {
+                            if (ok && context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    newValue
-                                        ? 'Gruppo marcato Business ✅'
-                                        : 'Gruppo non più Business',
-                                  ),
+                                  content: Text('Tier impostato: ${tier.$2}'),
                                 ),
                               );
                               Navigator.of(ctx).pop();
                             }
                           },
-                          child: Text(
-                            foundGroup!.isBusinessGroup
-                                ? 'Rimuovi Business'
-                                : 'Marca come Business',
-                          ),
+                          child: Text(tier.$2),
                         ),
-                      ),
+                      if (foundGroup!.isBusinessGroup)
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.block, size: 18),
+                          label: const Text('Disattiva Business'),
+                          onPressed: () async {
+                            final ok = await groupsRepo.clearBusinessTier(
+                              foundGroup!.id,
+                            );
+                            if (ok && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Gruppo non più Business'),
+                                ),
+                              );
+                              Navigator.of(ctx).pop();
+                            }
+                          },
+                        ),
                     ],
                   ),
                 ],
               ],
+            ),
             ),
           ),
           actions: [

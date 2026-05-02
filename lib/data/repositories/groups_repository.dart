@@ -28,14 +28,25 @@ class Group {
   final String visibility; // 'public' | 'private' | 'secret'
   final String? inviteCode;
 
-  /// Marca il gruppo come **Business** (B2B): abilita il logo
-  /// personalizzato (avatarUrl), il badge "verificato" accanto al
-  /// nome e — in futuro — cover image, brand color, statistiche
-  /// aggregate.
+  /// Marca il gruppo come **Business** (B2B): è la "porta attiva"
+  /// che abilita branding (logo, cover, brand color), badge verificato,
+  /// statistiche e card invito.
   ///
   /// Settato manualmente dal super admin per i primi clienti gratis.
-  /// Quando lanceremo il piano Business sara' autoset al pagamento.
+  /// Quando arriverà Stripe sarà aggiornato automaticamente dal webhook
+  /// in base allo stato della subscription.
   final bool isBusinessGroup;
+
+  /// Tier commerciale Business. Valori previsti: 'none' | 'trial' |
+  /// 'verified' | 'pro' | 'enterprise'. Quando `isBusinessGroup=true`
+  /// ma il campo manca su Firestore (gruppi pre-esistenti), viene
+  /// considerato 'verified' di default per backward compatibility.
+  final String businessTier;
+
+  /// Scadenza del trial Verified (14 giorni). Valido solo se
+  /// `businessTier == 'trial'`. Allo scadere il webhook (futuro)
+  /// dovrà chiamare clearBusinessTier se Stripe non risulta pagante.
+  final DateTime? businessTrialUntil;
 
   /// Numero cumulativo di utenti che si sono iscritti al gruppo via
   /// codice invito (sia incollando il codice che via deep link
@@ -55,6 +66,54 @@ class Group {
   /// (banner mostrato in cima al tab Info, gruppi Business).
   bool get hasCustomCover => isBusinessGroup && coverUrl != null && coverUrl!.isNotEmpty;
 
+  /// Vero quando il gruppo è in trial Verified (gratis 14 gg).
+  bool get isInTrial =>
+      businessTier == 'trial' &&
+      businessTrialUntil != null &&
+      businessTrialUntil!.isAfter(DateTime.now());
+
+  /// Vero quando il Business è attivo: tier valido e — se trial —
+  /// non ancora scaduto. Da preferire a `isBusinessGroup` per qualunque
+  /// gating futuro che debba rispettare la scadenza trial.
+  ///
+  /// Oggi `isBusinessGroup` viene gestito a mano e resta affidabile;
+  /// quando arriverà Stripe il webhook farà sì che l'uno e l'altro
+  /// restino allineati. Nel frattempo questo getter copre già la
+  /// logica trial.
+  bool get isBusinessActive {
+    if (!isBusinessGroup) return false;
+    if (businessTier == 'trial') return isInTrial;
+    return businessTier == 'verified' ||
+        businessTier == 'pro' ||
+        businessTier == 'enterprise';
+  }
+
+  /// Giorni rimanenti al trial (0 se non in trial o scaduto).
+  int get trialDaysRemaining {
+    if (!isInTrial) return 0;
+    final diff = businessTrialUntil!.difference(DateTime.now());
+    return diff.inDays + (diff.inHours % 24 > 0 ? 1 : 0);
+  }
+
+  /// Etichetta umana del tier per la UI ("Business Verified",
+  /// "Business Pro", "Trial — 5 giorni", ecc.).
+  String get businessTierLabel {
+    if (!isBusinessGroup) return 'Non Business';
+    switch (businessTier) {
+      case 'trial':
+        return isInTrial
+            ? 'Trial Verified — $trialDaysRemaining giorni rimasti'
+            : 'Trial scaduto';
+      case 'pro':
+        return 'Business Pro';
+      case 'enterprise':
+        return 'Business Enterprise';
+      case 'verified':
+      default:
+        return 'Business Verified';
+    }
+  }
+
   const Group({
     required this.id,
     required this.name,
@@ -69,6 +128,8 @@ class Group {
     this.visibility = 'secret',
     this.inviteCode,
     this.isBusinessGroup = false,
+    this.businessTier = 'none',
+    this.businessTrialUntil,
     this.qrJoinCount = 0,
   });
 
@@ -88,6 +149,13 @@ class Group {
       visibility: _parseVisibility(data),
       inviteCode: data['inviteCode'],
       isBusinessGroup: data['isBusinessGroup'] == true,
+      // Backward compat: se il gruppo è marcato Business ma non ha
+      // ancora il campo tier, lo trattiamo come Verified (i primi
+      // gruppi seed sono partiti senza tier esplicito).
+      businessTier: (data['businessTier'] as String?) ??
+          (data['isBusinessGroup'] == true ? 'verified' : 'none'),
+      businessTrialUntil:
+          (data['businessTrialUntil'] as Timestamp?)?.toDate(),
       qrJoinCount: (data['qrJoinCount'] as num?)?.toInt() ?? 0,
     );
   }
@@ -1353,29 +1421,73 @@ class GroupsRepository {
   // BUSINESS GROUPS (L1)
   // ─────────────────────────────────────────────────────────────────────
 
-  /// Marca o smarca un gruppo come Business. Solo super admin.
+  /// Imposta il tier Business del gruppo. Solo super admin / webhook
+  /// Stripe (in futuro).
   ///
-  /// Quando isBusinessGroup=true, l'admin del gruppo sblocca il
-  /// caricamento del logo personalizzato e il badge "verificato".
-  /// In futuro saranno disponibili anche cover image e brand color.
+  /// [tier] accettati: 'verified' | 'pro' | 'enterprise' | 'trial'.
+  /// Per disattivare un Business usare [clearBusinessTier].
   ///
-  /// Per ora il flag viene settato manualmente da [AdminPanelPage].
-  /// Quando lanceremo il piano Business sara' autoset al pagamento
-  /// del primo IAP `trailshare_business_*`.
-  Future<bool> setBusinessFlag(String groupId, bool value) async {
-    try {
-      await _groupDoc(groupId).update({
-        'isBusinessGroup': value,
-        // Pulisce avatarUrl se rimuoviamo lo status business: niente
-        // logo se non sei piu' premium.
-        if (!value) 'avatarUrl': FieldValue.delete(),
-      });
-      debugPrint('[GroupsRepo] setBusinessFlag $groupId = $value');
-      return true;
-    } catch (e) {
-      debugPrint('[GroupsRepo] Errore setBusinessFlag: $e');
+  /// Se tier == 'trial' viene scritto anche `businessTrialUntil`
+  /// (default: oggi + 14 giorni). Il flag legacy `isBusinessGroup`
+  /// viene allineato a true così le UI esistenti che leggono solo
+  /// quel campo continuano a funzionare.
+  Future<bool> setBusinessTier(
+    String groupId,
+    String tier, {
+    DateTime? trialUntil,
+  }) async {
+    final allowed = {'verified', 'pro', 'enterprise', 'trial'};
+    if (!allowed.contains(tier)) {
+      debugPrint('[GroupsRepo] Tier non valido: $tier');
       return false;
     }
+    try {
+      final update = <String, dynamic>{
+        'isBusinessGroup': true,
+        'businessTier': tier,
+      };
+      if (tier == 'trial') {
+        final until =
+            trialUntil ?? DateTime.now().add(const Duration(days: 14));
+        update['businessTrialUntil'] = Timestamp.fromDate(until);
+      } else {
+        update['businessTrialUntil'] = FieldValue.delete();
+      }
+      await _groupDoc(groupId).update(update);
+      debugPrint('[GroupsRepo] setBusinessTier $groupId = $tier');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore setBusinessTier: $e');
+      return false;
+    }
+  }
+
+  /// Disattiva il Business sul gruppo. Pulisce flag, tier, trial e
+  /// avatarUrl (il logo non si tiene se non sei più premium).
+  Future<bool> clearBusinessTier(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({
+        'isBusinessGroup': false,
+        'businessTier': 'none',
+        'businessTrialUntil': FieldValue.delete(),
+        'avatarUrl': FieldValue.delete(),
+      });
+      debugPrint('[GroupsRepo] clearBusinessTier $groupId');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore clearBusinessTier: $e');
+      return false;
+    }
+  }
+
+  /// Wrapper legacy. Conservato per non rompere l'admin panel
+  /// esistente. `value=true` attiva il tier Verified, `value=false`
+  /// disattiva tutto.
+  Future<bool> setBusinessFlag(String groupId, bool value) async {
+    if (value) {
+      return setBusinessTier(groupId, 'verified');
+    }
+    return clearBusinessTier(groupId);
   }
 
   /// Carica un logo per il gruppo Business. Restituisce l'URL pubblico

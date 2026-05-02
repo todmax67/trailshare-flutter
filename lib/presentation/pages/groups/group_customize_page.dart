@@ -207,7 +207,7 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _BusinessBanner(),
+          _BusinessBanner(group: widget.group),
           const SizedBox(height: 24),
 
           // ── Cover image 16:9 ─────────────────────────────────────
@@ -402,33 +402,49 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
 }
 
 class _BusinessBanner extends StatelessWidget {
+  final Group group;
+  const _BusinessBanner({required this.group});
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = groupAccentColor(group);
+    final isTrial = group.businessTier == 'trial';
+    final trialDays = group.trialDaysRemaining;
+
+    final title = group.businessTierLabel;
+    final subtitle = isTrial
+        ? (trialDays > 0
+            ? 'Trial attivo: $trialDays giorni rimasti. Configura subscription per continuare.'
+            : 'Trial scaduto. Riattiva la subscription per ripristinare i privilegi Business.')
+        : (group.businessTier == 'pro'
+            ? 'Tier Pro: tracce ed eventi illimitati, statistiche avanzate, team admin.'
+            : group.businessTier == 'enterprise'
+                ? 'Tier Enterprise: multi-gruppo, white-label, API dedicate.'
+                : 'Hai accesso a logo, cover, brand color, card invito e statistiche aggregate.');
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.primary.withValues(alpha: 0.15),
-            AppColors.primary.withValues(alpha: 0.05),
+            accent.withValues(alpha: 0.15),
+            accent.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.4),
-        ),
+        border: Border.all(color: accent.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.primary,
+              color: accent,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.verified,
+            child: Icon(
+              isTrial ? Icons.schedule : Icons.verified,
               color: Colors.white,
               size: 22,
             ),
@@ -439,14 +455,14 @@ class _BusinessBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Gruppo Business verificato',
+                  title,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Hai accesso alla personalizzazione visiva del gruppo.',
+                  subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
