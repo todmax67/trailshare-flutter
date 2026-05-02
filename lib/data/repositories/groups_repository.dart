@@ -214,6 +214,15 @@ String _parseVisibility(Map<String, dynamic> data) {
   return 'secret';
 }
 
+/// Bucket mensile per le statistiche timeline (Pro). Rappresenta il
+/// primo giorno del mese e il count dell'evento aggregato (membri
+/// iscritti, tracce condivise, eventi creati, ecc.).
+class MonthlyBucket {
+  final DateTime month;
+  final int count;
+  const MonthlyBucket({required this.month, required this.count});
+}
+
 class GroupMember {
   final String userId;
   final String username;
@@ -1573,6 +1582,109 @@ class GroupsRepository {
       debugPrint('[GroupsRepo] Errore uploadGroupLogo: $e');
       return null;
     }
+  }
+
+  /// Conta i nuovi membri del gruppo bucketati per mese, ultimi
+  /// [months] mesi (incluso il corrente). Ritorna sempre [months]
+  /// elementi anche se il count è 0.
+  ///
+  /// Usato dalle statistiche avanzate Pro per la timeline membri.
+  Future<List<MonthlyBucket>> getMonthlyMemberJoins(
+    String groupId, {
+    int months = 6,
+  }) async {
+    try {
+      final snap = await _groupDoc(groupId).collection('members').get();
+      final dates = snap.docs
+          .map((d) => (d.data()['joinedAt'] as Timestamp?)?.toDate())
+          .whereType<DateTime>()
+          .toList();
+      return _bucketByMonth(dates, months: months);
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore getMonthlyMemberJoins: $e');
+      return _emptyBuckets(months);
+    }
+  }
+
+  /// Conta gli eventi creati per mese (usa il campo `date` dell'evento
+  /// come proxy del "mese a cui si riferisce l'evento").
+  Future<List<MonthlyBucket>> getMonthlyEventCreations(
+    String groupId, {
+    int months = 6,
+  }) async {
+    try {
+      final snap = await _groupDoc(groupId).collection('events').get();
+      final dates = snap.docs
+          .map((d) => (d.data()['date'] as Timestamp?)?.toDate())
+          .whereType<DateTime>()
+          .toList();
+      return _bucketByMonth(dates, months: months);
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore getMonthlyEventCreations: $e');
+      return _emptyBuckets(months);
+    }
+  }
+
+  /// Conta le tracce condivise nel gruppo bucketate per mese di
+  /// `createdAt` della traccia. Usa una collectionGroup query.
+  Future<List<MonthlyBucket>> getMonthlyTrackShares(
+    String groupId, {
+    int months = 6,
+  }) async {
+    try {
+      final snap = await _firestore
+          .collectionGroup('tracks')
+          .where('groupIds', arrayContains: groupId)
+          .get();
+      final dates = snap.docs
+          .map((d) => (d.data()['createdAt'] as Timestamp?)?.toDate())
+          .whereType<DateTime>()
+          .toList();
+      return _bucketByMonth(dates, months: months);
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore getMonthlyTrackShares: $e');
+      return _emptyBuckets(months);
+    }
+  }
+
+  /// Helper: bucket di [dates] per mese, ritornando gli ultimi
+  /// [months] mesi in ordine cronologico (il più vecchio per primo,
+  /// il più recente per ultimo). I mesi senza match hanno count=0.
+  List<MonthlyBucket> _bucketByMonth(
+    List<DateTime> dates, {
+    required int months,
+  }) {
+    final now = DateTime.now();
+    final firstMonth = DateTime(now.year, now.month - (months - 1), 1);
+    final buckets = <MonthlyBucket>[];
+    for (int i = 0; i < months; i++) {
+      final m = DateTime(firstMonth.year, firstMonth.month + i, 1);
+      buckets.add(MonthlyBucket(month: m, count: 0));
+    }
+    for (final d in dates) {
+      if (d.isBefore(firstMonth)) continue;
+      final idx = (d.year - firstMonth.year) * 12 +
+          (d.month - firstMonth.month);
+      if (idx >= 0 && idx < buckets.length) {
+        buckets[idx] = MonthlyBucket(
+          month: buckets[idx].month,
+          count: buckets[idx].count + 1,
+        );
+      }
+    }
+    return buckets;
+  }
+
+  List<MonthlyBucket> _emptyBuckets(int months) {
+    final now = DateTime.now();
+    final firstMonth = DateTime(now.year, now.month - (months - 1), 1);
+    return [
+      for (int i = 0; i < months; i++)
+        MonthlyBucket(
+          month: DateTime(firstMonth.year, firstMonth.month + i, 1),
+          count: 0,
+        ),
+    ];
   }
 
   /// Increment best-effort del counter qrJoinCount sul gruppo.
