@@ -73,6 +73,32 @@ class Group {
   /// (banner mostrato in cima al tab Info, gruppi Business).
   bool get hasCustomCover => isBusinessGroup && coverUrl != null && coverUrl!.isNotEmpty;
 
+  /// Rank per il sort della discovery community: i gruppi Business
+  /// con tier alto vengono mostrati in cima ("featured placement").
+  /// I gruppi non-Business hanno rank 0 e sono ordinati tra loro per
+  /// memberCount (vedi [getDiscoverableGroups]).
+  int get discoveryRank {
+    if (!isBusinessActive) return 0;
+    switch (businessTier) {
+      case 'enterprise':
+        return 40;
+      case 'pro':
+        return 30;
+      case 'verified':
+        return 20;
+      case 'trial':
+        return 15;
+      default:
+        return 0;
+    }
+  }
+
+  /// Vero quando il gruppo va etichettato "FEATURED" (tier Pro o
+  /// Enterprise attivo): card discovery con ribbon evidenziato.
+  bool get isFeatured =>
+      isBusinessActive &&
+      (businessTier == 'pro' || businessTier == 'enterprise');
+
   /// Vero quando il pinned post deve essere visibile: testo presente
   /// e tier Business attivo Pro o Enterprise.
   bool get hasActivePinnedPost {
@@ -558,11 +584,20 @@ class GroupsRepository {
       for (final doc in snapshot1.docs) allDocs[doc.id] = doc;
       for (final doc in snapshot2.docs) allDocs[doc.id] = doc;
 
-      return allDocs.values
+      final discoverable = allDocs.values
           .map((doc) => Group.fromFirestore(doc))
           .where((g) => !g.memberIds.contains(user.uid) && g.isDiscoverable)
           .toList();
 
+      // Sort tier-aware (featured placement Pro): Enterprise → Pro →
+      // Verified → Trial → resto. A parità di rank, ordina per
+      // memberCount desc così i gruppi attivi salgono.
+      discoverable.sort((a, b) {
+        final r = b.discoveryRank.compareTo(a.discoveryRank);
+        if (r != 0) return r;
+        return b.memberCount.compareTo(a.memberCount);
+      });
+      return discoverable;
     } catch (e) {
       debugPrint('[Groups] Errore caricamento gruppi pubblici: $e');
       return [];

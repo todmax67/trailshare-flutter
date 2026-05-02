@@ -36,9 +36,10 @@ class BusinessCoverHeader extends StatelessWidget {
   }
 }
 
-/// Pill "BUSINESS" colorata col brand del gruppo, da mostrare sotto
-/// il nome nelle card lista. Sostituisce/affianca la sola spunta
-/// `verified` per dare risalto extra ai gruppi a pagamento.
+/// Pill "BUSINESS" / "★ FEATURED" colorata col brand del gruppo, da
+/// mostrare sotto il nome nelle card lista. I gruppi Pro/Enterprise
+/// ottengono la variante featured (ribbon più saturo + stella) per
+/// differenziarsi dai Verified.
 class BusinessPill extends StatelessWidget {
   final Group group;
 
@@ -48,21 +49,40 @@ class BusinessPill extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!group.isBusinessGroup) return const SizedBox.shrink();
     final accent = groupAccentColor(group);
+    final featured = group.isFeatured;
+
+    // Featured: pill piena col brand color, testo bianco, stella.
+    // Verified/Trial: pill tinted leggera, testo accent, niente stella.
+    final bg = featured ? accent : accent.withValues(alpha: 0.12);
+    final fg = featured ? Colors.white : accent;
+    final border = featured
+        ? accent
+        : accent.withValues(alpha: 0.35);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.12),
+        color: bg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
+        border: Border.all(color: border, width: 1),
       ),
-      child: Text(
-        'BUSINESS',
-        style: TextStyle(
-          color: accent,
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.7,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (featured) ...[
+            Icon(Icons.star, color: fg, size: 11),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            featured ? 'FEATURED' : 'BUSINESS',
+            style: TextStyle(
+              color: fg,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.7,
+            ),
+          ),
+        ],
       ),
     );
   }
