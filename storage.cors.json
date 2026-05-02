@@ -1,0 +1,15 @@
+[
+  {
+    "origin": [
+      "https://trailshare.web.app",
+      "https://app.trailshare.app",
+      "https://trailshare.app",
+      "http://localhost:5000",
+      "http://localhost:8080",
+      "http://localhost:54321"
+    ],
+    "method": ["GET", "HEAD"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type", "Cache-Control"]
+  }
+]
