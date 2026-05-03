@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
 
@@ -249,6 +250,19 @@ class _WebLoginPageState extends State<WebLoginPage> {
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () =>
+                        launchUrl(Uri.parse('https://trailshare.app')),
+                    icon: const Icon(Icons.arrow_back, size: 14),
+                    label: const Text('Torna a trailshare.app'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ),
                 if (kDebugMode) ...[

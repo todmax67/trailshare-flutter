@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../data/repositories/groups_repository.dart';
@@ -58,6 +59,11 @@ class _WebHomePageState extends State<WebHomePage> {
     await FirebaseAuth.instance.signOut();
   }
 
+  Future<void> _openExternal(String url) async {
+    final uri = Uri.parse(url);
+    await launchUrl(uri, webOnlyWindowName: '_blank');
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -79,6 +85,8 @@ class _WebHomePageState extends State<WebHomePage> {
               userEmail: user?.email,
               onSelect: (i) => setState(() => _selectedIndex = i),
               onSignOut: _signOut,
+              onOpenMarketingSite: () =>
+                  _openExternal('https://trailshare.app'),
             ),
             const VerticalDivider(width: 1, thickness: 1),
             Expanded(child: _buildContent()),
@@ -106,6 +114,7 @@ class _Sidebar extends StatelessWidget {
   final String? userEmail;
   final ValueChanged<int> onSelect;
   final VoidCallback onSignOut;
+  final VoidCallback onOpenMarketingSite;
 
   const _Sidebar({
     required this.selectedIndex,
@@ -113,6 +122,7 @@ class _Sidebar extends StatelessWidget {
     required this.userEmail,
     required this.onSelect,
     required this.onSignOut,
+    required this.onOpenMarketingSite,
   });
 
   @override
@@ -123,21 +133,37 @@ class _Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 20, 16, 12),
-            child: Row(
-              children: [
-                Text('🥾', style: TextStyle(fontSize: 22)),
-                SizedBox(width: 8),
-                Text(
-                  'TrailShare',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
-                  ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: onOpenMarketingSite,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Text('🥾', style: TextStyle(fontSize: 22)),
+                    SizedBox(width: 8),
+                    Text(
+                      'TrailShare',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    Spacer(),
+                    Tooltip(
+                      message: 'Apri trailshare.app',
+                      child: Icon(
+                        Icons.open_in_new,
+                        size: 14,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           const Divider(height: 1),
