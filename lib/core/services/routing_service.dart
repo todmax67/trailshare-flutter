@@ -177,10 +177,15 @@ class RoutingService {
       double elevationLoss = 0;
 
       if (elevationProfile.length > 2) {
+        // Parametri tarati per dati ORS routing: i profili da DEM
+        // (SRTM/EU-DEM) hanno accuratezza ±5-10m e punti molto densi
+        // (~5-15m tra l'uno e l'altro). Senza filtraggio aggressivo le
+        // micro-oscillazioni si sommano gonfiando totalGain di 3-4×
+        // (es. 500m reali → 1900m).
         final processor = const ElevationProcessor(
-          hysteresisThreshold: 3.0,
-          smoothingWindow: 5,
-          medianWindow: 0,  // non serve per dati routing (già puliti)
+          hysteresisThreshold: 8.0,   // era 3.0: ignora variazioni < 8m
+          smoothingWindow: 15,         // era 5: smussa oscillazioni dense
+          medianWindow: 7,             // era 0: rimuove outlier puntuali
         );
         final rawElevations = elevationProfile
             .map((e) => e)
