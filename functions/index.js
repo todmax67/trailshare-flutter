@@ -665,9 +665,11 @@ exports.createMonthlyChallenges = onSchedule("1 of month 00:00", async (event) =
 
 exports.orsProxy = onRequest({ secrets: [orsApiKey], region: "europe-west3" }, async (req, res) => {
     const allowedOrigins = [
-        'https://trailshare.app', // Produzione
-        'https://localhost',     // Sviluppo Capacitor/Web HTTPS
-        'http://localhost',       // Sviluppo Capacitor/Web HTTP
+        'https://trailshare.app',         // Marketing site
+        'https://app.trailshare.app',     // Dashboard webapp (custom domain)
+        'https://trailshare.web.app',     // Dashboard webapp (Firebase default)
+        'https://localhost',              // Sviluppo Capacitor/Web HTTPS
+        'http://localhost',               // Sviluppo Capacitor/Web HTTP
         'capacitor://localhost'
     ];
     const origin = req.headers.origin;
