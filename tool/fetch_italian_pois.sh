@@ -56,15 +56,28 @@ OVERPASS_URLS=(
   "https://overpass.openstreetmap.ru/api/interpreter"
 )
 
-# Stessi chunk geografici di fetch_italian_peaks per coerenza.
+# Chunks divisi più finemente di fetch_italian_peaks: con 9 categorie
+# POI (vs 1 sola per peaks) il payload per bbox è 5-10x. Le aree dense
+# (Alpi, Appennini centrali) sono spezzate per evitare timeout silenti
+# di Overpass che troncherebbero rifugi/sorgenti senza errore visibile.
 declare -a CHUNKS=(
-  "Alpi-NW-Aosta|45.5|6.4|47.2|8.5"
-  "Alpi-NW-Pie-Lig|44.0|6.4|45.5|9.5"
-  "Alpi-Centro|45.0|8.5|47.2|11.0"
-  "Alpi-NE|45.0|10.5|47.2|14.0"
-  "App-Centro-Nord|42.5|9.0|45.5|13.5"
+  # Alpi NW — Valle d'Aosta + Piemonte alto
+  "Alpi-VdA|45.5|6.4|46.5|8.0"
+  "Alpi-VdA-est|45.5|8.0|47.2|8.5"
+  "Alpi-Pie-Lig|44.0|6.4|45.5|9.5"
+  # Alpi Centrali — Lombardia (Orobie/Sondrio) + Trentino occidentale
+  "Alpi-Lomb-W|45.0|8.5|46.5|10.0"
+  "Alpi-Lomb-E|45.0|10.0|46.5|11.0"
+  "Alpi-Trent-N|46.5|9.5|47.2|11.0"
+  # Alpi NE — Trentino orientale, Veneto, Friuli
+  "Alpi-NE-W|45.5|10.5|47.2|12.0"
+  "Alpi-NE-E|45.5|12.0|47.2|14.0"
+  "Alpi-Veneto-S|45.0|10.5|45.5|14.0"
+  # Appennini Settentrionali e Centrali
   "Liguria-Toscana|42.0|8.0|44.5|12.0"
-  "App-Centro-Sud|39.0|12.0|43.0|17.5"
+  "App-Tosco-Emi|43.5|9.0|45.0|12.5"
+  "App-Centro-N|42.5|11.5|44.0|13.5"
+  "App-Centro-S|39.0|12.0|43.0|17.5"
   "Sicilia-Sardegna-Calabria|35.5|6.0|41.0|17.5"
 )
 
@@ -99,7 +112,7 @@ echo '{"elements":[]}' > "$ALL_RAW"
 build_query() {
   local s=$1 w=$2 n=$3 e=$4
   cat <<EOF
-[out:json][timeout:90];
+[out:json][timeout:180][maxsize:1073741824];
 (
   node["tourism"="alpine_hut"]($s,$w,$n,$e);
   node["tourism"="wilderness_hut"]($s,$w,$n,$e);

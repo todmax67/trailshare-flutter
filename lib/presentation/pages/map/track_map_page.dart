@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../data/models/osm_poi.dart';
 import '../../../data/models/track.dart';
+import '../../../data/models/trail_poi.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
+import '../../../data/repositories/osm_pois_repository.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/osm_poi_detail_sheet.dart';
+import '../../widgets/poi_detail_sheet.dart';
+import '../../widgets/poi_marker_layer.dart';
 
 /// Pagina mappa a schermo intero per visualizzare una traccia
 /// Supporta sia Track (tracce private) che CommunityTrack (tracce community)
@@ -16,15 +22,28 @@ class TrackMapPage extends StatefulWidget {
   
   /// Track community (opzionale)
   final CommunityTrack? communityTrack;
-  
+
   /// Mostra colori pendenza sulla traccia
   final bool showGradientColors;
+
+  /// POI community pre-caricati dalla pagina chiamante (non li
+  /// ri-fetchamo dal repo). Se null o vuoto → niente marker POI
+  /// community su questa mappa.
+  final List<TrailPoi>? communityPois;
+
+  /// Se true, carica e renderizza anche i POI OSM (rifugi, sorgenti,
+  /// fontane, ecc.) entro [osmRadiusMeters] dalla traccia.
+  final bool loadOsmPois;
+  final double osmRadiusMeters;
 
   const TrackMapPage({
     super.key,
     this.track,
     this.communityTrack,
     this.showGradientColors = true,
+    this.communityPois,
+    this.loadOsmPois = false,
+    this.osmRadiusMeters = 500,
   }) : assert(track != null || communityTrack != null, 'Deve essere fornita una track o communityTrack');
 
   @override
@@ -36,6 +55,30 @@ class _TrackMapPageState extends State<TrackMapPage> {
   bool _showElevation = true;
   bool _showGradientColors = true;
   int _selectedPointIndex = -1;
+
+  // POI OSM caricati dalla polyline corrente. Riempito async
+  // dall'OsmPoisRepository in initState (se loadOsmPois=true).
+  List<OsmPoi> _osmPois = const [];
+
+  Future<void> _loadOsmPois() async {
+    if (!widget.loadOsmPois || _trackPoints.isEmpty) return;
+    final repo = OsmPoisRepository();
+    await repo.ensureLoaded();
+    if (!mounted) return;
+    final found = repo.findNearPolyline(
+      _trackPoints,
+      radiusMeters: widget.osmRadiusMeters,
+    );
+    if (mounted) setState(() => _osmPois = found);
+  }
+
+  void _onCommunityPoiTap(TrailPoi poi) {
+    showPoiDetailSheet(context, poi: poi);
+  }
+
+  void _onOsmPoiTap(OsmPoi poi) {
+    showOsmPoiDetailSheet(context, poi: poi);
+  }
 
   int _currentLayer = 0;
   final List<_MapLayer> _layers = [
@@ -159,6 +202,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
   void initState() {
     super.initState();
     _showGradientColors = widget.showGradientColors;
+    _loadOsmPois();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fitBounds();
     });
@@ -372,6 +416,48 @@ class _TrackMapPageState extends State<TrackMapPage> {
               PolylineLayer(
                 polylines: _buildGradientPolylines(),
               ),
+
+              // POI OSM (rifugi, sorgenti, fontane, panorami…) — sotto i
+              // POI community e gli start/end markers per non coprirli.
+              if (_osmPois.isNotEmpty)
+                MarkerLayer(
+                  markers: _osmPois.map((poi) => Marker(
+                        point: LatLng(poi.latitude, poi.longitude),
+                        width: 30,
+                        height: 30,
+                        child: GestureDetector(
+                          onTap: () => _onOsmPoiTap(poi),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.info,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              poi.type.icon,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      )).toList(),
+                ),
+
+              // POI community (sopra OSM perché più rilevanti per
+              // l'utente: contengono segnalazioni recenti)
+              if (widget.communityPois != null &&
+                  widget.communityPois!.isNotEmpty)
+                PoiMarkerLayer(
+                  pois: widget.communityPois!,
+                  onTap: _onCommunityPoiTap,
+                  markerSize: 36,
+                ),
 
               // Markers
               if (_trackPoints.isNotEmpty)

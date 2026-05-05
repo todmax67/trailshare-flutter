@@ -102,20 +102,26 @@ class OsmPoisRepository {
   /// POI a distanza massima [radiusMeters] dal polyline definito da
   /// [points] (es. una traccia GPS o una route pianificata). Dedup per id.
   ///
-  /// Performance note: scansione O(n_points / sampleEvery × n_pois).
-  /// Con 18k POI e polyline 200 punti, sampleEvery=5 → ~720k operazioni.
-  /// ~50-100ms su mobile, accettabile per chiamata one-shot all'apertura
-  /// della pagina traccia.
+  /// [sampleEvery] è adattivo: per polyline corte campioniamo ogni
+  /// punto (così non saltiamo zone con un sentiero rappresentato da
+  /// pochi vertici), per polyline lunghe campioniamo ogni N punti per
+  /// evitare lavoro inutile (~ ogni 50-100m di percorso).
+  ///
+  /// Performance note: ~50-100ms su mobile per polyline tipiche.
   List<OsmPoi> findNearPolyline(
     List<LatLng> points, {
     double radiusMeters = 200,
-    int sampleEvery = 5,
+    int? sampleEvery,
     Set<OsmPoiType>? types,
   }) {
     if (points.isEmpty) return const [];
+    // Adattivo: cap a ~150 sample point per non bruciare CPU su tracce
+    // GPS dense (1000+ punti), ma garantisce campionamento fitto su
+    // tracce corte/sintetiche (≤100 punti = ogni punto).
+    final step = sampleEvery ?? math.max(1, points.length ~/ 150);
     final found = <String, OsmPoi>{};
     final radiusSq = radiusMeters; // soglia, non quadrato
-    for (int i = 0; i < points.length; i += sampleEvery) {
+    for (int i = 0; i < points.length; i += step) {
       final p = points[i];
       for (final poi in _all) {
         if (types != null && types.isNotEmpty && !types.contains(poi.type)) {
@@ -137,9 +143,8 @@ class OsmPoisRepository {
   }
 
   /// Distanza ortodromica in metri tra due coppie (lat,lng) WGS84.
-  /// Implementazione stand-alone (no dipendenze) per renderla testabile
-  /// e usabile fuori da Flutter.
-  @visibleForTesting
+  /// Implementazione stand-alone (no dipendenze esterne) per essere
+  /// usabile in tool diagnostici/test e da widget caller.
   static double haversine(
     double lat1,
     double lng1,

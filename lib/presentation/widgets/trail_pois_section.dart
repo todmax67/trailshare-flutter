@@ -54,7 +54,10 @@ class TrailPoisSection extends StatefulWidget {
   /// community.
   final bool loadOsmPois;
 
-  /// Raggio (m) dalla polyline entro cui includere POI OSM. Default 200m.
+  /// Raggio (m) dalla polyline entro cui includere POI OSM. Default 500m
+  /// — i rifugi/sorgenti su OSM sono spesso mappati al punto edificio,
+  /// non lungo il sentiero, quindi un raggio stretto fa perdere POI
+  /// rilevanti. 500m cattura il "facilmente raggiungibile dal trail".
   final double osmRadiusMeters;
 
   const TrailPoisSection({
@@ -67,7 +70,7 @@ class TrailPoisSection extends StatefulWidget {
     this.defaultLongitude,
     this.polyline,
     this.loadOsmPois = false,
-    this.osmRadiusMeters = 200,
+    this.osmRadiusMeters = 500,
   }) : assert(trailId != null || trackId != null,
             'Passa almeno trailId o trackId');
 
@@ -86,6 +89,28 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant TrailPoisSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // La pagina chiamante (es. trail_detail) parte con polyline
+    // semplificata (~15-30 punti) e poi carica la geometria completa
+    // (~1000 punti). Quando arriva, dobbiamo ricalcolare i POI OSM
+    // perché la polyline grezza può saltare interi tratti dove ci
+    // sono rifugi/sorgenti rilevanti.
+    final old = oldWidget.polyline?.length ?? 0;
+    final cur = widget.polyline?.length ?? 0;
+    if (widget.loadOsmPois && cur > old + 50) {
+      // Soglia conservativa: ricarica solo se la polyline è cresciuta
+      // significativamente (oltre 50 punti) per evitare loop su update
+      // marginali.
+      debugPrint('[TrailPoisSection] polyline cresciuta da $old a $cur '
+          'punti, ricalcolo POI OSM');
+      _loadOsm().then((osm) {
+        if (mounted) setState(() => _osmPois = osm);
+      });
+    }
   }
 
   Future<void> _load() async {
@@ -124,14 +149,50 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
 
   Future<List<OsmPoi>> _loadOsm() async {
     final poly = widget.polyline;
-    if (!widget.loadOsmPois || poly == null || poly.isEmpty) {
+    if (!widget.loadOsmPois) {
+      debugPrint('[TrailPoisSection] OSM disabled (loadOsmPois=false)');
+      return const [];
+    }
+    if (poly == null || poly.isEmpty) {
+      debugPrint('[TrailPoisSection] OSM skip: polyline vuoto');
       return const [];
     }
     await _osmRepo.ensureLoaded();
+    debugPrint('[TrailPoisSection] OSM repo loaded=${_osmRepo.isLoaded} '
+        'count=${_osmRepo.count}, polyline=${poly.length} pts, '
+        'radius=${widget.osmRadiusMeters}m');
     final found = _osmRepo.findNearPolyline(
       poly,
       radiusMeters: widget.osmRadiusMeters,
     );
+    debugPrint('[TrailPoisSection] OSM POI trovati: ${found.length}');
+
+    // Diagnostic: se 0 POI in raggio, riporta il più vicino in raggio
+    // ampio così capisci se è scarsità OSM dell'area o radius stretto.
+    if (found.isEmpty) {
+      final mid = poly[poly.length ~/ 2];
+      final wide = _osmRepo.findNearby(
+        mid.latitude,
+        mid.longitude,
+        radiusMeters: 5000,
+      );
+      if (wide.isEmpty) {
+        debugPrint('[TrailPoisSection] DIAG: nessun POI OSM in 5km dal '
+            'centro polyline (${mid.latitude}, ${mid.longitude}) — '
+            'area mappata male su OSM');
+      } else {
+        final closest = wide.first;
+        final dist = OsmPoisRepository.haversine(
+          mid.latitude,
+          mid.longitude,
+          closest.latitude,
+          closest.longitude,
+        );
+        debugPrint('[TrailPoisSection] DIAG: il POI OSM più vicino al centro '
+            'polyline è "${closest.name}" (${closest.type.code}) a '
+            '${dist.round()}m. Raggio attuale: ${widget.osmRadiusMeters}m');
+      }
+    }
     // Ordina: prima rifugi/bivacchi (alta utilità), poi water, poi resto
     found.sort((a, b) {
       int rank(OsmPoiType t) {
@@ -214,7 +275,10 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    if (_pois.isEmpty && _osmPois.isEmpty && !widget.allowAdd) {
+    if (_pois.isEmpty &&
+        _osmPois.isEmpty &&
+        !widget.allowAdd &&
+        !widget.loadOsmPois) {
       return const SizedBox.shrink();
     }
 

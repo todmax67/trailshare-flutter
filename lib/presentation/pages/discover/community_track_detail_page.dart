@@ -160,6 +160,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                   poiTrackId: track.id,
                   poiIncludePrivate:
                       FirebaseAuth.instance.currentUser?.uid == track.ownerId,
+                  loadOsmPois: true, // POI OSM lungo la traccia
                   onPointTap: (index) {
                     setState(() => _selectedPointIndex = index);
                   },
