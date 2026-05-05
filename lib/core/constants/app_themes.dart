@@ -44,13 +44,11 @@ class AppThemes {
         primaryContainer: primaryLight,
         secondary: const Color(0xFF2E7D32),           // Verde - accento successo
         secondaryContainer: const Color(0xFFC8E6C9),
-        surface: Colors.white,
-        background: const Color(0xFFFAF9F7),          // Sfondo caldo (da AppColors)
+        surface: Colors.white,          // Sfondo caldo (da AppColors)
         error: const Color(0xFFD32F2F),
         onPrimary: Colors.white,
         onSecondary: Colors.white,
-        onSurface: const Color(0xFF2D3436),            // Testo (da AppColors)
-        onBackground: const Color(0xFF2D3436),
+        onSurface: const Color(0xFF2D3436),
         onError: Colors.white,
       ),
 
@@ -196,12 +194,10 @@ class AppThemes {
         secondary: const Color(0xFF81C784),             // Verde chiaro - accento successo
         secondaryContainer: const Color(0xFF2E7D32),
         surface: const Color(0xFF1E1E1E),
-        background: const Color(0xFF121212),
         error: const Color(0xFFEF5350),
         onPrimary: Colors.black,
         onSecondary: Colors.black,
         onSurface: const Color(0xFFE0E0E0),
-        onBackground: const Color(0xFFE0E0E0),
         onError: Colors.black,
       ),
 

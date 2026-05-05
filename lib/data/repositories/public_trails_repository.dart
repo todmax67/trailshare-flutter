@@ -234,7 +234,7 @@ class PublicTrailsRepository {
       });
       
       final counts = await Future.wait(countFutures);
-      totalCount = counts.fold(0, (sum, c) => sum + c);
+      totalCount = counts.fold(0, (acc, c) => acc + c);
       
       if (totalCount > 0) {
         final centerLat = (minLat + maxLat) / 2;
@@ -300,7 +300,7 @@ class PublicTrailsRepository {
       });
       
       final results = await Future.wait(futures);
-      final totalDocs = results.fold<int>(0, (sum, docs) => sum + docs.length);
+      final totalDocs = results.fold<int>(0, (acc, docs) => acc + docs.length);
       debugPrint('[PublicTrails] 📦 Risultati: $totalDocs documenti da ${results.length} query');
       
       for (final docs in results) {
@@ -696,29 +696,6 @@ class PublicTrailsRepository {
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 
-  /// Codifica GeoHash
-  String _encodeGeohash(double lat, double lng, int precision) {
-    const base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
-    var minLat = -90.0, maxLat = 90.0;
-    var minLng = -180.0, maxLng = 180.0;
-    var isEven = true;
-    var bit = 0, ch = 0;
-    var hash = '';
-
-    while (hash.length < precision) {
-      if (isEven) {
-        final mid = (minLng + maxLng) / 2;
-        if (lng > mid) { ch |= (1 << (4 - bit)); minLng = mid; } else { maxLng = mid; }
-      } else {
-        final mid = (minLat + maxLat) / 2;
-        if (lat > mid) { ch |= (1 << (4 - bit)); minLat = mid; } else { maxLat = mid; }
-      }
-      isEven = !isEven;
-      bit++;
-      if (bit == 5) { hash += base32[ch]; bit = 0; ch = 0; }
-    }
-    return hash;
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -740,7 +717,7 @@ class TrailsResult {
   bool get hasClusters => clusters.isNotEmpty;
   bool get hasTrails => trails.isNotEmpty;
   int get totalCount => hasClusters 
-      ? clusters.fold(0, (sum, c) => sum + c.count)
+      ? clusters.fold(0, (acc, c) => acc + c.count)
       : trails.length;
 }
 

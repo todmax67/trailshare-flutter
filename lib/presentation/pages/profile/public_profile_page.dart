@@ -234,7 +234,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       children: [
         CircleAvatar(
           radius: 50,
-          backgroundColor: AppColors.primary.withOpacity(0.1),
+          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
           backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
           child: _avatarUrl == null
               ? Text(
@@ -300,9 +300,9 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
+        color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -437,7 +437,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               child: const Icon(Icons.route, color: AppColors.primary),
             ),
             title: Text(

@@ -472,8 +472,11 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       ),
     );
     
-    if (shouldRestore == true) await _restoreFromBackup(backup);
-    else await _persistence.clearState();
+    if (shouldRestore == true) {
+      await _restoreFromBackup(backup);
+    } else {
+      await _persistence.clearState();
+    }
   }
 
   Widget _buildBackupInfo(RecordingBackup backup) {
@@ -830,6 +833,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       
       final now = DateTime.now();
       final activityName = track.activityType.displayName;
+      if (!mounted) return;
       final trackToSave = track.copyWith(name: '$activityName ${now.day}/${now.month}/${now.year} ${context.l10n.autoSaved}');
       
       await _repository.saveTrack(trackToSave);
@@ -974,8 +978,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
               color: _refOffTrail
-                  ? Colors.white.withOpacity(0.2)
-                  : AppColors.info.withOpacity(0.12),
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : AppColors.info.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -1034,8 +1038,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: _refOffTrail
-              ? Colors.white.withOpacity(0.15)
-              : AppColors.info.withOpacity(0.08),
+              ? Colors.white.withValues(alpha: 0.15)
+              : AppColors.info.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -1099,7 +1103,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.info.withOpacity(0.12),
+            color: AppColors.info.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(step.maneuver.icon, size: 28, color: AppColors.info),
@@ -1379,7 +1383,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(20),
         color: _batterySaverOn
             ? AppColors.success
-            : Colors.white.withOpacity(0.95),
+            : Colors.white.withValues(alpha: 0.95),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () => _toggleBatterySaver(),
@@ -1887,7 +1891,10 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     setState(() => _isSaving = true);
     try {
       final track = await _trackingBloc.stopRecording();
-      if (track == null) throw Exception(context.l10n.stopRecordingError);
+      if (track == null) {
+        if (!mounted) throw Exception('Stop recording error');
+        throw Exception(context.l10n.stopRecordingError);
+      }
       
       final trackToSave = track.copyWith(name: nameController.text.trim());
       final trackId = await _repository.saveTrack(trackToSave);
@@ -1906,6 +1913,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       // Sync con Apple Health / Health Connect
       HealthService().saveTrackAsWorkout(trackToSave).catchError((e) {
         debugPrint('[RecordPage] Errore sync Health: $e');
+        return false;
       });
 
       /// ❤️ Recupera battito cardiaco da Health Connect/Apple Health
@@ -2016,7 +2024,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             Polyline(
               points: widget.reference!.polyline,
               strokeWidth: 5,
-              color: AppColors.info.withOpacity(0.7),
+              color: AppColors.info.withValues(alpha: 0.7),
               pattern: StrokePattern.dashed(segments: const [10, 6]),
             ),
           ]),
@@ -2041,14 +2049,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             width: 32, height: 32,
             child: ListenableBuilder(
               listenable: HeadingService(),
-              builder: (_, __) {
+              builder: (_, _) {
                 final h = HeadingService().currentHeading ?? 0;
                 return Container(
                   decoration: BoxDecoration(
                     color: state.isRecording ? AppColors.trackRecording : AppColors.primary,
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [BoxShadow(color: (state.isRecording ? AppColors.trackRecording : AppColors.primary).withOpacity(0.4), blurRadius: 8, spreadRadius: 2)],
+                    boxShadow: [BoxShadow(color: (state.isRecording ? AppColors.trackRecording : AppColors.primary).withValues(alpha: 0.4), blurRadius: 8, spreadRadius: 2)],
                   ),
                   child: Transform.rotate(
                     angle: h * math.pi / 180,
@@ -2072,7 +2080,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 3),
                   boxShadow: [
-                    BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8, spreadRadius: 2),
+                    BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 8, spreadRadius: 2),
                   ],
                 ),
               ),
@@ -2088,8 +2096,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   /// Tap sull'header alterna i due stati.
   Widget _buildStatsHeader(TrackingState state) {
     final bg = state.isRecording
-        ? AppColors.trackRecording.withOpacity(0.95)
-        : AppColors.warning.withOpacity(0.95);
+        ? AppColors.trackRecording.withValues(alpha: 0.95)
+        : AppColors.warning.withValues(alpha: 0.95);
     return Positioned(
       top: 0,
       left: 0,
@@ -2136,9 +2144,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _miniStat('${state.stats.distanceKm.toStringAsFixed(2)}', 'km'),
+              _miniStat(state.stats.distanceKm.toStringAsFixed(2), 'km'),
               _miniStat(state.stats.durationFormatted, 'h/m'),
-              _miniStat('${state.stats.elevationGain.toStringAsFixed(0)}', 'D+'),
+              _miniStat(state.stats.elevationGain.toStringAsFixed(0), 'D+'),
             ],
           ),
         ),
@@ -2226,14 +2234,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           child: Text(
             unit,
             style: TextStyle(
-                color: Colors.white.withOpacity(0.8), fontSize: 10),
+                color: Colors.white.withValues(alpha: 0.8), fontSize: 10),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStat(String label, String value, {bool small = false}) => Column(children: [Text(value, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: small ? 16 : 22)), Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: small ? 10 : 11))]);
+  Widget _buildStat(String label, String value, {bool small = false}) => Column(children: [Text(value, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: small ? 16 : 22)), Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: small ? 10 : 11))]);
   String _formatPace(double avgSpeed) { if (avgSpeed <= 0) return '--:--'; final paceSeconds = 1000 / avgSpeed; final minutes = (paceSeconds / 60).floor(); final seconds = (paceSeconds % 60).floor(); return '$minutes:${seconds.toString().padLeft(2, '0')}'; }
 
   /// Overlay per schermata idle: stats settimanali + ultima attività
@@ -2255,9 +2263,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: colorScheme.surface.withOpacity(0.95),
+                color: colorScheme.surface.withValues(alpha: 0.95),
                 borderRadius: BorderRadius.circular(14),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8)],
               ),
               // Row con FittedBox per resistere a schermi stretti /
               // accessibility font: se non entra, scala tutto insieme.
@@ -2296,9 +2304,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: colorScheme.surface.withOpacity(0.95),
+                color: colorScheme.surface.withValues(alpha: 0.95),
                 borderRadius: BorderRadius.circular(14),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8)],
               ),
               child: Row(
                 children: [
@@ -2306,7 +2314,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(
@@ -2371,7 +2379,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       child: GestureDetector(
         onTap: _dismissRecTutorial,
         child: Container(
-          color: Colors.black.withOpacity(0.65),
+          color: Colors.black.withValues(alpha: 0.65),
           child: SafeArea(
             child: Stack(
               children: [
@@ -2388,7 +2396,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                             color: Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 4)),
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 4)),
                             ],
                           ),
                           child: Column(
@@ -2398,7 +2406,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                                 width: 56,
                                 height: 56,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE07B4C).withOpacity(0.15),
+                                  color: const Color(0xFFE07B4C).withValues(alpha: 0.15),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(Icons.play_arrow_rounded, color: Color(0xFFE07B4C), size: 32),
@@ -2452,7 +2460,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                   child: Column(
                     children: [
                       Icon(Icons.keyboard_double_arrow_down,
-                          color: Colors.white.withOpacity(0.9), size: 48),
+                          color: Colors.white.withValues(alpha: 0.9), size: 48),
                     ],
                   ),
                 ),
@@ -2486,7 +2494,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(25),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, spreadRadius: 2)],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -2524,7 +2532,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               ),
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 24, spreadRadius: 4),
+                BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 24, spreadRadius: 4),
               ],
             ),
             child: Column(
@@ -2555,18 +2563,18 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: _lifelineToggleOn
-              ? AppColors.info.withOpacity(0.95)
+              ? AppColors.info.withValues(alpha: 0.95)
               : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color: _lifelineToggleOn
                 ? AppColors.info
-                : AppColors.info.withOpacity(0.5),
+                : AppColors.info.withValues(alpha: 0.5),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 6,
             ),
           ],
@@ -2709,7 +2717,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor: AppColors.info.withOpacity(0.15),
+            backgroundColor: AppColors.info.withValues(alpha: 0.15),
             child: Text(
               draft.contact.name.isNotEmpty
                   ? draft.contact.name[0].toUpperCase()
@@ -3041,16 +3049,20 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   Widget _buildRecordingControls(TrackingState state) => Column(mainAxisSize: MainAxisSize.min, children: [
     const Padding(padding: EdgeInsets.only(bottom: 12), child: LiveTrackButton()),
-    Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+    Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
       _buildControlButton(icon: Icons.close, label: context.l10n.cancelLabel, color: context.textMuted, onTap: _showCancelDialog),
-      _buildControlButton(icon: state.isRecording ? Icons.pause : Icons.play_arrow, label: state.isRecording ? context.l10n.pauseLabel : context.l10n.resumeLabel, color: AppColors.warning, onTap: () { if (state.isRecording) _trackingBloc.pauseRecording(); else _trackingBloc.resumeRecording(); }, large: true),
+      _buildControlButton(icon: state.isRecording ? Icons.pause : Icons.play_arrow, label: state.isRecording ? context.l10n.pauseLabel : context.l10n.resumeLabel, color: AppColors.warning, onTap: () { if (state.isRecording) {
+        _trackingBloc.pauseRecording();
+      } else {
+        _trackingBloc.resumeRecording();
+      } }, large: true),
       _buildControlButton(icon: Icons.stop, label: context.l10n.saveLabel, color: AppColors.danger, onTap: _showSaveDialog),
     ])),
   ]);
 
   Widget _buildControlButton({required IconData icon, required String label, required Color color, required VoidCallback onTap, bool large = false}) {
     final size = large ? 64.0 : 48.0;
-    return GestureDetector(onTap: onTap, child: Column(mainAxisSize: MainAxisSize.min, children: [Container(width: size, height: size, decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle), child: Icon(icon, color: color, size: large ? 32 : 24)), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500))]));
+    return GestureDetector(onTap: onTap, child: Column(mainAxisSize: MainAxisSize.min, children: [Container(width: size, height: size, decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle), child: Icon(icon, color: color, size: large ? 32 : 24)), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500))]));
   }
 
   Future<void> _showCompletionDialog(Track track) async {
@@ -3058,7 +3070,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     final elev = track.stats.elevationGain.toStringAsFixed(0);
     final h = track.stats.duration.inHours;
     final m = track.stats.duration.inMinutes % 60;
-    final duration = h > 0 ? '${h}h ${m}m' : '${m} min';
+    final duration = h > 0 ? '${h}h ${m}m' : '$m min';
 
     // Messaggi motivazionali casuali
     final messages = [
@@ -3085,7 +3097,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1),
+                color: AppColors.success.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.check_circle, color: AppColors.success, size: 48),
@@ -3347,9 +3359,9 @@ class _LifelineDisclaimerDialogState
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.08),
+                color: AppColors.warning.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
               ),
               child: const Text(
                 'In aree remote, in alta montagna o in condizioni estreme, '
@@ -3493,7 +3505,7 @@ class _SosFabState extends State<_SosFab>
             // Progress ring durante il long-press
             AnimatedBuilder(
               animation: _ctrl,
-              builder: (_, __) {
+              builder: (_, _) {
                 if (_ctrl.value == 0) return const SizedBox.shrink();
                 return SizedBox(
                   width: size,
@@ -3501,7 +3513,7 @@ class _SosFabState extends State<_SosFab>
                   child: CircularProgressIndicator(
                     value: _ctrl.value,
                     strokeWidth: 4,
-                    backgroundColor: Colors.white.withOpacity(0.3),
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
                     valueColor:
                         const AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
@@ -3517,7 +3529,7 @@ class _SosFabState extends State<_SosFab>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.danger.withOpacity(0.5),
+                    color: AppColors.danger.withValues(alpha: 0.5),
                     blurRadius: 12,
                     spreadRadius: 2,
                   ),
@@ -3630,7 +3642,7 @@ class _InactivityDialogState extends State<_InactivityDialog> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
@@ -3649,7 +3661,7 @@ class _InactivityDialogState extends State<_InactivityDialog> {
                   child: LinearProgressIndicator(
                     value: pct.clamp(0.0, 1.0),
                     minHeight: 6,
-                    backgroundColor: Colors.white.withOpacity(0.3),
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
                     valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 ),

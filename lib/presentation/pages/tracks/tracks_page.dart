@@ -49,59 +49,6 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  /// Helper per ottenere il colore dell'attività
-  Color _getActivityColor(ActivityType type) {
-    switch (type) {
-      case ActivityType.trekking:
-      case ActivityType.skiTouring:
-      case ActivityType.snowshoeing:
-        return AppColors.success;
-      case ActivityType.trailRunning:
-      case ActivityType.running:
-        return AppColors.warning;
-      case ActivityType.cycling:
-      case ActivityType.mountainBiking:
-      case ActivityType.gravelBiking:
-      case ActivityType.eBike:
-      case ActivityType.eMountainBike:
-        return AppColors.info;
-      case ActivityType.walking:
-      case ActivityType.nordicSkiing:
-        return AppColors.primary;
-      case ActivityType.alpineSkiing:
-      case ActivityType.snowboarding:
-        return Colors.blue;
-    }
-  }
-
-  /// Helper per ottenere l'icona dell'attività
-  IconData _getActivityIconData(ActivityType type) {
-    switch (type) {
-      case ActivityType.trekking:
-        return Icons.hiking;
-      case ActivityType.trailRunning:
-      case ActivityType.running:
-        return Icons.directions_run;
-      case ActivityType.cycling:
-      case ActivityType.gravelBiking:
-      case ActivityType.eBike:
-        return Icons.directions_bike;
-      case ActivityType.mountainBiking:
-      case ActivityType.eMountainBike:
-        return Icons.terrain;
-      case ActivityType.walking:
-        return Icons.directions_walk;
-      case ActivityType.alpineSkiing:
-      case ActivityType.snowboarding:
-        return Icons.downhill_skiing;
-      case ActivityType.skiTouring:
-      case ActivityType.nordicSkiing:
-        return Icons.downhill_skiing;
-      case ActivityType.snowshoeing:
-        return Icons.ac_unit;
-    }
-  }
-
   /// ⭐ Listener per caricare più tracce quando si raggiunge il fondo
   void _onScroll() {
     if (_scrollController.position.pixels >= 
@@ -318,7 +265,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: AppColors.danger.withOpacity(0.5)),
+            Icon(Icons.error_outline, size: 64, color: AppColors.danger.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             Text(_error!, textAlign: TextAlign.center),
             const SizedBox(height: 16),
@@ -469,7 +416,7 @@ class _TrackCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
+                      color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -508,7 +455,7 @@ class _TrackCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.info.withOpacity(0.1),
+                        color: AppColors.info.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -529,7 +476,7 @@ class _TrackCard extends StatelessWidget {
                       margin: const EdgeInsets.only(left: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.warning.withOpacity(0.1),
+                        color: AppColors.warning.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(

@@ -118,7 +118,7 @@ class _PoiLocationPickerPageState extends State<PoiLocationPickerPage> {
                   Polyline(
                     points: widget.polyline,
                     strokeWidth: 5,
-                    color: AppColors.info.withOpacity(0.7),
+                    color: AppColors.info.withValues(alpha: 0.7),
                     pattern:
                         StrokePattern.dashed(segments: const [10, 6]),
                   ),
@@ -138,7 +138,7 @@ class _PoiLocationPickerPageState extends State<PoiLocationPickerPage> {
                         boxShadow: [
                           BoxShadow(
                             color:
-                                AppColors.success.withOpacity(0.5),
+                                AppColors.success.withValues(alpha: 0.5),
                             blurRadius: 8,
                             spreadRadius: 1,
                           ),
@@ -160,7 +160,7 @@ class _PoiLocationPickerPageState extends State<PoiLocationPickerPage> {
             child: Material(
               elevation: 2,
               borderRadius: BorderRadius.circular(10),
-              color: Colors.white.withOpacity(0.95),
+              color: Colors.white.withValues(alpha: 0.95),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 10),

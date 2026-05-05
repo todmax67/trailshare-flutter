@@ -259,11 +259,13 @@ class PostTrackSaveService {
           await Future.delayed(const Duration(milliseconds: 500));
           if (context.mounted) {
             final totalXp = await _getCurrentXp(user.uid);
-            await showLevelUpDialog(
-              context,
-              newLevel: newLevel,
-              totalXp: totalXp,
-            );
+            if (context.mounted) {
+              await showLevelUpDialog(
+                context,
+                newLevel: newLevel,
+                totalXp: totalXp,
+              );
+            }
           }
         }
 

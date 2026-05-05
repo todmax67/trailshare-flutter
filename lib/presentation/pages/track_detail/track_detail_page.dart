@@ -15,7 +15,6 @@ import '../../widgets/interactive_track_map.dart';
 import '../../widgets/track_charts_widget.dart';
 import '../../widgets/lap_splits_widget.dart';
 import '../../widgets/track_segments_section.dart';
-import '../../../data/repositories/tracks_repository.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -262,7 +261,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     final stats = _track.stats;
     return Row(
       children: [
-        _StatCard(icon: Icons.straighten, value: '${(stats.distance / 1000).toStringAsFixed(1)}', unit: 'km', label: context.l10n.distanceLabel, color: AppColors.primary),
+        _StatCard(icon: Icons.straighten, value: (stats.distance / 1000).toStringAsFixed(1), unit: 'km', label: context.l10n.distanceLabel, color: AppColors.primary),
         const SizedBox(width: 8),
         _StatCard(icon: Icons.trending_up, value: '+${stats.elevationGain.toStringAsFixed(0)}', unit: 'm', label: context.l10n.elevationGainLabel, color: AppColors.success),
         const SizedBox(width: 8),
@@ -351,9 +350,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withOpacity(0.1),
+                      color: AppColors.success.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                      border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -548,7 +547,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                               );
                             });
                             
-                            if (mounted) {
+                            if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(context.l10n.activityChangedTo(type.displayName)),
@@ -623,7 +622,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       if (format == ExportFormat.fit) {
         await DiscoveryPromptService.markFitExported();
       }
-      await Share.shareXFiles([XFile(filePath)], subject: _track.name);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(filePath)],
+        subject: _track.name,
+      ));
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -639,7 +641,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     if (_track.id == null) return;
     final url = 'https://trailshare.app/track/${_track.id}';
     final message = '${_track.name}\n$url';
-    await Share.share(message, subject: _track.name);
+    await SharePlus.instance.share(ShareParams(
+      text: message,
+      subject: _track.name,
+    ));
   }
 
   String _formatDuration(Duration d) {
@@ -739,13 +744,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   );
                 });
                 
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(context.l10n.trackUpdated), backgroundColor: AppColors.success),
                   );
                 }
               } catch (e) {
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
                   );
@@ -803,7 +808,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Icon(Icons.favorite_outline, color: AppColors.danger.withOpacity(0.7)),
+              Icon(Icons.favorite_outline, color: AppColors.danger.withValues(alpha: 0.7)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -955,6 +960,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           );
         }
       } else {
+        if (!mounted) throw Exception('Publish failed');
         throw Exception(context.l10n.publishFailed);
       }
     } catch (e) {
@@ -1067,8 +1073,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           .collection('user_profiles')
           .doc(uid)
           .get();
+      if (!mounted) return 'User';
       return doc.data()?['username'] ?? context.l10n.userLabel;
     } catch (_) {
+      if (!mounted) return 'User';
       return context.l10n.userLabel;
     }
   }
@@ -1100,7 +1108,7 @@ class _StatCard extends StatelessWidget {
               RichText(
                 text: TextSpan(children: [
                   TextSpan(text: value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-                  if (unit.isNotEmpty) TextSpan(text: ' $unit', style: TextStyle(fontSize: 11, color: color.withOpacity(0.7))),
+                  if (unit.isNotEmpty) TextSpan(text: ' $unit', style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.7))),
                 ]),
               ),
               Text(label, style: TextStyle(fontSize: 10, color: context.textMuted)),
@@ -1138,7 +1146,7 @@ class _PhotoThumbnail extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1194,7 +1202,7 @@ class _PhotoThumbnail extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.6),
+                      Colors.black.withValues(alpha: 0.6),
                     ],
                   ),
                 ),
@@ -1230,7 +1238,7 @@ class _PhotoThumbnail extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Icon(Icons.fullscreen, size: 16, color: Colors.white),
@@ -1323,7 +1331,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                         child: CircularProgressIndicator(color: Colors.white),
                       );
                     },
-                    errorBuilder: (_, error, __) {
+                    errorBuilder: (_, error, _) {
                       return const Icon(
                         Icons.broken_image,
                         color: Colors.white54,
@@ -1353,7 +1361,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                     decoration: BoxDecoration(
                       color: index == _currentIndex
                           ? Colors.white
-                          : Colors.white.withOpacity(0.4),
+                          : Colors.white.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -1377,7 +1385,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
+        color: Colors.black.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -1409,61 +1417,6 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
     );
   }
 
-  void _showPhotoInfo(TrackPhotoMetadata photo) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.l10n.photoInfoTitle,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _infoRow(context.l10n.dateInfoLabel, '${photo.timestamp.day}/${photo.timestamp.month}/${photo.timestamp.year}'),
-            _infoRow(context.l10n.timeInfoLabel, '${photo.timestamp.hour.toString().padLeft(2, '0')}:${photo.timestamp.minute.toString().padLeft(2, '0')}'),
-            if (photo.latitude != null)
-              _infoRow(context.l10n.latitudeLabel, photo.latitude!.toStringAsFixed(6)),
-            if (photo.longitude != null)
-              _infoRow(context.l10n.longitudeLabel, photo.longitude!.toStringAsFixed(6)),
-            if (photo.elevation != null)
-              _infoRow(context.l10n.elevationQuotaLabel, '${photo.elevation!.toStringAsFixed(0)} m'),
-            if (photo.caption != null && photo.caption!.isNotEmpty)
-              _infoRow(context.l10n.captionLabel, photo.caption!),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(label, style: const TextStyle(color: Colors.white54)),
-          ),
-          Expanded(
-            child: Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
   Future<void> _downloadPhoto(String url) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1471,7 +1424,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
       );
 
       final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) throw Exception(context.l10n.downloadError);
+      if (response.statusCode != 200) {
+        if (!mounted) throw Exception('Download error');
+        throw Exception(context.l10n.downloadError);
+      }
 
       final tempDir = await getTemporaryDirectory();
       final fileName = 'trailshare_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -1480,10 +1436,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
 
       if (!mounted) return;
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
         text: context.l10n.photoFrom(widget.trackName),
-      );
+      ));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

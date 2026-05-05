@@ -118,10 +118,15 @@ class _PlannerTabState extends State<PlannerTab> {
       final lngDiff = maxLng - minLng;
       final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
       double zoom = 14.0;
-      if (maxDiff > 0.5) zoom = 10;
-      else if (maxDiff > 0.2) zoom = 11;
-      else if (maxDiff > 0.1) zoom = 12;
-      else if (maxDiff > 0.05) zoom = 13;
+      if (maxDiff > 0.5) {
+        zoom = 10;
+      } else if (maxDiff > 0.2) {
+        zoom = 11;
+      } else if (maxDiff > 0.1) {
+        zoom = 12;
+      } else if (maxDiff > 0.05) {
+        zoom = 13;
+      }
       _mapController.move(center, zoom - 0.5); // un po' di margine
     } else if (_waypoints.isNotEmpty) {
       double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
@@ -338,7 +343,7 @@ class _PlannerTabState extends State<PlannerTab> {
                   Polyline(
                     points: _waypoints,
                     strokeWidth: 3,
-                    color: Colors.grey.withOpacity(0.5),
+                    color: Colors.grey.withValues(alpha: 0.5),
                   ),
                 ],
               ),
@@ -367,7 +372,7 @@ class _PlannerTabState extends State<PlannerTab> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -404,7 +409,7 @@ class _PlannerTabState extends State<PlannerTab> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.blue.withOpacity(0.3),
+                            color: Colors.blue.withValues(alpha: 0.3),
                             blurRadius: 8,
                             spreadRadius: 2,
                           ),
@@ -431,7 +436,7 @@ class _PlannerTabState extends State<PlannerTab> {
                   color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8),
                   ],
                 ),
                 child: Row(
@@ -486,7 +491,7 @@ class _PlannerTabState extends State<PlannerTab> {
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8),
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8),
                     ],
                   ),
                   child: Column(
@@ -545,7 +550,7 @@ class _PlannerTabState extends State<PlannerTab> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.danger.withOpacity(0.9),
+                color: AppColors.danger.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -586,7 +591,7 @@ class _PlannerTabState extends State<PlannerTab> {
         if (_isCalculating)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               child: Center(
                 child: Card(
                   child: Padding(
@@ -695,7 +700,7 @@ class _PlannerTabState extends State<PlannerTab> {
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8),
         ],
       ),
       child: Row(
@@ -703,7 +708,7 @@ class _PlannerTabState extends State<PlannerTab> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: (_profile == RoutingProfile.hiking ? AppColors.success : AppColors.info).withOpacity(0.1),
+              color: (_profile == RoutingProfile.hiking ? AppColors.success : AppColors.info).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -743,7 +748,7 @@ class _PlannerTabState extends State<PlannerTab> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  border: Border.all(color: context.textMuted.withOpacity(0.3)),
+                  border: Border.all(color: context.textMuted.withValues(alpha: 0.3)),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -881,7 +886,7 @@ class _PlannerTabState extends State<PlannerTab> {
         color: Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, -3)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, -3)),
         ],
       ),
       child: Column(
@@ -1059,7 +1064,7 @@ class _ElevationPainter extends CustomPainter {
     if (elevations.isEmpty) return;
 
     final fillPaint = Paint()
-      ..color = color.withOpacity(0.3)
+      ..color = color.withValues(alpha: 0.3)
       ..style = PaintingStyle.fill;
 
     final linePaint = Paint()

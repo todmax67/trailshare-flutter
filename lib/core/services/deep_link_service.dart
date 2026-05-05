@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../app.dart';
@@ -99,7 +98,7 @@ class DeepLinkService {
 
     final result = await _repo.joinByInviteCode(code);
     final freshCtx = navigatorKey.currentContext;
-    if (freshCtx == null) return;
+    if (freshCtx == null || !freshCtx.mounted) return;
 
     if (result['success'] == true) {
       final groupId = result['groupId'] as String?;

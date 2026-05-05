@@ -589,8 +589,12 @@ class GroupsRepository {
 
       // Merge e deduplica
       final allDocs = <String, QueryDocumentSnapshot>{};
-      for (final doc in snapshot1.docs) allDocs[doc.id] = doc;
-      for (final doc in snapshot2.docs) allDocs[doc.id] = doc;
+      for (final doc in snapshot1.docs) {
+        allDocs[doc.id] = doc;
+      }
+      for (final doc in snapshot2.docs) {
+        allDocs[doc.id] = doc;
+      }
 
       final discoverable = allDocs.values
           .map((doc) => Group.fromFirestore(doc))

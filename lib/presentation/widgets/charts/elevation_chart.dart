@@ -20,8 +20,6 @@ class ElevationChart extends StatefulWidget {
 }
 
 class _ElevationChartState extends State<ElevationChart> {
-  int? _touchedIndex;
-
   @override
   Widget build(BuildContext context) {
     final data = _buildChartData();
@@ -75,7 +73,7 @@ class _ElevationChartState extends State<ElevationChart> {
                 drawVerticalLine: false,
                 horizontalInterval: _calculateInterval(maxEle - minEle),
                 getDrawingHorizontalLine: (value) => FlLine(
-                  color: AppColors.border.withOpacity(0.5),
+                  color: AppColors.border.withValues(alpha: 0.5),
                   strokeWidth: 1,
                 ),
               ),
@@ -91,7 +89,7 @@ class _ElevationChartState extends State<ElevationChart> {
                       return Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                          '${value.toStringAsFixed(1)}',
+                          value.toStringAsFixed(1),
                           style: TextStyle(fontSize: 10, color: context.textMuted),
                         ),
                       );
@@ -126,7 +124,7 @@ class _ElevationChartState extends State<ElevationChart> {
               lineTouchData: LineTouchData(
                 enabled: true,
                 touchTooltipData: LineTouchTooltipData(
-                  getTooltipColor: (spot) => context.textPrimary.withOpacity(0.9),
+                  getTooltipColor: (spot) => context.textPrimary.withValues(alpha: 0.9),
                   tooltipBorderRadius: BorderRadius.circular(8),
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((spot) {
@@ -141,15 +139,7 @@ class _ElevationChartState extends State<ElevationChart> {
                     }).toList();
                   },
                 ),
-                touchCallback: (event, response) {
-                  setState(() {
-                    if (response?.lineBarSpots != null && response!.lineBarSpots!.isNotEmpty) {
-                      _touchedIndex = response.lineBarSpots!.first.spotIndex;
-                    } else {
-                      _touchedIndex = null;
-                    }
-                  });
-                },
+                touchCallback: (event, response) {},
                 handleBuiltInTouches: true,
               ),
               lineBarsData: [
@@ -167,8 +157,8 @@ class _ElevationChartState extends State<ElevationChart> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        AppColors.primary.withOpacity(0.3),
-                        AppColors.primary.withOpacity(0.05),
+                        AppColors.primary.withValues(alpha: 0.3),
+                        AppColors.primary.withValues(alpha: 0.05),
                       ],
                     ),
                   ),

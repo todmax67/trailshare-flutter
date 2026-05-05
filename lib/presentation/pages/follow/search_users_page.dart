@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/follow_repository.dart';
@@ -242,7 +241,7 @@ class _SearchUsersPageState extends State<SearchUsersPage> {
         },
         leading: CircleAvatar(
           radius: 24,
-          backgroundColor: AppColors.primary.withOpacity(0.1),
+          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
           backgroundImage: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
               ? NetworkImage(user.avatarUrl!)
               : null,

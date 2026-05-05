@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'firebase_options.dart';
 import 'app.dart';
-import 'core/services/location_service.dart';
 import 'core/services/theme_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/lifeline_alert_service.dart';
-import 'package:flutter/foundation.dart';
 import 'core/services/health_service.dart';
 import 'core/services/offline_tile_provider.dart';
 import 'core/services/garmin_sync_service.dart';

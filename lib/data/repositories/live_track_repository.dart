@@ -167,8 +167,8 @@ class LiveSession {
     List<GeoPoint> pathList = [];
     if (data['path'] != null && data['path'] is List) {
       pathList = (data['path'] as List)
-          .where((p) => p is GeoPoint)
-          .map((p) => p as GeoPoint)
+          .whereType<GeoPoint>()
+          .map((p) => p)
           .toList();
     }
 
@@ -199,7 +199,7 @@ class LiveSession {
     final hours = d.inHours;
     final minutes = d.inMinutes % 60;
     if (hours > 0) return '${hours}h ${minutes}m';
-    return '${minutes} min';
+    return '$minutes min';
   }
 
   /// Ultimo aggiornamento formattato

@@ -16,7 +16,7 @@ class GamificationService {
   // CONFIGURAZIONE XP
   // ============================================
   
-  static const Map<String, int> XP_REWARDS = {
+  static const Map<String, int> xpRewards = {
     'track_completed': 50,
     'km_hiked': 10,
     'elevation_100m': 15,
@@ -28,12 +28,12 @@ class GamificationService {
     'challenge_completed': 200,
   };
 
-  static const List<int> LEVEL_THRESHOLDS = [
+  static const List<int> levelThresholds = [
     0, 100, 300, 600, 1000, 1500, 2200, 3000, 4000, 5200,
     6600, 8200, 10000, 12000, 14500, 17500, 21000, 25000, 30000, 36000,
   ];
 
-  static const Map<int, String> LEVEL_NAMES = {
+  static const Map<int, String> levelNames = {
     1: 'Principiante',
     2: 'Escursionista',
     3: 'Camminatore',
@@ -61,8 +61,8 @@ class GamificationService {
   // ============================================
 
   int calculateLevel(int totalXp) {
-    for (int i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
-      if (totalXp >= LEVEL_THRESHOLDS[i]) {
+    for (int i = levelThresholds.length - 1; i >= 0; i--) {
+      if (totalXp >= levelThresholds[i]) {
         return i + 1;
       }
     }
@@ -71,10 +71,10 @@ class GamificationService {
 
   LevelInfo calculateLevelInfo(int totalXp) {
     final level = calculateLevel(totalXp);
-    final currentThreshold = LEVEL_THRESHOLDS[level - 1];
-    final nextThreshold = level < LEVEL_THRESHOLDS.length 
-        ? LEVEL_THRESHOLDS[level] 
-        : LEVEL_THRESHOLDS.last + 10000;
+    final currentThreshold = levelThresholds[level - 1];
+    final nextThreshold = level < levelThresholds.length 
+        ? levelThresholds[level] 
+        : levelThresholds.last + 10000;
     
     final xpInCurrentLevel = totalXp - currentThreshold;
     final xpNeededForNext = nextThreshold - currentThreshold;
@@ -86,7 +86,7 @@ class GamificationService {
       currentLevelXp: xpInCurrentLevel,
       xpForNextLevel: xpNeededForNext,
       progress: progress,
-      levelName: LEVEL_NAMES[level] ?? 'Livello $level',
+      levelName: levelNames[level] ?? 'Livello $level',
       nextLevelXp: nextThreshold - totalXp,
     );
   }
@@ -165,16 +165,16 @@ class GamificationService {
     required Duration duration,
     bool isFirstTrack = false,
   }) async {
-    int totalXp = XP_REWARDS['track_completed']!;
+    int totalXp = xpRewards['track_completed']!;
     
     final kmHiked = distanceMeters / 1000;
-    totalXp += (kmHiked * XP_REWARDS['km_hiked']!).toInt();
+    totalXp += (kmHiked * xpRewards['km_hiked']!).toInt();
     
     final elevation100m = elevationGain / 100;
-    totalXp += (elevation100m * XP_REWARDS['elevation_100m']!).toInt();
+    totalXp += (elevation100m * xpRewards['elevation_100m']!).toInt();
     
     if (isFirstTrack) {
-      totalXp += XP_REWARDS['first_track']!;
+      totalXp += xpRewards['first_track']!;
     }
 
     final details = 'Distanza: ${kmHiked.toStringAsFixed(1)}km, '
@@ -190,21 +190,21 @@ class GamificationService {
   Future<XpRewardResult> grantXpForCheers() {
     return grantXp(
       reason: 'cheers_received',
-      amount: XP_REWARDS['cheers_received']!,
+      amount: xpRewards['cheers_received']!,
     );
   }
 
   Future<XpRewardResult> grantXpForNewFollower() {
     return grantXp(
       reason: 'new_follower',
-      amount: XP_REWARDS['new_follower']!,
+      amount: xpRewards['new_follower']!,
     );
   }
 
   Future<XpRewardResult> grantXpForPublishedTrack() {
     return grantXp(
       reason: 'track_published',
-      amount: XP_REWARDS['track_published']!,
+      amount: xpRewards['track_published']!,
     );
   }
 

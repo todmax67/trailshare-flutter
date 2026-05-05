@@ -141,10 +141,10 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.share),
-            onPressed: () => Share.share(
-              '${tour.title}\nhttps://trailshare.app/tour/${tour.id}',
+            onPressed: () => SharePlus.instance.share(ShareParams(
+              text: '${tour.title}\nhttps://trailshare.app/tour/${tour.id}',
               subject: tour.title,
-            ),
+            )),
           ),
         ],
       ),

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../core/extensions/l10n_extension.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 import '../../core/services/discovery_prompt_service.dart';
 import '../../core/services/monthly_report_service.dart';

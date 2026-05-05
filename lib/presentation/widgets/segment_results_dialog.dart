@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/segment.dart';
-import '../../core/extensions/theme_colors_extension.dart';
 
 /// Dialog mostrato dopo il salvataggio di una traccia che ha attraversato
 /// uno o più segmenti cronometrati.

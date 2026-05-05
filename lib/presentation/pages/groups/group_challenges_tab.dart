@@ -74,7 +74,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                     setState(() => _showAll = false);
                     _loadChallenges();
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
@@ -84,7 +84,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                     setState(() => _showAll = true);
                     _loadChallenges();
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
               ],
             ),
@@ -162,8 +162,8 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: daysLeft <= 2
-                            ? AppColors.danger.withOpacity(0.1)
-                            : AppColors.success.withOpacity(0.1),
+                            ? AppColors.danger.withValues(alpha: 0.1)
+                            : AppColors.success.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -274,7 +274,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                           leading: CircleAvatar(
                             backgroundColor: index == 0
                                 ? AppColors.warning
-                                : AppColors.primary.withOpacity(0.1),
+                                : AppColors.primary.withValues(alpha: 0.1),
                             child: Text(
                               '${index + 1}',
                               style: TextStyle(
@@ -313,7 +313,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
     switch (type) {
       case 'distance': return '${(value / 1000).toStringAsFixed(1)} km';
       case 'elevation': return '${value.toStringAsFixed(0)} m';
-      case 'tracks': return '${value.toStringAsFixed(0)}';
+      case 'tracks': return value.toStringAsFixed(0);
       case 'streak': return '${value.toStringAsFixed(0)} ${context.l10n.suffixDaysShort}';
       default: return value.toString();
     }

@@ -124,9 +124,6 @@ class GarminSyncService {
           activityType = ActivityType.trekking;
       }
 
-      // Calcola stats
-      final durationSecs = durationMs ~/ 1000;
-
       // Salva traccia
       final repo = TracksRepository();
       final track = Track(

@@ -155,7 +155,7 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -372,13 +372,13 @@ class _BadgeCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isUnlocked 
-              ? AppColors.primary.withOpacity(0.3)
+              ? AppColors.primary.withValues(alpha: 0.3)
               : colorScheme.outlineVariant,
         ),
         boxShadow: isUnlocked
             ? [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   blurRadius: 8,
                 ),
               ]
@@ -391,7 +391,7 @@ class _BadgeCard extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               color: isUnlocked 
-                  ? AppColors.primary.withOpacity(0.1)
+                  ? AppColors.primary.withValues(alpha: 0.1)
                   : colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
             ),

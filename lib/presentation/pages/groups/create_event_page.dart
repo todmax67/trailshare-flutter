@@ -296,7 +296,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
                     onSelected: (selected) {
                       setState(() => _difficulty = selected ? entry.key : null);
                     },
-                    selectedColor: AppColors.primary.withOpacity(0.2),
+                    selectedColor: AppColors.primary.withValues(alpha: 0.2),
                   );
                 }).toList(),
               ),
@@ -315,7 +315,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
                     onSelected: (selected) {
                       setState(() => _maxParticipants = selected ? n : null);
                     },
-                    selectedColor: AppColors.primary.withOpacity(0.2),
+                    selectedColor: AppColors.primary.withValues(alpha: 0.2),
                   );
                 }).toList(),
               ),

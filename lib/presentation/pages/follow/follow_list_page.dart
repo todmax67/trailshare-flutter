@@ -164,7 +164,7 @@ class _UserListItem extends StatelessWidget {
       onTap: onTap,
       leading: CircleAvatar(
         radius: 24,
-        backgroundColor: AppColors.primary.withOpacity(0.1),
+        backgroundColor: AppColors.primary.withValues(alpha: 0.1),
         backgroundImage: profile.avatarUrl != null
             ? NetworkImage(profile.avatarUrl!)
             : null,

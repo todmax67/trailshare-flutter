@@ -194,7 +194,7 @@ class HealthService {
 
   /// Legge i dati del battito cardiaco da Health Connect/Apple Health
   /// per l'intervallo di tempo specificato (es. durata di una traccia)
-  /// Restituisce Map<DateTime, int> (timestamp -> BPM)
+  /// Restituisce `Map<DateTime, int>` (timestamp -> BPM)
   Future<Map<DateTime, int>> getHeartRateForTimeRange({
     required DateTime start,
     required DateTime end,
@@ -531,14 +531,6 @@ class HealthService {
 
       final deduplicated = _health.removeDuplicates(dataPoints);
       final filtered = _filterBestSource(deduplicated);
-
-      int total = 0;
-
-      // Debug: mostra fonti calorie
-      final calSources = <String>{};
-      for (final dp in deduplicated) {
-        calSources.add('${dp.type}:${dp.sourceName}');
-      }
 
       final daily = <String, int>{};
 

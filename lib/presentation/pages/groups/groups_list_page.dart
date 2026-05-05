@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
@@ -377,10 +376,10 @@ class _GroupListAvatar extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: group.avatarUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) => const Center(
+              placeholder: (_, _) => const Center(
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              errorWidget: (_, __, ___) => _initialFallback(group.name),
+              errorWidget: (_, _, _) => _initialFallback(group.name),
             )
           : _initialFallback(group.name),
     );

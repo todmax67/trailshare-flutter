@@ -194,7 +194,7 @@ class FollowRepository {
           .collection('user_profiles')
           .orderBy('username')
           .startAt([q])
-          .endAt([q + '\uf8ff'])
+          .endAt(['$q\uf8ff'])
           .limit(20)
           .get();
 

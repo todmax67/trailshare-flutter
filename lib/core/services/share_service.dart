@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import '../../data/models/track.dart';
 
 class ShareService {
   /// Condividi traccia sui social con testo + immagine opzionale
@@ -33,14 +32,17 @@ class ShareService {
       final file = File('${tempDir.path}/trailshare_track.png');
       await file.writeAsBytes(mapScreenshot);
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
         text: text,
         subject: 'La mia attività su TrailShare',
-      );
+      ));
     } else {
       // Solo testo
-      await Share.share(text, subject: 'La mia attività su TrailShare');
+      await SharePlus.instance.share(ShareParams(
+        text: text,
+        subject: 'La mia attività su TrailShare',
+      ));
     }
   }
 
@@ -136,7 +138,7 @@ class ShareService {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
+                    color: Colors.green.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.send, color: Colors.green),
@@ -170,7 +172,7 @@ class ShareService {
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: Colors.blue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(Icons.file_download, color: Colors.blue),

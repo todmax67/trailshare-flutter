@@ -126,8 +126,6 @@ class LifelineService {
   List<EmergencyContact> _contacts = const [];
   String _userName = '';
   String _activityName = '';
-  String? _referenceName;
-  String? _customTemplate;
 
   /// Avvia Lifeline.
   ///
@@ -208,8 +206,6 @@ class LifelineService {
     _contacts = contacts;
     _userName = userName;
     _activityName = activityName;
-    _referenceName = referenceName;
-    _customTemplate = customTemplate;
 
     // Reset detection inattività.
     _lastSignificantPosition = null;

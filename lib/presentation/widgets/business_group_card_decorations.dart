@@ -25,10 +25,10 @@ class BusinessCoverHeader extends StatelessWidget {
       child: CachedNetworkImage(
         imageUrl: group.coverUrl!,
         fit: BoxFit.cover,
-        placeholder: (_, __) => Container(
+        placeholder: (_, _) => Container(
           color: groupAccentColor(group).withValues(alpha: 0.08),
         ),
-        errorWidget: (_, __, ___) => Container(
+        errorWidget: (_, _, _) => Container(
           color: groupAccentColor(group).withValues(alpha: 0.08),
         ),
       ),

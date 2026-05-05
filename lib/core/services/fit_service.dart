@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:fit_sdk/fit_sdk.dart' hide ActivityType, File;
 import '../../data/models/track.dart';
 import '../utils/elevation_processor.dart';
@@ -51,9 +50,6 @@ class FitService {
             break;
 
           case 'GpsMetadata':
-            // Debug: mostra campi
-            for (final f in mesg.fields) {
-            }
             // Garmin recenti: coordinate GPS separate dai record
             for (final field in mesg.fields) {
               if (field.value == null) continue;
@@ -87,8 +83,6 @@ class FitService {
 
           case 'Record':
             if (recordCount < 2) {
-              for (final f in mesg.fields) {
-              }
               recordCount++;
             }
             final point = _parseRecordMessage(mesg);
@@ -228,11 +222,6 @@ class FitService {
           timestamp = _fitTimestampToDateTime(field.value);
           break;
           default:
-            // Log messaggi sconosciuti con 7 campi (possibili coordinate GPS)
-            if (mesg.num == 325) {
-              for (final f in mesg.fields) {
-              }
-            }
             break;
       }
     }

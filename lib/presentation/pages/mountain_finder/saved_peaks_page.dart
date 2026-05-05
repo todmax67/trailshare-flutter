@@ -107,7 +107,7 @@ class _SavedPeaksPageState extends State<SavedPeaksPage> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 8),
                   itemCount: peaks.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (_, i) {
                     final peak = peaks[i];
                     return _PeakTile(

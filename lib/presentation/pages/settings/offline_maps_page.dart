@@ -94,7 +94,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
+        color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -102,7 +102,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.2),
+              color: AppColors.primary.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.storage, color: AppColors.primary),
@@ -385,7 +385,7 @@ class _RegionCard extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.success.withOpacity(0.1),
+            color: AppColors.success.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Icon(Icons.check_circle, color: AppColors.success),
@@ -459,7 +459,7 @@ class _SelectAreaPageState extends State<_SelectAreaPage> {
                     point: _center,
                     radius: _radiusKm * 1000, // metri
                     useRadiusInMeter: true,
-                    color: AppColors.primary.withOpacity(0.2),
+                    color: AppColors.primary.withValues(alpha: 0.2),
                     borderColor: AppColors.primary,
                     borderStrokeWidth: 2,
                   ),
@@ -570,7 +570,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
 
   Future<void> _startDownload() async {
     try {
-      final result = await widget.service.downloadArea(
+      await widget.service.downloadArea(
         bounds: widget.bounds,
         minZoom: widget.minZoom,
         maxZoom: widget.maxZoom,

@@ -147,7 +147,6 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
         style = style.copyWith(color: AppColors.danger, fontSize: 12);
         break;
       case HRConnectionState.disconnected:
-      default:
         text = 'HR';
         style = style.copyWith(color: context.textMuted);
     }
@@ -169,24 +168,24 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
   Color _getBackgroundColor() {
     switch (_connectionState) {
       case HRConnectionState.connected:
-        return AppColors.danger.withOpacity(0.1);
+        return AppColors.danger.withValues(alpha: 0.1);
       case HRConnectionState.bluetoothOff:
       case HRConnectionState.error:
-        return AppColors.warning.withOpacity(0.1);
+        return AppColors.warning.withValues(alpha: 0.1);
       default:
-        return Colors.grey.withOpacity(0.1);
+        return Colors.grey.withValues(alpha: 0.1);
     }
   }
 
   Color _getBorderColor() {
     switch (_connectionState) {
       case HRConnectionState.connected:
-        return AppColors.danger.withOpacity(0.3);
+        return AppColors.danger.withValues(alpha: 0.3);
       case HRConnectionState.bluetoothOff:
       case HRConnectionState.error:
-        return AppColors.warning.withOpacity(0.3);
+        return AppColors.warning.withValues(alpha: 0.3);
       default:
-        return Colors.grey.withOpacity(0.3);
+        return Colors.grey.withValues(alpha: 0.3);
     }
   }
 
@@ -380,7 +379,7 @@ class _HeartRateDeviceSelectorState extends State<HeartRateDeviceSelector> {
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
+                  color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -480,7 +479,7 @@ class _DeviceListTile extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.danger.withOpacity(0.1),
+            color: AppColors.danger.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Icon(Icons.favorite, color: AppColors.danger),

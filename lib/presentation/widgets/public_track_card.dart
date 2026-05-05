@@ -55,7 +55,7 @@ class PublicTrackCard extends StatelessWidget {
                     onTap: onAuthorTap,
                     child: CircleAvatar(
                       radius: 18,
-                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                       backgroundImage: authorAvatarUrl != null 
                           ? NetworkImage(authorAvatarUrl!) 
                           : null,
@@ -87,7 +87,7 @@ class PublicTrackCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getActivityColor(activityType).withOpacity(0.1),
+                      color: _getActivityColor(activityType).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(

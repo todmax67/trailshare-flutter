@@ -265,7 +265,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
                     shape: BoxShape.circle,
                   ),
                   child: Text(
-                    _myRank != null ? '${_myRank}°' : '–',
+                    _myRank != null ? '$_myRank°' : '–',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -338,9 +338,13 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
     final isChampion = rank == 1;
 
     Color? rankBg;
-    if (isChampion) rankBg = Colors.amber;
-    else if (rank == 2) rankBg = Colors.grey;
-    else if (rank == 3) rankBg = const Color(0xFFCD7F32);
+    if (isChampion) {
+      rankBg = Colors.amber;
+    } else if (rank == 2) {
+      rankBg = Colors.grey;
+    } else if (rank == 3) {
+      rankBg = const Color(0xFFCD7F32);
+    }
 
     return Container(
       color: isMe ? AppColors.primary.withValues(alpha: 0.08) : null,

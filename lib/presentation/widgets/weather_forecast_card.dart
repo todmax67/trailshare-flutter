@@ -201,7 +201,7 @@ class _WeatherForecastCardState extends State<WeatherForecastCard> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: daily.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) => _dayTile(daily[index], index == 0),
       ),
     );

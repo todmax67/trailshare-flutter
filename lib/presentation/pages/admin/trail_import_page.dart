@@ -231,7 +231,7 @@ class _TrailImportPageState extends State<TrailImportPage> {
                         label: Text(name),
                         onPressed: _isImporting ? null : () => _loadPreset(name),
                         backgroundColor: _regionController.text == name 
-                            ? AppColors.primary.withOpacity(0.2) 
+                            ? AppColors.primary.withValues(alpha: 0.2) 
                             : null,
                       )).toList(),
                     ),
@@ -336,7 +336,7 @@ class _TrailImportPageState extends State<TrailImportPage> {
             if (_result != null) ...[
               const SizedBox(height: 16),
               Card(
-                color: _result!.errors.isEmpty ? AppColors.success.withOpacity(0.1) : AppColors.warning.withOpacity(0.1),
+                color: _result!.errors.isEmpty ? AppColors.success.withValues(alpha: 0.1) : AppColors.warning.withValues(alpha: 0.1),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(

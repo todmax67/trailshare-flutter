@@ -173,7 +173,7 @@ class _LiveTrackButtonState extends State<LiveTrackButton>
                 boxShadow: isActive
                     ? [
                         BoxShadow(
-                          color: AppColors.danger.withOpacity(0.3),
+                          color: AppColors.danger.withValues(alpha: 0.3),
                           blurRadius: 8,
                           spreadRadius: 1,
                         ),

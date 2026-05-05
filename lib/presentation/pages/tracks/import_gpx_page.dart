@@ -213,7 +213,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.upload_file, size: 48, color: AppColors.primary),
@@ -242,7 +242,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.danger.withOpacity(0.1),
+                  color: AppColors.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -292,7 +292,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
                       label: Text(type.displayName),
                       selected: isSelected,
                       onSelected: (_) => setState(() => _selectedActivity = type),
-                      selectedColor: AppColors.primary.withOpacity(0.2),
+                      selectedColor: AppColors.primary.withValues(alpha: 0.2),
                       avatar: Text(type.icon),
                     );
                   }).toList(),
@@ -395,7 +395,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
   Widget _buildStatsRow(TrackStats stats) {
     return Row(
       children: [
-        _statCard(Icons.straighten, '${(stats.distance / 1000).toStringAsFixed(1)}', 'km', context.l10n.distanceLabel, AppColors.primary),
+        _statCard(Icons.straighten, (stats.distance / 1000).toStringAsFixed(1), 'km', context.l10n.distanceLabel, AppColors.primary),
         const SizedBox(width: 8),
         _statCard(Icons.trending_up, '+${stats.elevationGain.toStringAsFixed(0)}', 'm', context.l10n.elevationGainShort, AppColors.success),
         const SizedBox(width: 8),
@@ -415,7 +415,7 @@ class _ImportGpxPageState extends State<ImportGpxPage> {
               const SizedBox(height: 4),
               RichText(text: TextSpan(children: [
                 TextSpan(text: value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-                if (unit.isNotEmpty) TextSpan(text: ' $unit', style: TextStyle(fontSize: 11, color: color.withOpacity(0.7))),
+                if (unit.isNotEmpty) TextSpan(text: ' $unit', style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.7))),
               ])),
               Text(label, style: TextStyle(fontSize: 10, color: context.textMuted)),
             ],

@@ -15,7 +15,6 @@ import '../../widgets/trail_conditions_section.dart';
 import '../../widgets/trail_pois_section.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io' show Platform;
 import '../record/record_page.dart';
@@ -78,9 +77,6 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
   /// Punti da usare: completi se disponibili, altrimenti semplificati
   List<TrackPoint> get _displayPoints => _fullPoints ?? widget.trail.points;
 
-  /// Verifica se ci sono dati di elevazione
-  bool get _hasElevationData => _displayPoints.any((p) => p.elevation != null);
-
   @override
   Widget build(BuildContext context) {
     final trail = widget.trail;
@@ -98,7 +94,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                 Container(
                   margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.danger.withOpacity(0.85),
+                    color: AppColors.danger.withValues(alpha: 0.85),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
@@ -273,7 +269,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: AppColors.info.withOpacity(0.1),
+                color: AppColors.info.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
@@ -295,7 +291,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.info.withOpacity(0.1),
+                          color: AppColors.info.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -350,7 +346,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
           child: _StatCard(
             icon: Icons.straighten,
             value: trail.length != null 
-                ? '${trail.lengthKm.toStringAsFixed(1)}' 
+                ? trail.lengthKm.toStringAsFixed(1) 
                 : '--',
             unit: 'km',
             label: context.l10n.lengthLabel,
@@ -612,7 +608,6 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
     final start = _displayPoints.first;
     final lat = start.latitude;
     final lng = start.longitude;
-    final label = Uri.encodeComponent(widget.trail.displayName);
 
     Uri uri;
     if (Platform.isIOS) {
@@ -672,12 +667,14 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
         stats: const TrackStats(),
       );
       final filePath = await _gpxService.saveGpxToFile(track);
-      
-      await Share.shareXFiles(
-        [XFile(filePath)],
+
+      if (!mounted) return;
+      final shareText = context.l10n.trailGpxName(widget.trail.displayName);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(filePath)],
         subject: widget.trail.displayName,
-        text: context.l10n.trailGpxName(widget.trail.displayName),
-      );
+        text: shareText,
+      ));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -743,7 +740,7 @@ class _StatCard extends StatelessWidget {
                     text: ' $unit',
                     style: TextStyle(
                       fontSize: 12,
-                      color: color.withOpacity(0.7),
+                      color: color.withValues(alpha: 0.7),
                     ),
                   ),
                 ],

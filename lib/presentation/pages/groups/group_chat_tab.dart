@@ -69,9 +69,11 @@ class _GroupChatTabState extends State<GroupChatTab> {
       await ref.putFile(File(picked.path));
       final url = await ref.getDownloadURL();
 
+      if (!mounted) return;
+      final emoji = context.l10n.photoEmoji;
       await _repo.sendMessage(
         widget.groupId,
-        context.l10n.photoEmoji,
+        emoji,
         type: 'image',
         imageUrl: url,
       );
@@ -186,7 +188,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Text(
@@ -220,7 +222,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primary.withOpacity(0.8),
+                  color: AppColors.primary.withValues(alpha: 0.8),
                 ),
               ),
             ),
@@ -362,7 +364,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),

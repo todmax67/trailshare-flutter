@@ -197,10 +197,15 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
     final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
     
     double zoom = 14.0;
-    if (maxDiff > 0.5) zoom = 10;
-    else if (maxDiff > 0.2) zoom = 11;
-    else if (maxDiff > 0.1) zoom = 12;
-    else if (maxDiff > 0.05) zoom = 13;
+    if (maxDiff > 0.5) {
+      zoom = 10;
+    } else if (maxDiff > 0.2) {
+      zoom = 11;
+    } else if (maxDiff > 0.1) {
+      zoom = 12;
+    } else if (maxDiff > 0.05) {
+      zoom = 13;
+    }
 
     return (center, zoom);
   }
@@ -373,7 +378,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               blurRadius: 4,
                               offset: const Offset(0, 2),
                             ),
@@ -395,7 +400,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               blurRadius: 4,
                               offset: const Offset(0, 2),
                             ),
@@ -418,7 +423,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.blue.withOpacity(0.4),
+                                color: Colors.blue.withValues(alpha: 0.4),
                                 blurRadius: 8,
                                 spreadRadius: 2,
                               ),
@@ -457,7 +462,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                               border: Border.all(color: Colors.white, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
+                                  color: Colors.black.withValues(alpha: 0.3),
                                   blurRadius: 4,
                                 ),
                               ],
@@ -482,7 +487,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primary.withOpacity(0.5),
+                                color: AppColors.primary.withValues(alpha: 0.5),
                                 blurRadius: 10,
                                 spreadRadius: 3,
                               ),
@@ -509,7 +514,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 8,
                       ),
                     ],
@@ -586,7 +591,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.info.withOpacity(0.9),
+                    color: AppColors.info.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -733,10 +738,15 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
     final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
     
     double zoom = 14.0;
-    if (maxDiff > 0.5) zoom = 10;
-    else if (maxDiff > 0.2) zoom = 11;
-    else if (maxDiff > 0.1) zoom = 12;
-    else if (maxDiff > 0.05) zoom = 13;
+    if (maxDiff > 0.5) {
+      zoom = 10;
+    } else if (maxDiff > 0.2) {
+      zoom = 11;
+    } else if (maxDiff > 0.1) {
+      zoom = 12;
+    } else if (maxDiff > 0.05) {
+      zoom = 13;
+    }
 
     return (center, zoom);
   }
@@ -869,7 +879,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 6,
                           ),
                         ],
@@ -890,7 +900,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 6,
                           ),
                         ],
@@ -912,7 +922,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.withOpacity(0.4),
+                              color: Colors.blue.withValues(alpha: 0.4),
                               blurRadius: 12,
                               spreadRadius: 4,
                             ),
@@ -954,7 +964,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
+                                color: Colors.black.withValues(alpha: 0.3),
                                 blurRadius: 6,
                               ),
                             ],
@@ -981,7 +991,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 12,
                     ),
                   ],
@@ -1045,7 +1055,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 8,
                   ),
                 ],

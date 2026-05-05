@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../groups/group_detail_page.dart';
-import '../follow/follow_list_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 
 class AdminPanelPage extends StatefulWidget {
@@ -62,21 +60,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   Future<void> _loadUsers() async {
     setState(() => _isLoadingUsers = true);
     final users = await _adminRepo.getUsers(limit: 100);
-    if (mounted) {
-      setState(() {
-        _users = users;
-        _isLoadingUsers = false;
-      });
-    }
-  }
-
-  Future<void> _searchUsers(String query) async {
-    if (query.isEmpty) {
-      _loadUsers();
-      return;
-    }
-    setState(() => _isLoadingUsers = true);
-    final users = await _adminRepo.searchUsers(query);
     if (mounted) {
       setState(() {
         _users = users;
@@ -192,9 +175,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,7 +200,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 13, color: color.withOpacity(0.8)),
+            style: TextStyle(fontSize: 13, color: color.withValues(alpha: 0.8)),
           ),
         ],
       ),
@@ -244,7 +227,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -320,14 +303,14 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: user.isSuspended ? Colors.red.withOpacity(0.05) : null,
+      color: user.isSuspended ? Colors.red.withValues(alpha: 0.05) : null,
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: isSuperAdmin
               ? Colors.amber
               : user.isSuspended
-                  ? Colors.red.withOpacity(0.2)
-                  : AppColors.primary.withOpacity(0.1),
+                  ? Colors.red.withValues(alpha: 0.2)
+                  : AppColors.primary.withValues(alpha: 0.1),
           backgroundImage: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
               ? NetworkImage(user.avatarUrl!)
               : null,
@@ -413,10 +396,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
-
   // ═══════════════════════════════════════════════════════════════════════
   // GESTIONE GRUPPI BUSINESS (super admin)
   // ═══════════════════════════════════════════════════════════════════════
@@ -500,8 +479,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                               foundGroup!.id,
                               tier.$1,
                             );
-                            if (ok && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                            if (ok && ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
                                 SnackBar(
                                   content: Text('Tier impostato: ${tier.$2}'),
                                 ),
@@ -519,8 +498,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                             final ok = await groupsRepo.clearBusinessTier(
                               foundGroup!.id,
                             );
-                            if (ok && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                            if (ok && ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
                                 const SnackBar(
                                   content: Text('Gruppo non più Business'),
                                 ),
@@ -555,8 +534,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   searching = false;
                   foundGroup = g;
                 });
-                if (g == null && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                if (g == null && ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
                     const SnackBar(content: Text('Nessun gruppo con questo ID')),
                   );
                 }
@@ -640,7 +619,7 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
             children: [
               CircleAvatar(
                 radius: 32,
-                backgroundColor: AppColors.primary.withOpacity(0.1),
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                 backgroundImage: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
                     ? NetworkImage(user.avatarUrl!)
                     : null,

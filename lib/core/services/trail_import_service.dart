@@ -146,10 +146,18 @@ class TrailImportService {
       }
       
       final ways = routeObj['ways'];
-      if (ways is List) for (final way in ways) extractFromRoute(way as Map<String, dynamic>?);
-      
+      if (ways is List) {
+        for (final way in ways) {
+          extractFromRoute(way as Map<String, dynamic>?);
+        }
+      }
+
       final main = routeObj['main'];
-      if (main is List) for (final sub in main) extractFromRoute(sub as Map<String, dynamic>?);
+      if (main is List) {
+        for (final sub in main) {
+          extractFromRoute(sub as Map<String, dynamic>?);
+        }
+      }
     }
     
     extractFromRoute(details.route);
@@ -162,7 +170,9 @@ class TrailImportService {
     final sampleRate = (coords.length / 500).ceil().clamp(1, 10);
     final sampledCoords = <List<double>>[];
     
-    for (int i = 0; i < coords.length; i += sampleRate) sampledCoords.add(coords[i]);
+    for (int i = 0; i < coords.length; i += sampleRate) {
+      sampledCoords.add(coords[i]);
+    }
     
     for (int i = 0; i < sampledCoords.length; i += _maxElevationPointsPerRequest) {
       final batch = sampledCoords.skip(i).take(_maxElevationPointsPerRequest).toList();
@@ -173,7 +183,9 @@ class TrailImportService {
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           if (data['results'] != null) {
-            for (final r in data['results']) elevations.add((r['elevation'] as num?)?.toDouble() ?? 0);
+            for (final r in data['results']) {
+              elevations.add((r['elevation'] as num?)?.toDouble() ?? 0);
+            }
           }
         } else {
           elevations.addAll(List.filled(batch.length, 0.0));
@@ -198,8 +210,11 @@ class TrailImportService {
     
     for (int i = 1; i < elevations.length; i++) {
       final diff = elevations[i] - elevations[i - 1];
-      if (diff > 3) gain += diff;
-      else if (diff < -3) loss += diff.abs();
+      if (diff > 3) {
+        gain += diff;
+      } else if (diff < -3) {
+        loss += diff.abs();
+      }
       if (elevations[i] < min) min = elevations[i];
       if (elevations[i] > max) max = elevations[i];
     }
@@ -431,8 +446,11 @@ class TrailImportService {
     for (int i = 0; i < total; i++) {
       if (result[i] == 0) {
         final p = (i ~/ rate) * rate, n = p + rate;
-        if (p < total && n < total) result[i] = result[p] + (i - p) / rate * (result[n] - result[p]);
-        else if (p < total) result[i] = result[p];
+        if (p < total && n < total) {
+          result[i] = result[p] + (i - p) / rate * (result[n] - result[p]);
+        } else if (p < total) {
+          result[i] = result[p];
+        }
       }
     }
     return result;

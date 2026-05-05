@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../../data/models/track.dart' hide ActivityType;
@@ -155,6 +154,10 @@ class LocationService {
         final alreadyShown = prefs.getBool('location_disclosure_shown') ?? false;
         
         if (!alreadyShown) {
+          if (!context.mounted) {
+            _resolveAllPending(false);
+            return false;
+          }
           final accepted = await _showLocationDisclosure(context);
           if (!accepted) {
             debugPrint('[LocationService] Utente ha rifiutato il disclosure');

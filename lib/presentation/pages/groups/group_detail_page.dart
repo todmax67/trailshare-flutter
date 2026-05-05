@@ -297,9 +297,9 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
+        color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -333,7 +333,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -349,7 +349,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Icon(Icons.copy, size: 20, color: AppColors.primary.withOpacity(0.6)),
+                  Icon(Icons.copy, size: 20, color: AppColors.primary.withValues(alpha: 0.6)),
                 ],
               ),
             ),
@@ -468,7 +468,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               backgroundImage: req['avatarUrl'] != null && req['avatarUrl'].toString().isNotEmpty
                   ? NetworkImage(req['avatarUrl'])
                   : null,
@@ -548,7 +548,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             color: isSelected ? color : Colors.grey[300]!,
             width: isSelected ? 2 : 1,
           ),
-          color: isSelected ? color.withOpacity(0.05) : null,
+          color: isSelected ? color.withValues(alpha: 0.05) : null,
         ),
         child: Row(
           children: [
@@ -621,10 +621,10 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
 
   void _shareInviteCode(String code) {
     final groupName = _group?.name ?? widget.groupName;
-    Share.share(
-      context.l10n.inviteShareText(groupName, code),
+    SharePlus.instance.share(ShareParams(
+      text: context.l10n.inviteShareText(groupName, code),
       subject: context.l10n.inviteShareSubject,
-    );
+    ));
   }
 
   Future<void> _regenerateInviteCode() async {
@@ -686,10 +686,10 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                 child: CachedNetworkImage(
                   imageUrl: group.coverUrl!,
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(
+                  placeholder: (_, _) => Container(
                     color: AppColors.primary.withValues(alpha: 0.08),
                   ),
-                  errorWidget: (_, __, ___) => Container(
+                  errorWidget: (_, _, _) => Container(
                     color: AppColors.primary.withValues(alpha: 0.08),
                     child: const Center(
                       child: Icon(Icons.broken_image_outlined, size: 40),
@@ -984,11 +984,11 @@ class _GroupTitle extends StatelessWidget {
                   width: 28,
                   height: 28,
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => const SizedBox(
+                  placeholder: (_, _) => const SizedBox(
                     width: 28,
                     height: 28,
                   ),
-                  errorWidget: (_, __, ___) =>
+                  errorWidget: (_, _, _) =>
                       const SizedBox(width: 28, height: 28),
                 ),
               ),
@@ -1048,10 +1048,10 @@ class _InfoTabAvatar extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: group.avatarUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) => const Center(
+              placeholder: (_, _) => const Center(
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              errorWidget: (_, __, ___) => _initialFallback(group.name),
+              errorWidget: (_, _, _) => _initialFallback(group.name),
             )
           : _initialFallback(group.name),
     );

@@ -286,10 +286,10 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
                     horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: poi.score > 0
-                      ? AppColors.success.withOpacity(0.15)
+                      ? AppColors.success.withValues(alpha: 0.15)
                       : poi.score < 0
-                          ? AppColors.danger.withOpacity(0.15)
-                          : Colors.grey.withOpacity(0.15),
+                          ? AppColors.danger.withValues(alpha: 0.15)
+                          : Colors.grey.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(

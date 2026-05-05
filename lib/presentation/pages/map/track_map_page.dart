@@ -294,7 +294,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8)],
           ),
           child: IconButton(
             icon: Icon(Icons.arrow_back, color: context.textPrimary),
@@ -308,7 +308,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             decoration: BoxDecoration(
               color: _showGradientColors ? AppColors.primary : Colors.white,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8)],
             ),
             child: IconButton(
               icon: Icon(
@@ -325,7 +325,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8)],
             ),
             child: IconButton(
               icon: Icon(Icons.layers, color: context.textPrimary),
@@ -339,7 +339,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8)],
             ),
             child: IconButton(
               icon: Icon(Icons.fit_screen, color: context.textPrimary),
@@ -388,7 +388,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 6),
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 6),
                           ],
                         ),
                         child: const Center(
@@ -408,7 +408,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 6),
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 6),
                             ],
                           ),
                           child: const Center(
@@ -428,7 +428,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                             shape: BoxShape.circle,
                             border: Border.all(color: AppColors.primary, width: 3),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
                             ],
                           ),
                         ),
@@ -455,7 +455,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
               ),
               child: Text(
                 layer.name,
@@ -482,7 +482,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -538,7 +538,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -776,7 +776,7 @@ class _ElevationPainter extends CustomPainter {
     fillPath.close();
 
     final fillPaint = Paint()
-      ..color = baseColor.withOpacity(0.15)
+      ..color = baseColor.withValues(alpha: 0.15)
       ..style = PaintingStyle.fill;
     canvas.drawPath(fillPath, fillPaint);
 
@@ -847,7 +847,7 @@ class _ElevationPainter extends CustomPainter {
         Offset(x, 0),
         Offset(x, size.height),
         Paint()
-          ..color = baseColor.withOpacity(0.5)
+          ..color = baseColor.withValues(alpha: 0.5)
           ..strokeWidth = 1,
       );
 

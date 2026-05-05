@@ -75,9 +75,9 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.info.withOpacity(0.08),
+        color: AppColors.info.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.info.withOpacity(0.3)),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,7 +142,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.contacts_outlined,
-              size: 64, color: context.textMuted.withOpacity(0.5)),
+              size: 64, color: context.textMuted.withValues(alpha: 0.5)),
           const SizedBox(height: 12),
           const Text(
             'Nessun contatto configurato',
@@ -169,7 +169,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
 
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: AppColors.info.withOpacity(0.15),
+        backgroundColor: AppColors.info.withValues(alpha: 0.15),
         child: Text(
           c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
           style: const TextStyle(
@@ -224,7 +224,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppColors.warning.withOpacity(0.1),
+          color: AppColors.warning.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -603,9 +603,9 @@ class _TemplateEditorState extends State<_TemplateEditor> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppColors.info.withOpacity(0.06),
+            color: AppColors.info.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.info.withOpacity(0.2)),
+            border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

@@ -130,7 +130,7 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('poi_photos')
-          .child('${uid}_${poiId}.jpg');
+          .child('${uid}_$poiId.jpg');
       final upload = await ref.putFile(file);
       return await upload.ref.getDownloadURL();
     } catch (e) {
@@ -372,7 +372,7 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
-              color: selected ? t.pinColor : t.pinColor.withOpacity(0.12),
+              color: selected ? t.pinColor : t.pinColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: selected ? t.pinColor : Colors.transparent,

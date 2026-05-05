@@ -11,6 +11,7 @@
 /// (foreground service, BLE, Health, in_app_purchase consumer Pro,
 /// notifiche locali, ecc.) che lato web non hanno senso o non
 /// compilano.
+library;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 

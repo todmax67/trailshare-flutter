@@ -47,7 +47,6 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // ═══════════════════════════════════════════════════════════════════════
   final MapController _mapController = MapController();
   LatLng? _userPosition;
-  bool _isLoadingLocation = true;
   List<CommunityTrack> _communityTracks = [];
   bool _isLoadingCommunity = true;
   CommunityTrack? _selectedCommunityTrack;
@@ -141,20 +140,16 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<void> _initializeLocation() async {
-    setState(() => _isLoadingLocation = true);
-
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!mounted) return;
       if (!serviceEnabled) {
-        setState(() => _isLoadingLocation = false);
         return;
       }
 
       final hasPermission = await LocationService().checkAndRequestPermission(context: context);
       if (!mounted) return;
       if (!hasPermission) {
-        setState(() => _isLoadingLocation = false);
         return;
       }
 
@@ -168,11 +163,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
       setState(() {
         _userPosition = LatLng(position.latitude, position.longitude);
-        _isLoadingLocation = false;
       });
     } catch (e) {
       debugPrint('[CommunityPage] Errore geolocalizzazione: $e');
-      if (mounted) setState(() => _isLoadingLocation = false);
     }
   }
 
@@ -631,7 +624,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             Center(
               child: Column(
                 children: [
-                  Icon(Icons.map_outlined, size: 80, color: AppColors.primary.withOpacity(0.3)),
+                  Icon(Icons.map_outlined, size: 80, color: AppColors.primary.withValues(alpha: 0.3)),
                   const SizedBox(height: 16),
                   Text(
                     context.l10n.noTours,
@@ -745,7 +738,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             initialZoom: 11,
             minZoom: 8,
             maxZoom: 18,
-            onTap: (_, __) => setState(() => _selectedCommunityTrack = null),
+            onTap: (_, _) => setState(() => _selectedCommunityTrack = null),
           ),
           children: [
             TileLayer(
@@ -761,7 +754,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 return Polyline(
                   points: track.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
                   strokeWidth: isSelected ? 5 : 3,
-                  color: isSelected ? AppColors.primary : AppColors.success.withOpacity(0.7),
+                  color: isSelected ? AppColors.primary : AppColors.success.withValues(alpha: 0.7),
                 );
               }).toList(),
             ),
@@ -785,7 +778,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
                         ],
                       ),
                       child: Center(
@@ -815,7 +808,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.4),
+                            color: AppColors.primary.withValues(alpha: 0.4),
                             blurRadius: 10,
                             spreadRadius: 2,
                           ),
@@ -976,7 +969,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   onSelected: (value) {
                     setState(() => _showPublicGroups = false);
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
@@ -986,7 +979,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     setState(() => _showPublicGroups = true);
                     if (_discoverableGroups.isEmpty) _loadDiscoverableGroups();
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
                 const Spacer(),
                 // ⭐ NUOVO: Bottone unisciti con codice
@@ -1273,7 +1266,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 onSelected: (value) {
                   setState(() => _showPublicEvents = false);
                 },
-                selectedColor: AppColors.primary.withOpacity(0.2),
+                selectedColor: AppColors.primary.withValues(alpha: 0.2),
               ),
               const SizedBox(width: 8),
               FilterChip(
@@ -1283,7 +1276,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   setState(() => _showPublicEvents = true);
                   if (_publicEvents.isEmpty) _loadPublicEvents();
                 },
-                selectedColor: AppColors.primary.withOpacity(0.2),
+                selectedColor: AppColors.primary.withValues(alpha: 0.2),
               ),
             ],
           ),
@@ -1308,9 +1301,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.warning.withOpacity(0.1),
+        color: AppColors.warning.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1354,7 +1347,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -1494,7 +1487,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     decoration: BoxDecoration(
                       color: isPast
                           ? Colors.grey[200]
-                          : AppColors.primary.withOpacity(0.1),
+                          : AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -1548,7 +1541,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -1583,7 +1576,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.success.withOpacity(0.1),
+                        color: AppColors.success.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -1730,7 +1723,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: context.textMuted.withOpacity(0.5)),
+          Icon(icon, size: 64, color: context.textMuted.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             message,
@@ -1780,7 +1773,7 @@ class _CounterBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
       ),
       child: Text('$count $label', style: const TextStyle(fontWeight: FontWeight.bold)),
     );
@@ -1801,7 +1794,7 @@ class _CommunityTrackInfoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, spreadRadius: 2)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 10, spreadRadius: 2)],
       ),
       child: Material(
         color: Colors.transparent,
@@ -1816,7 +1809,7 @@ class _CommunityTrackInfoCard extends StatelessWidget {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.1),
+                    color: AppColors.success.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(child: Text(track.activityIcon, style: const TextStyle(fontSize: 24))),
@@ -1881,7 +1874,7 @@ class _PublicTourCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(Icons.map, color: AppColors.primary),
@@ -1974,10 +1967,10 @@ class _CommunityGroupAvatar extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: group.avatarUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) => const Center(
+              placeholder: (_, _) => const Center(
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              errorWidget: (_, __, ___) => _initialFallback(group.name),
+              errorWidget: (_, _, _) => _initialFallback(group.name),
             )
           : _initialFallback(group.name),
     );

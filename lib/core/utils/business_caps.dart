@@ -48,7 +48,7 @@ class BusinessCaps {
 /// Per ora l'azione "Passa a Pro" è un placeholder che mostra uno
 /// snackbar — l'integrazione Stripe è in attesa del consulto
 /// commercialista.
-Future<void> showVerifiedCapReachedSheet(
+Future<void> _showVerifiedCapReachedSheet(
   BuildContext context, {
   required Group group,
   required _CapResource resource,
@@ -119,21 +119,21 @@ extension _CapResourceX on _CapResource {
 
 /// Wrapper pubblico per evitare di esporre l'enum interno.
 Future<void> showTracksCapReached(BuildContext context, Group group) =>
-    showVerifiedCapReachedSheet(
+    _showVerifiedCapReachedSheet(
       context,
       group: group,
       resource: _CapResource.tracks,
     );
 
 Future<void> showEventsCapReached(BuildContext context, Group group) =>
-    showVerifiedCapReachedSheet(
+    _showVerifiedCapReachedSheet(
       context,
       group: group,
       resource: _CapResource.events,
     );
 
 Future<void> showAdminsCapReached(BuildContext context, Group group) =>
-    showVerifiedCapReachedSheet(
+    _showVerifiedCapReachedSheet(
       context,
       group: group,
       resource: _CapResource.admins,

@@ -849,9 +849,9 @@ class _LogoPreview extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: logoUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) =>
+              placeholder: (_, _) =>
                   const Center(child: CircularProgressIndicator()),
-              errorWidget: (_, __, ___) =>
+              errorWidget: (_, _, _) =>
                   Center(child: Text(letter, style: const TextStyle(fontSize: 48))),
             )
           : Center(
@@ -890,9 +890,9 @@ class _CoverPreview extends StatelessWidget {
             ? CachedNetworkImage(
                 imageUrl: coverUrl!,
                 fit: BoxFit.cover,
-                placeholder: (_, __) =>
+                placeholder: (_, _) =>
                     const Center(child: CircularProgressIndicator()),
-                errorWidget: (_, __, ___) => const Center(
+                errorWidget: (_, _, _) => const Center(
                   child: Icon(Icons.broken_image_outlined, size: 40),
                 ),
               )

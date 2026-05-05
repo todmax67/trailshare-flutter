@@ -66,7 +66,10 @@ class _TourDetailPageState extends State<TourDetailPage> {
 
   Future<void> _shareWebLink(Tour tour) async {
     final url = 'https://trailshare.app/tour/${tour.id}';
-    await Share.share('${tour.title}\n$url', subject: tour.title);
+    await SharePlus.instance.share(ShareParams(
+      text: '${tour.title}\n$url',
+      subject: tour.title,
+    ));
   }
 
   Future<void> _edit() async {

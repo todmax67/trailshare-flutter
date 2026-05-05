@@ -110,8 +110,8 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
         },
         leading: CircleAvatar(
           backgroundColor: member.isAdmin
-              ? AppColors.warning.withOpacity(0.2)
-              : AppColors.primary.withOpacity(0.1),
+              ? AppColors.warning.withValues(alpha: 0.2)
+              : AppColors.primary.withValues(alpha: 0.1),
           backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
           child: member.avatarUrl == null
               ? Text(
@@ -366,7 +366,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                   final profile = invitable[index];
                   return ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                       backgroundImage: profile.avatarUrl != null
                           ? NetworkImage(profile.avatarUrl!)
                           : null,
@@ -387,7 +387,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                     trailing: ElevatedButton(
                       onPressed: () async {
                         final success = await _repo.addMember(widget.groupId, profile.id);
-                        if (success && mounted) {
+                        if (success && context.mounted) {
                           Navigator.pop(context);
                           _loadMembers();
                           ScaffoldMessenger.of(context).showSnackBar(

@@ -20,7 +20,6 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
   bool _isChecking = false;
   int? _withGeohash;
   int? _withoutGeohash;
-  String _status = 'Verifica in corso...';
 
   @override
   void initState() {
@@ -31,7 +30,6 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
   Future<void> _checkCoverage() async {
     setState(() {
       _isChecking = true;
-      _status = 'Verifica in corso...';
     });
 
     try {
@@ -39,12 +37,9 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
       setState(() {
         _withGeohash = coverage.withGeohash;
         _withoutGeohash = coverage.withoutGeohash;
-        _status = 'Verifica completata';
       });
     } catch (e) {
-      setState(() {
-        _status = 'Errore: $e';
-      });
+      // ignore: errore mostrato dal counters
     } finally {
       setState(() => _isChecking = false);
     }
@@ -192,9 +187,9 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.1),
+                  color: AppColors.success.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                 ),
                 child: const Row(
                   children: [
@@ -226,9 +221,9 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
+                  color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
                 ),
                 child: const Row(
                   children: [
@@ -318,7 +313,7 @@ class _StatBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(

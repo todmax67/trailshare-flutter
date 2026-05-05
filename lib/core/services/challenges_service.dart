@@ -11,9 +11,9 @@ class ChallengesService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Tipi di sfida disponibili
-  static const String TYPE_DISTANCE = 'DISTANCE_TOTAL';
-  static const String TYPE_ELEVATION = 'ELEVATION_TOTAL';
-  static const String TYPE_TRACKS = 'TRACKS_COUNT';
+  static const String typeDistance = 'DISTANCE_TOTAL';
+  static const String typeElevation = 'ELEVATION_TOTAL';
+  static const String typeTracks = 'TRACKS_COUNT';
 
   /// Ottiene le sfide attive
   Future<List<Challenge>> getActiveChallenges() async {
@@ -217,13 +217,13 @@ class ChallengesService {
         double increment = 0;
 
         switch (challenge.type) {
-          case TYPE_DISTANCE:
+          case typeDistance:
             increment = distanceMeters;
             break;
-          case TYPE_ELEVATION:
+          case typeElevation:
             increment = elevationGain;
             break;
-          case TYPE_TRACKS:
+          case typeTracks:
             increment = tracksCount.toDouble();
             break;
         }
@@ -320,11 +320,11 @@ class Challenge {
   /// Icona in base al tipo
   String get icon {
     switch (type) {
-      case ChallengesService.TYPE_DISTANCE:
+      case ChallengesService.typeDistance:
         return '🏃';
-      case ChallengesService.TYPE_ELEVATION:
+      case ChallengesService.typeElevation:
         return '⛰️';
-      case ChallengesService.TYPE_TRACKS:
+      case ChallengesService.typeTracks:
         return '📍';
       default:
         return '🏆';
@@ -334,11 +334,11 @@ class Challenge {
   /// Unità di misura
   String get unit {
     switch (type) {
-      case ChallengesService.TYPE_DISTANCE:
+      case ChallengesService.typeDistance:
         return 'km';
-      case ChallengesService.TYPE_ELEVATION:
+      case ChallengesService.typeElevation:
         return 'm';
-      case ChallengesService.TYPE_TRACKS:
+      case ChallengesService.typeTracks:
         return 'tracce';
       default:
         return '';
@@ -348,11 +348,11 @@ class Challenge {
   /// Goal formattato
   String get formattedGoal {
     switch (type) {
-      case ChallengesService.TYPE_DISTANCE:
+      case ChallengesService.typeDistance:
         return '${(goal / 1000).toStringAsFixed(0)} km';
-      case ChallengesService.TYPE_ELEVATION:
+      case ChallengesService.typeElevation:
         return '${goal.toStringAsFixed(0)} m';
-      case ChallengesService.TYPE_TRACKS:
+      case ChallengesService.typeTracks:
         return '${goal.toStringAsFixed(0)} tracce';
       default:
         return goal.toString();
@@ -362,11 +362,11 @@ class Challenge {
   /// Formatta progresso
   String formatProgress(double progress) {
     switch (type) {
-      case ChallengesService.TYPE_DISTANCE:
+      case ChallengesService.typeDistance:
         return '${(progress / 1000).toStringAsFixed(1)} km';
-      case ChallengesService.TYPE_ELEVATION:
+      case ChallengesService.typeElevation:
         return '${progress.toStringAsFixed(0)} m';
-      case ChallengesService.TYPE_TRACKS:
+      case ChallengesService.typeTracks:
         return '${progress.toStringAsFixed(0)} tracce';
       default:
         return progress.toString();

@@ -8,7 +8,6 @@ import '../../../core/services/track_export_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
-import '../../../presentation/widgets/charts/elevation_chart.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../../presentation/widgets/lap_splits_widget.dart';
@@ -301,7 +300,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               height: 50,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+                  colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.7)],
                 ),
                 shape: BoxShape.circle,
               ),
@@ -345,7 +344,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.danger.withOpacity(0.1),
+                  color: AppColors.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -564,10 +563,10 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               activityName: widget.track.activityType,
               username: widget.track.ownerUsername,
               onExportGpx: _exportGpx,
-              onShareLink: () => Share.share(
-                '${widget.track.name}\nhttps://trailshare.app/track/${widget.track.id}',
+              onShareLink: () => SharePlus.instance.share(ShareParams(
+                text: '${widget.track.name}\nhttps://trailshare.app/track/${widget.track.id}',
                 subject: widget.track.name,
-              ),
+              )),
             ),
             icon: const Icon(Icons.share),
             label: Text(context.l10n.share),
@@ -622,9 +621,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.08),
+              color: Colors.orange.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -709,7 +708,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.1),
+                  color: Colors.amber.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -793,6 +792,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           ),
         );
       } else {
+        if (!mounted) return;
         throw Exception(context.l10n.promotionFailed);
       }
     } catch (e) {
@@ -851,11 +851,13 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         await DiscoveryPromptService.markFitExported();
       }
 
-      await Share.shareXFiles(
-        [XFile(filePath)],
+      if (!mounted) return;
+      final shareText = context.l10n.gpxTrackName(widget.track.name);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(filePath)],
         subject: widget.track.name,
-        text: context.l10n.gpxTrackName(widget.track.name),
-      );
+        text: shareText,
+      ));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -930,7 +932,7 @@ class _StatCard extends StatelessWidget {
                       text: ' $unit',
                       style: TextStyle(
                         fontSize: 12,
-                        color: color.withOpacity(0.7),
+                        color: color.withValues(alpha: 0.7),
                       ),
                     ),
                 ],
@@ -972,7 +974,7 @@ class _PhotoThumbnail extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1031,7 +1033,7 @@ class _PhotoThumbnail extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.6),
+                      Colors.black.withValues(alpha: 0.6),
                     ],
                   ),
                 ),
@@ -1045,7 +1047,7 @@ class _PhotoThumbnail extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Icon(Icons.fullscreen, size: 16, color: Colors.white),
@@ -1149,7 +1151,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                         ),
                       );
                     },
-                    errorBuilder: (context, error, __) {
+                    errorBuilder: (context, error, _) {
                       return Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -1185,7 +1187,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                     decoration: BoxDecoration(
                       color: index == _currentIndex
                           ? Colors.white
-                          : Colors.white.withOpacity(0.4),
+                          : Colors.white.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -1198,10 +1200,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
   }
 
   void _sharePhoto(String url) {
-    Share.share(
-      '${context.l10n.photoFrom(widget.trackName)}\n$url',
+    SharePlus.instance.share(ShareParams(
+      text: '${context.l10n.photoFrom(widget.trackName)}\n$url',
       subject: context.l10n.hikePhoto,
-    );
+    ));
   }
 
   Future<void> _downloadPhoto(String url) async {
@@ -1211,7 +1213,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
       );
 
       final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) throw Exception(context.l10n.downloadError);
+      if (response.statusCode != 200) {
+        if (!mounted) throw Exception('Download error');
+        throw Exception(context.l10n.downloadError);
+      }
 
       final tempDir = await getTemporaryDirectory();
       final fileName = 'trailshare_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -1220,10 +1225,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
 
       if (!mounted) return;
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
         text: context.l10n.photoFrom(widget.trackName),
-      );
+      ));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

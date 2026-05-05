@@ -79,7 +79,7 @@ class _GroupTracksTabState extends State<GroupTracksTab> {
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
               itemCount: _tracks.length + (widget.isAdmin ? 1 : 0),
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (ctx, i) {
                 if (widget.isAdmin && i == 0) {
                   return _buildAdminHint(context);

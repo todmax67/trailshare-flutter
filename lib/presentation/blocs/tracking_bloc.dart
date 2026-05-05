@@ -4,8 +4,6 @@ import '../../data/models/track.dart';
 import '../../core/services/location_service.dart';
 import '../../core/services/live_track_service.dart';
 import '../../core/services/lifeline_service.dart';
-import '../../core/services/gamification_service.dart';
-import '../widgets/level_up_dialog.dart';
 import '../../core/utils/elevation_processor.dart';
 
 /// Stati possibili del tracking

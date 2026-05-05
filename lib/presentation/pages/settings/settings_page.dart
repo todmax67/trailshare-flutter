@@ -78,12 +78,6 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) setState(() => _healthSyncEnabled = enabled);
   }
 
-  Future<void> _loadMaxHR() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getInt('user_max_hr') ?? 0;
-    if (mounted) setState(() => _maxHR = saved);
-  }
-
   Future<void> _showMaxHRDialog() async {
     final ageController = TextEditingController();
     final hrController = TextEditingController(
@@ -142,6 +136,7 @@ class _SettingsPageState extends State<SettingsPage> {
               if (hr != null && hr > 100 && hr < 250) {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setInt('user_max_hr', hr);
+                if (!ctx.mounted) return;
                 setState(() => _maxHR = hr);
                 Navigator.pop(ctx);
               }
@@ -194,7 +189,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Ricevi notifiche quando aggiungiamo nuove funzionalita',
               ),
               value: _newsUpdatesEnabled,
-              activeColor: AppColors.primary,
+              activeThumbColor: AppColors.primary,
               onChanged: (value) async {
                 setState(() => _newsUpdatesEnabled = value);
                 await PushNotificationService().setNewsUpdatesEnabled(value);
@@ -227,13 +222,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   : context.l10n.saveToHealthConnect,
             ),
             value: _healthSyncEnabled,
-            activeColor: AppColors.primary,
+            activeThumbColor: AppColors.primary,
             onChanged: (value) async {
               if (value) {
                 if (Platform.isAndroid) {
                   final available = await _healthService.isHealthConnectAvailable();
                   if (!available) {
-                    if (mounted) {
+                    if (context.mounted) {
                       showDialog(
                         context: context,
                         builder: (ctx) => AlertDialog(
@@ -262,7 +257,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 }
                 final granted = await _healthService.requestPermissions();
                 debugPrint('[Settings] Permessi concessi: $granted');
-                if (!granted && mounted) {
+                if (!granted && context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(context.l10n.permissionsNotGranted),
@@ -478,7 +473,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   'assets/images/logo.png',
                   width: 48,
                   height: 48,
-                  errorBuilder: (_, __, ___) => Icon(
+                  errorBuilder: (_, _, _) => Icon(
                     Icons.terrain,
                     size: 48,
                     color: Theme.of(context).colorScheme.primary,
@@ -547,7 +542,7 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle,
               style: TextStyle(
                 fontSize: 13,
-                color: danger ? AppColors.danger.withOpacity(0.7) : null,
+                color: danger ? AppColors.danger.withValues(alpha: 0.7) : null,
               ),
             )
           : null,
@@ -799,21 +794,6 @@ class _SettingsPageState extends State<SettingsPage> {
         child: Icon(Icons.terrain, size: 48, color: Theme.of(context).colorScheme.primary),
       ),
     );
-  }
-
-  Future<void> _openHelpCenter(BuildContext context) async {
-    final uri = Uri.parse('https://trailshare.app/help');
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.cannotOpenLink)),
-        );
-      }
-    }
   }
 
   Future<void> _openEmail(BuildContext context) async {

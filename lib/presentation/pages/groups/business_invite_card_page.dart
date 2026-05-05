@@ -175,9 +175,9 @@ class _InviteCard extends StatelessWidget {
                 ? CachedNetworkImage(
                     imageUrl: group.coverUrl!,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) =>
+                    placeholder: (_, _) =>
                         _gradientHeader(accent),
-                    errorWidget: (_, __, ___) =>
+                    errorWidget: (_, _, _) =>
                         _gradientHeader(accent),
                   )
                 : _gradientHeader(accent),
@@ -349,9 +349,9 @@ class _LogoCircle extends StatelessWidget {
           ? CachedNetworkImage(
               imageUrl: group.avatarUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) =>
+              placeholder: (_, _) =>
                   _initialFallback(letter, accent),
-              errorWidget: (_, __, ___) =>
+              errorWidget: (_, _, _) =>
                   _initialFallback(letter, accent),
             )
           : _initialFallback(letter, accent),

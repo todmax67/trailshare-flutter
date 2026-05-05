@@ -92,7 +92,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                     setState(() => _showPast = false);
                     _loadEvents();
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
@@ -102,7 +102,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                     setState(() => _showPast = true);
                     _loadEvents();
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
               ],
             ),
@@ -181,7 +181,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                   decoration: BoxDecoration(
                     color: isPast
                         ? Colors.grey[200]
-                        : AppColors.primary.withOpacity(0.1),
+                        : AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(

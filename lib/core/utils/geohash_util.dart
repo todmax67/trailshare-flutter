@@ -215,7 +215,7 @@ class GeoHashUtil {
       final sorted = entry.value..sort();
       ranges.add((
         start: sorted.first,
-        end: sorted.last + '~', // ~ è dopo tutti i caratteri base32
+        end: '${sorted.last}~', // ~ è dopo tutti i caratteri base32
       ));
     }
     

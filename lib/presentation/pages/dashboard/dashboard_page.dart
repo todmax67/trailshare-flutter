@@ -485,8 +485,8 @@ class _DashboardPageState extends State<DashboardPage> {
               getTitlesWidget: (value, meta) {
                 return Text(
                   _selectedMetric == 'distance' 
-                      ? '${value.toStringAsFixed(0)}' 
-                      : '${value.toStringAsFixed(0)}',
+                      ? value.toStringAsFixed(0) 
+                      : value.toStringAsFixed(0),
                   style: TextStyle(fontSize: 10, color: context.textMuted),
                 );
               },
@@ -821,7 +821,7 @@ class _RecordTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 20),

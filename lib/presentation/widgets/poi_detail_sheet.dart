@@ -192,7 +192,7 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: _poi.type.pinColor.withOpacity(0.3),
+                            color: _poi.type.pinColor.withValues(alpha: 0.3),
                             blurRadius: 6,
                           ),
                         ],
@@ -291,7 +291,7 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
                           child: const CircularProgressIndicator(),
                         );
                       },
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, _, _) => Container(
                         height: 180,
                         alignment: Alignment.center,
                         color: Colors.grey.shade200,
@@ -432,7 +432,7 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? color : color.withOpacity(0.1),
+          color: selected ? color : color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: color, width: 1.2),
         ),

@@ -170,7 +170,7 @@ class AdminRepository {
           .collection('user_profiles')
           .orderBy('username')
           .startAt([query.toLowerCase()])
-          .endAt([query.toLowerCase() + '\uf8ff'])
+          .endAt(['${query.toLowerCase()}\uf8ff'])
           .limit(20)
           .get();
 

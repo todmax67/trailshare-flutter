@@ -98,6 +98,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       }
 
       // Verifica permessi con Prominent Disclosure
+      if (!mounted) return;
       final hasPermission = await LocationService().checkAndRequestPermission(context: context);
       if (!hasPermission) {
         setState(() => _isLoadingLocation = false);
@@ -295,19 +296,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
   }
 
   LatLng _calculateCenter(List points) {
-    double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    
-    for (final p in points) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
-    }
-    
-    return LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-  }
-
-  LatLng _calculateCenterFromTrackPoints(List points) {
     double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
     
     for (final p in points) {
@@ -635,10 +623,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.info.withOpacity(0.1),
+        color: AppColors.info.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: AppColors.info.withOpacity(0.3),
+          color: AppColors.info.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -718,7 +706,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
             initialZoom: _userPosition != null ? 12 : 11,
             minZoom: 8,
             maxZoom: 18,
-            onTap: (_, __) => setState(() => _selectedTrail = null),
+            onTap: (_, _) => setState(() => _selectedTrail = null),
             onMapEvent: _onMapEvent, // ⭐ Handler per viewport loading
           ),
           children: [
@@ -749,7 +737,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                     strokeWidth: isSelected ? 5 : (isHighZoom ? 3.5 : 2),
                     color: isSelected
                         ? color
-                        : color.withOpacity(isHighZoom ? 0.85 : 0.4),
+                        : color.withValues(alpha: isHighZoom ? 0.85 : 0.4),
                     pattern: (!isHighZoom && !isSelected)
                         ? StrokePattern.dashed(segments: [8, 6])
                         : const StrokePattern.solid(),
@@ -776,7 +764,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -838,7 +826,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                                     shape: BoxShape.circle,
                                     border: Border.all(color: color, width: 2.5),
                                     boxShadow: [
-                                      BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                                      BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 2)),
                                     ],
                                   ),
                                   child: Icon(icon, color: color, size: 20),
@@ -865,7 +853,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                                 shape: BoxShape.circle,
                                 border: Border.all(color: isSelected ? Colors.white : color, width: 2),
                                 boxShadow: [
-                                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 3),
+                                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 3),
                                 ],
                               ),
                               child: Icon(
@@ -894,7 +882,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.4),
+                            color: AppColors.primary.withValues(alpha: 0.4),
                             blurRadius: 10,
                             spreadRadius: 2,
                           ),
@@ -952,7 +940,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 8,
                     ),
                   ],
@@ -986,7 +974,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 8,
                   ),
                 ],
@@ -1098,7 +1086,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: context.textMuted.withOpacity(0.5)),
+          Icon(icon, size: 64, color: context.textMuted.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             message,
@@ -1143,7 +1131,7 @@ class _CounterBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1203,7 +1191,7 @@ class _TrailInfoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 16, offset: const Offset(0, -4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, -4))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -1234,7 +1222,7 @@ class _TrailInfoCard extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
+                        color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(_getIcon(), color: color, size: 26),
@@ -1364,9 +1352,9 @@ class _MiniElevationPainter extends CustomPainter {
     fillPath.lineTo(size.width, size.height);
     fillPath.close();
 
-    canvas.drawPath(fillPath, Paint()..color = color.withOpacity(0.08));
+    canvas.drawPath(fillPath, Paint()..color = color.withValues(alpha: 0.08));
     canvas.drawPath(path, Paint()
-      ..color = color.withOpacity(0.5)
+      ..color = color.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5);
   }
@@ -1393,7 +1381,7 @@ class _TrailCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       elevation: 3,
-      shadowColor: Colors.black.withOpacity(0.15),
+      shadowColor: Colors.black.withValues(alpha: 0.15),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -1418,9 +1406,9 @@ class _TrailCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.info.withOpacity(0.15),
+                            color: AppColors.info.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                            border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
                           ),
                           child: Text(
                             trail.ref!,
@@ -1477,7 +1465,7 @@ class _TrailCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _getDifficultyColor().withOpacity(0.1),
+                          color: _getDifficultyColor().withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -1688,10 +1676,15 @@ class _TrailCard extends StatelessWidget {
     final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
     
     double zoom = 14.0;
-    if (maxDiff > 0.5) zoom = 10;
-    else if (maxDiff > 0.2) zoom = 11;
-    else if (maxDiff > 0.1) zoom = 12;
-    else if (maxDiff > 0.05) zoom = 13;
+    if (maxDiff > 0.5) {
+      zoom = 10;
+    } else if (maxDiff > 0.2) {
+      zoom = 11;
+    } else if (maxDiff > 0.1) {
+      zoom = 12;
+    } else if (maxDiff > 0.05) {
+      zoom = 13;
+    }
 
     return SizedBox(
       height: 120,
@@ -1764,7 +1757,7 @@ class _TrailCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -1788,7 +1781,7 @@ class _TrailCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.chevron_right, size: 18, color: context.textMuted),

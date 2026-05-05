@@ -6,6 +6,7 @@
 /// Pattern di conditional import: la dipendenza specifica della
 /// piattaforma viene risolta a compile time, evitando che `dart:html`
 /// finisca nel build mobile e che `dart:io` finisca nel build web.
+library;
 import 'csv_export_stub.dart'
     if (dart.library.html) 'csv_export_web.dart'
     if (dart.library.io) 'csv_export_io.dart';

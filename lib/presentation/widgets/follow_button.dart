@@ -125,7 +125,7 @@ class _FollowButtonState extends State<FollowButton> {
     return OutlinedButton(
       onPressed: _isLoading ? null : _toggleFollow,
       style: OutlinedButton.styleFrom(
-        backgroundColor: _isFollowing ? AppColors.primary.withOpacity(0.1) : null,
+        backgroundColor: _isFollowing ? AppColors.primary.withValues(alpha: 0.1) : null,
         foregroundColor: _isFollowing ? AppColors.primary : context.textSecondary,
         side: BorderSide(
           color: _isFollowing ? AppColors.primary : context.textMuted,
@@ -177,7 +177,7 @@ class FollowCountsWidget extends StatelessWidget {
         Container(
           height: 30,
           width: 1,
-          color: context.textMuted.withOpacity(0.3),
+          color: context.textMuted.withValues(alpha: 0.3),
           margin: const EdgeInsets.symmetric(horizontal: 24),
         ),
         _buildCountItem(

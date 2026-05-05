@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 
@@ -393,7 +392,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: _recentPublished.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final track = _recentPublished[index];
           final date = track['sharedAt'] as DateTime?;
@@ -403,7 +402,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
 
           return ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               child: const Icon(Icons.route, color: AppColors.primary, size: 20),
             ),
             title: Text(
@@ -444,7 +443,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: _recentUsers.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final user = _recentUsers[index];
           final date = user['createdAt'] as DateTime?;
@@ -454,7 +453,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
 
           return ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.info.withOpacity(0.1),
+              backgroundColor: AppColors.info.withValues(alpha: 0.1),
               child: Text(
                 (user['username'] as String).substring(0, 1).toUpperCase(),
                 style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.info),
@@ -516,7 +515,7 @@ class _StatCard extends StatelessWidget {
             if (subtitle != null)
               Text(
                 subtitle!,
-                style: TextStyle(fontSize: 11, color: color.withOpacity(0.7)),
+                style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.7)),
               ),
             const SizedBox(height: 2),
             Text(
