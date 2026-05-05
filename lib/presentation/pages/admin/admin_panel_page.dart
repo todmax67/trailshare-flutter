@@ -140,7 +140,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 1.1,
+            childAspectRatio: 0.95,
             children: [
               _buildStatCard(
                 icon: Icons.people,
@@ -187,12 +187,17 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             children: [
               Icon(icon, size: 20, color: color),
               const Spacer(),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -201,6 +206,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           Text(
             label,
             style: TextStyle(fontSize: 13, color: color.withValues(alpha: 0.8)),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -14,7 +15,41 @@ import 'core/services/deep_link_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // Overflow hunter — solo in debug. Stampa un log evidente quando un
+  // RenderFlex/Box overflow, con file:linea del widget colpevole nello
+  // stack. Da rimuovere/spegnere quando avremo chiuso tutti i casi.
+  if (kDebugMode) {
+    final originalOnError = FlutterError.onError;
+    FlutterError.onError = (FlutterErrorDetails details) {
+      final msg = details.exception.toString();
+      if (msg.contains('overflowed') || msg.contains('RenderFlex')) {
+        debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        debugPrint('🔴 OVERFLOW: $msg');
+        // Anche il "context" del FlutterErrorDetails contiene spesso il
+        // file:linea del widget creatore (es. Row:file:///.../foo.dart:42).
+        if (details.context != null) {
+          debugPrint('📍 Context: ${details.context}');
+        }
+        if (details.stack != null) {
+          final lines = details.stack.toString().split('\n');
+          final ours = lines
+              .where((l) => l.contains('package:trailshare_flutter/'))
+              .take(10)
+              .toList();
+          if (ours.isNotEmpty) {
+            debugPrint('📍 Stack (codice nostro):');
+            for (final l in ours) {
+              debugPrint('   $l');
+            }
+          }
+        }
+        debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+      originalOnError?.call(details);
+    };
+  }
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

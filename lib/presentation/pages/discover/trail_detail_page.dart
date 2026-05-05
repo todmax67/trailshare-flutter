@@ -305,11 +305,14 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                       ),
                       if (trail.networkName.isNotEmpty) ...[
                         const SizedBox(width: 8),
-                        Text(
-                          trail.networkName,
-                          style: TextStyle(
-                            color: context.textMuted,
-                            fontSize: 12,
+                        Expanded(
+                          child: Text(
+                            trail.networkName,
+                            style: TextStyle(
+                              color: context.textMuted,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -321,9 +324,12 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                       children: [
                         Icon(Icons.business, size: 16, color: context.textMuted),
                         const SizedBox(width: 4),
-                        Text(
-                          trail.operator!,
-                          style: TextStyle(color: context.textSecondary),
+                        Expanded(
+                          child: Text(
+                            trail.operator!,
+                            style: TextStyle(color: context.textSecondary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
