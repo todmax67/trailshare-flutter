@@ -48,7 +48,7 @@ Future<bool?> showPaywallSheet(
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.55),
-      builder: (ctx) => const _AndroidFreeProSheet(),
+      builder: (ctx) => const _AndroidComingSoonSheet(),
     );
   }
 
@@ -143,7 +143,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
   String get _heroTitle {
     switch (widget.trigger) {
       case PaywallTrigger.mountainFinderAR:
-        return 'Sblocca Mountain Finder AR';
+        return 'Sblocca AR Photo Mode';
       case PaywallTrigger.photoModePro:
         return 'Sblocca Photo Mode Pro';
       case PaywallTrigger.mapStylePro:
@@ -161,8 +161,8 @@ class _PaywallSheetState extends State<PaywallSheet> {
   String get _heroSubtitle {
     switch (widget.trigger) {
       case PaywallTrigger.mountainFinderAR:
-        return 'Riconosci ogni cima in tempo reale con la fotocamera, '
-            'come PeakFinder ma integrato nelle tue tracce.';
+        return 'Cattura foto panoramiche annotate con i nomi delle cime '
+            'visibili — illimitate, condivisibili, integrate nelle tue tracce.';
       case PaywallTrigger.photoModePro:
         return 'Cattura foto annotate con i nomi delle cime e condividile '
             'con amici e community.';
@@ -458,18 +458,12 @@ class _PaywallSheetState extends State<PaywallSheet> {
   Widget _buildFeatures(BuildContext context) {
     final features = <_Feature>[
       _Feature(
-        icon: Icons.terrain,
-        color: const Color(0xFF6D4C41),
-        title: 'Mountain Finder AR',
-        subtitle:
-            'Riconosci 37.000+ cime italiane in tempo reale con la fotocamera.',
-      ),
-      _Feature(
         icon: Icons.camera_alt_outlined,
         color: const Color(0xFF1976D2),
-        title: 'Photo Mode Pro',
+        title: 'AR Photo Mode',
         subtitle:
-            'Foto panoramiche annotate con i nomi delle cime, pronte da condividere.',
+            'Foto panoramiche annotate con i nomi delle cime visibili. '
+            'Illimitate e pronte da condividere.',
       ),
       _Feature(
         icon: Icons.layers_outlined,
@@ -479,26 +473,20 @@ class _PaywallSheetState extends State<PaywallSheet> {
             'Topo dettagliata, satellite con etichette e mappa invernale per scialpinismo.',
       ),
       _Feature(
-        icon: Icons.bookmark_outline,
-        color: const Color(0xFFFFB300),
-        title: 'Cime salvate illimitate',
-        subtitle:
-            'Crea il tuo album personale di vette riconosciute durante le escursioni.',
-      ),
-      _Feature(
         icon: Icons.auto_awesome,
         color: const Color(0xFF7C4DFF),
-        title: 'Tutte le novità future',
+        title: 'Tutte le funzioni Pro future',
         subtitle:
-            '3D fly-through, allenamento HR e altro — sempre incluse.',
+            'Le nuove feature Pro che aggiungeremo sono sempre incluse '
+            'nel tuo abbonamento, senza costi aggiuntivi.',
       ),
       _Feature(
         icon: Icons.favorite_outline,
         color: AppColors.danger,
-        title: 'Senza pubblicità, senza compromessi',
+        title: 'Niente vendita di dati',
         subtitle:
-            'Niente ads, niente vendita di dati. Il tuo abbonamento è l\'unica '
-            'cosa che fa andare avanti l\'app.',
+            'Il tuo abbonamento è l\'unica cosa che fa andare avanti l\'app — '
+            'niente ads, niente data brokers. Sostieni lo sviluppo indipendente.',
       ),
     ];
 
@@ -853,8 +841,8 @@ class _Feature {
 /// Sheet alternativa mostrata su Android quando la monetizzazione non è
 /// ancora attiva. Niente prezzi, niente CTA di acquisto: comunichiamo
 /// chiaramente che le funzioni Pro sono **gratis** su Android per ora.
-class _AndroidFreeProSheet extends StatelessWidget {
-  const _AndroidFreeProSheet();
+class _AndroidComingSoonSheet extends StatelessWidget {
+  const _AndroidComingSoonSheet();
 
   @override
   Widget build(BuildContext context) {
@@ -891,7 +879,7 @@ class _AndroidFreeProSheet extends StatelessWidget {
                         ),
                       ),
                       child: const Text(
-                        'Inizia a esplorare',
+                        'Ho capito',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
@@ -904,8 +892,9 @@ class _AndroidFreeProSheet extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 28),
                   child: Text(
-                    'In futuro TrailShare Pro potrebbe diventare un abbonamento '
-                    'anche su Android — ti avviseremo prima con largo anticipo.',
+                    'TrailShare Pro è già disponibile su iOS. Su Android arriverà '
+                    'a breve: stiamo completando i requisiti per i pagamenti. '
+                    'Se vuoi essere avvisato, segui gli aggiornamenti dell\'app.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 11,
@@ -970,10 +959,10 @@ class _AndroidFreeProSheet extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: const [
-                Icon(Icons.celebration, size: 16, color: Colors.white),
+                Icon(Icons.hourglass_top, size: 16, color: Colors.white),
                 SizedBox(width: 6),
                 Text(
-                  'TUTTO INCLUSO',
+                  'IN ARRIVO SU ANDROID',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
@@ -986,7 +975,7 @@ class _AndroidFreeProSheet extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           const Text(
-            'TrailShare Pro è gratis\nsu Android 🎉',
+            'TrailShare Pro\narriva presto',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 22,
@@ -997,8 +986,8 @@ class _AndroidFreeProSheet extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Tutte le funzioni avanzate sono disponibili senza acquistare nulla. '
-            'Goditi Mountain Finder AR, Photo Mode Pro e tutto il resto.',
+            'Stiamo completando i requisiti per attivare i pagamenti su Android. '
+            'Le funzioni Pro saranno disponibili a breve, allo stesso prezzo di iOS.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
@@ -1014,28 +1003,28 @@ class _AndroidFreeProSheet extends StatelessWidget {
   Widget _features(BuildContext context) {
     final items = <_AndroidFeatureRow>[
       _AndroidFeatureRow(
-        icon: Icons.terrain,
-        color: const Color(0xFF6D4C41),
-        title: 'Mountain Finder AR',
-        subtitle: 'Riconoscimento di 37.000+ cime italiane in tempo reale.',
-      ),
-      _AndroidFeatureRow(
         icon: Icons.camera_alt_outlined,
         color: const Color(0xFF1976D2),
-        title: 'Photo Mode Pro',
+        title: 'AR Photo Mode',
         subtitle: 'Foto panoramiche con i nomi delle cime annotati.',
       ),
       _AndroidFeatureRow(
-        icon: Icons.bookmark_outline,
-        color: const Color(0xFFFFB300),
-        title: 'Cime salvate illimitate',
-        subtitle: 'Costruisci il tuo album personale di vette riconosciute.',
+        icon: Icons.layers_outlined,
+        color: const Color(0xFF2E7D32),
+        title: 'Mappe topografiche premium',
+        subtitle: 'Topo, satellite con etichette e mappa invernale.',
+      ),
+      _AndroidFeatureRow(
+        icon: Icons.auto_awesome,
+        color: const Color(0xFF7C4DFF),
+        title: 'Tutte le funzioni Pro future',
+        subtitle: 'Sempre incluse nel tuo abbonamento, senza costi extra.',
       ),
       _AndroidFeatureRow(
         icon: Icons.favorite_outline,
         color: AppColors.danger,
-        title: 'Senza pubblicità',
-        subtitle: 'Niente ads, niente vendita di dati. Mai.',
+        title: 'Niente vendita di dati',
+        subtitle: 'Sostieni lo sviluppo indipendente di TrailShare.',
       ),
     ];
 
@@ -1104,8 +1093,8 @@ class _AndroidFeatureRow {
             ],
           ),
         ),
-        const Icon(Icons.check_circle,
-            color: AppColors.success, size: 22),
+        Icon(Icons.schedule,
+            color: context.textMuted, size: 20),
       ],
     );
   }

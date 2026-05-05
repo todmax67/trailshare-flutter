@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -575,10 +576,12 @@ class _SettingsPageState extends State<SettingsPage> {
         final String tileTitle;
         final String tileSubtitle;
         if (!canMonetize) {
-          // Android: Pro gratis, comunichiamolo chiaramente.
-          tileTitle = 'TrailShare Pro — gratis su Android';
+          // Android in attesa di P.IVA per attivare Play Billing: Pro
+          // non è ancora disponibile. Comunichiamo chiaramente lo
+          // stato "in arrivo" senza generare aspettativa di gratuità.
+          tileTitle = 'TrailShare Pro — in arrivo su Android';
           tileSubtitle =
-              'Tutte le funzioni avanzate disponibili senza abbonamento';
+              'A breve potrai sbloccare AR Photo Mode, mappe Pro e altro';
         } else if (isPro) {
           tileTitle = 'TrailShare Pro attivo';
           tileSubtitle =
@@ -622,10 +625,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 trigger: PaywallTrigger.settingsManual,
               ),
             ),
-            // Toggle dev: solo su piattaforme con monetizzazione attiva
-            // (iOS). Su Android non ha senso testare il paywall di
-            // acquisto perché non è quello che vede l'utente.
-            if (canMonetize && isPro)
+            // Toggle dev: visibile SOLO in build debug (kDebugMode) +
+            // su piattaforme con monetizzazione attiva (iOS) + se
+            // l'utente è Pro. In release non deve mai apparire — un
+            // utente che ha pagato non deve vedere un bottone per
+            // bloccarsi Pro.
+            if (kDebugMode && canMonetize && isPro)
               Padding(
                 padding: const EdgeInsets.only(left: 72, right: 16, bottom: 8),
                 child: Align(

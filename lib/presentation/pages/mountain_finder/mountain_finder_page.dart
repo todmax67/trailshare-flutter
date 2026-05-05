@@ -18,6 +18,7 @@ import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
 import '../../../data/repositories/saved_peaks_repository.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/paywall_sheet.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
 import 'peak_map_page.dart';
@@ -586,7 +587,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// Stub upsell paywall: per ora solo snackbar informativa, sarà
   /// sostituito dal vero PaywallSheet con 6.B4.
   void _showProUpsell() {
-    AppSnackBar.info(context, context.l10n.mfPhotoProUpsell);
+    // Dead-end fix: invece di mostrare uno snackbar info che lascia
+    // l'utente nel limbo, apriamo la PaywallSheet con trigger dedicato.
+    // È il momento di massimo intent: l'utente ha appena toccato lo
+    // shutter — è ora di proporre l'acquisto.
+    showPaywallSheet(context, trigger: PaywallTrigger.photoModePro);
   }
 
   /// Cattura una foto e processa l'annotazione di TUTTE le cime

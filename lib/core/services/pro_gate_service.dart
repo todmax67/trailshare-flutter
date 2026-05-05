@@ -30,7 +30,14 @@ class ProGateService extends ChangeNotifier {
 
   static const _kKey = 'pro_unlocked';
   static const _kProductKey = 'pro_current_product_id';
-  static const bool _defaultUnlocked = true; // closed testing / dev
+
+  // In release: il default è `false` — gli utenti partono come free e
+  // sbloccano Pro solo dopo un acquisto verificato (App Store /
+  // Play Store) o un restore confermato.
+  // In debug: `true` per non rallentare lo sviluppo locale (toggle
+  // sempre disponibile dal Dev menu in Settings se serve testare il
+  // paywall).
+  static const bool _defaultUnlocked = kDebugMode;
 
   bool _unlocked = _defaultUnlocked;
   String? _currentProductId;
@@ -45,12 +52,17 @@ class ProGateService extends ChangeNotifier {
   /// Ritorna `true` se l'utente ha accesso alle funzioni Pro.
   ///
   /// Su Android, finché [MonetizationConfig.androidMonetizationEnabled]
-  /// è `false` (attesa P.IVA / Google Play merchant), Pro è **sempre**
-  /// sbloccato — gli utenti Android hanno tutto gratis temporaneamente.
+  /// è `false` (attesa P.IVA per attivare Play Billing), Pro **non è
+  /// disponibile**: gli utenti Android vedono le funzioni Pro come
+  /// bloccate con un messaggio "in arrivo presto". Quando attiveremo
+  /// la monetizzazione Android partirà il flusso di acquisto reale.
+  ///
+  /// In debug, su Android, rispettiamo `_unlocked` così i developer
+  /// possono comunque testare il funzionamento delle feature Pro.
   bool get isPro {
     if (Platform.isAndroid &&
         !MonetizationConfig.androidMonetizationEnabled) {
-      return true;
+      return kDebugMode ? _unlocked : false;
     }
     return _unlocked;
   }
