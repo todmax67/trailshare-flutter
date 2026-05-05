@@ -231,7 +231,8 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
 
                   const SizedBox(height: 16),
 
-                  // POI community sulla traccia (fontane, rifugi, panorami)
+                  // POI community + POI OSM (rifugi, bivacchi, fontane,
+                  // sorgenti, panorami) lungo la traccia.
                   TrailPoisSection(
                     trackId: track.id,
                     isOwner: FirebaseAuth.instance.currentUser?.uid ==
@@ -247,6 +248,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     polyline: track.points
                         .map((p) => LatLng(p.latitude, p.longitude))
                         .toList(),
+                    loadOsmPois: true,
                   ),
 
                   const SizedBox(height: 16),

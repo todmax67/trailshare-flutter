@@ -143,7 +143,8 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
 
                   const SizedBox(height: 16),
 
-                  // POI community associati al sentiero (fontane, rifugi, panorami, ecc.)
+                  // POI community + POI OSM (rifugi, bivacchi, fontane,
+                  // sorgenti, panorami, ecc.) lungo il percorso.
                   TrailPoisSection(
                     trailId: widget.trail.id,
                     allowAdd: true,
@@ -152,6 +153,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                     polyline: _displayPoints
                         .map((p) => LatLng(p.latitude, p.longitude))
                         .toList(),
+                    loadOsmPois: true,
                   ),
 
                   const SizedBox(height: 16),
