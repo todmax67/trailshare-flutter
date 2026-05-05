@@ -429,9 +429,8 @@ class _PlannerTabState extends State<PlannerTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 🔍 Barra di ricerca punto di partenza
+              // 🔍 Card unica: searchbar + status accorpati
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
@@ -439,46 +438,87 @@ class _PlannerTabState extends State<PlannerTab> {
                     BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8),
                   ],
                 ),
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.search, color: context.textMuted, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: context.l10n.searchStartPoint,
-                          hintStyle: TextStyle(fontSize: 14, color: context.textMuted),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                        style: const TextStyle(fontSize: 14),
-                        onChanged: (query) {
-                          _searchDebounce?.cancel();
-                          _searchDebounce = Timer(const Duration(milliseconds: 600), () {
-                            _searchPlace(query);
-                          });
-                        },
-                        onSubmitted: _searchPlace,
+                    // Searchbar
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.search, color: context.textMuted, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                hintText: context.l10n.searchStartPoint,
+                                hintStyle: TextStyle(fontSize: 14, color: context.textMuted),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                              style: const TextStyle(fontSize: 14),
+                              onChanged: (query) {
+                                _searchDebounce?.cancel();
+                                _searchDebounce = Timer(const Duration(milliseconds: 600), () {
+                                  _searchPlace(query);
+                                });
+                              },
+                              onSubmitted: _searchPlace,
+                            ),
+                          ),
+                          if (_isSearching)
+                            const SizedBox(
+                              width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          else if (_searchController.text.isNotEmpty)
+                            GestureDetector(
+                              onTap: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchResults = [];
+                                  _showSearchResults = false;
+                                });
+                              },
+                              child: Icon(Icons.clear, color: context.textMuted, size: 20),
+                            ),
+                        ],
                       ),
                     ),
-                    if (_isSearching)
-                      const SizedBox(
-                        width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    else if (_searchController.text.isNotEmpty)
-                      GestureDetector(
-                        onTap: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchResults = [];
-                            _showSearchResults = false;
-                          });
-                        },
-                        child: Icon(Icons.clear, color: context.textMuted, size: 20),
+                    // Divider sottile + status compatto
+                    Container(height: 1, color: context.textMuted.withValues(alpha: 0.12)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _waypoints.isEmpty ? Icons.touch_app : Icons.place,
+                            size: 14,
+                            color: context.textMuted,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _waypoints.isEmpty
+                                  ? context.l10n.tapMapToStart
+                                  : _waypoints.length == 1
+                                      ? context.l10n.waypointSingle
+                                      : context.l10n.waypointCount(_waypoints.length),
+                              style: TextStyle(fontSize: 12, color: context.textSecondary),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (_waypoints.isNotEmpty)
+                            Text(
+                              context.l10n.longPressToRemove,
+                              style: TextStyle(fontSize: 11, color: context.textMuted),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -535,9 +575,6 @@ class _PlannerTabState extends State<PlannerTab> {
                     }).toList(),
                   ),
                 ),
-
-              const SizedBox(height: 8),
-              _buildHeader(),
             ],
           ),
         ),
@@ -576,7 +613,13 @@ class _PlannerTabState extends State<PlannerTab> {
 
         Positioned(
           right: 12,
-          bottom: _routeResult != null && _showElevationProfile ? 220 : 120,
+          // Sopra al bottom sheet: chart espanso = ~340, route senza chart =
+          // ~150, solo waypoints = ~100, niente = 16.
+          bottom: _routeResult != null
+              ? (_showElevationProfile ? 340 : 150)
+              : _waypoints.isNotEmpty
+                  ? 100
+                  : 16,
           child: _buildControlsFab(),
         ),
 
@@ -693,87 +736,6 @@ class _PlannerTabState extends State<PlannerTab> {
     super.dispose();
   }
 
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: (_profile == RoutingProfile.hiking ? AppColors.success : AppColors.info).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              _profile == RoutingProfile.hiking ? Icons.hiking : Icons.directions_bike,
-              color: _profile == RoutingProfile.hiking ? AppColors.success : AppColors.info,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _waypoints.isEmpty
-                      ? context.l10n.tapMapToStart
-                      : _waypoints.length == 1 
-                          ? context.l10n.waypointSingle 
-                          : context.l10n.waypointCount(_waypoints.length),
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                ),
-                Text(
-                  _waypoints.isEmpty
-                      ? context.l10n.addPointsToCreate
-                      : context.l10n.longPressToRemove,
-                  style: TextStyle(fontSize: 11, color: context.textMuted),
-                ),
-              ],
-            ),
-          ),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _toggleProfile,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  border: Border.all(color: context.textMuted.withValues(alpha: 0.3)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _profile == RoutingProfile.hiking ? Icons.directions_bike : Icons.hiking,
-                      size: 16,
-                      color: context.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _profile == RoutingProfile.hiking ? 'Bike' : 'Hiking',
-                      style: TextStyle(fontSize: 12, color: context.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildControlsFab() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -786,7 +748,7 @@ class _PlannerTabState extends State<PlannerTab> {
             onChanged: (i) => setState(() => _currentMapStyle = i),
           ),
         ),
-        // Centra su percorso (se c'è una route o waypoints)
+        // Fit-route (solo se c'è qualcosa da fittare)
         if (_routeResult != null || _waypoints.length >= 2)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -795,66 +757,22 @@ class _PlannerTabState extends State<PlannerTab> {
               onPressed: _centerOnRoute,
               backgroundColor: Colors.white,
               elevation: 4,
+              tooltip: 'Adatta percorso',
               child: Icon(Icons.fit_screen, color: context.textPrimary),
             ),
           ),
-        // Centra su posizione utente
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: FloatingActionButton.small(
-            heroTag: 'centerUser',
-            onPressed: _centerOnUser,
-            backgroundColor: Colors.white,
-            elevation: 4,
-            child: Icon(
-              Icons.my_location,
-              color: _userPosition != null ? AppColors.primary : context.textMuted,
-            ),
+        // My location
+        FloatingActionButton.small(
+          heroTag: 'centerUser',
+          onPressed: _centerOnUser,
+          backgroundColor: Colors.white,
+          elevation: 4,
+          tooltip: 'La mia posizione',
+          child: Icon(
+            Icons.my_location,
+            color: _userPosition != null ? AppColors.primary : context.textMuted,
           ),
         ),
-        if (_waypoints.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: FloatingActionButton.small(
-              heroTag: 'undo',
-              onPressed: _removeLastWaypoint,
-              backgroundColor: Colors.white,
-              elevation: 4,
-              child: Icon(Icons.undo, color: context.textPrimary),
-            ),
-          ),
-        if (_waypoints.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: FloatingActionButton.small(
-              heroTag: 'clear',
-              onPressed: _showClearConfirmDialog,
-              backgroundColor: Colors.white,
-              elevation: 4,
-              child: const Icon(Icons.delete_outline, color: AppColors.danger),
-            ),
-          ),
-        if (_routeResult != null) ...[
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: FloatingActionButton.small(
-              heroTag: 'navigate',
-              onPressed: _startNavigation,
-              backgroundColor: AppColors.info,
-              elevation: 4,
-              tooltip: 'Naviga',
-              child: const Icon(Icons.navigation, color: Colors.white),
-            ),
-          ),
-          FloatingActionButton.extended(
-            heroTag: 'save',
-            onPressed: _saveRoute,
-            backgroundColor: AppColors.primary,
-            elevation: 4,
-            icon: const Icon(Icons.save),
-            label: Text(context.l10n.save),
-          ),
-        ],
       ],
     );
   }
@@ -880,10 +798,14 @@ class _PlannerTabState extends State<PlannerTab> {
 
   Widget _buildStatsPanel() {
     final hasRoute = _routeResult != null;
-    
+    final hasWaypoints = _waypoints.isNotEmpty;
+    final hasChart = _showElevationProfile &&
+        hasRoute &&
+        _routeResult!.elevationProfile.isNotEmpty;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, -3)),
@@ -892,8 +814,24 @@ class _PlannerTabState extends State<PlannerTab> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Drag handle: tap per toggle, swipe verticale per
+          // espandere (su) o collassare (giù) il chart elevazione.
           GestureDetector(
-            onTap: () => setState(() => _showElevationProfile = !_showElevationProfile),
+            onTap: hasRoute
+                ? () => setState(() => _showElevationProfile = !_showElevationProfile)
+                : null,
+            onVerticalDragEnd: hasRoute
+                ? (details) {
+                    final v = details.primaryVelocity ?? 0;
+                    // Velocità positiva = swipe verso il basso (collapse)
+                    if (v > 200 && _showElevationProfile) {
+                      setState(() => _showElevationProfile = false);
+                    } else if (v < -200 && !_showElevationProfile) {
+                      setState(() => _showElevationProfile = true);
+                    }
+                  }
+                : null,
+            behavior: HitTestBehavior.opaque,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 10),
@@ -909,43 +847,153 @@ class _PlannerTabState extends State<PlannerTab> {
               ),
             ),
           ),
+
+          // Action row: undo / clear / profile chip / Naviga / Salva
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _StatItem(
-                  icon: Icons.straighten,
-                  value: hasRoute ? '${_routeResult!.distanceKm.toStringAsFixed(1)} km' : '--',
-                  label: context.l10n.distanceLabel,
+                if (hasWaypoints)
+                  IconButton(
+                    onPressed: _removeLastWaypoint,
+                    icon: const Icon(Icons.undo),
+                    color: context.textPrimary,
+                    tooltip: 'Rimuovi ultimo punto',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                if (hasWaypoints)
+                  IconButton(
+                    onPressed: _showClearConfirmDialog,
+                    icon: const Icon(Icons.delete_outline),
+                    color: AppColors.danger,
+                    tooltip: 'Pulisci percorso',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                if (hasWaypoints) const SizedBox(width: 4),
+                // Chip profilo (Hiking/Bike toggle)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _toggleProfile,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: (_profile == RoutingProfile.hiking
+                                ? AppColors.success
+                                : AppColors.info)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _profile == RoutingProfile.hiking
+                                ? Icons.hiking
+                                : Icons.directions_bike,
+                            size: 16,
+                            color: _profile == RoutingProfile.hiking
+                                ? AppColors.success
+                                : AppColors.info,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _profile == RoutingProfile.hiking ? 'Hiking' : 'Bike',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _profile == RoutingProfile.hiking
+                                  ? AppColors.success
+                                  : AppColors.info,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                _StatItem(
-                  icon: Icons.trending_up,
-                  value: hasRoute ? '+${_routeResult!.elevationGain.toStringAsFixed(0)} m' : '--',
-                  label: context.l10n.ascentLabel,
-                  valueColor: AppColors.success,
-                ),
-                _StatItem(
-                  icon: Icons.trending_down,
-                  value: hasRoute ? '-${_routeResult!.elevationLoss.toStringAsFixed(0)} m' : '--',
-                  label: context.l10n.descentLabel,
-                  valueColor: AppColors.danger,
-                ),
-                _StatItem(
-                  icon: Icons.schedule,
-                  value: hasRoute ? _routeResult!.durationFormatted : '--',
-                  label: context.l10n.timeEstLabel,
-                ),
+                const Spacer(),
+                if (hasRoute) ...[
+                  // Naviga: solo icona (azione secondaria), tooltip per
+                  // accessibilità. Risparmia spazio rispetto a OutlinedButton
+                  // con label, evita overflow su schermi standard.
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.info.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: IconButton(
+                      onPressed: _startNavigation,
+                      icon: const Icon(Icons.navigation, size: 18),
+                      color: AppColors.info,
+                      tooltip: 'Naviga ora',
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: _saveRoute,
+                    icon: const Icon(Icons.save, size: 18),
+                    label: Text(context.l10n.save),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-          if (_showElevationProfile && hasRoute && _routeResult!.elevationProfile.isNotEmpty)
+
+          // Stats (solo quando c'è una route)
+          if (hasRoute)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _StatItem(
+                    icon: Icons.straighten,
+                    value: '${_routeResult!.distanceKm.toStringAsFixed(1)} km',
+                    label: context.l10n.distanceLabel,
+                  ),
+                  _StatItem(
+                    icon: Icons.trending_up,
+                    value: '+${_routeResult!.elevationGain.toStringAsFixed(0)} m',
+                    label: context.l10n.ascentLabel,
+                    valueColor: AppColors.success,
+                  ),
+                  _StatItem(
+                    icon: Icons.trending_down,
+                    value: '-${_routeResult!.elevationLoss.toStringAsFixed(0)} m',
+                    label: context.l10n.descentLabel,
+                    valueColor: AppColors.danger,
+                  ),
+                  _StatItem(
+                    icon: Icons.schedule,
+                    value: _routeResult!.durationFormatted,
+                    label: context.l10n.timeEstLabel,
+                  ),
+                ],
+              ),
+            ),
+
+          // Chart elevazione — più alto (180px, era 100)
+          if (hasChart)
             Container(
-              height: 100,
+              height: 180,
               margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : Colors.grey[50],
                 borderRadius: BorderRadius.circular(12),
               ),
               child: _ElevationProfileChart(
