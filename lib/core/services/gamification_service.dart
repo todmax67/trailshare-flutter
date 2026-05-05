@@ -10,7 +10,7 @@ class GamificationService {
   factory GamificationService() => _instance;
   GamificationService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // ============================================
   // CONFIGURAZIONE XP
