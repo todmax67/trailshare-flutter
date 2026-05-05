@@ -117,4 +117,5 @@ flutter:
   assets:
     - assets/icons/
     - assets/data/peaks_italy.json
+    - assets/data/pois_italy_clean.json
 
