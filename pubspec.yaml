@@ -106,7 +106,11 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
- 
+
+  # Test utilities
+  mocktail: ^1.0.4
+  fake_cloud_firestore: ^3.1.0
+
 flutter:
   generate: true
   uses-material-design: true

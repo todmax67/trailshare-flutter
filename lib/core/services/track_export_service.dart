@@ -77,6 +77,9 @@ class TrackExportService {
   // ─── TCX ───────────────────────────────────────────────────────────────────
 
   /// Genera TCX 2.0 (Training Center XML). Spec ufficiale Garmin.
+  @visibleForTesting
+  String generateTcx(Track track) => _generateTcx(track);
+
   String _generateTcx(Track track) {
     final buf = StringBuffer();
     final startIso = track.createdAt.toUtc().toIso8601String();
@@ -197,6 +200,9 @@ class TrackExportService {
   // ─── KML ───────────────────────────────────────────────────────────────────
 
   /// Genera KML 2.2 per Google Earth / Google Maps.
+  @visibleForTesting
+  String generateKml(Track track) => _generateKml(track);
+
   String _generateKml(Track track) {
     final buf = StringBuffer();
     buf.writeln('<?xml version="1.0" encoding="UTF-8"?>');

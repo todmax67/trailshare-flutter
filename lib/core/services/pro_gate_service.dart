@@ -233,4 +233,17 @@ class ProGateService extends ChangeNotifier {
     _authSub?.cancel();
     super.dispose();
   }
+
+  /// Resetta lo stato in-memory del singleton. Solo per uso nei test —
+  /// permette ad ogni `setUp()` di partire con stato pulito senza dover
+  /// ricreare l'istanza (che è private constructor).
+  @visibleForTesting
+  void resetForTesting() {
+    _unlocked = _defaultUnlocked;
+    _currentProductId = null;
+    _loaded = false;
+    _firestoreSyncInProgress = false;
+    _authSub?.cancel();
+    _authSub = null;
+  }
 }
