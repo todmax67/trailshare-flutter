@@ -265,7 +265,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
             physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 1.5,
+            childAspectRatio: 1.3,
             children: [
               _StatCard(
                 icon: Icons.hiking,
@@ -510,26 +510,37 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: color,
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            // FittedBox: scala automaticamente se il valore è
+            // numeri grossi (es. "12345") o se la card è piccola.
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(fontSize: 11, color: context.textMuted),
-              textAlign: TextAlign.center,
-              maxLines: 2,
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 11, color: context.textMuted),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),

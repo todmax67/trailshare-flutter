@@ -829,7 +829,7 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
-        version: '2.2.1',
+        version: '2.3.0',
         title: 'POI OSM, Trail Conditions AI, AR Photo v2',
         bullets: [
           'AR Photo Mode v2: foto annotate con cime + rifugi + sorgenti',
@@ -837,8 +837,8 @@ class _SettingsPageState extends State<SettingsPage> {
           'Trail Conditions AI: riassunto delle segnalazioni community (Pro)',
           'Mappe inline e fullscreen mostrano marker POI con dettaglio',
           'Pianificatore percorsi ridisegnato (sheet drag-to-collapse)',
-          'Fix overflow card admin / trail detail',
-          '148 test unit aggiunti, 0 lint warning',
+          'Fix overflow card admin / trail detail / dark theme chat',
+          '159 test unit aggiunti, 0 lint warning',
         ],
       ),
       _ReleaseEntry(

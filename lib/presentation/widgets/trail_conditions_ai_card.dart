@@ -34,6 +34,13 @@ class TrailConditionsAiCard extends StatefulWidget {
 }
 
 class _TrailConditionsAiCardState extends State<TrailConditionsAiCard> {
+  /// Soglia minima di segnalazioni community per cui ha senso
+  /// generare un riassunto AI. Sotto questo valore l'output sarebbe
+  /// solo una parafrasi della singola nota (zero valore aggiunto) e
+  /// confonderebbe l'utente che pensa "raddoppia la mia segnalazione".
+  /// Sopra questa soglia la sintesi inizia ad avere significato.
+  static const int _minReportsForSummary = 2;
+
   TrailConditionsSummary? _summary;
   bool _loading = false;
   String? _error;
@@ -52,8 +59,11 @@ class _TrailConditionsAiCardState extends State<TrailConditionsAiCard> {
       final reports = await TrailConditionsRepository()
           .getReportsForTrail(widget.trailId, limit: 20);
       if (!mounted) return;
+      debugPrint('[TrailConditionsAi] trail=${widget.trailId} '
+          'community reports=${reports.length}');
       setState(() => _communityReportsCount = reports.length);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[TrailConditionsAi] loadReportsCount error: $e');
       if (mounted) setState(() => _communityReportsCount = 0);
     }
   }
@@ -101,8 +111,17 @@ class _TrailConditionsAiCardState extends State<TrailConditionsAiCard> {
   @override
   Widget build(BuildContext context) {
     final count = _communityReportsCount;
-    // Carica in corso o nessuna segnalazione → niente da riassumere.
-    if (count == null || count <= 0) {
+    // Loading state — non disegniamo nulla finché non sappiamo il count.
+    if (count == null) return const SizedBox.shrink();
+
+    // Sotto la soglia minima per un riassunto utile:
+    // - Free: nascondiamo completamente. Mostrare il teaser PRO
+    //   sopra un trail con 0 o 1 segnalazione (già visibile sotto
+    //   nella sezione "Condizioni sentiero") sembrerebbe ridondante
+    //   o promettere valore che l'AI non può davvero fornire.
+    // - Pro: mostriamo la card con stato "in attesa" così la feature
+    //   è discoverable. Il summary parte da 2+ segnalazioni.
+    if (count < _minReportsForSummary && !ProGateService().isPro) {
       return const SizedBox.shrink();
     }
 
@@ -180,8 +199,42 @@ class _TrailConditionsAiCardState extends State<TrailConditionsAiCard> {
   }
 
   Widget _buildBody() {
+    final reportsCount = _communityReportsCount ?? 0;
+    final isPro = ProGateService().isPro;
+
+    // Pro + sotto la soglia → stato "in attesa" educativo. Il
+    // riassunto non parte finché non ci sono almeno 2 segnalazioni
+    // community: con 1 sola, l'AI parafraserebbe la stessa nota
+    // visibile sotto nella sezione "Condizioni sentiero" — zero
+    // valore aggiunto.
+    if (isPro && reportsCount < _minReportsForSummary) {
+      final remaining = _minReportsForSummary - reportsCount;
+      return Row(
+        children: [
+          Icon(Icons.hourglass_empty, size: 16, color: context.textMuted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              reportsCount == 0
+                  ? 'Nessuna segnalazione community su questo sentiero. '
+                      'Quando ci saranno almeno $_minReportsForSummary '
+                      'segnalazioni potrò generarti un riassunto.'
+                  : 'C\'è $reportsCount segnalazione su questo sentiero. '
+                      'Servon$remaining segnalazion${remaining == 1 ? 'e' : 'i'} '
+                      'in più per generare un riassunto AI utile.',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: context.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     // Free + nessun summary → teaser
-    if (!ProGateService().isPro && _summary == null) {
+    if (!isPro && _summary == null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
