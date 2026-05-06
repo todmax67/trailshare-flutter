@@ -13,6 +13,7 @@ import '../../data/models/osm_poi.dart';
 import '../../data/models/trail_poi.dart';
 import '../../data/repositories/osm_pois_repository.dart';
 import '../../data/repositories/poi_repository.dart';
+import 'osm_attribution.dart';
 import 'osm_poi_detail_sheet.dart';
 import 'poi_marker_layer.dart';
 import 'poi_detail_sheet.dart';
@@ -579,6 +580,14 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
               ],
             ),
             
+            // Attribuzione OSM (ODbL): obbligatoria su ogni mappa
+            // che usa tile/dati OSM. Tap apre la copyright page.
+            const Positioned(
+              bottom: 4,
+              right: 4,
+              child: OsmAttribution(),
+            ),
+
             // Info box quando si tocca il percorso
             if (_tappedPoint != null)
               Positioned(
@@ -1092,7 +1101,14 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
               ),
             ],
           ),
-          
+
+          // Attribuzione OSM (ODbL)
+          const Positioned(
+            bottom: 16,
+            right: 12,
+            child: OsmAttribution(),
+          ),
+
           // Info box
           if (_tappedPoint != null)
             Positioned(

@@ -28,10 +28,15 @@ class MountainPhotoRenderer {
   /// [originalViewport] - dimensioni del viewport in cui è stata fatta
   ///                     la proiezione (tipicamente la screen size)
   /// [watermark] - testo del watermark (es. "TrailShare")
+  /// Cap massimo POI renderizzati per non sovrastare le cime
+  /// (che restano gli elementi principali della foto AR).
+  static const int _maxVisiblePois = 12;
+
   static Future<Uint8List> render({
     required Uint8List imageBytes,
     required List<ProjectedPeak> projected,
     required Size originalViewport,
+    List<ProjectedPoi> pois = const [],
     String watermark = 'TrailShare',
   }) async {
     // 1. Decodifica l'immagine sorgente
@@ -94,6 +99,13 @@ class MountainPhotoRenderer {
     for (final l in layouts) {
       _drawLabelBox(canvas, l);
       _drawDot(canvas, l);
+    }
+
+    // 4b. POI OSM (rifugi, sorgenti, ecc.) — sotto le label peak per
+    //     non sovrastarle, ma con stile distinto (info-blue chip).
+    if (pois.isNotEmpty) {
+      _drawPois(canvas, pois, scaleX, scaleY,
+          offsetX: offsetX, offsetY: offsetY, imgW: imgW, imgH: imgH);
     }
 
     // 5. Watermark TrailShare in basso a destra
@@ -380,6 +392,151 @@ class MountainPhotoRenderer {
         imgH - painter.height - padding,
       ),
     );
+  }
+
+  // ─── Render POI OSM ───────────────────────────────────────────────
+
+  /// Disegna i POI OSM come pin info-blue piccoli con label inline.
+  /// Stile distinto dai peak (border colore, font più piccolo) per
+  /// gerarchizzare visualmente: peak = elementi principali, POI =
+  /// info accessoria.
+  static void _drawPois(
+    Canvas canvas,
+    List<ProjectedPoi> pois,
+    double scaleX,
+    double scaleY, {
+    required double offsetX,
+    required double offsetY,
+    required double imgW,
+    required double imgH,
+  }) {
+    final capped = pois.length > _maxVisiblePois
+        ? pois.sublist(0, _maxVisiblePois)
+        : pois;
+
+    final dotR = (imgH * 0.012).clamp(8.0, 16.0);
+    final fontSize = (imgH * 0.022).clamp(20.0, 36.0);
+    final pad = fontSize * 0.4;
+    final labelGap = dotR * 1.4; // distanza dot → label
+
+    // Tracciamo i bbox label già piazzati per anti-overlap.
+    final placed = <Rect>[];
+
+    // Sort: i POI più centrati (relBearing piccolo) prima, così se
+    // dobbiamo scartarne alcuni in caso di overlap, scarta quelli ai
+    // margini.
+    final sorted = List<ProjectedPoi>.from(capped)
+      ..sort((a, b) => a.relativeBearingDeg
+          .abs()
+          .compareTo(b.relativeBearingDeg.abs()));
+
+    for (final p in sorted) {
+      final dotX = offsetX + p.screenX * scaleX;
+      final dotY = offsetY + p.screenY * scaleY;
+
+      // Label string: "Rifugio Curò · 1915m" oppure "Sorgente · 0.5km"
+      final labelText = _poiLabel(p);
+      final span = TextSpan(
+        text: labelText,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w700,
+          height: 1.05,
+        ),
+      );
+      final painter = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: imgW * 0.5);
+
+      final labelW = painter.width + pad * 2;
+      final labelH = painter.height + pad * 1.2;
+
+      // Position iniziale: label sotto il dot, centrata orizz.
+      double labelX = dotX - labelW / 2;
+      double labelY = dotY + labelGap;
+
+      // Clamp ai bordi immagine
+      labelX = labelX.clamp(8.0, imgW - labelW - 8);
+      // Se il label uscirebbe dal bordo basso, mettilo sopra il dot
+      if (labelY + labelH > imgH - 8) {
+        labelY = dotY - labelGap - labelH;
+      }
+
+      // Anti-overlap: se confligge con un altro POI già piazzato,
+      // spostalo verticalmente a step di labelH+gap. Limit 4 step
+      // così evitiamo di spostarlo "fuori contesto".
+      Rect bbox = Rect.fromLTWH(labelX, labelY, labelW, labelH);
+      bool conflict = true;
+      int attempts = 0;
+      while (conflict && attempts < 4) {
+        conflict = placed.any((r) => r.overlaps(bbox.inflate(2)));
+        if (!conflict) break;
+        labelY += labelH + 4;
+        if (labelY + labelH > imgH - 8) break; // troppo in basso, skip
+        bbox = Rect.fromLTWH(labelX, labelY, labelW, labelH);
+        attempts++;
+      }
+      if (conflict) continue; // non c'è posto, scarta questo POI
+
+      placed.add(bbox);
+
+      // ─── Disegna ───
+      // 1. Dot (cerchio bianco con interno blu)
+      canvas.drawCircle(
+        Offset(dotX, dotY),
+        dotR,
+        Paint()..color = Colors.white,
+      );
+      canvas.drawCircle(
+        Offset(dotX, dotY),
+        dotR * 0.7,
+        Paint()..color = const Color(0xFF1976D2),
+      );
+
+      // 2. Linea connector sottile dal dot al label
+      canvas.drawLine(
+        Offset(dotX, dotY + dotR),
+        Offset(bbox.center.dx, bbox.top),
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.6)
+          ..strokeWidth = (dotR * 0.15).clamp(1.0, 2.5),
+      );
+
+      // 3. Background pillola
+      final rrect = RRect.fromRectAndRadius(bbox, Radius.circular(labelH / 2));
+      canvas.drawRRect(
+        rrect,
+        Paint()..color = const Color(0xFF1976D2).withValues(alpha: 0.92),
+      );
+      canvas.drawRRect(
+        rrect,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.5)
+          ..strokeWidth = 1.5
+          ..style = PaintingStyle.stroke,
+      );
+
+      // 4. Testo
+      painter.paint(
+        canvas,
+        Offset(bbox.left + pad, bbox.top + pad * 0.6),
+      );
+    }
+  }
+
+  static String _poiLabel(ProjectedPoi p) {
+    final ele = p.poi.elevation;
+    final dist = p.distanceMeters / 1000;
+    final distStr =
+        dist < 10 ? dist.toStringAsFixed(1) : dist.toStringAsFixed(0);
+    if (ele != null) {
+      return '${p.poi.name} · ${ele.round()}m';
+    }
+    return '${p.poi.name} · ${distStr}km';
   }
 
   static String _subtitle(ProjectedPeak p) {

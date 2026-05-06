@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart' show Size;
 
 import '../../data/models/mountain_peak.dart';
+import '../../data/models/osm_poi.dart';
 
 /// Proiezione **AR** di una cima sul viewport della fotocamera.
 ///
@@ -31,6 +32,59 @@ class MountainProjection {
 
   /// Calcola la proiezione di una singola cima sul viewport.
   /// Restituisce `null` se la cima è fuori dal cono visibile.
+  /// Proietta un punto generico (lat/lng/ele opzionale) sul viewport
+  /// dato l'orientamento del telefono. Restituisce [_RawProjection]
+  /// con coords pixel e angoli relativi, o null se fuori cono FOV.
+  ///
+  /// Usata sia da [project] (peak → ProjectedPeak) sia da [projectPoi]
+  /// (POI OSM → ProjectedPoi).
+  static _RawProjection? _projectPoint({
+    required double targetLat,
+    required double targetLng,
+    required double? targetElevation,
+    required double observerLat,
+    required double observerLng,
+    required double observerAltitudeMeters,
+    required double phoneHeadingDeg,
+    required double phonePitchDeg,
+    required Size viewport,
+    required double horizontalFovDeg,
+    required double verticalFovDeg,
+  }) {
+    final bearingDeg =
+        _initialBearing(observerLat, observerLng, targetLat, targetLng);
+    final distanceMeters =
+        _haversine(observerLat, observerLng, targetLat, targetLng);
+    final relBearing = _normalizeBearing(bearingDeg - phoneHeadingDeg);
+
+    double verticalAngleDeg = 0;
+    if (targetElevation != null && distanceMeters > 0) {
+      final dh = targetElevation - observerAltitudeMeters;
+      verticalAngleDeg = math.atan2(dh, distanceMeters) * 180 / math.pi;
+    }
+    final relPitch = verticalAngleDeg - phonePitchDeg;
+
+    final hHalf = horizontalFovDeg / 2;
+    final vHalf = verticalFovDeg / 2;
+    if (relBearing.abs() > hHalf || relPitch.abs() > vHalf) {
+      return null;
+    }
+
+    final w = viewport.width;
+    final h = viewport.height;
+    final screenX = w / 2 + (relBearing / hHalf) * (w / 2);
+    final screenY = h / 2 - (relPitch / vHalf) * (h / 2);
+
+    return _RawProjection(
+      screenX: screenX,
+      screenY: screenY,
+      distanceMeters: distanceMeters,
+      bearingDeg: bearingDeg,
+      relativeBearingDeg: relBearing,
+      relativePitchDeg: relPitch,
+    );
+  }
+
   static ProjectedPeak? project({
     required MountainPeak peak,
     required double observerLat,
@@ -42,58 +96,66 @@ class MountainProjection {
     double horizontalFovDeg = defaultHorizontalFovDeg,
     double verticalFovDeg = defaultVerticalFovDeg,
   }) {
-    // 1. Bearing osservatore -> peak
-    final bearingDeg = _initialBearing(
-      observerLat,
-      observerLng,
-      peak.latitude,
-      peak.longitude,
+    final r = _projectPoint(
+      targetLat: peak.latitude,
+      targetLng: peak.longitude,
+      targetElevation: peak.elevation,
+      observerLat: observerLat,
+      observerLng: observerLng,
+      observerAltitudeMeters: observerAltitudeMeters,
+      phoneHeadingDeg: phoneHeadingDeg,
+      phonePitchDeg: phonePitchDeg,
+      viewport: viewport,
+      horizontalFovDeg: horizontalFovDeg,
+      verticalFovDeg: verticalFovDeg,
     );
-
-    // 2. Distanza
-    final distanceMeters = _haversine(
-      observerLat,
-      observerLng,
-      peak.latitude,
-      peak.longitude,
-    );
-
-    // 3. Bearing relativo al puntamento del telefono (-180..+180)
-    final relBearing = _normalizeBearing(bearingDeg - phoneHeadingDeg);
-
-    // 4. Angolo verticale: atan2(deltaH, distance). Senza altitudine
-    //    osservatore o cima fallback a 0 (vediamola sull'orizzonte).
-    double verticalAngleDeg = 0;
-    if (peak.elevation != null && distanceMeters > 0) {
-      final dh = peak.elevation! - observerAltitudeMeters;
-      verticalAngleDeg = math.atan2(dh, distanceMeters) * 180 / math.pi;
-    }
-
-    // 5. Pitch relativo (peak sopra/sotto il puntamento del telefono)
-    final relPitch = verticalAngleDeg - phonePitchDeg;
-
-    // 6. Test visibilità nel cono FOV
-    final hHalf = horizontalFovDeg / 2;
-    final vHalf = verticalFovDeg / 2;
-    if (relBearing.abs() > hHalf || relPitch.abs() > vHalf) {
-      return null;
-    }
-
-    // 7. Coordinate viewport
-    final w = viewport.width;
-    final h = viewport.height;
-    final screenX = w / 2 + (relBearing / hHalf) * (w / 2);
-    // Y va invertito: pitch positivo = sopra l'orizzonte = verso il top
-    final screenY = h / 2 - (relPitch / vHalf) * (h / 2);
-
+    if (r == null) return null;
     return ProjectedPeak(
       peak: peak,
-      screenX: screenX,
-      screenY: screenY,
-      distanceMeters: distanceMeters,
-      bearingDeg: bearingDeg,
-      relativeBearingDeg: relBearing,
-      relativePitchDeg: relPitch,
+      screenX: r.screenX,
+      screenY: r.screenY,
+      distanceMeters: r.distanceMeters,
+      bearingDeg: r.bearingDeg,
+      relativeBearingDeg: r.relativeBearingDeg,
+      relativePitchDeg: r.relativePitchDeg,
+    );
+  }
+
+  /// Proietta un POI OSM (rifugio, sorgente, ecc.) sul viewport.
+  /// Stessa math di [project] ma con [OsmPoi] al posto di [MountainPeak].
+  static ProjectedPoi? projectPoi({
+    required OsmPoi poi,
+    required double observerLat,
+    required double observerLng,
+    required double observerAltitudeMeters,
+    required double phoneHeadingDeg,
+    required double phonePitchDeg,
+    required Size viewport,
+    double horizontalFovDeg = defaultHorizontalFovDeg,
+    double verticalFovDeg = defaultVerticalFovDeg,
+  }) {
+    final r = _projectPoint(
+      targetLat: poi.latitude,
+      targetLng: poi.longitude,
+      targetElevation: poi.elevation,
+      observerLat: observerLat,
+      observerLng: observerLng,
+      observerAltitudeMeters: observerAltitudeMeters,
+      phoneHeadingDeg: phoneHeadingDeg,
+      phonePitchDeg: phonePitchDeg,
+      viewport: viewport,
+      horizontalFovDeg: horizontalFovDeg,
+      verticalFovDeg: verticalFovDeg,
+    );
+    if (r == null) return null;
+    return ProjectedPoi(
+      poi: poi,
+      screenX: r.screenX,
+      screenY: r.screenY,
+      distanceMeters: r.distanceMeters,
+      bearingDeg: r.bearingDeg,
+      relativeBearingDeg: r.relativeBearingDeg,
+      relativePitchDeg: r.relativePitchDeg,
     );
   }
 
@@ -143,6 +205,54 @@ class MountainProjection {
       final eleA = a.peak.elevation ?? 0;
       final eleB = b.peak.elevation ?? 0;
       return eleB.compareTo(eleA);
+    });
+
+    if (visible.length <= maxVisible) return visible;
+    return visible.take(maxVisible).toList();
+  }
+
+  /// Variante di [projectAll] per i POI OSM (rifugi, sorgenti,
+  /// fontane, panorami, ecc.). Stessa logica di selezione (più
+  /// centrati prima, tiebreaker su distanza più vicina), ma su
+  /// [OsmPoi] invece di [MountainPeak].
+  static List<ProjectedPoi> projectAllPois({
+    required Iterable<OsmPoi> pois,
+    required double observerLat,
+    required double observerLng,
+    required double observerAltitudeMeters,
+    required double phoneHeadingDeg,
+    required double phonePitchDeg,
+    required Size viewport,
+    int maxVisible = 9999,
+    double horizontalFovDeg = defaultHorizontalFovDeg,
+    double verticalFovDeg = defaultVerticalFovDeg,
+  }) {
+    final visible = <ProjectedPoi>[];
+    for (final p in pois) {
+      final proj = projectPoi(
+        poi: p,
+        observerLat: observerLat,
+        observerLng: observerLng,
+        observerAltitudeMeters: observerAltitudeMeters,
+        phoneHeadingDeg: phoneHeadingDeg,
+        phonePitchDeg: phonePitchDeg,
+        viewport: viewport,
+        horizontalFovDeg: horizontalFovDeg,
+        verticalFovDeg: verticalFovDeg,
+      );
+      if (proj != null) visible.add(proj);
+    }
+
+    visible.sort((a, b) {
+      final centerA = (a.relativeBearingDeg.abs() / horizontalFovDeg) +
+          (a.relativePitchDeg.abs() / verticalFovDeg);
+      final centerB = (b.relativeBearingDeg.abs() / horizontalFovDeg) +
+          (b.relativePitchDeg.abs() / verticalFovDeg);
+      final diff = centerA.compareTo(centerB);
+      if (diff != 0) return diff;
+      // Tiebreaker: POI più vicino prima (a parità di centratura,
+      // i punti vicini sono più rilevanti per l'utente)
+      return a.distanceMeters.compareTo(b.distanceMeters);
     });
 
     if (visible.length <= maxVisible) return visible;
@@ -240,4 +350,47 @@ class ProjectedPeak {
     final dy = (screenY - viewport.height / 2).abs();
     return dx < viewport.width * 0.10 && dy < viewport.height * 0.10;
   }
+}
+
+/// POI OSM proiettato sul viewport (parallelo a [ProjectedPeak]).
+/// Usato dall'AR Photo Mode v2 per overlayare rifugi/sorgenti/etc
+/// nelle foto annotate, oltre alle cime.
+class ProjectedPoi {
+  final OsmPoi poi;
+  final double screenX;
+  final double screenY;
+  final double distanceMeters;
+  final double bearingDeg;
+  final double relativeBearingDeg;
+  final double relativePitchDeg;
+
+  const ProjectedPoi({
+    required this.poi,
+    required this.screenX,
+    required this.screenY,
+    required this.distanceMeters,
+    required this.bearingDeg,
+    required this.relativeBearingDeg,
+    required this.relativePitchDeg,
+  });
+}
+
+/// Risultato grezzo della proiezione condiviso tra peak e POI.
+/// Privato — solo math, no semantica del target.
+class _RawProjection {
+  final double screenX;
+  final double screenY;
+  final double distanceMeters;
+  final double bearingDeg;
+  final double relativeBearingDeg;
+  final double relativePitchDeg;
+
+  const _RawProjection({
+    required this.screenX,
+    required this.screenY,
+    required this.distanceMeters,
+    required this.bearingDeg,
+    required this.relativeBearingDeg,
+    required this.relativePitchDeg,
+  });
 }

@@ -10,6 +10,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/osm_poi_detail_sheet.dart';
 
 /// Pagina che mostra la **foto annotata** prodotta da Photo Mode con sopra
 /// tutte le cime identificate. L'utente può:
@@ -25,10 +26,14 @@ class MountainPhotoResultPage extends StatefulWidget {
   /// Lista di peak presenti nell'immagine.
   final List<ProjectedPeak> peaks;
 
+  /// POI OSM (rifugi, sorgenti, ecc.) annotati nella foto.
+  final List<ProjectedPoi> pois;
+
   const MountainPhotoResultPage({
     super.key,
     required this.annotatedImage,
     required this.peaks,
+    this.pois = const [],
   });
 
   @override
@@ -169,6 +174,39 @@ class _MountainPhotoResultPageState extends State<MountainPhotoResultPage> {
                       ],
                     ),
                   ],
+                  if (widget.pois.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Icon(Icons.place, size: 14, color: context.textMuted),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Anche nello scatto · ${widget.pois.length} POI',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: context.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final p in widget.pois)
+                          _PoiChip(
+                            projected: p,
+                            onTap: () => showOsmPoiDetailSheet(
+                              context,
+                              poi: p.poi,
+                              distanceFromTrackMeters: p.distanceMeters,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
@@ -257,6 +295,75 @@ class _PeakChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Chip POI nello scatto Photo Mode v2 — analogo a _PeakChip ma con
+/// icona/colori della categoria OSM. Tap apre il dettaglio.
+class _PoiChip extends StatelessWidget {
+  final ProjectedPoi projected;
+  final VoidCallback? onTap;
+
+  const _PoiChip({required this.projected, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final ele = projected.poi.elevation?.round();
+    final dist = (projected.distanceMeters / 1000);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.info.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.info.withValues(alpha: 0.30)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(projected.poi.type.icon, size: 14, color: AppColors.info),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                projected.poi.name,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: context.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (ele != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                '${ele}m',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: context.textSecondary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+            const SizedBox(width: 4),
+            Text(
+              '· ${dist < 10 ? dist.toStringAsFixed(1) : dist.toStringAsFixed(0)}km',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: context.textMuted,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

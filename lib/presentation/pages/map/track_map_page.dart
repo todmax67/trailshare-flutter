@@ -10,6 +10,7 @@ import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/osm_pois_repository.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/osm_attribution.dart';
 import '../../widgets/osm_poi_detail_sheet.dart';
 import '../../widgets/poi_detail_sheet.dart';
 import '../../widgets/poi_marker_layer.dart';
@@ -530,6 +531,13 @@ class _TrackMapPageState extends State<TrackMapPage> {
             left: 0,
             right: 0,
             child: _buildInfoPanel(elevations),
+          ),
+
+          // Attribuzione OSM (ODbL)
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 4,
+            right: 8,
+            child: const OsmAttribution(darkBackground: true),
           ),
 
           // Layer indicator

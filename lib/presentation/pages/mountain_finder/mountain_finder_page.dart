@@ -16,6 +16,8 @@ import '../../../core/services/pro_gate_service.dart';
 import '../../../core/utils/mountain_photo_renderer.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
+import '../../../data/models/osm_poi.dart';
+import '../../../data/repositories/osm_pois_repository.dart';
 import '../../../data/repositories/saved_peaks_repository.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/paywall_sheet.dart';
@@ -80,6 +82,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// la posizione si sposta significativamente. Tipicamente ~50-300 cime,
   /// quindi `projectAll` su questo subset è praticamente gratis.
   List<MountainPeak> _candidatePeaks = const [];
+
+  /// POI OSM candidati nello stesso raggio dei peak. Usati nell'AR
+  /// Photo Mode v2 per overlayare rifugi/sorgenti/etc oltre alle cime.
+  List<OsmPoi> _candidatePois = const [];
 
   /// Ultima posizione usata per calcolare le candidate. Quando l'utente si
   /// sposta più di 5 km ricomputiamo il subset (evitiamo lavoro inutile
@@ -412,8 +418,22 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       pos.longitude,
       radiusKm: radius,
     );
+
+    // Carica anche i POI OSM nello stesso raggio (rifugi, sorgenti,
+    // ecc.). Lazy: l'asset viene parsato la prima volta che lo serve.
+    final osmRepo = OsmPoisRepository();
+    if (!osmRepo.isLoaded) {
+      await osmRepo.ensureLoaded();
+    }
+    final osmCandidates = osmRepo.findNearby(
+      pos.latitude,
+      pos.longitude,
+      radiusMeters: radius * 1000,
+    );
+
     if (!mounted) return;
     setState(() {
+      _candidatePois = osmCandidates;
       _candidatePeaks = candidates.isEmpty
           // Fallback ai peak iconici se il dataset è vuoto / offline
           ? famousItalianPeaks
@@ -638,14 +658,31 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         verticalFovDeg: effVFov,
       );
 
+      // 6.A2 v2: anche i POI OSM (rifugi, sorgenti, ecc.) nel cono FOV.
+      // Stesso math, modello diverso. Cap a 12 visualizzati per non
+      // sovrastare le cime (gestito dal renderer).
+      final visiblePois = MountainProjection.projectAllPois(
+        pois: _candidatePois,
+        observerLat: pos.latitude,
+        observerLng: pos.longitude,
+        observerAltitudeMeters: pos.altitude,
+        phoneHeadingDeg: heading,
+        phonePitchDeg: _pitchDeg,
+        viewport: viewport,
+        maxVisible: 12,
+        horizontalFovDeg: effHFov,
+        verticalFovDeg: effVFov,
+      );
+
       // Cattura
       final xfile = await cam.takePicture();
       final bytes = await xfile.readAsBytes();
 
-      // Render annotato
+      // Render annotato — peak + POI con stili distinti
       final annotated = await MountainPhotoRenderer.render(
         imageBytes: bytes,
         projected: allVisible,
+        pois: visiblePois,
         originalViewport: viewport,
       );
 
@@ -657,6 +694,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           builder: (_) => MountainPhotoResultPage(
             annotatedImage: annotated,
             peaks: allVisible,
+            pois: visiblePois,
           ),
         ),
       );
