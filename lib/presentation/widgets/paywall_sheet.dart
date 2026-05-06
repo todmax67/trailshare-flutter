@@ -554,20 +554,20 @@ class _PaywallSheetState extends State<PaywallSheet> {
         children: [
           _buildPlanTile(
             plan: _Plan.yearly,
-            title: 'Annuale',
+            title: 'TrailShare Pro Annuale',
             price: _yearlyDisplayPrice,
             priceUnit: '/anno',
-            secondary: '$_yearlyMonthlyEquivalent al mese',
+            secondary: 'Equivalente a $_yearlyMonthlyEquivalent/mese',
             badgeText: 'Risparmi 44%',
             badgeColor: AppColors.success,
           ),
           const SizedBox(height: 10),
           _buildPlanTile(
             plan: _Plan.monthly,
-            title: 'Mensile',
+            title: 'TrailShare Pro Mensile',
             price: _monthlyDisplayPrice,
             priceUnit: '/mese',
-            secondary: 'Cancellazione in qualsiasi momento',
+            secondary: 'Rinnovo automatico mensile',
             badgeText: null,
             badgeColor: null,
           ),
@@ -702,26 +702,59 @@ class _PaywallSheetState extends State<PaywallSheet> {
 
   // ─── Price footer ───────────────────────────────────────────────────────
 
+  /// Disclosure abbonamenti conforme alle linee guida Apple 3.1.2(c):
+  /// titolo prodotto + durata + prezzo + price-per-unit + auto-renew
+  /// terms + come cancellare. Mostrato sempre prima del CTA.
   Widget _buildPriceFooter(BuildContext context) {
     final isYearly = _selected == _Plan.yearly;
-    final caption = isYearly
-        ? '$_trialDays giorni gratis, poi $_yearlyDisplayPrice/anno. Annulla quando vuoi.'
-        : 'Nessun trial sul piano mensile. Annulla quando vuoi.';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
+    final productTitle = isYearly
+        ? 'TrailShare Pro Annuale'
+        : 'TrailShare Pro Mensile';
+    final price = isYearly ? _yearlyDisplayPrice : _monthlyDisplayPrice;
+    final period = isYearly ? '12 mesi' : '1 mese';
+    final unitPrice = isYearly
+        ? ' (equivalente a $_yearlyMonthlyEquivalent al mese)'
+        : '';
+    final trialLine = isYearly
+        ? '\n• Inclusi $_trialDays giorni di prova gratuita per i nuovi '
+            'abbonati. Cancella in qualsiasi momento prima della fine '
+            'del periodo di prova per evitare l\'addebito.'
+        : '';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.themedSurfaceVariant.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: context.themedBorder, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline,
-              size: 14, color: context.textSecondary),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              caption,
-              style: TextStyle(
-                fontSize: 12,
-                color: context.textSecondary,
-                height: 1.35,
-              ),
+          Text(
+            'Dettagli abbonamento',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: context.textSecondary,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '• $productTitle: $price ogni $period$unitPrice.\n'
+            '• L\'abbonamento si rinnova automaticamente a meno che '
+            'non venga disattivato almeno 24 ore prima della fine del '
+            'periodo. Il pagamento viene addebitato sul tuo account App '
+            'Store al momento della conferma e ad ogni rinnovo.\n'
+            '• Puoi gestire o cancellare l\'abbonamento dalle '
+            'impostazioni del tuo account App Store dopo l\'acquisto.'
+            '$trialLine',
+            style: TextStyle(
+              fontSize: 11,
+              color: context.textSecondary,
+              height: 1.45,
             ),
           ),
         ],
