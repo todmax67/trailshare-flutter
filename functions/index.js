@@ -1944,3 +1944,230 @@ async function updateProStatus(uid, data) {
     logger.error(`[updateProStatus] failed for uid=${uid}`, e);
   }
 }
+
+// ===================================================================
+// 6.6 — TRAIL CONDITIONS AI SUMMARY
+// ===================================================================
+// Killer feature Pro: riassume in linguaggio naturale le segnalazioni
+// recenti della community per un sentiero (fango, neve, ponti chiusi,
+// ecc.) usando Claude Haiku. Cache 24h su Firestore per minimizzare
+// costi e latenza — un summary serve in media a 50-100 utenti prima
+// di cambiare stato.
+//
+// Storage:
+//   /trail_conditions_summaries/{trailId} = {
+//     summary: string,
+//     reportsCount: int,
+//     hasCriticalReports: bool,
+//     newestReportAt: timestamp,
+//     generatedAt: timestamp,
+//     model: string,
+//     locale: string,
+//   }
+
+const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
+
+/// Costruisce il prompt per Claude a partire dai report community.
+function buildTrailConditionsPrompt(reports, trailName, locale) {
+  const lang = locale === 'en' ? 'English' : 'Italian';
+  const lines = reports.map((r, idx) => {
+    const ageHours = Math.round((Date.now() - r.reportedAt.toMillis()) / 36e5);
+    const ageStr = ageHours < 24
+      ? `${ageHours}h ago`
+      : `${Math.round(ageHours / 24)} days ago`;
+    const note = (r.note || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+    return `${idx + 1}. [${r.status}] (${ageStr}) ${note || '(no note)'}`;
+  }).join('\n');
+
+  return `You are summarizing recent trail-condition reports for hikers
+in ${lang}, written by users of an outdoor app. Produce a SHORT,
+factual summary (max 3 sentences, ~50 words total) that helps a
+hiker decide whether to go today.
+
+Trail: "${trailName}"
+Reports (most recent first):
+${lines}
+
+Rules:
+- Mention specific recent issues (mud on the climb, broken bridge,
+  snow above 1500m, etc.) only if they appear in multiple reports
+  or in a recent critical one.
+- If most recent reports say "good", say the trail is in good
+  conditions.
+- DO NOT invent details. DO NOT moralize. DO NOT mention safety
+  generic disclaimers. DO NOT say "based on reports".
+- DO NOT use markdown, lists, or emojis. Plain text in ${lang}, single
+  paragraph.
+- If reports are conflicting, lean on the most recent ones.
+
+Summary:`;
+}
+
+/// Chiama Claude Haiku via API HTTP. Ritorna il testo del summary.
+async function callClaude(prompt, apiKey) {
+  const res = await axios.post(
+    'https://api.anthropic.com/v1/messages',
+    {
+      model: 'claude-haiku-4-5',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }],
+    },
+    {
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      timeout: 15000,
+    }
+  );
+  const content = res.data?.content?.[0]?.text;
+  if (!content || typeof content !== 'string') {
+    throw new Error('Claude returned empty content');
+  }
+  return content.trim();
+}
+
+exports.summarizeTrailConditions = onCall(
+  {
+    secrets: [anthropicApiKey],
+    region: 'europe-west3',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    const trailId = request.data?.trailId;
+    const trailName = request.data?.trailName || 'Sentiero';
+    const locale = request.data?.locale || 'it';
+    const forceRefresh = request.data?.forceRefresh === true;
+
+    if (!trailId || typeof trailId !== 'string') {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'trailId is required'
+      );
+    }
+    if (!request.auth?.uid) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Auth required'
+      );
+    }
+
+    const summaryRef = db
+      .collection('trail_conditions_summaries')
+      .doc(trailId);
+
+    // 1. Cache check — 24h TTL
+    if (!forceRefresh) {
+      const cached = await summaryRef.get();
+      if (cached.exists) {
+        const data = cached.data();
+        const ageMs = Date.now() - (data.generatedAt?.toMillis() || 0);
+        const isFresh = ageMs < 24 * 3600 * 1000;
+        if (isFresh && data.summary) {
+          return {
+            summary: data.summary,
+            reportsCount: data.reportsCount || 0,
+            hasCriticalReports: data.hasCriticalReports || false,
+            newestReportAt: data.newestReportAt?.toMillis() || null,
+            generatedAt: data.generatedAt?.toMillis() || null,
+            cached: true,
+          };
+        }
+      }
+    }
+
+    // 2. Fetch report recenti (60 giorni, max 20)
+    const cutoff = admin.firestore.Timestamp.fromMillis(
+      Date.now() - 60 * 24 * 3600 * 1000
+    );
+    const reportsSnap = await db
+      .collection('trail_conditions')
+      .doc(trailId)
+      .collection('reports')
+      .where('reportedAt', '>=', cutoff)
+      .orderBy('reportedAt', 'desc')
+      .limit(20)
+      .get();
+
+    const reports = reportsSnap.docs.map((d) => ({
+      status: d.data().status || 'good',
+      note: d.data().note || '',
+      reportedAt: d.data().reportedAt,
+    }));
+
+    if (reports.length === 0) {
+      return {
+        summary: null,
+        reportsCount: 0,
+        hasCriticalReports: false,
+        newestReportAt: null,
+        generatedAt: null,
+        cached: false,
+      };
+    }
+
+    // 3. Genera summary via Claude
+    const prompt = buildTrailConditionsPrompt(reports, trailName, locale);
+    let summary;
+    try {
+      summary = await callClaude(prompt, anthropicApiKey.value());
+    } catch (e) {
+      logger.error('[summarizeTrailConditions] Claude error', e?.message || e);
+      throw new functions.https.HttpsError(
+        'internal',
+        'Failed to generate summary'
+      );
+    }
+
+    const hasCritical = reports.some((r) =>
+      ['closed', 'rockfall', 'ice'].includes(r.status)
+    );
+
+    const payload = {
+      summary,
+      reportsCount: reports.length,
+      hasCriticalReports: hasCritical,
+      newestReportAt: reports[0].reportedAt,
+      generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      model: 'claude-haiku-4-5',
+      locale,
+    };
+
+    await summaryRef.set(payload, { merge: true });
+
+    return {
+      summary,
+      reportsCount: reports.length,
+      hasCriticalReports: hasCritical,
+      newestReportAt: reports[0].reportedAt.toMillis(),
+      generatedAt: Date.now(),
+      cached: false,
+    };
+  }
+);
+
+/// Trigger automatico: quando arriva un nuovo report, invalida la
+/// cache (così la prossima call rigenera fresh con il nuovo dato).
+/// Più economico di rigenerare subito — la maggior parte degli utenti
+/// non legge il summary istantaneamente dopo un report.
+exports.invalidateTrailConditionsSummaryOnNewReport = onDocumentCreated(
+  {
+    document: 'trail_conditions/{trailId}/reports/{reportId}',
+    region: 'europe-west3',
+  },
+  async (event) => {
+    const { trailId } = event.params;
+    try {
+      await db
+        .collection('trail_conditions_summaries')
+        .doc(trailId)
+        .delete();
+      logger.info(
+        `[invalidateTrailSummary] cleared cache for trail ${trailId}`
+      );
+    } catch (e) {
+      logger.warn(`[invalidateTrailSummary] failed: ${e?.message}`);
+    }
+  }
+);

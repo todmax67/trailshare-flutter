@@ -11,6 +11,7 @@ import '../../widgets/weather_forecast_card.dart';
 import '../../widgets/trail_reviews_section.dart';
 import '../../widgets/trail_photos_section.dart';
 import '../../widgets/trail_segments_section.dart';
+import '../../widgets/trail_conditions_ai_card.dart';
 import '../../widgets/trail_conditions_section.dart';
 import '../../widgets/trail_pois_section.dart';
 import 'package:share_plus/share_plus.dart';
@@ -137,6 +138,14 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                   _buildMainStats(),
 
                   const SizedBox(height: 16),
+
+                  // 6.6 — Trail Conditions AI Summary (Pro feature):
+                  // riassume in linguaggio naturale le segnalazioni
+                  // recenti. Si auto-nasconde se 0 segnalazioni.
+                  TrailConditionsAiCard(
+                    trailId: widget.trail.id,
+                    trailName: widget.trail.displayName,
+                  ),
 
                   // Condizioni sentiero community (avviso sicurezza in cima)
                   TrailConditionsSection(trailId: widget.trail.id),
