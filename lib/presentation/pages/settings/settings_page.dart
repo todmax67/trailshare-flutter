@@ -823,35 +823,172 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showChangelog(BuildContext context) {
+    // Changelog inline mantenibile: aggiungi qui le entry per ogni
+    // release. La versione corrente arriva in alto, in fondo le
+    // più vecchie. Aggiornato in coordinazione con pubspec.yaml
+    // version e ROADMAP.md.
+    const releases = <_ReleaseEntry>[
+      _ReleaseEntry(
+        version: '2.2.1',
+        title: 'POI OSM, Trail Conditions AI, AR Photo v2',
+        bullets: [
+          'AR Photo Mode v2: foto annotate con cime + rifugi + sorgenti',
+          '20.4k POI OSM bundlati (rifugi, bivacchi, fontane, panorami)',
+          'Trail Conditions AI: riassunto delle segnalazioni community (Pro)',
+          'Mappe inline e fullscreen mostrano marker POI con dettaglio',
+          'Pianificatore percorsi ridisegnato (sheet drag-to-collapse)',
+          'Fix overflow card admin / trail detail',
+          '148 test unit aggiunti, 0 lint warning',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.2.0',
+        title: 'B2B Groups L1',
+        bullets: [
+          'Logo personalizzato e badge ✓ verificato per gruppi Business',
+          'Tracce condivise nei gruppi (tab Percorsi)',
+          'Pagina "Personalizza gruppo" per admin',
+          'Admin panel: marca gruppi come Business',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.1.x',
+        title: 'Mountain Recognition + Mappe Pro',
+        bullets: [
+          'Mountain Finder AR live (37k+ cime italiane)',
+          'Photo Mode Pro (foto annotate)',
+          'Mappe Pro: Topo, Hybrid Satellite, Inverno (MapTiler)',
+          'Paywall foundation con StoreKit 2 e validazione receipt',
+          'Cross-device Pro sync via Firestore',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '1.9.0',
+        title: 'Engagement',
+        bullets: [
+          'Sfide settimanali personalizzate',
+          'Classifiche regionali',
+          'Commenti sulle tracce community',
+          'Report mensile "Il mio mese"',
+          'Compass-up navigation in registrazione',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '1.8.x',
+        title: 'Completezza funzionale',
+        bullets: [
+          'POI / Highlights lungo il percorso',
+          'Notifica vocale geolocata ai POI',
+          'Multi-day tours',
+          'Sharing link pubblico web',
+          'Esportazione TCX / FIT / KML',
+          'Dark mode app-wide',
+          'Onboarding interattivo',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '1.7.0',
+        title: 'Sicurezza',
+        bullets: [
+          'Lifeline: contatti emergenza + invio link live',
+          'Pulsante SOS integrato con 112',
+          'Auto-alert inattività',
+          'Re-routing automatico',
+          'Modalità battery saver',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '1.0.0',
+        title: 'Prima release',
+        bullets: [
+          'Registrazione tracce GPS',
+          'Tracking in background',
+          'LiveTrack - condividi posizione',
+          'Sistema social (follow, cheers)',
+          'Classifica settimanale',
+          'Wishlist percorsi',
+          'Dashboard statistiche',
+          'Import/Export GPX',
+        ],
+      ),
+    ];
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.changelogTitle),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(context.l10n.changelogFirstRelease, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Text('• ${context.l10n.changelogGpsTracking}'),
-              Text('• ${context.l10n.changelogBackground}'),
-              Text('• ${context.l10n.changelogLiveTrack}'),
-              Text('• ${context.l10n.changelogSocial}'),
-              Text('• ${context.l10n.changelogLeaderboard}'),
-              Text('• ${context.l10n.changelogWishlist}'),
-              Text('• ${context.l10n.changelogDashboard}'),
-              Text('• ${context.l10n.changelogGpx}'),
-            ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('Novità'),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int i = 0; i < releases.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 18),
+                  _buildReleaseEntry(ctx, releases[i], isCurrent: i == 0),
+                ],
+              ],
+            ),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('OK'),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildReleaseEntry(
+    BuildContext context,
+    _ReleaseEntry entry, {
+    required bool isCurrent,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: isCurrent
+                    ? AppColors.primary
+                    : AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'v${entry.version}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: isCurrent ? Colors.white : AppColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                entry.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        for (final b in entry.bullets)
+          Padding(
+            padding: const EdgeInsets.only(left: 4, top: 2),
+            child: Text('• $b', style: const TextStyle(fontSize: 13)),
+          ),
+      ],
     );
   }
 
@@ -868,4 +1005,17 @@ class _SettingsPageState extends State<SettingsPage> {
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
+}
+
+/// Entry del changelog interno mostrato dal settings dialog "Novità".
+/// Aggiungi nuove versioni in cima alla lista in [_showChangelog].
+class _ReleaseEntry {
+  final String version;
+  final String title;
+  final List<String> bullets;
+  const _ReleaseEntry({
+    required this.version,
+    required this.title,
+    required this.bullets,
+  });
 }

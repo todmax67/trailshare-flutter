@@ -958,6 +958,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      // isScrollControlled + SingleChildScrollView interno permettono
+      // al sheet di estendersi oltre il 50% dell'altezza in landscape
+      // (dove altrimenti sforerebbe).
+      isScrollControlled: true,
       builder: (ctx) => const _DistanceFilterSheet(),
     );
   }
@@ -1757,7 +1761,10 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Padding(
+      // SingleChildScrollView: permette al contenuto di scrollare in
+      // landscape (dove altrimenti il sheet sfora). Il sheet padre ha
+      // isScrollControlled: true così può estendersi oltre il 50% h.
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,

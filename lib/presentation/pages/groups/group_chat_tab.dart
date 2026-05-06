@@ -120,16 +120,22 @@ class _GroupChatTabState extends State<GroupChatTab> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[300]),
+                        Icon(Icons.chat_bubble_outline,
+                            size: 64,
+                            color: context.textMuted.withValues(alpha: 0.4)),
                         const SizedBox(height: 16),
                         Text(
                           context.l10n.noMessages,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: context.textPrimary,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           context.l10n.startConversation,
-                          style: TextStyle(color: Colors.grey[600]),
+                          style: TextStyle(color: context.textSecondary),
                         ),
                       ],
                     ),
@@ -233,7 +239,9 @@ class _GroupChatTabState extends State<GroupChatTab> {
                 maxWidth: MediaQuery.of(context).size.width * 0.75,
               ),
               decoration: BoxDecoration(
-                color: isImage ? Colors.transparent : (isMe ? AppColors.primary : Colors.grey[200]),
+                color: isImage
+                    ? Colors.transparent
+                    : (isMe ? AppColors.primary : context.themedSurfaceVariant),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -300,7 +308,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
                 return Container(
                   width: 250,
                   height: 200,
-                  color: Colors.grey[200],
+                  color: context.themedSurfaceVariant,
                   child: const Center(child: CircularProgressIndicator()),
                 );
               },
@@ -308,15 +316,15 @@ class _GroupChatTabState extends State<GroupChatTab> {
                 return Container(
                   width: 250,
                   height: 200,
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                  color: context.themedSurfaceVariant,
+                  child: Icon(Icons.broken_image, size: 48, color: context.textMuted),
                 );
               },
             ),
             Container(
               width: 250,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              color: isMe ? AppColors.primary : Colors.grey[200],
+              color: isMe ? AppColors.primary : context.themedSurfaceVariant,
               child: Text(
                 _formatTime(message.timestamp),
                 textAlign: TextAlign.right,
@@ -361,7 +369,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
         bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.themedSurface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -374,7 +382,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
         children: [
           // Bottone immagine
           IconButton(
-            icon: Icon(Icons.image, color: Colors.grey[600]),
+            icon: Icon(Icons.image, color: context.textSecondary),
             onPressed: _isUploading ? null : _pickAndSendImage,
           ),
           // Campo testo
@@ -382,14 +390,16 @@ class _GroupChatTabState extends State<GroupChatTab> {
             child: TextField(
               controller: _messageController,
               textCapitalization: TextCapitalization.sentences,
+              style: TextStyle(color: context.textPrimary),
               decoration: InputDecoration(
                 hintText: context.l10n.writeMessage,
+                hintStyle: TextStyle(color: context.textMuted),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Colors.grey[100],
+                fillColor: context.themedFieldFill,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
               onSubmitted: (_) => _sendMessage(),
