@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/group_brand.dart';
@@ -50,7 +51,13 @@ class _WebGroupDashboardPageState extends State<WebGroupDashboardPage> {
             // (no IndexedStack) per evitare 3 query Firestore parallele
             // al primo load del dashboard.
             Expanded(
-              child: _buildContent(),
+              child: Column(
+                children: [
+                  if (widget.group.isInTrial)
+                    _TrialBanner(group: widget.group),
+                  Expanded(child: _buildContent()),
+                ],
+              ),
             ),
           ],
         ),
@@ -310,6 +317,75 @@ class _GroupHeader extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Banner sticky in cima alla shell del gruppo durante il trial.
+/// Mostra giorni rimasti + CTA mailto al commerciale per
+/// l'attivazione del piano scelto in onboarding.
+class _TrialBanner extends StatelessWidget {
+  final Group group;
+  const _TrialBanner({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final days = group.trialDaysRemaining;
+    final ending = days <= 3;
+    final color = ending
+        ? const Color(0xFFE65100)
+        : const Color(0xFFB8860B);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      color: color.withValues(alpha: 0.10),
+      child: Row(
+        children: [
+          Icon(
+            ending ? Icons.warning_amber : Icons.schedule,
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              ending
+                  ? 'Trial in scadenza tra $days giorni — '
+                      'attiva un piano per non perdere le funzioni Business.'
+                  : 'Sei in Trial Verified gratuito — '
+                      '$days giorni rimanenti.',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final mailto = Uri(
+                scheme: 'mailto',
+                path: 'info@bluspose.it',
+                queryParameters: {
+                  'subject':
+                      'Attivazione piano TrailShare Business — ${group.name}',
+                  'body':
+                      'Ciao, vorrei attivare il piano per il mio gruppo '
+                      '"${group.name}" (id: ${group.id}).',
+                },
+              );
+              await launchUrl(mailto);
+            },
+            icon: const Icon(Icons.email_outlined, size: 16),
+            label: const Text('Contatta per attivare'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: color,
+              side: BorderSide(color: color.withValues(alpha: 0.5)),
+            ),
           ),
         ],
       ),

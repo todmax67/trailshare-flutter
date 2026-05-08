@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/group_brand.dart';
+import 'web_group_onboarding_page.dart';
 import '../../data/repositories/groups_repository.dart';
 import 'web_group_dashboard_page.dart';
 
@@ -46,6 +47,16 @@ class _WebGroupsPickerPageState extends State<WebGroupsPickerPage> {
 
   Future<void> _signOut() async {
     await FirebaseAuth.instance.signOut();
+  }
+
+  Future<void> _openOnboarding() async {
+    final newGroupId = await Navigator.of(context).push<String?>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const WebGroupOnboardingPage(),
+      ),
+    );
+    if (newGroupId != null) _load();
   }
 
   @override
@@ -100,24 +111,48 @@ class _WebGroupsPickerPageState extends State<WebGroupsPickerPage> {
                     padding: const EdgeInsets.all(24),
                     children: [
                       const SizedBox(height: 16),
-                      const Text(
-                        'Seleziona un gruppo',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'I gruppi Business di cui sei admin.',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 13,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Seleziona un gruppo',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'I gruppi Business di cui sei admin.',
+                                  style: TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          FilledButton.icon(
+                            onPressed: _openOnboarding,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Crea gruppo Business'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
                       if (_businessGroups.isEmpty)
-                        const _EmptyState()
+                        _EmptyState(onCreate: _openOnboarding)
                       else
                         ..._businessGroups
                             .map((g) => _GroupTile(group: g)),
@@ -131,7 +166,8 @@ class _WebGroupsPickerPageState extends State<WebGroupsPickerPage> {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  final VoidCallback onCreate;
+  const _EmptyState({required this.onCreate});
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +185,7 @@ class _EmptyState extends StatelessWidget {
               size: 36, color: AppColors.textMuted),
           const SizedBox(height: 12),
           const Text(
-            'Nessun gruppo Business',
+            'Nessun gruppo Business ancora',
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 16,
@@ -157,18 +193,22 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Non sei admin di nessun gruppo marcato Business. La '
-            'dashboard web è riservata ai gruppi Business attivi. '
-            'Per attivare un gruppo contatta TrailShare per il '
-            'piano Verified o Pro.',
+            'Crea il primo gruppo Business per la tua organizzazione: '
+            'avrai 14 giorni di trial gratuito con logo brandizzato, '
+            'codice invito e statistiche dedicate.',
             style: TextStyle(color: AppColors.textSecondary, height: 1.45),
           ),
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () =>
-                Navigator.of(context).pushNamed('/business'),
-            icon: const Icon(Icons.open_in_new, size: 16),
-            label: const Text('Vedi i piani Business'),
+          FilledButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Crea gruppo Business'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 14,
+              ),
+            ),
           ),
         ],
       ),
