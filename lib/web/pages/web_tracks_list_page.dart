@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -8,12 +7,17 @@ import '../../data/models/track.dart';
 import '../../data/repositories/tracks_repository.dart';
 import 'web_track_detail_page.dart';
 
-/// Sezione "Le mie tracce" della dashboard web. Lista paginata
-/// con tap su tile per aprire il detail web.
+/// Sezione "Le mie tracce" della dashboard web — versione potenziata
+/// con search, filtri per macro-categoria e ordinamento.
 ///
 /// Volutamente leggera (no edit, no upload, no foreground service):
 /// la registrazione GPS resta solo su mobile, il web è
 /// "consultativo" — vedi tracce, scarica GPX, condividi link.
+///
+/// Strategia carico: full-load via [TracksRepository.getMyTracks].
+/// Per gli utenti tipici (qualche centinaia di tracce max) è
+/// sufficiente; oltre quella soglia tornare al paginato + query
+/// Firestore lato server.
 class WebTracksListPage extends StatefulWidget {
   const WebTracksListPage({super.key});
 
@@ -21,64 +25,156 @@ class WebTracksListPage extends StatefulWidget {
   State<WebTracksListPage> createState() => _WebTracksListPageState();
 }
 
+/// Macro-categoria attività per i filter chips. Raggruppiamo le 14
+/// [ActivityType] in 5 categorie + "All" per non saturare la UI.
+enum _ActivityGroup { all, hike, run, bike, snow }
+
+extension _ActivityGroupX on _ActivityGroup {
+  String get label {
+    switch (this) {
+      case _ActivityGroup.all:
+        return 'Tutte';
+      case _ActivityGroup.hike:
+        return 'Trek/Cammino';
+      case _ActivityGroup.run:
+        return 'Corsa';
+      case _ActivityGroup.bike:
+        return 'Bici';
+      case _ActivityGroup.snow:
+        return 'Neve';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case _ActivityGroup.all:
+        return Icons.all_inclusive;
+      case _ActivityGroup.hike:
+        return Icons.terrain;
+      case _ActivityGroup.run:
+        return Icons.directions_run;
+      case _ActivityGroup.bike:
+        return Icons.directions_bike;
+      case _ActivityGroup.snow:
+        return Icons.ac_unit;
+    }
+  }
+
+  bool matches(ActivityType type) {
+    switch (this) {
+      case _ActivityGroup.all:
+        return true;
+      case _ActivityGroup.hike:
+        return type == ActivityType.trekking ||
+            type == ActivityType.walking ||
+            type == ActivityType.snowshoeing;
+      case _ActivityGroup.run:
+        return type == ActivityType.trailRunning ||
+            type == ActivityType.running;
+      case _ActivityGroup.bike:
+        return type == ActivityType.cycling ||
+            type == ActivityType.mountainBiking ||
+            type == ActivityType.gravelBiking ||
+            type == ActivityType.eBike ||
+            type == ActivityType.eMountainBike;
+      case _ActivityGroup.snow:
+        return type == ActivityType.alpineSkiing ||
+            type == ActivityType.skiTouring ||
+            type == ActivityType.nordicSkiing ||
+            type == ActivityType.snowboarding;
+    }
+  }
+}
+
+enum _SortMode {
+  dateDesc,
+  dateAsc,
+  distanceDesc,
+  elevationDesc,
+  durationDesc,
+}
+
+extension _SortModeX on _SortMode {
+  String get label {
+    switch (this) {
+      case _SortMode.dateDesc:
+        return 'Più recenti';
+      case _SortMode.dateAsc:
+        return 'Più vecchie';
+      case _SortMode.distanceDesc:
+        return 'Distanza ↓';
+      case _SortMode.elevationDesc:
+        return 'Dislivello ↓';
+      case _SortMode.durationDesc:
+        return 'Durata ↓';
+    }
+  }
+}
+
 class _WebTracksListPageState extends State<WebTracksListPage> {
   final _repo = TracksRepository();
-  final _scrollController = ScrollController();
+  final _searchController = TextEditingController();
 
-  List<Track> _tracks = [];
+  List<Track> _all = [];
   bool _loading = true;
-  bool _loadingMore = false;
-  bool _hasMore = true;
-  DocumentSnapshot? _lastDoc;
+
+  String _query = '';
+  _ActivityGroup _group = _ActivityGroup.all;
+  _SortMode _sort = _SortMode.dateDesc;
 
   @override
   void initState() {
     super.initState();
-    _loadFirst();
-    _scrollController.addListener(_onScroll);
+    _load();
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 400 &&
-        !_loadingMore &&
-        _hasMore) {
-      _loadMore();
-    }
-  }
-
-  Future<void> _loadFirst() async {
+  Future<void> _load() async {
     setState(() => _loading = true);
-    final result = await _repo.getMyTracksPaginated(limit: 20);
+    final tracks = await _repo.getMyTracks();
     if (!mounted) return;
     setState(() {
-      _tracks = result.tracks;
-      _lastDoc = result.lastDocument;
-      _hasMore = result.hasMore;
+      _all = tracks;
       _loading = false;
     });
   }
 
-  Future<void> _loadMore() async {
-    if (_lastDoc == null) return;
-    setState(() => _loadingMore = true);
-    final result = await _repo.getMyTracksPaginated(
-      limit: 20,
-      lastDocument: _lastDoc,
-    );
-    if (!mounted) return;
-    setState(() {
-      _tracks = [..._tracks, ...result.tracks];
-      _lastDoc = result.lastDocument;
-      _hasMore = result.hasMore;
-      _loadingMore = false;
-    });
+  List<Track> get _filtered {
+    final q = _query.trim().toLowerCase();
+    Iterable<Track> out = _all;
+    if (_group != _ActivityGroup.all) {
+      out = out.where((t) => _group.matches(t.activityType));
+    }
+    if (q.isNotEmpty) {
+      out = out.where((t) => t.name.toLowerCase().contains(q));
+    }
+    final list = out.toList();
+    switch (_sort) {
+      case _SortMode.dateDesc:
+        list.sort((a, b) => (b.recordedAt ?? b.createdAt)
+            .compareTo(a.recordedAt ?? a.createdAt));
+        break;
+      case _SortMode.dateAsc:
+        list.sort((a, b) => (a.recordedAt ?? a.createdAt)
+            .compareTo(b.recordedAt ?? b.createdAt));
+        break;
+      case _SortMode.distanceDesc:
+        list.sort((a, b) => b.stats.distance.compareTo(a.stats.distance));
+        break;
+      case _SortMode.elevationDesc:
+        list.sort(
+            (a, b) => b.stats.elevationGain.compareTo(a.stats.elevationGain));
+        break;
+      case _SortMode.durationDesc:
+        list.sort((a, b) => b.stats.duration.compareTo(a.stats.duration));
+        break;
+    }
+    return list;
   }
 
   @override
@@ -88,41 +184,33 @@ class _WebTracksListPageState extends State<WebTracksListPage> {
       body: WebContentWrapper(
         maxWidth: 880,
         child: RefreshIndicator(
-          onRefresh: _loadFirst,
+          onRefresh: _load,
           child: CustomScrollView(
-            controller: _scrollController,
             slivers: [
               SliverToBoxAdapter(child: _buildHeader()),
+              SliverToBoxAdapter(child: _buildToolbar()),
               if (_loading)
                 const SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(child: CircularProgressIndicator()),
                 )
-              else if (_tracks.isEmpty)
+              else if (_all.isEmpty)
                 const SliverFillRemaining(
                   hasScrollBody: false,
                   child: _EmptyState(),
                 )
+              else if (_filtered.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _NoResultsState(),
+                )
               else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (ctx, i) {
-                        if (i >= _tracks.length) {
-                          return _loadingMore
-                              ? const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                )
-                              : const SizedBox(height: 16);
-                        }
-                        return _TrackTile(track: _tracks[i]);
-                      },
-                      childCount: _tracks.length + (_hasMore ? 1 : 0),
-                    ),
+                  sliver: SliverList.builder(
+                    itemCount: _filtered.length,
+                    itemBuilder: (ctx, i) =>
+                        _TrackTile(track: _filtered[i]),
                   ),
                 ),
             ],
@@ -156,8 +244,170 @@ class _WebTracksListPageState extends State<WebTracksListPage> {
               color: AppColors.textMuted,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
+          if (!_loading)
+            Text(
+              _filtered.length == _all.length
+                  ? '${_all.length} ${_all.length == 1 ? "traccia" : "tracce"}'
+                  : '${_filtered.length} di ${_all.length} tracce',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildToolbar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Riga 1: search + sort
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 40,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (v) => setState(() => _query = v),
+                    decoration: InputDecoration(
+                      hintText: 'Cerca per nome…',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                          color: AppColors.border,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                          color: AppColors.border,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                          color: AppColors.primary,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              _SortDropdown(
+                value: _sort,
+                onChanged: (v) => setState(() => _sort = v),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Riga 2: filter chips macro-categoria
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _ActivityGroup.values.map((g) {
+                final selected = _group == g;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          g.icon,
+                          size: 16,
+                          color: selected
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(g.label),
+                      ],
+                    ),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _group = g),
+                    selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                    backgroundColor: AppColors.surface,
+                    labelStyle: TextStyle(
+                      fontSize: 13,
+                      fontWeight:
+                          selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected
+                          ? AppColors.primary
+                          : AppColors.textPrimary,
+                    ),
+                    side: BorderSide(
+                      color: selected
+                          ? AppColors.primary.withValues(alpha: 0.4)
+                          : AppColors.border,
+                    ),
+                    showCheckmark: false,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SortDropdown extends StatelessWidget {
+  final _SortMode value;
+  final ValueChanged<_SortMode> onChanged;
+  const _SortDropdown({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<_SortMode>(
+          value: value,
+          icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+          isDense: true,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+          items: _SortMode.values
+              .map((m) => DropdownMenuItem(value: m, child: Text(m.label)))
+              .toList(),
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
       ),
     );
   }
@@ -193,6 +443,42 @@ class _EmptyState extends StatelessWidget {
                 fontSize: 13,
                 color: AppColors.textSecondary,
                 height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NoResultsState extends StatelessWidget {
+  const _NoResultsState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off,
+                size: 48, color: AppColors.textMuted.withValues(alpha: 0.6)),
+            const SizedBox(height: 12),
+            const Text(
+              'Nessun risultato',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Prova a modificare i filtri o la ricerca.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -256,8 +542,12 @@ class _TrackTile extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.route,
-                    color: AppColors.primary, size: 22),
+                child: Center(
+                  child: Text(
+                    track.activityType.icon,
+                    style: const TextStyle(fontSize: 22),
+                  ),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
