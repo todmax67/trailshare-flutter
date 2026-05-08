@@ -7,6 +7,7 @@ import '../../data/repositories/groups_repository.dart';
 import '../../presentation/pages/groups/group_customize_page.dart';
 import '../../presentation/pages/groups/group_members_page.dart';
 import '../../presentation/pages/groups/group_stats_page.dart';
+import 'web_group_overview_page.dart';
 
 /// Shell desktop della dashboard B2B per un singolo gruppo.
 ///
@@ -67,15 +68,23 @@ class _WebGroupDashboardPageState extends State<WebGroupDashboardPage> {
     switch (_selectedIndex) {
       case 0:
         return KeyedSubtree(
+          key: const ValueKey('overview'),
+          child: WebGroupOverviewPage(
+            group: group,
+            onNavigateTab: (i) => setState(() => _selectedIndex = i),
+          ),
+        );
+      case 1:
+        return KeyedSubtree(
           key: const ValueKey('customize'),
           child: GroupCustomizePage(group: group),
         );
-      case 1:
+      case 2:
         return KeyedSubtree(
           key: const ValueKey('stats'),
           child: GroupStatsPage(group: group),
         );
-      case 2:
+      case 3:
         return KeyedSubtree(
           key: const ValueKey('members'),
           child: GroupMembersPage(
@@ -116,24 +125,31 @@ class _Sidebar extends StatelessWidget {
           const SizedBox(height: 8),
           _navItem(
             context,
+            icon: Icons.dashboard_outlined,
+            iconActive: Icons.dashboard,
+            label: 'Panoramica',
+            index: 0,
+          ),
+          _navItem(
+            context,
             icon: Icons.brush_outlined,
             iconActive: Icons.brush,
             label: 'Personalizza',
-            index: 0,
+            index: 1,
           ),
           _navItem(
             context,
             icon: Icons.bar_chart_outlined,
             iconActive: Icons.bar_chart,
             label: 'Statistiche',
-            index: 1,
+            index: 2,
           ),
           _navItem(
             context,
             icon: Icons.people_outline,
             iconActive: Icons.people,
             label: 'Membri',
-            index: 2,
+            index: 3,
           ),
           const Spacer(),
           _backToPicker(context),
