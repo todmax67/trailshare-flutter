@@ -7,6 +7,7 @@ import '../../data/repositories/groups_repository.dart';
 import 'web_dashboard_page.dart';
 import 'web_groups_picker_page.dart';
 import 'web_planner_page.dart';
+import 'web_profile_page.dart';
 import 'web_tracks_list_page.dart';
 
 /// Home della dashboard web autenticata. Sostituisce la vecchia
@@ -99,8 +100,7 @@ class _WebHomePageState extends State<WebHomePage> {
   }
 
   Widget _buildContent() {
-    // Indici nuovi (post Dashboard launch):
-    // 0 Dashboard | 1 Le mie tracce | 2 Pianificatore | 3 Gruppi Business (se admin)
+    // 0 Dashboard | 1 Tracce | 2 Pianificatore | 3 Profilo | 4 Gruppi Business
     switch (_selectedIndex) {
       case 0:
         return const WebDashboardPage();
@@ -109,6 +109,8 @@ class _WebHomePageState extends State<WebHomePage> {
       case 2:
         return const WebPlannerPage();
       case 3:
+        return const WebProfilePage();
+      case 4:
         return const WebGroupsPickerPage();
       default:
         return const SizedBox.shrink();
@@ -194,12 +196,18 @@ class _Sidebar extends StatelessWidget {
             label: 'Pianificatore',
             index: 2,
           ),
+          _navItem(
+            icon: Icons.person_outline,
+            iconActive: Icons.person,
+            label: 'Profilo',
+            index: 3,
+          ),
           if (hasBusiness)
             _navItem(
               icon: Icons.business_outlined,
               iconActive: Icons.business,
               label: 'Gruppi Business',
-              index: 3,
+              index: 4,
             ),
           const Spacer(),
           if (userEmail != null)
