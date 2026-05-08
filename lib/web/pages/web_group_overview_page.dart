@@ -1,5 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -33,7 +33,6 @@ class WebGroupOverviewPage extends StatefulWidget {
 
 class _WebGroupOverviewPageState extends State<WebGroupOverviewPage> {
   final _repo = GroupsRepository();
-  final _firestore = FirebaseFirestore.instance;
 
   bool _loading = true;
 
@@ -62,38 +61,54 @@ class _WebGroupOverviewPageState extends State<WebGroupOverviewPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     final groupId = widget.group.id;
-    final now = DateTime.now();
-    final cutoff30d = now.subtract(const Duration(days: 30));
+    final cutoff30d = DateTime.now().subtract(const Duration(days: 30));
 
-    final results = await Future.wait([
-      _repo.getMembers(groupId),
-      _repo.getEvents(groupId, upcomingOnly: true),
-      _repo.getMonthlyMemberJoins(groupId, months: 6),
-      _repo.getMonthlyEventCreations(groupId, months: 6),
-      _firestore
-          .collectionGroup('tracks')
-          .where('groupIds', arrayContains: groupId)
-          .where('createdAt',
-              isGreaterThan: Timestamp.fromDate(cutoff30d))
-          .count()
-          .get(),
-      _repo.ensureInviteCode(groupId),
+    // Wrappiamo ogni Future con .catchError() così se una singola query
+    // fallisce (es. indice mancante per count compound) il dashboard
+    // mostra comunque le altre KPI invece di restare in loading
+    // infinito. La log dell'errore aiuta a diagnosticare in console.
+    Future<T> safe<T>(Future<T> f, T fallback, String tag) {
+      return f.catchError((e, st) {
+        if (kDebugMode) {
+          debugPrint('[Overview] $tag failed: $e');
+        }
+        return fallback;
+      });
+    }
+
+    final results = await Future.wait<Object?>([
+      safe(_repo.getMembers(groupId), <GroupMember>[], 'getMembers'),
+      safe(_repo.getEvents(groupId, upcomingOnly: true),
+          <GroupEvent>[], 'getEvents'),
+      safe(_repo.getMonthlyMemberJoins(groupId, months: 6),
+          <MonthlyBucket>[], 'memberJoins'),
+      safe(_repo.getMonthlyEventCreations(groupId, months: 6),
+          <MonthlyBucket>[], 'eventCreations'),
+      // Tracce 30gg: invece di una count() aggregation con compound
+      // filter (groupIds arrayContains + createdAt >) — che richiede
+      // un indice composito su collectionGroup non disponibile —
+      // riusiamo getMonthlyTrackShares(1) che fa solo
+      // `where groupIds arrayContains` (indice single-field già ok)
+      // e filtra per data client-side.
+      safe(_repo.getMonthlyTrackShares(groupId, months: 1),
+          <MonthlyBucket>[], 'trackShares30d'),
+      safe(_repo.ensureInviteCode(groupId), null, 'inviteCode'),
     ]);
 
     if (!mounted) return;
 
-    final members = results[0] as List<GroupMember>;
-    final events = results[1] as List<GroupEvent>;
-    final memberTrend = results[2] as List<MonthlyBucket>;
-    final eventTrend = results[3] as List<MonthlyBucket>;
-    final tracksAgg = results[4] as AggregateQuerySnapshot;
+    final members = (results[0] as List).cast<GroupMember>();
+    final events = (results[1] as List).cast<GroupEvent>();
+    final memberTrend = (results[2] as List).cast<MonthlyBucket>();
+    final eventTrend = (results[3] as List).cast<MonthlyBucket>();
+    final trackShares30d = (results[4] as List).cast<MonthlyBucket>();
     final inviteCode = results[5] as String?;
 
-    // Nuovi membri 30gg client-side dal getMembers
+    final tracks30d =
+        trackShares30d.fold<int>(0, (s, b) => s + b.count);
     final newMembers30d =
         members.where((m) => m.joinedAt.isAfter(cutoff30d)).length;
 
-    // Top 3 prossimi eventi (getEvents li ritorna già upcoming)
     final next = [...events];
     next.sort((a, b) => a.date.compareTo(b.date));
 
@@ -101,7 +116,7 @@ class _WebGroupOverviewPageState extends State<WebGroupOverviewPage> {
       _memberCount = members.length;
       _newMembers30d = newMembers30d;
       _upcomingEvents = events.length;
-      _tracks30d = tracksAgg.count ?? 0;
+      _tracks30d = tracks30d;
       _memberTrend = memberTrend;
       _eventTrend = eventTrend;
       _nextEvents = next.take(3).toList();
