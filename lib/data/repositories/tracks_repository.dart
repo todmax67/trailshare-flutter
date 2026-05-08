@@ -325,6 +325,34 @@ class TracksRepository {
     }
   }
 
+  /// Versione **lightweight** di [getGroupTracks]: stesse tracce ma
+  /// senza `points` (skip TrackPoint allocation) e con cap alzato a
+  /// 1000 invece di 100. Pensata per stats/dashboard web dove servono
+  /// solo metadata aggregati (distance, elevation, date, userId,
+  /// activityType) — i punti GPS non servono.
+  Future<List<Track>> getGroupTracksLightweight(
+    String groupId, {
+    int limit = 1000,
+  }) async {
+    try {
+      final snap = await _firestore
+          .collectionGroup('tracks')
+          .where('groupIds', arrayContains: groupId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      return snap.docs.map((d) {
+        final data = Map<String, dynamic>.from(d.data());
+        data.remove('points');
+        return _trackFromFirestore(d.id, data);
+      }).toList();
+    } catch (e) {
+      debugPrint(
+          '[TracksRepository] Errore getGroupTracksLightweight: $e');
+      return [];
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // ELIMINAZIONE
   // ═══════════════════════════════════════════════════════════════════════════
