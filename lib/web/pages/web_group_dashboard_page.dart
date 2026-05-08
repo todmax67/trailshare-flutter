@@ -5,8 +5,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/group_brand.dart';
 import '../../data/repositories/groups_repository.dart';
 import '../../presentation/pages/groups/group_customize_page.dart';
-import '../../presentation/pages/groups/group_members_page.dart';
 import '../../presentation/pages/groups/group_stats_page.dart';
+import 'web_group_members_page.dart';
 import 'web_group_overview_page.dart';
 
 /// Shell desktop della dashboard B2B per un singolo gruppo.
@@ -87,11 +87,7 @@ class _WebGroupDashboardPageState extends State<WebGroupDashboardPage> {
       case 3:
         return KeyedSubtree(
           key: const ValueKey('members'),
-          child: GroupMembersPage(
-            groupId: group.id,
-            groupName: group.name,
-            isAdmin: true,
-          ),
+          child: WebGroupMembersPage(group: group),
         );
       default:
         return const SizedBox.shrink();
