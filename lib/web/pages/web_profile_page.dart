@@ -50,7 +50,7 @@ class _WebProfilePageState extends State<WebProfilePage> {
     setState(() => _loading = true);
 
     final results = await Future.wait([
-      _tracksRepo.getMyTracks(),
+      _tracksRepo.getMyTracksLightweight(),
       _firestore.collection('user_profiles').doc(user.uid).get(),
       _gamification.getUnlockedBadges(user.uid),
     ]);

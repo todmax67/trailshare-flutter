@@ -1772,35 +1772,70 @@ class AppLocalizationsIt extends AppLocalizations {
   String get closeAction => 'Chiudi';
 
   @override
-  String get privacyLastUpdated => 'Ultimo aggiornamento: Febbraio 2026';
+  String get privacyLastUpdated => 'Ultimo aggiornamento: Maggio 2026';
 
   @override
   String get privacyIntroTitle => 'Introduzione';
 
   @override
   String get privacyIntroContent =>
-      'TrailShare (\"noi\", \"nostro\" o \"app\") rispetta la tua privacy. Questa informativa descrive quali dati raccogliamo, come li utilizziamo e i tuoi diritti in merito.';
+      'TrailShare (\"noi\", \"nostro\" o \"app\") rispetta la tua privacy. Questa informativa descrive quali dati raccogliamo, come li utilizziamo e i tuoi diritti in merito. La versione completa è disponibile su trailshare.app/privacy.';
 
   @override
   String get privacyDataCollectedTitle => 'Dati che raccogliamo';
 
   @override
   String get privacyDataCollectedContent =>
-      '• **Dati di registrazione**: email, nome utente, foto profilo (opzionale)\n• **Dati di posizione**: coordinate GPS durante la registrazione delle tracce\n• **Dati delle attività**: tracce registrate, statistiche, dislivello, distanza\n• **Dati social**: follower, following, \"cheers\" (like)\n• **Dati del dispositivo**: modello, sistema operativo, per migliorare l\'app';
+      '• Dati di registrazione: email, nome utente, foto profilo (opzionale)\n• Dati di posizione: coordinate GPS durante la registrazione delle tracce\n• Dati delle attività: distanza, velocità, dislivello, durata, frequenza cardiaca dalla fascia BLE se collegata\n• Contenuti: foto, commenti e descrizioni che aggiungi alle tracce\n• Dati del dispositivo: modello, sistema operativo, log di errore\n• Contatti di emergenza: se configuri Lifeline, salviamo nome, telefono e/o email dei contatti scelti (max 3)\n• Posizione live: se attivi LiveTrack o Lifeline, la posizione viene pubblicata in tempo reale (~30 secondi)';
 
   @override
   String get privacyDataUsageTitle => 'Come utilizziamo i tuoi dati';
 
   @override
   String get privacyDataUsageContent =>
-      '• Fornire e migliorare i servizi dell\'app\n• Salvare e sincronizzare le tue tracce\n• Abilitare funzionalità social (follow, cheers, classifica)\n• Funzionalità LiveTrack per condividere la posizione in tempo reale\n• Analisi aggregate per migliorare l\'esperienza utente';
+      '• Fornire il servizio di tracking GPS e analisi delle attività\n• Mostrare le tracce pubblicate nella sezione Esplora\n• Calcolare classifiche, badge e statistiche\n• Inviare notifiche relative all\'app (nuovi follower, cheers, ecc.)\n• Migliorare l\'app e correggere bug\n\nNon vendiamo i tuoi dati a terze parti. Non utilizziamo i tuoi dati per pubblicità.';
 
   @override
   String get privacyDataSharingTitle => 'Condivisione dei dati';
 
   @override
   String get privacyDataSharingContent =>
-      '• **Non vendiamo** i tuoi dati personali a terzi\n• Le tracce pubblicate sono visibili ad altri utenti\n• LiveTrack condivide la posizione solo con chi ha il link\n• Utilizziamo Firebase (Google) per l\'archiviazione sicura dei dati';
+      'Le tue tracce sono private di default. Solo le tracce che pubblichi esplicitamente saranno visibili nella sezione Esplora e agli altri utenti. Il tuo profilo mostra solo le informazioni che scegli di rendere pubbliche.';
+
+  @override
+  String get privacyThirdPartiesTitle => 'Servizi di terze parti';
+
+  @override
+  String get privacyThirdPartiesContent =>
+      'Utilizziamo i seguenti servizi:\n\n• Firebase (Google): autenticazione, database, storage, Cloud Functions. Server in area UE\n• OpenStreetMap: tile mappe, dataset cime e POI bundlati nell\'app come asset statici. Licenza ODbL — © OpenStreetMap contributors\n• MapTiler: stili mappa premium per abbonati Pro\n• Open-Meteo: previsioni meteo (richiesta con coordinate del trail, nessun dato personale)\n• OpenRouteService: calcolo percorsi nel pianificatore (waypoints, no PII)\n• Apple App Store / Google Play: pagamenti per gli abbonamenti Pro\n• Anthropic (Claude AI): generazione del riassunto delle condizioni sentiero (Pro)\n\nQuesti servizi hanno proprie privacy policy che ti invitiamo a consultare.';
+
+  @override
+  String get privacyAiSummaryTitle => 'Riassunto AI delle condizioni sentiero';
+
+  @override
+  String get privacyAiSummaryContent =>
+      'Per gli abbonati Pro, l\'app può generare un riassunto in linguaggio naturale delle segnalazioni community su un sentiero, prodotto dal modello Claude di Anthropic.\n\nCosa inviamo all\'API:\n• Nome del sentiero (pubblico, da OpenStreetMap)\n• Testo delle segnalazioni community pubbliche degli ultimi 60 giorni (max 20)\n• Età relativa di ogni segnalazione (es. \"3h fa\")\n\nCosa NON inviamo:\n• Username, ID utente o identificativi personali\n• Coordinate GPS, tracce o dati di localizzazione\n• Foto, dati salute, contatti di emergenza\n\nI riassunti sono memorizzati in cache 24h. Anthropic non utilizza i dati inviati per addestrare i propri modelli. La feature è disattivata di default.';
+
+  @override
+  String get privacyProSubsTitle => 'Abbonamenti TrailShare Pro';
+
+  @override
+  String get privacyProSubsContent =>
+      'TrailShare Pro è un abbonamento opzionale che sblocca funzioni avanzate. I pagamenti sono elaborati esclusivamente da Apple App Store o Google Play Store.\n\n• TrailShare non riceve né conserva dati di pagamento (carta, conto): le transazioni avvengono interamente sui sistemi degli store\n• Per verificare lo stato del tuo abbonamento, le receipt vengono validate sui nostri server (Firebase Cloud Functions) tramite le API ufficiali. Salviamo solo lo stato (attivo/scaduto), il prodotto attivo e la data di scadenza\n• Puoi gestire o annullare l\'abbonamento dalle impostazioni del tuo account App Store o Google Play\n• Alla cancellazione del tuo account, eliminiamo lo stato dell\'abbonamento dai nostri server';
+
+  @override
+  String get privacyArTitle => 'Mountain Recognition AR (fotocamera)';
+
+  @override
+  String get privacyArContent =>
+      'La funzione \"Riconosci le cime\" usa la fotocamera e i sensori (bussola, accelerometro, GPS) per sovrapporre i nomi delle cime al viewfinder live.\n\n• L\'elaborazione avviene interamente sul tuo dispositivo: nessun frame video, foto o dato di sensore viene inviato ai nostri server o a terze parti\n• Il dataset delle cime italiane (37.000+) è bundlato nell\'app come file statico\n• AR Photo Mode (Pro) salva la foto annotata solo localmente finché non scegli di condividerla\n• L\'accesso alla fotocamera può essere revocato dalle impostazioni del sistema operativo';
+
+  @override
+  String get privacyLifelineTitle => 'Lifeline e Live Tracking (sicurezza)';
+
+  @override
+  String get privacyLifelineContent =>
+      'LiveTrack (condivisione pubblica manuale) e Lifeline (sicurezza con contatti d\'emergenza) sono entrambe disattivate per impostazione predefinita.\n\nDati trattati:\n• Posizione GPS in tempo reale (~30s) mentre la sessione è attiva\n• Nome utente e livello batteria, per informare chi segue il link\n• Contatti di emergenza salvati (solo per Lifeline): nome + telefono e/o email\n\nCondivisione:\n• LiveTrack: chi ha il link pubblico vede la posizione live\n• Lifeline: solo i contatti emergenza configurati ricevono link con token univoco\n• I messaggi (SMS/WhatsApp/Email) sono precompilati ma richiedono la tua conferma manuale\n\nLa sessione live è archiviata 24h dopo la chiusura, poi eliminata automaticamente.\n\nLifeline non è un servizio di emergenza: non contatta autonomamente Soccorso Alpino o 112. Vedi i Termini per i limiti completi.';
 
   @override
   String get privacyHealthDataTitle =>
@@ -1808,7 +1843,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get privacyHealthDataContent =>
-      'Se attivi la sincronizzazione con Health Connect (Android) o Apple Salute (iOS), TrailShare accede ai seguenti dati dal tuo dispositivo wearable:\n\n• **Frequenza cardiaca**: per mostrare il battito durante le attività e calcolare le zone cardio\n• **Passi**: per contare i passi durante le attività e mostrare il totale giornaliero nella Dashboard Salute\n• **Calorie bruciate**: per mostrare il dispendio energetico durante le attività e il riepilogo settimanale\n• **Allenamenti**: per sincronizzare le attività registrate con TrailShare su Health Connect/Apple Salute\n\nQuesti dati vengono:\n• Utilizzati esclusivamente per le funzionalità dell\'app descritte sopra\n• Salvati nel tuo account personale su Firebase (Google Cloud)\n• Mostrati solo a te, l\'utente autenticato\n• Mai venduti, condivisi con terze parti o utilizzati per pubblicità\n• Eliminati dal nostro server quando elimini il tuo account\n\nLa sincronizzazione è disattivata per impostazione predefinita. Puoi attivarla o disattivarla in qualsiasi momento dalle Impostazioni.';
+      'Se attivi la sincronizzazione con Health Connect (Android) o Apple Salute (iOS), TrailShare accede ai seguenti dati dal tuo dispositivo wearable:\n\n• Frequenza cardiaca: per mostrare il battito durante le attività e calcolare le zone cardio\n• Passi: per contare i passi durante le attività e mostrare il totale giornaliero\n• Calorie bruciate: per mostrare il dispendio energetico\n• Allenamenti: per sincronizzare le attività registrate\n\nQuesti dati vengono:\n• Utilizzati esclusivamente per le funzionalità dell\'app\n• Salvati nel tuo account personale su Firebase\n• Mostrati solo a te, l\'utente autenticato\n• Mai venduti, condivisi con terze parti o usati per pubblicità\n• Eliminati dal nostro server quando elimini il tuo account\n\nLa sincronizzazione è disattivata per impostazione predefinita.';
 
   @override
   String get privacyRetentionTitle => 'Conservazione dei dati';
@@ -1822,7 +1857,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get privacyRightsContent =>
-      '• **Accesso**: puoi visualizzare tutti i tuoi dati nell\'app\n• **Modifica**: puoi modificare il tuo profilo in qualsiasi momento\n• **Eliminazione**: puoi eliminare il tuo account e tutti i dati associati\n• **Esportazione**: puoi esportare le tue tracce in formato GPX';
+      '• Accesso: puoi visualizzare tutti i tuoi dati nell\'app\n• Modifica: puoi modificare il tuo profilo in qualsiasi momento\n• Eliminazione: puoi eliminare il tuo account e tutti i dati associati\n• Esportazione: puoi esportare le tue tracce in formato GPX\n• Revoca del consenso al trattamento dei dati';
 
   @override
   String get privacySecurityTitle => 'Sicurezza';

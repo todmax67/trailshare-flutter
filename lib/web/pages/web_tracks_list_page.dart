@@ -136,7 +136,7 @@ class _WebTracksListPageState extends State<WebTracksListPage> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final tracks = await _repo.getMyTracks();
+    final tracks = await _repo.getMyTracksLightweight();
     if (!mounted) return;
     setState(() {
       _all = tracks;

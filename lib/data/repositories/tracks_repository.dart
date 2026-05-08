@@ -125,6 +125,37 @@ class TracksRepository {
     return getUserTracks(userId);
   }
 
+  /// Versione **lightweight**: tutte le tracce dell'utente corrente
+  /// senza i punti GPS, pensata per dashboard/lista/profilo web dove
+  /// servono solo stats, nome, date e activity type.
+  ///
+  /// Salta la deserializzazione del campo `points` per evitare di
+  /// allocare migliaia di [TrackPoint] × N tracce (OOM su mobile,
+  /// memoria sprecata su web). Il documento Firestore arriva comunque
+  /// per intero via wire, ma viene ridotto prima del parse.
+  ///
+  /// Per il dettaglio mappa (che richiede i punti) usare
+  /// [getTrackById] — fa una read singola completa.
+  Future<List<Track>> getMyTracksLightweight({int limit = 1000}) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return [];
+    try {
+      final snapshot = await _tracksCollection(userId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      return snapshot.docs.map((doc) {
+        // Copia mutabile + rimozione points prima del parse
+        final data = Map<String, dynamic>.from(doc.data());
+        data.remove('points');
+        return _trackFromFirestore(doc.id, data);
+      }).toList();
+    } catch (e) {
+      debugPrint('[TracksRepository] Errore getMyTracksLightweight: $e');
+      return [];
+    }
+  }
+
   /// ⭐ NUOVO: Ottiene le mie tracce con paginazione
   Future<PaginatedTracksResult> getMyTracksPaginated({
     int limit = 10,

@@ -38,7 +38,7 @@ class _WebDashboardPageState extends State<WebDashboardPage> {
 
   Future<void> _load() async {
     try {
-      final tracks = await _repo.getMyTracks();
+      final tracks = await _repo.getMyTracksLightweight();
       if (!mounted) return;
       setState(() => _tracks = tracks);
     } catch (e) {
