@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../data/repositories/groups_repository.dart';
+import '../business_web_app.dart';
 import 'web_dashboard_page.dart';
 import 'web_groups_picker_page.dart';
 import 'web_planner_page.dart';
@@ -21,7 +23,9 @@ import 'web_tracks_list_page.dart';
 /// In futuro: Pianificatore (per Pro consumer + Business),
 /// Profilo/Impostazioni, ecc.
 class WebHomePage extends StatefulWidget {
-  const WebHomePage({super.key});
+  /// Tab inizialmente selezionato (driven dalla URL via [WebRoutes]).
+  final int initialTab;
+  const WebHomePage({super.key, this.initialTab = 0});
 
   @override
   State<WebHomePage> createState() => _WebHomePageState();
@@ -29,7 +33,7 @@ class WebHomePage extends StatefulWidget {
 
 class _WebHomePageState extends State<WebHomePage> {
   final _groupsRepo = GroupsRepository();
-  int _selectedIndex = 0;
+  late int _selectedIndex = widget.initialTab;
   bool _hasBusinessGroups = false;
   bool _checkingBusiness = true;
 
@@ -37,6 +41,17 @@ class _WebHomePageState extends State<WebHomePage> {
   void initState() {
     super.initState();
     _checkBusinessAccess();
+  }
+
+  /// Aggiorna stato + URL del browser senza navigation push (no rebuild
+  /// del WebHomePage, niente flicker, ma history.replaceState così che
+  /// back button e bookmark restino corretti).
+  void _selectTab(int index) {
+    if (_selectedIndex == index) return;
+    setState(() => _selectedIndex = index);
+    SystemNavigator.routeInformationUpdated(
+      uri: Uri.parse(WebRoutes.pathFromTab(index)),
+    );
   }
 
   /// Verifica se l'utente loggato è admin di almeno un gruppo Business.
@@ -86,7 +101,7 @@ class _WebHomePageState extends State<WebHomePage> {
               selectedIndex: _selectedIndex,
               hasBusiness: _hasBusinessGroups,
               userEmail: user?.email,
-              onSelect: (i) => setState(() => _selectedIndex = i),
+              onSelect: _selectTab,
               onSignOut: _signOut,
               onOpenMarketingSite: () =>
                   _openExternal('https://trailshare.app'),

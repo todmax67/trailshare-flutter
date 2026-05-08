@@ -91,6 +91,9 @@ dependencies:
   
   flutter_localizations:
     sdk: flutter
+  # Path-based URL strategy per la dashboard web (lib/main_web.dart).
+  flutter_web_plugins:
+    sdk: flutter
   intl: any
   fit_sdk: ^0.3.0
   receive_sharing_intent: ^1.8.1

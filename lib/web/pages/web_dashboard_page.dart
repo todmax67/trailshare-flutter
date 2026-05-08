@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/tracks_repository.dart';
-import 'web_track_detail_page.dart';
+import '../business_web_app.dart';
 
 /// Home dashboard della dashboard web — sostituisce il vecchio default
 /// "Le mie tracce" come prima pagina post-login. Stile Strava/Garmin:
@@ -749,12 +749,14 @@ class _RecentTracks extends StatelessWidget {
             for (final t in tracks)
               InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => WebTrackDetailPage(track: t),
-                  ),
-                ),
+                onTap: () {
+                  final id = t.id;
+                  if (id == null) return;
+                  Navigator.pushNamed(
+                    context,
+                    WebRoutes.trackDetail(id),
+                  );
+                },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Row(

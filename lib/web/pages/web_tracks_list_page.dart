@@ -5,7 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/web_layout.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/tracks_repository.dart';
-import 'web_track_detail_page.dart';
+import '../business_web_app.dart';
 
 /// Sezione "Le mie tracce" della dashboard web — versione potenziata
 /// con search, filtri per macro-categoria e ordinamento.
@@ -524,12 +524,9 @@ class _TrackTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => WebTrackDetailPage(track: track),
-            ),
-          );
+          final id = track.id;
+          if (id == null) return;
+          Navigator.pushNamed(context, WebRoutes.trackDetail(id));
         },
         child: Padding(
           padding: const EdgeInsets.all(14),
