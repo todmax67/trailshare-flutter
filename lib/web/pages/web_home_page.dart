@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../data/repositories/groups_repository.dart';
+import 'web_dashboard_page.dart';
 import 'web_groups_picker_page.dart';
 import 'web_planner_page.dart';
 import 'web_tracks_list_page.dart';
@@ -98,14 +99,16 @@ class _WebHomePageState extends State<WebHomePage> {
   }
 
   Widget _buildContent() {
-    // Indici dinamici: pianificatore sempre 1, gruppi business solo se
-    // l'utente è admin (e in quel caso è index 2).
+    // Indici nuovi (post Dashboard launch):
+    // 0 Dashboard | 1 Le mie tracce | 2 Pianificatore | 3 Gruppi Business (se admin)
     switch (_selectedIndex) {
       case 0:
-        return const WebTracksListPage();
+        return const WebDashboardPage();
       case 1:
-        return const WebPlannerPage();
+        return const WebTracksListPage();
       case 2:
+        return const WebPlannerPage();
+      case 3:
         return const WebGroupsPickerPage();
       default:
         return const SizedBox.shrink();
@@ -174,23 +177,29 @@ class _Sidebar extends StatelessWidget {
           const Divider(height: 1),
           const SizedBox(height: 8),
           _navItem(
+            icon: Icons.dashboard_outlined,
+            iconActive: Icons.dashboard,
+            label: 'Dashboard',
+            index: 0,
+          ),
+          _navItem(
             icon: Icons.route_outlined,
             iconActive: Icons.route,
             label: 'Le mie tracce',
-            index: 0,
+            index: 1,
           ),
           _navItem(
             icon: Icons.edit_road_outlined,
             iconActive: Icons.edit_road,
             label: 'Pianificatore',
-            index: 1,
+            index: 2,
           ),
           if (hasBusiness)
             _navItem(
               icon: Icons.business_outlined,
               iconActive: Icons.business,
               label: 'Gruppi Business',
-              index: 2,
+              index: 3,
             ),
           const Spacer(),
           if (userEmail != null)
