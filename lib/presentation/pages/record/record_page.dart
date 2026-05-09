@@ -29,6 +29,7 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../../../core/services/health_service.dart';
+import '../../../core/services/strava_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/voice_guidance_service.dart';
 import '../../../core/services/navigation_service.dart';
@@ -1914,6 +1915,11 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       HealthService().saveTrackAsWorkout(trackToSave).catchError((e) {
         debugPrint('[RecordPage] Errore sync Health: $e');
         return false;
+      });
+
+      // Upload su Strava (fire-and-forget; rispetta autoUploadEnabled)
+      StravaService().uploadTrackIfEnabled(trackId).catchError((e) {
+        debugPrint('[RecordPage] Errore upload Strava: $e');
       });
 
       /// ❤️ Recupera battito cardiaco da Health Connect/Apple Health

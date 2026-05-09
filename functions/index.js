@@ -15,6 +15,8 @@ const db = admin.firestore();
 const storage = admin.storage();
 setGlobalOptions({ region: "europe-west3" });
 const orsApiKey = defineSecret('ORS_API_KEY');
+const stravaClientId = defineSecret('STRAVA_CLIENT_ID');
+const stravaClientSecret = defineSecret('STRAVA_CLIENT_SECRET');
 
 // ===================================================================
 // FUNZIONI HELPER
@@ -2169,5 +2171,295 @@ exports.invalidateTrailConditionsSummaryOnNewReport = onDocumentCreated(
     } catch (e) {
       logger.warn(`[invalidateTrailSummary] failed: ${e?.message}`);
     }
+  }
+);
+
+// ===================================================================
+// STRAVA — OAuth + upload end-of-session
+// ===================================================================
+//
+// Setup richiesto:
+// 1) Crea app su https://www.strava.com/settings/api
+//    - Authorization Callback Domain: cloudfunctions.net
+//    - Website: https://trailshare.app (o quello che hai)
+// 2) Salva i secret:
+//    firebase functions:secrets:set STRAVA_CLIENT_ID
+//    firebase functions:secrets:set STRAVA_CLIENT_SECRET
+// 3) In functions/ esegui: npm install form-data
+// 4) Deploy: firebase deploy --only functions:stravaCallback,functions:stravaUploadActivity,functions:stravaDisconnect
+//
+// Schema Firestore:
+//   users/{uid}/integrations/strava: {
+//     athleteId, accessToken, refreshToken, expiresAt (sec since epoch),
+//     scope, autoUploadEnabled (bool), connectedAt
+//   }
+//
+// Track doc additions (scritti dalla upload function):
+//   stravaActivityId, stravaUploadId, stravaUploadStatus, stravaUploadedAt, stravaError
+
+const STRAVA_OAUTH_TOKEN_URL = 'https://www.strava.com/oauth/token';
+const STRAVA_UPLOADS_URL = 'https://www.strava.com/api/v3/uploads';
+
+const STRAVA_ACTIVITY_TYPE_MAP = {
+  trekking: 'Hike',
+  hiking: 'Hike',
+  walking: 'Walk',
+  trailRunning: 'TrailRun',
+  running: 'Run',
+  cycling: 'Ride',
+  gravelBiking: 'GravelRide',
+  mountainBiking: 'MountainBikeRide',
+  eMountainBike: 'EMountainBikeRide',
+  eBike: 'EBikeRide',
+  alpineSkiing: 'AlpineSki',
+  skiTouring: 'BackcountrySki',
+  nordicSkiing: 'NordicSki',
+  snowshoeing: 'Snowshoe',
+};
+
+function escapeXmlStrava(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+function buildGpxFromTrack(track) {
+  const points = Array.isArray(track.points) ? track.points : [];
+  const lines = [];
+  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+  lines.push('<gpx version="1.1" creator="TrailShare" xmlns="http://www.topografix.com/GPX/1/1">');
+  lines.push('  <metadata>');
+  lines.push(`    <name>${escapeXmlStrava(track.name)}</name>`);
+  const createdAt = track.createdAt && track.createdAt.toDate
+    ? track.createdAt.toDate()
+    : (track.createdAt ? new Date(track.createdAt) : new Date());
+  lines.push(`    <time>${createdAt.toISOString()}</time>`);
+  lines.push('  </metadata>');
+  lines.push('  <trk>');
+  lines.push(`    <name>${escapeXmlStrava(track.name)}</name>`);
+  if (track.description) {
+    lines.push(`    <desc>${escapeXmlStrava(track.description)}</desc>`);
+  }
+  lines.push('    <trkseg>');
+  for (const p of points) {
+    const lat = p.lat ?? p.latitude;
+    const lng = p.lng ?? p.longitude ?? p.lon;
+    if (lat == null || lng == null) continue;
+    const ele = p.ele ?? p.elevation ?? p.altitude;
+    const time = p.time ?? p.timestamp;
+    let line = `      <trkpt lat="${lat}" lon="${lng}">`;
+    if (ele != null) line += `<ele>${Number(ele).toFixed(1)}</ele>`;
+    if (time) {
+      const t = typeof time === 'string' ? time : new Date(time).toISOString();
+      line += `<time>${t}</time>`;
+    }
+    line += '</trkpt>';
+    lines.push(line);
+  }
+  lines.push('    </trkseg>');
+  lines.push('  </trk>');
+  lines.push('</gpx>');
+  return lines.join('\n');
+}
+
+async function refreshStravaToken(uid, integration) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  // Refresh se mancano meno di 60s alla scadenza
+  if (integration.expiresAt && integration.expiresAt - nowSec > 60) {
+    return integration;
+  }
+  const resp = await axios.post(STRAVA_OAUTH_TOKEN_URL, {
+    client_id: stravaClientId.value(),
+    client_secret: stravaClientSecret.value(),
+    grant_type: 'refresh_token',
+    refresh_token: integration.refreshToken,
+  });
+  const data = resp.data;
+  const updated = {
+    ...integration,
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt: data.expires_at,
+  };
+  await db.collection('users').doc(uid).collection('integrations').doc('strava').set({
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt: data.expires_at,
+  }, { merge: true });
+  return updated;
+}
+
+// OAuth callback: riceve ?code&state=<uid>, scambia con tokens, redirect deep link
+exports.stravaCallback = onRequest(
+  { secrets: [stravaClientId, stravaClientSecret], cors: false },
+  async (req, res) => {
+    const { code, state, error: stravaError, scope } = req.query;
+    const redirectOk = 'trailshare://strava/connected';
+    const redirectErr = (msg) => `trailshare://strava/error?msg=${encodeURIComponent(msg || 'unknown')}`;
+
+    if (stravaError) {
+      logger.warn(`[strava] OAuth denied: ${stravaError}`);
+      return res.redirect(302, redirectErr(stravaError));
+    }
+    if (!code || !state) {
+      return res.redirect(302, redirectErr('missing_params'));
+    }
+    const uid = String(state);
+
+    try {
+      const tokenResp = await axios.post(STRAVA_OAUTH_TOKEN_URL, {
+        client_id: stravaClientId.value(),
+        client_secret: stravaClientSecret.value(),
+        code,
+        grant_type: 'authorization_code',
+      });
+      const t = tokenResp.data;
+      if (!t.access_token || !t.refresh_token) {
+        return res.redirect(302, redirectErr('no_tokens'));
+      }
+
+      await db.collection('users').doc(uid).collection('integrations').doc('strava').set({
+        athleteId: t.athlete?.id || null,
+        athleteFirstname: t.athlete?.firstname || null,
+        athleteLastname: t.athlete?.lastname || null,
+        accessToken: t.access_token,
+        refreshToken: t.refresh_token,
+        expiresAt: t.expires_at,
+        scope: String(scope || ''),
+        autoUploadEnabled: true,
+        connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      logger.info(`[strava] connected uid=${uid} athlete=${t.athlete?.id}`);
+      return res.redirect(302, redirectOk);
+    } catch (e) {
+      logger.error('[strava] callback error', e?.response?.data || e?.message);
+      return res.redirect(302, redirectErr('exchange_failed'));
+    }
+  }
+);
+
+// Disconnessione: revoca tokens lato Strava + elimina doc
+exports.stravaDisconnect = onCall(
+  { secrets: [stravaClientId, stravaClientSecret] },
+  async (req) => {
+    if (!req.auth?.uid) throw new functions.https.HttpsError('unauthenticated', 'auth required');
+    const uid = req.auth.uid;
+    const docRef = db.collection('users').doc(uid).collection('integrations').doc('strava');
+    const snap = await docRef.get();
+    if (!snap.exists) return { ok: true, alreadyDisconnected: true };
+    const integration = snap.data();
+    try {
+      await axios.post('https://www.strava.com/oauth/deauthorize', null, {
+        params: { access_token: integration.accessToken },
+      });
+    } catch (e) {
+      logger.warn(`[strava] deauthorize failed (procedo lo stesso): ${e?.message}`);
+    }
+    await docRef.delete();
+    return { ok: true };
+  }
+);
+
+// Upload attività: legge track, genera GPX, refresh token, upload + polling, scrive stato
+exports.stravaUploadActivity = onCall(
+  { secrets: [stravaClientId, stravaClientSecret], timeoutSeconds: 120 },
+  async (req) => {
+    if (!req.auth?.uid) throw new functions.https.HttpsError('unauthenticated', 'auth required');
+    const uid = req.auth.uid;
+    const trackId = req.data?.trackId;
+    if (!trackId) throw new functions.https.HttpsError('invalid-argument', 'trackId required');
+
+    const integSnap = await db.collection('users').doc(uid).collection('integrations').doc('strava').get();
+    if (!integSnap.exists) throw new functions.https.HttpsError('failed-precondition', 'strava_not_connected');
+
+    // Le tracce sono nested in users/{uid}/tracks/{trackId}
+    const trackRef = db.collection('users').doc(uid).collection('tracks').doc(trackId);
+    const trackSnap = await trackRef.get();
+    if (!trackSnap.exists) throw new functions.https.HttpsError('not-found', 'track_not_found');
+    const track = trackSnap.data();
+    if (track.stravaActivityId) {
+      return { ok: true, alreadyUploaded: true, stravaActivityId: track.stravaActivityId };
+    }
+
+    let integration = integSnap.data();
+    integration = await refreshStravaToken(uid, integration);
+
+    const gpx = buildGpxFromTrack({ ...track, name: track.name || 'TrailShare activity' });
+    const FormData = require('form-data');
+    const form = new FormData();
+    form.append('file', Buffer.from(gpx, 'utf8'), {
+      filename: `${trackId}.gpx`,
+      contentType: 'application/gpx+xml',
+    });
+    form.append('data_type', 'gpx');
+    form.append('name', track.name || 'TrailShare activity');
+    if (track.description) form.append('description', track.description);
+    form.append('external_id', `trailshare-${trackId}`);
+    const stravaActivityType = STRAVA_ACTIVITY_TYPE_MAP[track.activityType];
+    if (stravaActivityType) form.append('activity_type', stravaActivityType);
+
+    let uploadId;
+    try {
+      const up = await axios.post(STRAVA_UPLOADS_URL, form, {
+        headers: { ...form.getHeaders(), Authorization: `Bearer ${integration.accessToken}` },
+        maxContentLength: Infinity, maxBodyLength: Infinity,
+      });
+      uploadId = up.data?.id_str || up.data?.id;
+      logger.info(`[strava] upload accepted track=${trackId} uploadId=${uploadId}`);
+    } catch (e) {
+      const errMsg = e?.response?.data?.message || e?.message || 'upload_failed';
+      const errors = e?.response?.data?.errors;
+      logger.error(`[strava] upload failed: ${errMsg}`, errors);
+      await trackRef.update({
+        stravaUploadStatus: 'error',
+        stravaError: errMsg,
+        stravaUploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      // Duplicato (già caricato manualmente / esiste activity con stesso external_id)
+      const dupId = errors?.find?.((er) => er?.code === 'duplicate')?.resource;
+      if (dupId) {
+        return { ok: false, error: 'duplicate' };
+      }
+      throw new functions.https.HttpsError('internal', errMsg);
+    }
+
+    await trackRef.update({
+      stravaUploadId: String(uploadId),
+      stravaUploadStatus: 'processing',
+      stravaUploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Polling: Strava processa il GPX in qualche secondo
+    let activityId = null;
+    let lastStatus = 'processing';
+    let lastError = null;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        const st = await axios.get(`${STRAVA_UPLOADS_URL}/${uploadId}`, {
+          headers: { Authorization: `Bearer ${integration.accessToken}` },
+        });
+        const d = st.data;
+        if (d.activity_id) { activityId = d.activity_id; break; }
+        if (d.error) { lastError = d.error; break; }
+        lastStatus = d.status || lastStatus;
+      } catch (e) {
+        logger.warn(`[strava] poll attempt ${attempt} failed: ${e?.message}`);
+      }
+    }
+
+    if (activityId) {
+      await trackRef.update({
+        stravaActivityId: String(activityId),
+        stravaUploadStatus: 'done',
+      });
+      return { ok: true, stravaActivityId: String(activityId) };
+    }
+    await trackRef.update({
+      stravaUploadStatus: lastError ? 'error' : 'pending',
+      stravaError: lastError || null,
+    });
+    return { ok: false, status: lastError ? 'error' : 'pending', error: lastError, lastStatus };
   }
 );

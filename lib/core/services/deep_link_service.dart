@@ -49,10 +49,27 @@ class DeepLinkService {
 
   Future<void> _handle(Uri uri) async {
     debugPrint('[DeepLink] ricevuto: $uri');
+
+    // trailshare://strava/connected | trailshare://strava/error?msg=...
+    if (uri.scheme == 'trailshare' && uri.host == 'strava') {
+      _handleStravaCallback(uri);
+      return;
+    }
+
     final code = _extractGroupCode(uri);
     if (code != null && code.isNotEmpty) {
       await _handleGroupCode(code);
     }
+  }
+
+  void _handleStravaCallback(Uri uri) {
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
+    final connected = uri.pathSegments.contains('connected');
+    final msg = connected
+        ? 'Strava collegato ✓'
+        : 'Errore Strava: ${uri.queryParameters['msg'] ?? 'sconosciuto'}';
+    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   /// Riconosce sia il custom scheme che l'URL https (per quando

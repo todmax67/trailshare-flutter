@@ -1,0 +1,404 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- FUNZIONI HELPER ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+             get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.admin == true;
+    }
+
+    function isAdminByEmail() {
+      return isSignedIn() &&
+             request.auth.token.email in [
+               'admin@trailshare.app',
+               'todde.massimiliano@gmail.com'
+             ];
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+             request.auth.uid == 'g4uPvD3VQcMiYb4dDTWs7kJgm4u1';
+    }
+
+    // --- REGOLE SENTIERI PUBBLICI OSM ---
+    match /public_trails/{trailId} {
+      allow read: if true;
+      allow create, update: if isAdminByEmail();
+      allow delete: if isAdminByEmail();
+    }
+
+    // --- REGOLE PROFILI UTENTE ---
+    match /user_profiles/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if
+        isSuperAdmin()
+        ||
+        (isOwner(userId) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['bio', 'username', 'avatarUrl', 'wishlist',
+                      'totalTracks', 'totalDistance', 'totalElevationGain', 'earnedBadges',
+                      'fcmTokens', 'following', 'email', 'createdAt', 'lastActive']))
+        ||
+        (isSignedIn() && !isOwner(userId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers']));
+      allow delete: if isOwner(userId) || isAdmin() || isSuperAdmin();
+    }
+
+    // ─── Emergency contacts (Lifeline) ──────────────────────────────────
+    match /user_profiles/{uid}/emergency_contacts/{contactId} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create, update: if isSignedIn()
+                            && request.auth.uid == uid
+                            && request.resource.data.name is string
+                            && request.resource.data.name.size() > 0
+                            && request.resource.data.name.size() < 80;
+      allow delete: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /live_sessions/{sid}/access_tokens/{token} {
+      allow create, read, delete: if isSignedIn()
+        && request.auth.uid == get(/databases/$(database)/documents/live_sessions/$(sid)).data.userId;
+    }
+
+    // ─── POI / Points of Interest ────────────────────────────────────────
+    match /poi_points/{poiId} {
+      allow read: if isSignedIn()
+        && (resource.data.isPublic == true
+            || resource.data.createdBy == request.auth.uid
+            || isAdminByEmail());
+
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() < 120
+        && request.resource.data.type is string
+        && request.resource.data.latitude is number
+        && request.resource.data.longitude is number
+        && request.resource.data.geohash is string
+        && (request.resource.data.isPublic == false || isAdminByEmail());
+
+      allow update: if isSignedIn()
+        && (
+          (resource.data.createdBy == request.auth.uid
+           && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['createdBy', 'createdAt', 'verifiedByAdmin']))
+          || isAdminByEmail()
+        );
+
+      allow delete: if isSignedIn()
+        && (resource.data.createdBy == request.auth.uid || isAdminByEmail());
+
+      match /votes/{uid} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isSignedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // --- REGOLE TRACCE PRIVATE (incluse pianificate) ---
+    // Cross-leggibili da tutti gli autenticati (necessario per feed, gruppi,
+    // tour). Continua a funzionare anche con il wildcard più stretto sotto.
+    match /users/{userId}/tracks/{trackId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
+    }
+
+    // --- INTEGRAZIONI ESTERNE (Strava, ecc.) ---
+    // Token OAuth scritti SOLO dalle Cloud Functions (admin SDK bypassa rules).
+    // Il client può solo leggere i propri e aggiornare il flag autoUploadEnabled.
+    match /users/{userId}/integrations/{platform} {
+      allow read: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['autoUploadEnabled']);
+      allow create, delete: if false;
+    }
+
+    // --- ALTRE COLLEZIONI PRIVATE SOTTO /users/{uid} ---
+    // Default chiuso: solo l'owner legge/scrive. Le sottocollection che devono
+    // essere cross-leggibili hanno rule esplicite più sopra (tracks) o sotto
+    // (collection group sui tracks per i gruppi).
+    //
+    // ⚠️  Le rules in Firestore sono additive: questa wildcard NON deve
+    // coprire `integrations/*` altrimenti override la rule più stretta sopra
+    // e l'owner potrebbe sovrascrivere i token OAuth.
+    match /users/{userId}/{document=**} {
+      allow read: if isSignedIn() && isOwner(userId)
+                  && !document.matches('integrations(/.*)?');
+      allow write: if isSignedIn() && isOwner(userId)
+                   && !document.matches('integrations(/.*)?');
+    }
+
+    // --- REGOLE TRACCE COMMUNITY ---
+    match /community_tracks/{trackId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isSuperAdmin());
+
+      match /cheers/{userId} {
+        allow read: if isSignedIn();
+        allow create, delete: if isSignedIn() && isOwner(userId);
+      }
+    }
+
+    // --- REGOLE TRACCE AGGREGATE (top-level per query count) ---
+    match /tracks/{trackId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    // --- REGOLE TRACCE PUBBLICHE E SOTTO-COLLEZIONI ---
+    match /published_tracks/{trackId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isEmailVerified()
+                      && request.resource.data.originalOwnerId == request.auth.uid;
+      allow update: if isSignedIn() && isOwner(resource.data.originalOwnerId);
+      allow delete: if isSignedIn() && (isOwner(resource.data.originalOwnerId) || isAdmin() || isSuperAdmin());
+
+      match /cheers/{userId} {
+        allow read: if isSignedIn();
+        allow create, delete: if isSignedIn() && isOwner(userId);
+      }
+
+      match /reports/{reportId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isEmailVerified()
+                        && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isSignedIn() && isOwner(resource.data.userId);
+      }
+
+      match /conditions/{conditionId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isEmailVerified()
+                        && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isSignedIn() && isOwner(resource.data.userId);
+      }
+
+      match /ratings/{ratingId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isEmailVerified()
+                        && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isSignedIn() && isOwner(resource.data.userId);
+      }
+    }
+
+    // Tour privati: solo il proprietario
+    // NB: la rule generica /users/{uid}/{document=**} ora è owner-only,
+    // quindi questa rule resta solo per i vincoli di shape su create/update.
+    match /users/{userId}/tours/{tourId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.ownerId == userId
+        && request.resource.data.trackIds is list
+        && request.resource.data.trackIds.size() > 0;
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Tour pubblici (mirror): chiunque autenticato legge, solo l'owner scrive
+    match /community_tours/{tourId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.isPublic == true;
+      allow update: if request.auth != null
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    // ─── Segments (v1.6) ─────
+    match /segments/{segmentId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() < 120
+        && (
+          (isAdmin() && request.resource.data.isOfficial == true)
+          ||
+          (request.resource.data.isOfficial == false)
+        );
+
+      allow update, delete: if isSignedIn()
+        && (resource.data.createdBy == request.auth.uid || isAdmin());
+
+      match /efforts/{effortId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isSignedIn()
+          && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // Segnalazioni
+    match /trail_conditions/{trailId}/reports/{reportId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null
+                    && resource.data.userId == request.auth.uid;
+    }
+
+    // Regole commenti
+    match /published_tracks/{trackId}/comments/{commentId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() < 1000;
+      allow delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid
+        || get(/databases/$(database)/documents/published_tracks/$(trackId)).data.originalOwnerId == request.auth.uid
+      );
+      allow update: if false;
+    }
+
+    // --- REGOLE SESSIONI LIVE TRACKING ---
+    match /live_sessions/{sessionId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // --- REGOLE NOTIFICHE ---
+    // create stretto: senderId deve combaciare con l'utente autenticato
+    // (evita spam con recipientId arbitrario da parte di terzi).
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.senderId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+    }
+
+    // --- REGOLE LEADERBOARD ---
+    match /leaderboards/{userId} {
+      allow read: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
+      allow write: if false;
+    }
+
+    // --- REGOLE CHALLENGES ---
+    match /challenges/{challengeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isEmailVerified()
+                      && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.createdBy == request.auth.uid || isAdmin() || isSuperAdmin());
+
+      match /participants/{participantId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && isOwner(participantId);
+        allow update: if isSignedIn() && isOwner(participantId);
+        allow delete: if isSignedIn() && isOwner(participantId);
+      }
+    }
+
+    // --- REGOLE REVIEWS ---
+    match /trail_reviews/{trailId}/items/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // --- REGOLE TRAIL PHOTOS ---
+    match /trail_photos/{trailId}/items/{photoId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null
+                    && resource.data.userId == request.auth.uid;
+    }
+
+    // Collection group query per il tab "Percorsi" dei gruppi.
+    match /{path=**}/tracks/{trackId} {
+      allow read: if request.auth != null;
+    }
+
+    // --- REGOLE GRUPPI ---
+    match /groups/{groupId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (
+        request.auth.uid in resource.data.memberIds ||
+        resource.data.isPublic == true ||
+        isSuperAdmin() ||
+        request.auth.uid in request.resource.data.memberIds
+      );
+      allow delete: if request.auth != null && (request.auth.uid == resource.data.createdBy || isSuperAdmin());
+
+      match /members/{memberId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null && request.auth.uid == resource.data.senderId;
+      }
+
+      match /events/{eventId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null && (request.auth.uid == resource.data.createdBy || isSuperAdmin());
+
+        match /posts/{postId} {
+          allow read: if request.auth != null;
+          allow create: if request.auth != null;
+          allow update, delete: if request.auth != null && (request.auth.uid == resource.data.authorId || isSuperAdmin());
+        }
+      }
+
+      match /challenges/{challengeId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null && (request.auth.uid == resource.data.createdBy || isSuperAdmin());
+
+        match /standings/{userId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null;
+        }
+      }
+
+      match /shared_tracks/{trackId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      match /join_requests/{userId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null;
+      }
+    }
+  }
+}

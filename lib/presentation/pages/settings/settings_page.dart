@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/services/strava_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/constants/app_colors.dart';
@@ -295,6 +297,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
           const Divider(height: 32),
 
+          // Sezione Strava
+          _buildSectionHeader('Strava'),
+          _buildStravaSection(),
+          const Divider(height: 32),
+
           // Sezione Sicurezza
           _buildSectionHeader('Sicurezza'),
           _buildListTile(
@@ -501,6 +508,93 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 32),
         ],
       ),
+    );
+  }
+
+  Widget _buildStravaSection() {
+    final stravaService = StravaService();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        child: Text('Accedi per collegare Strava'),
+      );
+    }
+    final docStream = FirebaseFirestore.instance
+        .collection('users').doc(uid)
+        .collection('integrations').doc('strava')
+        .snapshots();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: docStream,
+      builder: (context, snap) {
+        final data = snap.data?.data() as Map<String, dynamic>?;
+        final connected = data != null && data['accessToken'] != null;
+        final autoUpload = data?['autoUploadEnabled'] == true;
+        final athleteName = [data?['athleteFirstname'], data?['athleteLastname']]
+            .whereType<String>().where((s) => s.isNotEmpty).join(' ');
+
+        if (!connected) {
+          return ListTile(
+            leading: const Icon(Icons.directions_run, color: Color(0xFFFC4C02)),
+            title: const Text('Collega Strava'),
+            subtitle: const Text('Carica le attività su Strava a fine sessione'),
+            trailing: const Icon(Icons.open_in_new, size: 18),
+            onTap: () async {
+              final ok = await stravaService.connect();
+              if (!ok && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Impossibile aprire Strava')),
+                );
+              }
+            },
+          );
+        }
+
+        return Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.directions_run, color: Color(0xFFFC4C02)),
+              title: const Text('Strava collegato'),
+              subtitle: Text(athleteName.isNotEmpty ? athleteName : 'Account autorizzato'),
+              trailing: TextButton(
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Disconnetti Strava?'),
+                      content: const Text(
+                        'Le attività future non verranno più caricate. '
+                        'Le attività già caricate restano su Strava.',
+                      ),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
+                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Disconnetti')),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    final ok = await stravaService.disconnect();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(ok ? 'Strava disconnesso' : 'Errore disconnessione'),
+                      ));
+                    }
+                  }
+                },
+                child: const Text('Disconnetti'),
+              ),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.cloud_upload_outlined),
+              title: const Text('Carica su Strava al termine'),
+              subtitle: const Text('Upload automatico GPX a fine attività'),
+              value: autoUpload,
+              onChanged: (v) => stravaService.setAutoUploadEnabled(v),
+            ),
+          ],
+        );
+      },
     );
   }
 

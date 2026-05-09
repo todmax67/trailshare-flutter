@@ -108,7 +108,9 @@ class HealthService {
   // SCRITTURA — Salva workout dopo registrazione
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Salva una traccia come workout su Health
+  /// Salva una traccia come workout su Health, includendo la route GPS.
+  /// HR samples NON vengono riscritti: HealthKit auto-associa quelli già
+  /// presenti nella finestra temporale del workout (evita duplicati).
   Future<bool> saveTrackAsWorkout(Track track) async {
     final enabled = await isSyncEnabled();
     if (!enabled) return false;
@@ -120,26 +122,108 @@ class HealthService {
       final startTime = track.createdAt;
       final endTime = startTime.add(track.stats.duration);
 
-      // Scrivi il workout
       final success = await _health.writeWorkoutData(
         activityType: workoutType,
         start: startTime,
         end: endTime,
         totalDistance: track.stats.distance.round(),
         totalEnergyBurned: _estimateCalories(track).round(),
+        title: track.name,
       );
 
-      if (success) {
-        debugPrint('[HealthService] Workout salvato: ${track.name} '
-            '(${track.stats.distance.round()}m, ${track.stats.duration.inMinutes}min)');
-      } else {
+      if (!success) {
         debugPrint('[HealthService] Errore salvataggio workout');
+        return false;
       }
 
-      return success;
+      debugPrint('[HealthService] Workout salvato: ${track.name} '
+          '(${track.stats.distance.round()}m, ${track.stats.duration.inMinutes}min)');
+
+      if (track.points.length >= 2) {
+        await _writeWorkoutRoute(track, startTime, endTime);
+      } else {
+        debugPrint('[HealthService] Route skip: punti GPS insufficienti (${track.points.length})');
+      }
+
+      return true;
     } catch (e) {
       debugPrint('[HealthService] Errore writeWorkout: $e');
       return false;
+    }
+  }
+
+  /// Cerca l'UUID del workout appena scritto e gli associa la route GPS.
+  /// Richiede iOS 11+; su Android Health Connect dipende dal supporto del
+  /// canale nativo per la route — in caso di errore viene loggato e ignorato.
+  Future<void> _writeWorkoutRoute(
+    Track track,
+    DateTime start,
+    DateTime end,
+  ) async {
+    String? builderId;
+    try {
+      final candidates = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.WORKOUT],
+        startTime: start.subtract(const Duration(seconds: 5)),
+        endTime: end.add(const Duration(seconds: 5)),
+      );
+      if (candidates.isEmpty) {
+        debugPrint('[HealthService] Route skip: workout non trovato dopo write');
+        return;
+      }
+      candidates.sort((a, b) => b.dateFrom.compareTo(a.dateFrom));
+      final workoutUuid = candidates.first.uuid;
+      if (workoutUuid.isEmpty) {
+        debugPrint('[HealthService] Route skip: uuid mancante');
+        return;
+      }
+
+      final locations = <WorkoutRouteLocation>[];
+      for (final p in track.points) {
+        if (p.latitude == 0 && p.longitude == 0) continue;
+        if (p.accuracy != null && p.accuracy! > 50) continue;
+        locations.add(WorkoutRouteLocation(
+          latitude: p.latitude,
+          longitude: p.longitude,
+          timestamp: p.timestamp,
+          altitude: p.elevation,
+          horizontalAccuracy: p.accuracy,
+          speed: p.speed,
+          course: p.heading,
+        ));
+      }
+
+      if (locations.length < 2) {
+        debugPrint('[HealthService] Route skip: nessun punto valido dopo filtro');
+        return;
+      }
+
+      builderId = await _health.startWorkoutRoute();
+
+      const batchSize = 500;
+      for (var i = 0; i < locations.length; i += batchSize) {
+        final to = (i + batchSize > locations.length) ? locations.length : i + batchSize;
+        await _health.insertWorkoutRouteData(
+          builderId: builderId,
+          locations: locations.sublist(i, to),
+        );
+      }
+
+      await _health.finishWorkoutRoute(
+        builderId: builderId,
+        workoutUuid: workoutUuid,
+      );
+      builderId = null;
+      debugPrint('[HealthService] Route salvata: ${locations.length} punti '
+          '(filtrati da ${track.points.length})');
+    } catch (e, st) {
+      debugPrint('[HealthService] Errore scrittura route: $e');
+      debugPrint('[HealthService] Stack: $st');
+      if (builderId != null) {
+        try {
+          await _health.discardWorkoutRoute(builderId);
+        } catch (_) {}
+      }
     }
   }
 
