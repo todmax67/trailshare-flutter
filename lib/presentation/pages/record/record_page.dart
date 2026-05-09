@@ -1859,26 +1859,46 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     final activityName = state.activityType.displayName;
     final defaultName = '$activityName del ${now.day}/${now.month}/${now.year}';
     final nameController = TextEditingController(text: defaultName);
-    
+
+    // Pre-check Strava: solo se connesso mostriamo lo switch nel dialog.
+    // Default dello switch = preferenza utente (autoUploadEnabled).
+    final stravaService = StravaService();
+    final stravaConnected = await stravaService.isConnected();
+    bool uploadToStrava = stravaConnected && await stravaService.isAutoUploadEnabled();
+    if (!mounted) return;
+
     // 3. Mostra dialog di conferma (lo stato è in pausa, non perso)
     final shouldSave = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(context.l10n.saveTrackTitle),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          TextField(controller: nameController, decoration: InputDecoration(labelText: context.l10n.trackName, border: const OutlineInputBorder())),
-          const SizedBox(height: 16),
-          _buildSummaryRow(context.l10n.distanceLabel, '${state.stats.distanceKm.toStringAsFixed(2)} km'),
-          _buildSummaryRow(context.l10n.elevationLabel, '+${state.stats.elevationGain.toStringAsFixed(0)} m'),
-          _buildSummaryRow(context.l10n.durationStatLabel, state.stats.durationFormatted),
-          _buildSummaryRow(context.l10n.gpsPoints, '${state.points.length}'),
-          if (_photos.isNotEmpty) _buildSummaryRow(context.l10n.photosLabel, '${_photos.length}'),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white), child: Text(context.l10n.save)),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          title: Text(context.l10n.saveTrackTitle),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            TextField(controller: nameController, decoration: InputDecoration(labelText: context.l10n.trackName, border: const OutlineInputBorder())),
+            const SizedBox(height: 16),
+            _buildSummaryRow(context.l10n.distanceLabel, '${state.stats.distanceKm.toStringAsFixed(2)} km'),
+            _buildSummaryRow(context.l10n.elevationLabel, '+${state.stats.elevationGain.toStringAsFixed(0)} m'),
+            _buildSummaryRow(context.l10n.durationStatLabel, state.stats.durationFormatted),
+            _buildSummaryRow(context.l10n.gpsPoints, '${state.points.length}'),
+            if (_photos.isNotEmpty) _buildSummaryRow(context.l10n.photosLabel, '${_photos.length}'),
+            if (stravaConnected) ...[
+              const Divider(),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                secondary: const Icon(Icons.directions_run, color: Color(0xFFFC4C02)),
+                title: const Text('Carica su Strava'),
+                value: uploadToStrava,
+                onChanged: (v) => setStateDialog(() => uploadToStrava = v),
+              ),
+            ],
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white), child: Text(context.l10n.save)),
+          ],
+        ),
       ),
     );
     
@@ -1917,10 +1937,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         return false;
       });
 
-      // Upload su Strava (fire-and-forget; rispetta autoUploadEnabled)
-      StravaService().uploadTrackIfEnabled(trackId).catchError((e) {
-        debugPrint('[RecordPage] Errore upload Strava: $e');
-      });
+      // Upload su Strava (fire-and-forget). Lo switch nel save dialog ha
+      // priorità sulla preferenza globale autoUploadEnabled per questa
+      // singola attività.
+      if (uploadToStrava) {
+        StravaService().uploadTrack(trackId).catchError((e) {
+          debugPrint('[RecordPage] Errore upload Strava: $e');
+          return null;
+        });
+      }
 
       /// ❤️ Recupera battito cardiaco da Health Connect/Apple Health
       // Attende 15 secondi per dare tempo al wearable di sincronizzare

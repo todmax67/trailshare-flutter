@@ -267,8 +267,6 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   /// Function `stravaUploadActivity` dopo il salvataggio.
   Widget _buildStravaBadge() {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
-    debugPrint('[StravaBadge] currentUid=$currentUid trackId=${_track.id} '
-        'trackUserId=${_track.userId} match=${_track.userId == currentUid}');
     if (currentUid == null || _track.id == null) return const SizedBox.shrink();
     if (_track.userId != currentUid) return const SizedBox.shrink();
 

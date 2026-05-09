@@ -2463,3 +2463,85 @@ exports.stravaUploadActivity = onCall(
     return { ok: false, status: lastError ? 'error' : 'pending', error: lastError, lastStatus };
   }
 );
+
+// Retry automatico per upload in stato `pending`: ogni 10 minuti cerca le
+// tracce con stravaUploadStatus=pending da almeno 5 min e ripolla
+// /uploads/{stravaUploadId}. Se Strava ha completato, scrive activityId.
+// Se è in error, segna error. Dopo MAX_AGE_MIN abbandona (segna error).
+exports.stravaReconcilePending = onSchedule(
+  {
+    schedule: 'every 10 minutes',
+    region: 'europe-west3',
+    secrets: [stravaClientId, stravaClientSecret],
+    timeoutSeconds: 300,
+  },
+  async () => {
+    const FIVE_MIN_AGO = admin.firestore.Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
+    const MAX_AGE_MIN = 60; // dopo 1h marchia error
+    const MAX_AGE_AGO = admin.firestore.Timestamp.fromMillis(Date.now() - MAX_AGE_MIN * 60 * 1000);
+
+    const snap = await db.collectionGroup('tracks')
+      .where('stravaUploadStatus', '==', 'pending')
+      .where('stravaUploadedAt', '<', FIVE_MIN_AGO)
+      .limit(50)
+      .get();
+
+    if (snap.empty) {
+      logger.info('[stravaReconcile] no pending uploads');
+      return;
+    }
+    logger.info(`[stravaReconcile] ${snap.size} pending upload(s) da ricontrollare`);
+
+    for (const doc of snap.docs) {
+      const track = doc.data();
+      const uploadId = track.stravaUploadId;
+      const uploadedAt = track.stravaUploadedAt;
+      // Ricava uid dal path users/{uid}/tracks/{tid}
+      const pathParts = doc.ref.path.split('/');
+      const uid = pathParts[1];
+
+      if (!uploadId || !uid) {
+        await doc.ref.update({ stravaUploadStatus: 'error', stravaError: 'missing_upload_id' });
+        continue;
+      }
+
+      // Troppo vecchio: arrendi
+      if (uploadedAt && uploadedAt.toMillis && uploadedAt.toMillis() < MAX_AGE_AGO.toMillis()) {
+        await doc.ref.update({
+          stravaUploadStatus: 'error',
+          stravaError: 'timeout_after_1h',
+        });
+        logger.warn(`[stravaReconcile] timeout track=${doc.id} uid=${uid}`);
+        continue;
+      }
+
+      try {
+        const integSnap = await db.collection('users').doc(uid)
+          .collection('integrations').doc('strava').get();
+        if (!integSnap.exists) {
+          await doc.ref.update({ stravaUploadStatus: 'error', stravaError: 'strava_disconnected' });
+          continue;
+        }
+        const integration = await refreshStravaToken(uid, integSnap.data());
+
+        const r = await axios.get(`${STRAVA_UPLOADS_URL}/${uploadId}`, {
+          headers: { Authorization: `Bearer ${integration.accessToken}` },
+        });
+        const d = r.data;
+        if (d.activity_id) {
+          await doc.ref.update({
+            stravaActivityId: String(d.activity_id),
+            stravaUploadStatus: 'done',
+          });
+          logger.info(`[stravaReconcile] done track=${doc.id} activity=${d.activity_id}`);
+        } else if (d.error) {
+          await doc.ref.update({ stravaUploadStatus: 'error', stravaError: d.error });
+          logger.warn(`[stravaReconcile] error track=${doc.id} err=${d.error}`);
+        }
+        // altrimenti rimane pending: rilancerà al prossimo tick
+      } catch (e) {
+        logger.error(`[stravaReconcile] track=${doc.id} ${e?.message}`);
+      }
+    }
+  }
+);
