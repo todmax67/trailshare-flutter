@@ -2566,58 +2566,55 @@ async function importStravaActivity(uid, activityId, integration) {
     return { skipped: 'no_gps' };
   }
 
-  // 3) Costruisci points
+  // 3) Costruisci points (formato compatibile con TrackPoint.fromMap)
+  // HR samples: chiavi come millisecondsSinceEpoch.toString() (formato app)
   const startMs = new Date(a.start_date).getTime();
   const points = [];
   const heartRateData = {};
   for (let i = 0; i < latlng.length; i++) {
     const tsMs = startMs + (time[i] || 0) * 1000;
-    const isoTs = new Date(tsMs).toISOString();
     points.push({
       lat: latlng[i][0],
       lng: latlng[i][1],
       ele: altitude[i] != null ? altitude[i] : null,
-      time: isoTs,
+      time: new Date(tsMs).toISOString(),
       speed: speed[i] != null ? speed[i] : null,
     });
     if (hr[i] != null && hr[i] > 30 && hr[i] < 250) {
-      heartRateData[isoTs] = Math.round(hr[i]);
+      heartRateData[String(tsMs)] = Math.round(hr[i]);
     }
   }
 
-  // 4) Stats
-  const elevationGain = a.total_elevation_gain || 0;
-  const stats = {
-    distance: Number(a.distance) || 0,
-    elevationGain: Number(elevationGain),
-    elevationLoss: 0,
-    maxElevation: a.elev_high || 0,
-    minElevation: a.elev_low || 0,
-    duration: { microseconds: (a.elapsed_time || 0) * 1000000 },
-    movingTime: { microseconds: (a.moving_time || a.elapsed_time || 0) * 1000000 },
-    currentSpeed: 0,
-    avgSpeed: a.average_speed ? a.average_speed * 3.6 : 0,
-    maxSpeed: a.max_speed ? a.max_speed * 3.6 : 0,
-  };
-
-  // 5) Track doc
+  // 4) Track doc — IMPORTANTE: stats sono campi FLAT al top level
+  //    (durata in secondi, non microseconds). Vedi tracks_repository._trackFromFirestore.
   const track = {
     userId: uid,
     name: a.name || 'Attività Strava',
     description: a.description || null,
     activityType: activityType,
     points: points,
-    stats: stats,
     createdAt: admin.firestore.Timestamp.fromDate(new Date(a.start_date)),
     isPublic: false,
     isPlanned: false,
     photos: [],
     groupIds: [],
+    // Stats flat
+    distance: Number(a.distance) || 0,
+    elevationGain: Number(a.total_elevation_gain) || 0,
+    elevationLoss: 0,
+    maxElevation: a.elev_high || 0,
+    minElevation: a.elev_low || 0,
+    duration: a.elapsed_time || 0,
+    movingTime: a.moving_time || a.elapsed_time || 0,
+    avgSpeed: a.average_speed ? a.average_speed * 3.6 : 0,
+    maxSpeed: a.max_speed ? a.max_speed * 3.6 : 0,
+    // Health
     heartRateData: Object.keys(heartRateData).length > 0 ? heartRateData : null,
     healthCalories: a.calories || null,
+    // Strava metadata
     importedFromStrava: true,
     stravaSourceActivityId: String(activityId),
-    stravaActivityId: String(activityId), // così il badge "su Strava" funziona pure
+    stravaActivityId: String(activityId),
     stravaUploadStatus: 'done',
   };
 
