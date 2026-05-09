@@ -29,7 +29,7 @@ class StravaService {
   static const String _callbackUrl =
       'https://europe-west3-trailshare-5334b.cloudfunctions.net/stravaCallback';
 
-  static const String _scopes = 'read,activity:write';
+  static const String _scopes = 'read,activity:write,activity:read_all';
 
   final _functions = FirebaseFunctions.instanceFor(region: 'europe-west3');
 
@@ -70,6 +70,15 @@ class StravaService {
         .collection('users').doc(uid)
         .collection('integrations').doc('strava')
         .set({'autoUploadEnabled': enabled}, SetOptions(merge: true));
+  }
+
+  Future<void> setImportFromStravaEnabled(bool enabled) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance
+        .collection('users').doc(uid)
+        .collection('integrations').doc('strava')
+        .set({'importFromStravaEnabled': enabled}, SetOptions(merge: true));
   }
 
   /// Apre il browser su Strava per autorizzare l'app.

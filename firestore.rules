@@ -126,7 +126,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && isOwner(userId);
       allow update: if isSignedIn() && isOwner(userId)
         && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['autoUploadEnabled']);
+            .hasOnly(['autoUploadEnabled', 'importFromStravaEnabled']);
       allow create, delete: if false;
     }
 

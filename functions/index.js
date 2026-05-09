@@ -17,6 +17,7 @@ setGlobalOptions({ region: "europe-west3" });
 const orsApiKey = defineSecret('ORS_API_KEY');
 const stravaClientId = defineSecret('STRAVA_CLIENT_ID');
 const stravaClientSecret = defineSecret('STRAVA_CLIENT_SECRET');
+const stravaWebhookVerifyToken = defineSecret('STRAVA_WEBHOOK_VERIFY_TOKEN');
 
 // ===================================================================
 // FUNZIONI HELPER
@@ -2461,6 +2462,259 @@ exports.stravaUploadActivity = onCall(
       stravaError: lastError || null,
     });
     return { ok: false, status: lastError ? 'error' : 'pending', error: lastError, lastStatus };
+  }
+);
+
+// ===================================================================
+// STRAVA — Import attività da Strava (read direction)
+// ===================================================================
+//
+// Setup webhook (one-shot):
+// 1) firebase functions:secrets:set STRAVA_WEBHOOK_VERIFY_TOKEN  (qualsiasi stringa random)
+// 2) Deploy: firebase deploy --only functions:stravaWebhook,functions:stravaSubscribeWebhook
+// 3) Crea la subscription chiamando stravaSubscribeWebhook (callable) come admin
+//    OPPURE manualmente con curl:
+//    curl -X POST https://www.strava.com/api/v3/push_subscriptions \
+//      -F client_id=$CLIENT_ID -F client_secret=$CLIENT_SECRET \
+//      -F callback_url=https://europe-west3-trailshare-5334b.cloudfunctions.net/stravaWebhook \
+//      -F verify_token=<STRAVA_WEBHOOK_VERIFY_TOKEN>
+//
+// Strava → callback_url GET con hub.challenge → rispondiamo echo
+// Strava → callback_url POST con event {object_type, aspect_type, owner_id, object_id}
+//
+// Import skippato per:
+// - activity con external_id che inizia per "trailshare-" (è una nostra)
+// - activityType non outdoor (Yoga, WeightTraining, ecc.)
+// - utente senza importFromStravaEnabled=true
+// - distance < 100m
+
+const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
+
+const STRAVA_TO_TRAILSHARE_ACTIVITY = {
+  Hike: 'trekking',
+  Walk: 'walking',
+  Run: 'running',
+  TrailRun: 'trailRunning',
+  Ride: 'cycling',
+  GravelRide: 'gravelBiking',
+  MountainBikeRide: 'mountainBiking',
+  EBikeRide: 'eBike',
+  EMountainBikeRide: 'eMountainBike',
+  AlpineSki: 'alpineSkiing',
+  BackcountrySki: 'skiTouring',
+  NordicSki: 'nordicSkiing',
+  Snowshoe: 'snowshoeing',
+};
+
+async function findUserByStravaAthleteId(athleteId) {
+  const snap = await db.collectionGroup('integrations')
+    .where('athleteId', '==', Number(athleteId))
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  // path = users/{uid}/integrations/strava
+  const uid = doc.ref.parent.parent.id;
+  return { uid, integration: doc.data() };
+}
+
+async function importStravaActivity(uid, activityId, integration) {
+  // 1) Metadata
+  const meta = await axios.get(`${STRAVA_API_BASE}/activities/${activityId}`, {
+    headers: { Authorization: `Bearer ${integration.accessToken}` },
+  });
+  const a = meta.data;
+
+  // Skip nostre upload
+  if (a.external_id && String(a.external_id).startsWith('trailshare-')) {
+    logger.info(`[stravaImport] skip ours: activity=${activityId}`);
+    return { skipped: 'own_upload' };
+  }
+  // Skip non outdoor
+  const activityType = STRAVA_TO_TRAILSHARE_ACTIVITY[a.type] || STRAVA_TO_TRAILSHARE_ACTIVITY[a.sport_type];
+  if (!activityType) {
+    logger.info(`[stravaImport] skip type ${a.type}/${a.sport_type}: activity=${activityId}`);
+    return { skipped: 'unsupported_type' };
+  }
+  // Skip troppo corte
+  if (!a.distance || a.distance < 100) {
+    return { skipped: 'too_short' };
+  }
+  // Skip già importate
+  const existing = await db.collection('users').doc(uid).collection('tracks')
+    .where('stravaSourceActivityId', '==', String(activityId)).limit(1).get();
+  if (!existing.empty) {
+    logger.info(`[stravaImport] already imported: activity=${activityId}`);
+    return { skipped: 'already_imported' };
+  }
+
+  // 2) Streams
+  const streamKeys = 'latlng,altitude,time,heartrate,velocity_smooth';
+  const streamsResp = await axios.get(
+    `${STRAVA_API_BASE}/activities/${activityId}/streams?keys=${streamKeys}&key_by_type=true`,
+    { headers: { Authorization: `Bearer ${integration.accessToken}` } },
+  );
+  const s = streamsResp.data || {};
+  const latlng = s.latlng?.data || [];
+  const altitude = s.altitude?.data || [];
+  const time = s.time?.data || [];
+  const hr = s.heartrate?.data || [];
+  const speed = s.velocity_smooth?.data || [];
+
+  if (latlng.length === 0) {
+    logger.warn(`[stravaImport] no GPS data: activity=${activityId}`);
+    return { skipped: 'no_gps' };
+  }
+
+  // 3) Costruisci points
+  const startMs = new Date(a.start_date).getTime();
+  const points = [];
+  const heartRateData = {};
+  for (let i = 0; i < latlng.length; i++) {
+    const tsMs = startMs + (time[i] || 0) * 1000;
+    const isoTs = new Date(tsMs).toISOString();
+    points.push({
+      lat: latlng[i][0],
+      lng: latlng[i][1],
+      ele: altitude[i] != null ? altitude[i] : null,
+      time: isoTs,
+      speed: speed[i] != null ? speed[i] : null,
+    });
+    if (hr[i] != null && hr[i] > 30 && hr[i] < 250) {
+      heartRateData[isoTs] = Math.round(hr[i]);
+    }
+  }
+
+  // 4) Stats
+  const elevationGain = a.total_elevation_gain || 0;
+  const stats = {
+    distance: Number(a.distance) || 0,
+    elevationGain: Number(elevationGain),
+    elevationLoss: 0,
+    maxElevation: a.elev_high || 0,
+    minElevation: a.elev_low || 0,
+    duration: { microseconds: (a.elapsed_time || 0) * 1000000 },
+    movingTime: { microseconds: (a.moving_time || a.elapsed_time || 0) * 1000000 },
+    currentSpeed: 0,
+    avgSpeed: a.average_speed ? a.average_speed * 3.6 : 0,
+    maxSpeed: a.max_speed ? a.max_speed * 3.6 : 0,
+  };
+
+  // 5) Track doc
+  const track = {
+    userId: uid,
+    name: a.name || 'Attività Strava',
+    description: a.description || null,
+    activityType: activityType,
+    points: points,
+    stats: stats,
+    createdAt: admin.firestore.Timestamp.fromDate(new Date(a.start_date)),
+    isPublic: false,
+    isPlanned: false,
+    photos: [],
+    groupIds: [],
+    heartRateData: Object.keys(heartRateData).length > 0 ? heartRateData : null,
+    healthCalories: a.calories || null,
+    importedFromStrava: true,
+    stravaSourceActivityId: String(activityId),
+    stravaActivityId: String(activityId), // così il badge "su Strava" funziona pure
+    stravaUploadStatus: 'done',
+  };
+
+  const ref = await db.collection('users').doc(uid).collection('tracks').add(track);
+  logger.info(`[stravaImport] imported activity=${activityId} → track=${ref.id} uid=${uid}`);
+  return { imported: true, trackId: ref.id };
+}
+
+// Webhook callback Strava
+exports.stravaWebhook = onRequest(
+  {
+    secrets: [stravaClientId, stravaClientSecret, stravaWebhookVerifyToken],
+    cors: false,
+    timeoutSeconds: 60,
+  },
+  async (req, res) => {
+    // Subscription validation
+    if (req.method === 'GET') {
+      const mode = req.query['hub.mode'];
+      const token = req.query['hub.verify_token'];
+      const challenge = req.query['hub.challenge'];
+      if (mode === 'subscribe' && token === stravaWebhookVerifyToken.value()) {
+        logger.info('[stravaWebhook] subscription validated');
+        return res.status(200).json({ 'hub.challenge': challenge });
+      }
+      logger.warn(`[stravaWebhook] invalid validation token=${token}`);
+      return res.status(403).send('Forbidden');
+    }
+
+    // Event POST
+    if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+
+    const event = req.body || {};
+    const { object_type, aspect_type, owner_id, object_id } = event;
+    logger.info(`[stravaWebhook] event ${object_type}/${aspect_type} owner=${owner_id} obj=${object_id}`);
+
+    // Rispondi subito a Strava (deve avere 200 entro 2s o riprova)
+    res.status(200).send('OK');
+
+    if (object_type !== 'activity' || aspect_type !== 'create') return;
+
+    try {
+      const found = await findUserByStravaAthleteId(owner_id);
+      if (!found) {
+        logger.info(`[stravaWebhook] no user for athleteId=${owner_id}`);
+        return;
+      }
+      if (found.integration.importFromStravaEnabled !== true) {
+        logger.info(`[stravaWebhook] import disabled uid=${found.uid}`);
+        return;
+      }
+      const integration = await refreshStravaToken(found.uid, found.integration);
+      await importStravaActivity(found.uid, object_id, integration);
+    } catch (e) {
+      logger.error(`[stravaWebhook] import error obj=${object_id}: ${e?.message}`, e?.response?.data);
+    }
+  }
+);
+
+// Setup webhook subscription (one-shot, super-admin only)
+exports.stravaSubscribeWebhook = onCall(
+  { secrets: [stravaClientId, stravaClientSecret, stravaWebhookVerifyToken] },
+  async (req) => {
+    if (req.auth?.token?.email !== 'todde.massimiliano@gmail.com') {
+      throw new functions.https.HttpsError('permission-denied', 'admin only');
+    }
+    const callbackUrl = `https://europe-west3-trailshare-5334b.cloudfunctions.net/stravaWebhook`;
+    // Check existing
+    try {
+      const list = await axios.get('https://www.strava.com/api/v3/push_subscriptions', {
+        params: {
+          client_id: stravaClientId.value(),
+          client_secret: stravaClientSecret.value(),
+        },
+      });
+      if (Array.isArray(list.data) && list.data.length > 0) {
+        return { ok: true, alreadyExists: true, subscriptions: list.data };
+      }
+    } catch (e) {
+      logger.warn(`[stravaSub] list error: ${e?.message}`);
+    }
+    // Create
+    try {
+      const r = await axios.post('https://www.strava.com/api/v3/push_subscriptions', null, {
+        params: {
+          client_id: stravaClientId.value(),
+          client_secret: stravaClientSecret.value(),
+          callback_url: callbackUrl,
+          verify_token: stravaWebhookVerifyToken.value(),
+        },
+      });
+      return { ok: true, subscriptionId: r.data?.id };
+    } catch (e) {
+      const msg = e?.response?.data || e?.message;
+      logger.error('[stravaSub] create error', msg);
+      throw new functions.https.HttpsError('internal', JSON.stringify(msg));
+    }
   }
 );
 

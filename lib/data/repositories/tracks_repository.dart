@@ -658,6 +658,8 @@ class TracksRepository {
       heartRateData: heartRateData, // ❤️ Battito cardiaco
       healthCalories: healthCalories, // 🔥 Calorie reali
       healthSteps: healthSteps, // 👣 Passi
+      importedFromStrava: data['importedFromStrava'] == true,
+      stravaSourceActivityId: data['stravaSourceActivityId']?.toString(),
     );
   }
 

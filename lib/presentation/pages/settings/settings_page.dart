@@ -592,6 +592,13 @@ class _SettingsPageState extends State<SettingsPage> {
               value: autoUpload,
               onChanged: (v) => stravaService.setAutoUploadEnabled(v),
             ),
+            SwitchListTile(
+              secondary: const Icon(Icons.cloud_download_outlined),
+              title: const Text('Importa attività da Strava'),
+              subtitle: const Text('Le attività registrate con Garmin/altri device sincronizzate su Strava verranno importate qui automaticamente'),
+              value: data['importFromStravaEnabled'] == true,
+              onChanged: (v) => stravaService.setImportFromStravaEnabled(v),
+            ),
           ],
         );
       },

@@ -288,10 +288,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
         if (activityId != null) {
           final url = 'https://www.strava.com/activities/$activityId';
+          final imported = data['importedFromStrava'] == true;
           tile = ListTile(
             leading: const Icon(Icons.directions_run, color: stravaOrange),
-            title: const Text('Caricato su Strava'),
-            subtitle: const Text('Tocca per aprire l\'attività'),
+            title: Text(imported ? 'Importata da Strava' : 'Caricato su Strava'),
+            subtitle: Text(imported
+                ? 'Registrata su un altro device, sincronizzata via Strava'
+                : 'Tocca per aprire l\'attività'),
             trailing: const Icon(Icons.open_in_new, size: 18, color: stravaOrange),
             onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
           );

@@ -399,6 +399,10 @@ class Track {
   final double? healthCalories;
   // 👣 Passi da Health Connect/Apple Health
   final int? healthSteps;
+  // Traccia importata automaticamente da Strava (es. attività Garmin via Strava)
+  final bool importedFromStrava;
+  // ID dell'attività Strava da cui questa traccia è stata importata
+  final String? stravaSourceActivityId;
 
   const Track({
     this.id,
@@ -417,6 +421,8 @@ class Track {
     this.heartRateData, // ❤️ Battito cardiaco (opzionale)
     this.healthCalories, // 🔥 Calorie reali (opzionale)
     this.healthSteps, // 👣 Passi (opzionale)
+    this.importedFromStrava = false,
+    this.stravaSourceActivityId,
   });
 
   Map<String, dynamic> toMap() {
@@ -452,6 +458,12 @@ class Track {
     if (healthSteps != null) {
       map['healthSteps'] = healthSteps;
     }
+    if (importedFromStrava) {
+      map['importedFromStrava'] = true;
+    }
+    if (stravaSourceActivityId != null) {
+      map['stravaSourceActivityId'] = stravaSourceActivityId;
+    }
 
     return map;
   }
@@ -473,6 +485,8 @@ class Track {
     Map<DateTime, int>? heartRateData, // ❤️
     double? healthCalories, // 🔥
     int? healthSteps, // 👣
+    bool? importedFromStrava,
+    String? stravaSourceActivityId,
   }) {
     return Track(
       id: id ?? this.id,
@@ -491,6 +505,8 @@ class Track {
       heartRateData: heartRateData ?? this.heartRateData, // ❤️
       healthCalories: healthCalories ?? this.healthCalories, // 🔥
       healthSteps: healthSteps ?? this.healthSteps, // 👣
+      importedFromStrava: importedFromStrava ?? this.importedFromStrava,
+      stravaSourceActivityId: stravaSourceActivityId ?? this.stravaSourceActivityId,
     );
   }
 }
