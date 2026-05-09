@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/discovery_prompt_service.dart';
+import '../../../core/services/strava_service.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/models/track.dart';
@@ -38,7 +40,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   final TracksRepository _tracksRepository = TracksRepository();
   final CommunityTracksRepository _communityRepository = CommunityTracksRepository();
   final GlobalKey _mapKey = GlobalKey();
-  
+  bool _isRetryingStrava = false;
+
   @override
   void initState() {
     super.initState();
@@ -248,6 +251,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
                   const SizedBox(height: 24),
                   _buildDetails(),
+                  _buildStravaBadge(),
                 ],
               ),
             ),
@@ -255,6 +259,125 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         ],
       ),
     );
+  }
+
+  /// Badge Strava: visibile solo all'owner della traccia. Mostra lo stato
+  /// di upload (processing → done con link / error). I campi
+  /// `stravaActivityId` / `stravaUploadStatus` sono scritti dalla Cloud
+  /// Function `stravaUploadActivity` dopo il salvataggio.
+  Widget _buildStravaBadge() {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    debugPrint('[StravaBadge] currentUid=$currentUid trackId=${_track.id} '
+        'trackUserId=${_track.userId} match=${_track.userId == currentUid}');
+    if (currentUid == null || _track.id == null) return const SizedBox.shrink();
+    if (_track.userId != currentUid) return const SizedBox.shrink();
+
+    final docRef = FirebaseFirestore.instance
+        .collection('users').doc(currentUid)
+        .collection('tracks').doc(_track.id);
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: docRef.snapshots(),
+      builder: (context, snap) {
+        final data = snap.data?.data();
+        if (data == null) return const SizedBox.shrink();
+        final activityId = data['stravaActivityId']?.toString();
+        final status = data['stravaUploadStatus']?.toString();
+        if (activityId == null && status == null) return const SizedBox.shrink();
+
+        const stravaOrange = Color(0xFFFC4C02);
+        Widget tile;
+
+        if (activityId != null) {
+          final url = 'https://www.strava.com/activities/$activityId';
+          tile = ListTile(
+            leading: const Icon(Icons.directions_run, color: stravaOrange),
+            title: const Text('Caricato su Strava'),
+            subtitle: const Text('Tocca per aprire l\'attività'),
+            trailing: const Icon(Icons.open_in_new, size: 18, color: stravaOrange),
+            onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          );
+        } else if (status == 'processing' || status == 'pending') {
+          tile = const ListTile(
+            leading: SizedBox(
+              width: 24, height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2, color: stravaOrange),
+            ),
+            title: Text('Caricamento su Strava…'),
+            subtitle: Text('Strava sta elaborando il file GPX'),
+          );
+        } else if (status == 'error' || status == 'pending') {
+          final isError = status == 'error';
+          final err = data['stravaError']?.toString();
+          tile = ListTile(
+            leading: Icon(
+              isError ? Icons.error_outline : Icons.schedule,
+              color: isError ? AppColors.danger : Colors.orange,
+            ),
+            title: Text(isError ? 'Upload Strava fallito' : 'Upload in attesa'),
+            subtitle: Text(
+              isError
+                  ? (err ?? 'Errore sconosciuto')
+                  : 'Strava non ha ancora confermato l\'attività',
+            ),
+            trailing: _isRetryingStrava
+                ? const SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : TextButton.icon(
+                    onPressed: () => _retryStravaUpload(_track.id!),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Riprova'),
+                  ),
+          );
+        } else {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Card(child: tile),
+        );
+      },
+    );
+  }
+
+  Future<void> _retryStravaUpload(String trackId) async {
+    if (_isRetryingStrava) return;
+    setState(() => _isRetryingStrava = true);
+
+    // Pulisci lo stato di errore prima del retry: la function controlla
+    // `stravaActivityId` per idempotenza, gli altri campi servono solo all'UI.
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('users').doc(uid)
+            .collection('tracks').doc(trackId)
+            .update({
+          'stravaUploadStatus': 'processing',
+          'stravaError': FieldValue.delete(),
+        });
+      } catch (_) {}
+    }
+
+    final activityId = await StravaService().uploadTrack(trackId);
+    if (!mounted) return;
+    setState(() => _isRetryingStrava = false);
+
+    final messenger = ScaffoldMessenger.of(context);
+    if (activityId != null) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Caricato su Strava ✓'),
+        backgroundColor: AppColors.success,
+      ));
+    } else {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Upload non riuscito. Riprova più tardi.'),
+        backgroundColor: AppColors.danger,
+      ));
+    }
   }
 
   Widget _buildMainStats() {
