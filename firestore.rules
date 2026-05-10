@@ -184,6 +184,21 @@ service cloud.firestore {
         allow create, update, delete: if isSignedIn();
       }
 
+      // ─── Analytics aggregate (profile views, contact clicks) ─────
+      // Counter aggregate: scritti dal client su tap (no PII, no userId).
+      // Read pubblico così l'owner del business vede le sue stats anche
+      // dal web admin senza Cloud Function. MVP: write libero per
+      // signed-in (può falsare aprendo profilo 100x). Cloud Function
+      // dedup per produzione, rinviato.
+      match /analytics/{docId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn();
+      }
+      match /analytics_daily/{dateKey} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn();
+      }
+
       // ─── Recommended tracks (percorsi consigliati dal business) ───
       // Read pubblico (parte del profilo business). Write client-side
       // gating: vero owner check via UI (verifica owner del business

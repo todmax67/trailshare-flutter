@@ -10,6 +10,7 @@ import '../../../core/services/business_photos_service.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../widgets/star_rating.dart';
+import 'business_analytics_page.dart';
 import 'business_edit_page.dart';
 import 'business_post_composer_page.dart';
 import 'business_recommended_tracks_manager_page.dart';
@@ -36,6 +37,27 @@ class BusinessProfilePage extends StatefulWidget {
 
 class _BusinessProfilePageState extends State<BusinessProfilePage> {
   final BusinessRepository _repo = BusinessRepository();
+  bool _viewTracked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Tracking visita profilo (one-shot per apertura).
+    // Skip se l'utente è owner o non autenticato.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_viewTracked) return;
+      _viewTracked = true;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      // L'owner che si auto-visita non conta (evita inflate metriche).
+      // Il check viene fatto qui in modo pessimista: tracciamo solo se
+      // possiamo confermare che NON sei l'owner.
+      _repo.getBusiness(widget.businessId).then((b) {
+        if (b == null) return;
+        if (uid != null && b.isOwnerOrAdmin(uid)) return;
+        _repo.recordProfileView(widget.businessId);
+      }).catchError((_) {});
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -269,9 +291,13 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
     final messenger = ScaffoldMessenger.of(context);
     if (c.whatsapp != null) {
       final clean = c.whatsapp!.replaceAll(RegExp(r'[^0-9+]'), '');
+      _repo.recordContactClick(
+          widget.businessId, BusinessContactType.whatsapp);
       launchUrl(Uri.parse('https://wa.me/$clean'),
           mode: LaunchMode.externalApplication);
     } else if (c.phone != null) {
+      _repo.recordContactClick(
+          widget.businessId, BusinessContactType.phone);
       launchUrl(Uri.parse('tel:${c.phone}'),
           mode: LaunchMode.externalApplication);
     } else {
@@ -281,6 +307,8 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
   }
 
   void _openDirections(Business b) {
+    _repo.recordContactClick(
+        widget.businessId, BusinessContactType.directions);
     final url =
         'https://www.google.com/maps/dir/?api=1&destination=${b.location.lat},${b.location.lng}';
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -425,6 +453,17 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                 ),
                 icon: const Icon(Icons.list_alt),
                 label: const Text('Listino'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        BusinessAnalyticsPage(business: b),
+                  ),
+                ),
+                icon: const Icon(Icons.analytics_outlined),
+                label: const Text('Statistiche'),
               ),
               OutlinedButton.icon(
                 onPressed: () => Navigator.push(

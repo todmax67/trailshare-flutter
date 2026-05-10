@@ -469,6 +469,101 @@ class BusinessPost {
       );
 }
 
+/// Snapshot delle metriche aggregate di uno Spazio Pro.
+/// Contatori cumulativi life-time, salvati in
+/// `businesses/{id}/analytics/totals` (singleton doc).
+class BusinessAnalyticsTotals {
+  final int profileViews;
+  final int contactClicksWhatsApp;
+  final int contactClicksPhone;
+  final int contactClicksEmail;
+  final int contactClicksWebsite;
+  final int contactClicksDirections;
+  final DateTime? lastUpdatedAt;
+
+  const BusinessAnalyticsTotals({
+    this.profileViews = 0,
+    this.contactClicksWhatsApp = 0,
+    this.contactClicksPhone = 0,
+    this.contactClicksEmail = 0,
+    this.contactClicksWebsite = 0,
+    this.contactClicksDirections = 0,
+    this.lastUpdatedAt,
+  });
+
+  int get totalContactClicks =>
+      contactClicksWhatsApp +
+      contactClicksPhone +
+      contactClicksEmail +
+      contactClicksWebsite +
+      contactClicksDirections;
+
+  factory BusinessAnalyticsTotals.fromMap(Map<String, dynamic> m) =>
+      BusinessAnalyticsTotals(
+        profileViews: (m['profileViews'] as num?)?.toInt() ?? 0,
+        contactClicksWhatsApp:
+            (m['contactClicksWhatsApp'] as num?)?.toInt() ?? 0,
+        contactClicksPhone:
+            (m['contactClicksPhone'] as num?)?.toInt() ?? 0,
+        contactClicksEmail:
+            (m['contactClicksEmail'] as num?)?.toInt() ?? 0,
+        contactClicksWebsite:
+            (m['contactClicksWebsite'] as num?)?.toInt() ?? 0,
+        contactClicksDirections:
+            (m['contactClicksDirections'] as num?)?.toInt() ?? 0,
+        lastUpdatedAt: m['lastUpdatedAt'] is Timestamp
+            ? (m['lastUpdatedAt'] as Timestamp).toDate()
+            : null,
+      );
+}
+
+/// Aggregato giornaliero: doc ID = "YYYY-MM-DD" UTC.
+class BusinessAnalyticsDay {
+  final String dateKey; // YYYY-MM-DD
+  final int profileViews;
+  final int contactClicks;
+
+  const BusinessAnalyticsDay({
+    required this.dateKey,
+    this.profileViews = 0,
+    this.contactClicks = 0,
+  });
+
+  factory BusinessAnalyticsDay.fromMap(
+          String dateKey, Map<String, dynamic> m) =>
+      BusinessAnalyticsDay(
+        dateKey: dateKey,
+        profileViews: (m['profileViews'] as num?)?.toInt() ?? 0,
+        contactClicks: (m['contactClicks'] as num?)?.toInt() ?? 0,
+      );
+
+  DateTime get date {
+    final parts = dateKey.split('-');
+    if (parts.length != 3) return DateTime.now();
+    return DateTime.utc(
+      int.tryParse(parts[0]) ?? 1970,
+      int.tryParse(parts[1]) ?? 1,
+      int.tryParse(parts[2]) ?? 1,
+    );
+  }
+}
+
+/// Tipo di click contatto tracciato.
+enum BusinessContactType {
+  whatsapp('whatsapp'),
+  phone('phone'),
+  email('email'),
+  website('website'),
+  directions('directions');
+
+  final String wireName;
+  const BusinessContactType(this.wireName);
+
+  String get totalsField => 'contactClicks${_pascal(wireName)}';
+  static String _pascal(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+}
+
 /// Recensione di uno Spazio Pro lasciata da un utente.
 /// Una recensione per utente per business (doc ID = userId).
 class BusinessReview {

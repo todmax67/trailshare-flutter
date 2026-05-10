@@ -330,6 +330,116 @@ class BusinessRepository {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // ANALYTICS (profile views, contact clicks; aggregati totali + daily)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  String _todayKey() {
+    final now = DateTime.now().toUtc();
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '${now.year}-$m-$d';
+  }
+
+  /// Tracking visita profilo: incrementa atomicamente totals + daily.
+  /// Best-effort: errori vengono loggati ma non rilanciati (no UX impact).
+  Future<void> recordProfileView(String businessId) async {
+    try {
+      final batch = _db.batch();
+      batch.set(
+        _businesses.doc(businessId).collection('analytics').doc('totals'),
+        {
+          'profileViews': FieldValue.increment(1),
+          'lastUpdatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      batch.set(
+        _businesses
+            .doc(businessId)
+            .collection('analytics_daily')
+            .doc(_todayKey()),
+        {
+          'profileViews': FieldValue.increment(1),
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+    } catch (e) {
+      debugPrint('[BusinessRepo] recordProfileView error: $e');
+    }
+  }
+
+  /// Tracking tap su contatto/direzioni: incrementa per tipo.
+  Future<void> recordContactClick(
+      String businessId, BusinessContactType type) async {
+    try {
+      final batch = _db.batch();
+      batch.set(
+        _businesses.doc(businessId).collection('analytics').doc('totals'),
+        {
+          type.totalsField: FieldValue.increment(1),
+          'lastUpdatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      batch.set(
+        _businesses
+            .doc(businessId)
+            .collection('analytics_daily')
+            .doc(_todayKey()),
+        {
+          'contactClicks': FieldValue.increment(1),
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+    } catch (e) {
+      debugPrint('[BusinessRepo] recordContactClick error: $e');
+    }
+  }
+
+  Stream<BusinessAnalyticsTotals> watchAnalyticsTotals(String businessId) {
+    return _businesses
+        .doc(businessId)
+        .collection('analytics')
+        .doc('totals')
+        .snapshots()
+        .map((s) => s.exists
+            ? BusinessAnalyticsTotals.fromMap(s.data()!)
+            : const BusinessAnalyticsTotals());
+  }
+
+  /// Daily breakdown per gli ultimi [days] giorni (default 14).
+  /// Restituisce sempre un array di [days] elementi (zero-fill se manca).
+  Future<List<BusinessAnalyticsDay>> getAnalyticsDaily(
+    String businessId, {
+    int days = 14,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final dates = <String>[];
+    for (var i = days - 1; i >= 0; i--) {
+      final d = now.subtract(Duration(days: i));
+      final m = d.month.toString().padLeft(2, '0');
+      final dd = d.day.toString().padLeft(2, '0');
+      dates.add('${d.year}-$m-$dd');
+    }
+    final coll =
+        _businesses.doc(businessId).collection('analytics_daily');
+    final out = <BusinessAnalyticsDay>[];
+    for (final dateKey in dates) {
+      try {
+        final snap = await coll.doc(dateKey).get();
+        out.add(snap.exists
+            ? BusinessAnalyticsDay.fromMap(dateKey, snap.data()!)
+            : BusinessAnalyticsDay(dateKey: dateKey));
+      } catch (e) {
+        out.add(BusinessAnalyticsDay(dateKey: dateKey));
+      }
+    }
+    return out;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // REVIEWS (recensioni con rating aggregato transactional)
   // ═══════════════════════════════════════════════════════════════════════════
 

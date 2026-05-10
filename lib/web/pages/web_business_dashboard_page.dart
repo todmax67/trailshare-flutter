@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/business.dart';
 import '../../data/repositories/business_repository.dart';
+import '../../presentation/pages/business/business_analytics_page.dart';
 import '../../presentation/pages/business/business_edit_page.dart';
 import '../../presentation/pages/business/business_post_composer_page.dart';
 import '../../presentation/pages/business/business_profile_page.dart';
@@ -256,6 +257,13 @@ class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
                   label: 'Listino servizi',
                   onTap: () => _openInDialog(
                     BusinessServicesManagerPage(businessId: b.id!),
+                  ),
+                ),
+                _ActionButton(
+                  icon: Icons.analytics_outlined,
+                  label: 'Statistiche',
+                  onTap: () => _openInDialog(
+                    BusinessAnalyticsPage(business: b),
                   ),
                 ),
                 _ActionButton(
