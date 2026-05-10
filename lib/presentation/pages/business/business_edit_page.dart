@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/business_photos_service.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 
@@ -20,7 +22,12 @@ class BusinessEditPage extends StatefulWidget {
 
 class _BusinessEditPageState extends State<BusinessEditPage> {
   final _repo = BusinessRepository();
+  final _photos = BusinessPhotosService();
   final _formKey = GlobalKey<FormState>();
+  String? _logoUrl;
+  String? _heroUrl;
+  bool _uploadingLogo = false;
+  bool _uploadingHero = false;
 
   late final TextEditingController _name;
   late final TextEditingController _shortDesc;
@@ -72,6 +79,8 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
       return;
     }
     _business = b;
+    _logoUrl = b.branding.logoUrl;
+    _heroUrl = b.branding.heroPhotoUrl;
     _name.text = b.name;
     _shortDesc.text = b.shortDescription ?? '';
     _description.text = b.description ?? '';
@@ -95,6 +104,13 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
           'shortDescription': _shortDesc.text.trim(),
         if (_description.text.trim().isNotEmpty)
           'description': _description.text.trim(),
+        'branding': {
+          if (_logoUrl != null) 'logoUrl': _logoUrl,
+          if (_heroUrl != null) 'heroPhotoUrl': _heroUrl,
+          ..._business!.branding.toMap()
+            ..removeWhere((k, _) =>
+                k == 'logoUrl' || k == 'heroPhotoUrl'),
+        },
         'contacts': {
           if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
           if (_whatsapp.text.trim().isNotEmpty)
@@ -153,6 +169,27 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _section('Foto'),
+            _photoEditor(
+              label: 'Foto di copertina',
+              url: _heroUrl,
+              uploading: _uploadingHero,
+              kind: BusinessPhotoKind.hero,
+              aspectRatio: 16 / 9,
+              onUploaded: (u) => setState(() => _heroUrl = u),
+              onUploading: (v) => setState(() => _uploadingHero = v),
+            ),
+            const SizedBox(height: 12),
+            _photoEditor(
+              label: 'Logo',
+              url: _logoUrl,
+              uploading: _uploadingLogo,
+              kind: BusinessPhotoKind.logo,
+              aspectRatio: 1,
+              onUploaded: (u) => setState(() => _logoUrl = u),
+              onUploading: (v) => setState(() => _uploadingLogo = v),
+            ),
+            const SizedBox(height: 24),
             _section('Identità'),
             TextFormField(
               controller: _name,
@@ -260,6 +297,93 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _photoEditor({
+    required String label,
+    required String? url,
+    required bool uploading,
+    required BusinessPhotoKind kind,
+    required double aspectRatio,
+    required void Function(String) onUploaded,
+    required void Function(bool) onUploading,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8, left: 4),
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary)),
+        ),
+        AspectRatio(
+          aspectRatio: aspectRatio,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (url != null)
+                  CachedNetworkImage(
+                    imageUrl: url,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) =>
+                        Container(color: AppColors.border),
+                  )
+                else
+                  const Center(
+                    child: Icon(Icons.image,
+                        size: 40, color: AppColors.textMuted),
+                  ),
+                if (uploading)
+                  Container(
+                    color: Colors.black54,
+                    alignment: Alignment.center,
+                    child: const CircularProgressIndicator(
+                        color: Colors.white),
+                  ),
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: ElevatedButton.icon(
+                    onPressed: uploading
+                        ? null
+                        : () async {
+                            onUploading(true);
+                            final newUrl = await _photos.pickAndUpload(
+                              businessId: widget.businessId,
+                              kind: kind,
+                            );
+                            if (newUrl != null) {
+                              // Cancella la vecchia (best-effort)
+                              if (url != null) {
+                                _photos.deletePhotoByUrl(url);
+                              }
+                              onUploaded(newUrl);
+                            }
+                            onUploading(false);
+                          },
+                    icon: const Icon(Icons.camera_alt, size: 16),
+                    label: Text(url == null ? 'Carica' : 'Sostituisci'),
+                    style: ElevatedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
