@@ -89,19 +89,21 @@ class _WebProfilePageState extends State<WebProfilePage> {
                     const SizedBox(height: 20),
                     _LifetimeStats(tracks: _tracks),
                     const SizedBox(height: 20),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: _MonthlyVolumeCard(tracks: _tracks),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          flex: 2,
-                          child: _ActivityBreakdownCard(tracks: _tracks),
-                        ),
-                      ],
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: _MonthlyVolumeCard(tracks: _tracks),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 2,
+                            child: _ActivityBreakdownCard(tracks: _tracks),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 20),
                     _BadgesSection(unlocked: _unlocked),
