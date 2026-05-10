@@ -671,13 +671,17 @@ exports.orsProxy = onRequest({ secrets: [orsApiKey], region: "europe-west3" }, a
         'https://trailshare.app',         // Marketing site
         'https://app.trailshare.app',     // Dashboard webapp (custom domain)
         'https://trailshare.web.app',     // Dashboard webapp (Firebase default)
+        'https://trailshare-5334b.web.app',
+        'https://trailshare-5334b.firebaseapp.com',
         'https://localhost',              // Sviluppo Capacitor/Web HTTPS
-        'http://localhost',               // Sviluppo Capacitor/Web HTTP
         'capacitor://localhost'
     ];
-    const origin = req.headers.origin;
+    const origin = req.headers.origin || '';
+    // Dev: localhost con qualsiasi porta (flutter run -d chrome usa porte
+    // diverse a ogni run). In produzione passa solo dalla whitelist.
+    const isLocalhost = /^https?:\/\/localhost(:\d+)?$/.test(origin);
 
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin) || isLocalhost) {
         res.set('Access-Control-Allow-Origin', origin);
     } else {
         console.warn(`Origin ${origin} non consentito.`);
