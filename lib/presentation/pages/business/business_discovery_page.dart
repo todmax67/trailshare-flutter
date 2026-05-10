@@ -73,6 +73,13 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
         radiusKm: _radiusKm,
         type: _filterType,
       );
+      debugPrint('[BusinessDiscovery] userPos=${_userPos!.latitude},'
+          '${_userPos!.longitude} radius=$_radiusKm type=${_filterType?.name} '
+          'found=${list.length}');
+      for (final b in list) {
+        debugPrint('  → ${b.name} @ ${b.location.lat},${b.location.lng} '
+            '(${_haversineKm(_userPos!.latitude, _userPos!.longitude, b.location.lat, b.location.lng).toStringAsFixed(1)}km)');
+      }
       if (!mounted) return;
       setState(() {
         _businesses = list;
