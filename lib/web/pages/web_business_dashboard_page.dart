@@ -8,6 +8,7 @@ import '../../presentation/pages/business/business_edit_page.dart';
 import '../../presentation/pages/business/business_post_composer_page.dart';
 import '../../presentation/pages/business/business_profile_page.dart';
 import '../../presentation/pages/business/business_services_manager_page.dart';
+import 'web_home_page.dart';
 
 /// Dashboard web del singolo Spazio Pro: panoramica + azioni rapide.
 /// Le azioni di edit/post/listino aprono le pagine mobile in dialog
@@ -49,6 +50,24 @@ class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
   Widget _build(Business b) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Torna a Spazi Pro',
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              // Deep link diretto /business/{id}: rimanda al picker
+              // ricostruendo lo shell con sidebar.
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const WebHomePage(initialTab: 4),
+                ),
+              );
+            }
+          },
+        ),
         title: Text(b.name),
         actions: [
           OutlinedButton.icon(

@@ -86,20 +86,6 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
   }
 
   Widget _buildList(List<Business> businesses) {
-    // Se uno solo, redirige automaticamente alla dashboard
-    if (businesses.length == 1) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                WebBusinessDashboardPage(businessId: businesses[0].id!),
-          ),
-        );
-      });
-      return const Center(child: CircularProgressIndicator());
-    }
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Column(
