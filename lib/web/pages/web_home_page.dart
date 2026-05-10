@@ -58,14 +58,20 @@ class _WebHomePageState extends State<WebHomePage> {
   /// Verifica se l'utente loggato è admin di almeno un gruppo Business.
   /// Solo in tal caso mostriamo la sezione "I miei gruppi Business".
   Future<void> _checkBusinessAccess() async {
-    final myGroups = await _groupsRepo.getMyGroups();
     bool found = false;
-    for (final g in myGroups) {
-      if (!g.isBusinessGroup) continue;
-      if (await _groupsRepo.isAdmin(g.id)) {
-        found = true;
-        break;
+    try {
+      final myGroups = await _groupsRepo.getMyGroups();
+      for (final g in myGroups) {
+        if (!g.isBusinessGroup) continue;
+        if (await _groupsRepo.isAdmin(g.id)) {
+          found = true;
+          break;
+        }
       }
+    } catch (e) {
+      // Pre-esistente: se la query fallisce, non blocchiamo l'app.
+      // ignore: avoid_print
+      print('[WebHome] check business access fallito: $e');
     }
     if (!mounted) return;
     setState(() {

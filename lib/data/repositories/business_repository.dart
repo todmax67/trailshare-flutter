@@ -168,12 +168,18 @@ class BusinessRepository {
   Stream<List<Business>> watchMyBusinesses() {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return Stream.value([]);
+    // NB: niente orderBy server-side per evitare di richiedere un indice
+    // composito. Volumi attesi minimi (1-3 businesses per owner), ordino
+    // client-side.
     return _businesses
         .where('ownerId', isEqualTo: uid)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((s) =>
-            s.docs.map((d) => Business.fromMap(d.id, d.data())).toList());
+        .map((s) {
+      final list =
+          s.docs.map((d) => Business.fromMap(d.id, d.data())).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
