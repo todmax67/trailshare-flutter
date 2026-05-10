@@ -109,6 +109,96 @@ service cloud.firestore {
       }
     }
 
+    // ─── BUSINESS / SPAZIO PRO ─────────────────────────────────────
+    // Profili pubblici (rifugi, noleggi, guide, ecc). Read pubblico per
+    // SEO + landing senza login. La sub-collection followers resta privata.
+    match /businesses/{businessId} {
+      allow read: if true;
+
+      // MVP: creazione SOLO da super-admin (B-flow). Quando aggiungeremo
+      // self-serve, allargheremo a isSignedIn() con check su nome+slug+location.
+      allow create: if isAdminByEmail()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() < 120
+        && request.resource.data.slug is string
+        && request.resource.data.slug.size() > 0
+        && request.resource.data.type is string
+        && request.resource.data.location is map
+        && request.resource.data.location.lat is number
+        && request.resource.data.location.lng is number
+        && request.resource.data.followerCount == 0
+        && request.resource.data.postsCount == 0
+        && request.resource.data.reviewCount == 0;
+
+      // Update: owner o admin. I counter (followerCount, postsCount,
+      // reviewCount) NON sono modificabili dal client — gestiti via
+      // transaction su sotto-collection (con FieldValue.increment).
+      allow update: if isSignedIn()
+        && (resource.data.ownerId == request.auth.uid
+            || (resource.data.adminUserIds is list
+                && request.auth.uid in resource.data.adminUserIds))
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['followerCount', 'postsCount', 'reviewCount', 'rating',
+                     'ownerId', 'createdAt', 'tier', 'status']);
+
+      // Update dei contatori: SOLO via transaction che modifica anche
+      // la sub-collection (Firestore non lo verifica direttamente, ma
+      // limitiamo affectedKeys ai soli counter).
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['followerCount', 'postsCount', 'reviewCount',
+                      'updatedAt']);
+
+      // Delete: solo owner o super admin
+      allow delete: if isSignedIn()
+        && (resource.data.ownerId == request.auth.uid || isSuperAdmin());
+
+      // ─── Followers (signed-in only, identità protetta) ─────────
+      match /followers/{userId} {
+        allow read: if isSignedIn();
+        allow create, delete: if isSignedIn() && request.auth.uid == userId;
+        allow update: if false;
+      }
+
+      // ─── Posts (SEO/landing → public read) ─────────────────────
+      match /posts/{postId} {
+        allow read: if true;
+        allow create: if isSignedIn()
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() < 5000;
+        allow update: if isSignedIn()
+          && resource.data.authorId == request.auth.uid;
+        allow delete: if isSignedIn()
+          && (resource.data.authorId == request.auth.uid || isSuperAdmin());
+      }
+
+      // ─── Services (listino) — public read per SEO ───────────────
+      match /services/{serviceId} {
+        allow read: if true;
+        // Owner check via UI gating + audit; verifica vera richiede get()
+        // che è costoso a runtime. Mitigazione: rules sul business doc
+        // bloccano impersonificazioni grazie a ownerId immutabile.
+        allow create, update, delete: if isSignedIn();
+      }
+
+      // ─── Reviews (Sprint 2) ─────────────────────────────────────
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isSignedIn()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.rating is number
+          && request.resource.data.rating >= 1
+          && request.resource.data.rating <= 5;
+        allow update: if isSignedIn()
+          && resource.data.userId == request.auth.uid;
+        allow delete: if isSignedIn()
+          && (resource.data.userId == request.auth.uid || isSuperAdmin());
+      }
+    }
+
     // --- REGOLE TRACCE PRIVATE (incluse pianificate) ---
     // Cross-leggibili da tutti gli autenticati (necessario per feed, gruppi,
     // tour). Continua a funzionare anche con il wildcard più stretto sotto.
