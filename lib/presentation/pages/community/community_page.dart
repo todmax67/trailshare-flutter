@@ -18,6 +18,7 @@ import '../../../core/utils/group_brand.dart';
 import '../../../presentation/widgets/following_feed_item.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../presentation/widgets/community_track_card.dart';
+import '../business/business_discovery_page.dart';
 import '../groups/create_group_page.dart';
 import '../groups/group_detail_page.dart';
 import '../follow/search_users_page.dart';
@@ -525,6 +526,18 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.business_center_outlined),
+            tooltip: 'Spazi Pro',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const BusinessDiscoveryPage(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.person_search),
             onPressed: () {
