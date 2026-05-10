@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/business_photos_service.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
+import 'business_location_picker_page.dart';
 
 /// Form di edit del profilo business (versione MVP).
 /// Modifica: nome, descrizione, contatti, indirizzo testuale.
@@ -44,6 +46,11 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
   bool _saving = false;
   Business? _business;
   Map<String, DayHours> _hours = {};
+  // Posizione editabile (lat, lng, geohash). Inizializzata da business
+  // al load; aggiornata via picker.
+  double? _lat;
+  double? _lng;
+  String? _geohash;
 
   @override
   void initState() {
@@ -83,6 +90,9 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
     _logoUrl = b.branding.logoUrl;
     _heroUrl = b.branding.heroPhotoUrl;
     _hours = Map.of(b.openingHours);
+    _lat = b.location.lat;
+    _lng = b.location.lng;
+    _geohash = b.location.geohash;
     _name.text = b.name;
     _shortDesc.text = b.shortDescription ?? '';
     _description.text = b.description ?? '';
@@ -125,6 +135,9 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
         },
         'location': {
           ..._business!.location.toMap(),
+          if (_lat != null) 'lat': _lat,
+          if (_lng != null) 'lng': _lng,
+          if (_geohash != null) 'geohash': _geohash,
           if (_address.text.trim().isNotEmpty)
             'address': _address.text.trim(),
           if (_city.text.trim().isNotEmpty) 'city': _city.text.trim(),
@@ -289,13 +302,46 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 8),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'Posizione GPS attuale: salvata. Per modificarla contatta il supporto (lo strumento mappa-picker arriva nella prossima versione).',
-                style: TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary),
+            const SizedBox(height: 12),
+            // Posizione GPS modificabile via picker
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.gps_fixed,
+                      size: 18, color: AppColors.textSecondary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Posizione sulla mappa',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary)),
+                        const SizedBox(height: 2),
+                        Text(
+                          _lat != null && _lng != null
+                              ? '${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
+                              : 'Non impostata',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _pickLocation,
+                    icon: const Icon(Icons.edit_location_alt, size: 18),
+                    label: const Text('Sposta'),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 24),
@@ -344,6 +390,35 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
         onTap: () => _editDayHours(key),
       );
     }).toList();
+  }
+
+  Future<void> _pickLocation() async {
+    final initial = (_lat != null && _lng != null)
+        ? LatLng(_lat!, _lng!)
+        : null;
+    final result = await Navigator.push<LatLng>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BusinessLocationPickerPage(initial: initial),
+      ),
+    );
+    if (result == null) return;
+    final newLoc = buildLocationUpdate(
+      newPos: result,
+      oldLocationMap: _business!.location.toMap(),
+    );
+    setState(() {
+      _lat = (newLoc['lat'] as num).toDouble();
+      _lng = (newLoc['lng'] as num).toDouble();
+      _geohash = newLoc['geohash'] as String;
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Posizione aggiornata. Salva per applicare.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _editDayHours(String dayKey) async {
