@@ -43,6 +43,7 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
   bool _loading = true;
   bool _saving = false;
   Business? _business;
+  Map<String, DayHours> _hours = {};
 
   @override
   void initState() {
@@ -81,6 +82,7 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
     _business = b;
     _logoUrl = b.branding.logoUrl;
     _heroUrl = b.branding.heroPhotoUrl;
+    _hours = Map.of(b.openingHours);
     _name.text = b.name;
     _shortDesc.text = b.shortDescription ?? '';
     _description.text = b.description ?? '';
@@ -126,6 +128,9 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
           if (_address.text.trim().isNotEmpty)
             'address': _address.text.trim(),
           if (_city.text.trim().isNotEmpty) 'city': _city.text.trim(),
+        },
+        'openingHours': {
+          for (final entry in _hours.entries) entry.key: entry.value.toMap(),
         },
       };
       await _repo.updateBusiness(widget.businessId, patch);
@@ -293,11 +298,73 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
                     fontSize: 12, color: AppColors.textSecondary),
               ),
             ),
+            const SizedBox(height: 24),
+            _section('Orari di apertura'),
+            ..._buildHoursEditors(),
             const SizedBox(height: 32),
           ],
         ),
       ),
     );
+  }
+
+  static const _dayKeys = [
+    'monday', 'tuesday', 'wednesday', 'thursday',
+    'friday', 'saturday', 'sunday',
+  ];
+  static const _dayLabels = {
+    'monday': 'Lunedì',
+    'tuesday': 'Martedì',
+    'wednesday': 'Mercoledì',
+    'thursday': 'Giovedì',
+    'friday': 'Venerdì',
+    'saturday': 'Sabato',
+    'sunday': 'Domenica',
+  };
+
+  List<Widget> _buildHoursEditors() {
+    return _dayKeys.map((key) {
+      final h = _hours[key];
+      String text;
+      if (h == null) {
+        text = 'Non impostato';
+      } else if (h.closed) {
+        text = 'Chiuso';
+      } else if (h.open24h) {
+        text = 'Aperto 24h';
+      } else {
+        text = '${h.open} – ${h.close}';
+      }
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(_dayLabels[key]!),
+        subtitle: Text(text,
+            style: const TextStyle(color: AppColors.textSecondary)),
+        trailing: const Icon(Icons.edit, size: 18),
+        onTap: () => _editDayHours(key),
+      );
+    }).toList();
+  }
+
+  Future<void> _editDayHours(String dayKey) async {
+    final current = _hours[dayKey];
+    final result = await showModalBottomSheet<DayHours?>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _HoursSheet(
+        dayLabel: _dayLabels[dayKey]!,
+        initial: current,
+      ),
+    );
+    if (result == null) return;
+    setState(() {
+      // Sentinel: name=='__CLEAR__' significa rimuovi
+      if (result.open == '__CLEAR__') {
+        _hours.remove(dayKey);
+      } else {
+        _hours[dayKey] = result;
+      }
+    });
   }
 
   Widget _photoEditor({
@@ -398,6 +465,173 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
           color: AppColors.textSecondary,
           letterSpacing: 0.6,
         ),
+      ),
+    );
+  }
+}
+
+enum _HoursMode { open, closed, open24h, unset }
+
+class _HoursSheet extends StatefulWidget {
+  final String dayLabel;
+  final DayHours? initial;
+  const _HoursSheet({required this.dayLabel, this.initial});
+
+  @override
+  State<_HoursSheet> createState() => _HoursSheetState();
+}
+
+class _HoursSheetState extends State<_HoursSheet> {
+  late _HoursMode _mode;
+  TimeOfDay _open = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _close = const TimeOfDay(hour: 18, minute: 0);
+
+  @override
+  void initState() {
+    super.initState();
+    final h = widget.initial;
+    if (h == null) {
+      _mode = _HoursMode.unset;
+    } else if (h.closed) {
+      _mode = _HoursMode.closed;
+    } else if (h.open24h) {
+      _mode = _HoursMode.open24h;
+    } else {
+      _mode = _HoursMode.open;
+      _open = _parseTime(h.open) ?? _open;
+      _close = _parseTime(h.close) ?? _close;
+    }
+  }
+
+  TimeOfDay? _parseTime(String s) {
+    final parts = s.split(':');
+    if (parts.length != 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return TimeOfDay(hour: h, minute: m);
+  }
+
+  String _fmt(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _pickTime(bool open) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: open ? _open : _close,
+      builder: (ctx, child) =>
+          MediaQuery(data: const MediaQueryData(alwaysUse24HourFormat: true), child: child!),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (open) {
+        _open = picked;
+      } else {
+        _close = picked;
+      }
+    });
+  }
+
+  void _save() {
+    DayHours? result;
+    switch (_mode) {
+      case _HoursMode.unset:
+        // Sentinel per rimozione
+        result = const DayHours(open: '__CLEAR__');
+        break;
+      case _HoursMode.closed:
+        result = const DayHours(closed: true);
+        break;
+      case _HoursMode.open24h:
+        result = const DayHours(open24h: true);
+        break;
+      case _HoursMode.open:
+        result = DayHours(open: _fmt(_open), close: _fmt(_close));
+        break;
+    }
+    Navigator.pop(context, result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16, right: 16, top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.dayLabel,
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          RadioListTile<_HoursMode>(
+            value: _HoursMode.open,
+            groupValue: _mode,
+            onChanged: (v) => setState(() => _mode = v!),
+            title: const Text('Aperto'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          if (_mode == _HoursMode.open)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _pickTime(true),
+                      child: Text('Da ${_fmt(_open)}'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _pickTime(false),
+                      child: Text('A ${_fmt(_close)}'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          RadioListTile<_HoursMode>(
+            value: _HoursMode.open24h,
+            groupValue: _mode,
+            onChanged: (v) => setState(() => _mode = v!),
+            title: const Text('Aperto 24h'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          RadioListTile<_HoursMode>(
+            value: _HoursMode.closed,
+            groupValue: _mode,
+            onChanged: (v) => setState(() => _mode = v!),
+            title: const Text('Chiuso'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          RadioListTile<_HoursMode>(
+            value: _HoursMode.unset,
+            groupValue: _mode,
+            onChanged: (v) => setState(() => _mode = v!),
+            title: const Text('Non impostato'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Spacer(),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annulla'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _save,
+                child: const Text('Salva'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

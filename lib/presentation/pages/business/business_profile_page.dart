@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/business_photos_service.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_edit_page.dart';
@@ -69,12 +70,19 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
               _buildActions(b),
               const Divider(height: 1),
               if (b.description != null && b.description!.isNotEmpty)
-                _buildDescription(b),
+                _buildDescription(b)
+              else if (isOwner)
+                _ownerCta(
+                  'Aggiungi una descrizione',
+                  Icons.notes,
+                  () => _openEdit(b),
+                ),
               _buildLocation(b),
               if (isOwner) _buildOwnerActions(b),
-              _buildServicesPreview(b),
-              _buildPostsPreview(b),
-              _buildOpeningHours(b),
+              _buildGallery(b, isOwner),
+              _buildServicesPreview(b, isOwner),
+              _buildPostsPreview(b, isOwner),
+              _buildOpeningHours(b, isOwner),
               const SizedBox(height: 32),
             ]),
           ),
@@ -417,14 +425,188 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
     );
   }
 
+  void _openEdit(Business b) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BusinessEditPage(businessId: b.id!),
+      ),
+    );
+  }
+
+  Widget _ownerCta(String label, IconData icon, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.3),
+                style: BorderStyle.solid),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.primary, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.primary),
+                ),
+              ),
+              const Icon(Icons.chevron_right,
+                  size: 18, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── GALLERIA ─────────────────────────────────────────────────────────
+  Widget _buildGallery(Business b, bool isOwner) {
+    final photos = b.branding.galleryUrls;
+    if (photos.isEmpty && !isOwner) return const SizedBox.shrink();
+    if (photos.isEmpty && isOwner) {
+      return _ownerCta(
+        'Aggiungi foto della galleria',
+        Icons.photo_library,
+        () => _addGalleryPhoto(b),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('Galleria',
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              if (isOwner)
+                TextButton.icon(
+                  onPressed: () => _addGalleryPhoto(b),
+                  icon: const Icon(Icons.add_a_photo, size: 16),
+                  label: const Text('Aggiungi'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 120,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: photos.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => GestureDetector(
+                onLongPress: isOwner
+                    ? () => _confirmRemoveGalleryPhoto(b, photos[i])
+                    : null,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: photos[i],
+                    width: 160,
+                    height: 120,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (isOwner)
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                'Tieni premuta una foto per rimuoverla',
+                style: TextStyle(
+                    fontSize: 11, color: AppColors.textMuted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addGalleryPhoto(Business b) async {
+    final photos = BusinessPhotosService();
+    final url = await photos.pickAndUpload(
+      businessId: b.id!,
+      kind: BusinessPhotoKind.gallery,
+    );
+    if (url == null) return;
+    final newGallery = [...b.branding.galleryUrls, url];
+    await _repo.updateBusiness(b.id!, {
+      'branding': {
+        ...b.branding.toMap(),
+        'galleryUrls': newGallery,
+      },
+    });
+  }
+
+  Future<void> _confirmRemoveGalleryPhoto(Business b, String url) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rimuovere foto?'),
+        content: const Text('La foto verrà eliminata dalla galleria.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+                foregroundColor: AppColors.danger),
+            child: const Text('Rimuovi'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final newGallery =
+        b.branding.galleryUrls.where((u) => u != url).toList();
+    await _repo.updateBusiness(b.id!, {
+      'branding': {
+        ...b.branding.toMap(),
+        'galleryUrls': newGallery,
+      },
+    });
+    BusinessPhotosService().deletePhotoByUrl(url);
+  }
+
   // ─── SERVIZI / LISTINO (preview top 3) ───────────────────────────────────
-  Widget _buildServicesPreview(Business b) {
+  Widget _buildServicesPreview(Business b, bool isOwner) {
     return StreamBuilder<List<BusinessService>>(
       stream: _repo.watchServices(b.id!),
       builder: (context, snap) {
         final services =
             snap.data?.where((s) => s.isActive).toList() ?? const [];
-        if (services.isEmpty) return const SizedBox.shrink();
+        if (services.isEmpty) {
+          if (!isOwner) return const SizedBox.shrink();
+          return _ownerCta(
+            'Aggiungi voci al listino',
+            Icons.list_alt,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    BusinessServicesManagerPage(businessId: b.id!),
+              ),
+            ),
+          );
+        }
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Column(
@@ -458,12 +640,25 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
   }
 
   // ─── POSTS PREVIEW ───────────────────────────────────────────────────────
-  Widget _buildPostsPreview(Business b) {
+  Widget _buildPostsPreview(Business b, bool isOwner) {
     return StreamBuilder<List<BusinessPost>>(
       stream: _repo.watchPosts(b.id!, limit: 5),
       builder: (context, snap) {
         final posts = snap.data ?? const [];
-        if (posts.isEmpty) return const SizedBox.shrink();
+        if (posts.isEmpty) {
+          if (!isOwner) return const SizedBox.shrink();
+          return _ownerCta(
+            'Pubblica il primo aggiornamento',
+            Icons.post_add,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    BusinessPostComposerPage(businessId: b.id!),
+              ),
+            ),
+          );
+        }
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Column(
@@ -482,8 +677,15 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
   }
 
   // ─── ORARI ────────────────────────────────────────────────────────────────
-  Widget _buildOpeningHours(Business b) {
-    if (b.openingHours.isEmpty) return const SizedBox.shrink();
+  Widget _buildOpeningHours(Business b, bool isOwner) {
+    if (b.openingHours.isEmpty) {
+      if (!isOwner) return const SizedBox.shrink();
+      return _ownerCta(
+        'Imposta gli orari di apertura',
+        Icons.schedule,
+        () => _openEdit(b),
+      );
+    }
     const dayLabels = {
       'monday': 'Lun',
       'tuesday': 'Mar',

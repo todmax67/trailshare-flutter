@@ -104,6 +104,91 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
     );
   }
 
+  void _showMarkerSheet(Business b) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Hero / fallback
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                height: 140,
+                width: double.infinity,
+                child: b.branding.heroPhotoUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: b.branding.heroPhotoUrl!,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        alignment: Alignment.center,
+                        child: Text(b.type.icon,
+                            style: const TextStyle(fontSize: 56)),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(b.name,
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Text(b.type.displayName,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 13)),
+                const Text('  •  ',
+                    style: TextStyle(color: AppColors.textMuted)),
+                const Icon(Icons.location_on,
+                    size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 2),
+                Text('${_distance(b).toStringAsFixed(1)} km',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 13)),
+              ],
+            ),
+            if (b.shortDescription != null) ...[
+              const SizedBox(height: 8),
+              Text(b.shortDescription!,
+                  style: const TextStyle(fontSize: 13)),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          BusinessProfilePage(businessId: b.id!),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Apri profilo'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   double _haversineKm(double lat1, double lon1, double lat2, double lon2) {
     const r = 6371.0;
     final dLat = (lat2 - lat1) * math.pi / 180;
@@ -272,13 +357,7 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
                 width: 44,
                 height: 44,
                 child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          BusinessProfilePage(businessId: b.id!),
-                    ),
-                  ),
+                  onTap: () => _showMarkerSheet(b),
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.primary,
