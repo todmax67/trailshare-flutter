@@ -469,6 +469,122 @@ class BusinessPost {
       );
 }
 
+/// Sorgente di una traccia consigliata.
+enum RecommendedTrackSource {
+  /// Traccia privata di un utente (path: users/{ownerId}/tracks/{trackId}).
+  /// Tipicamente è una traccia dell'owner del business o di un suo collaboratore.
+  privateTrack('private'),
+
+  /// Traccia pubblicata in community (path: community_tracks/{trackId}).
+  /// Visibile a tutti, può essere di qualsiasi utente.
+  communityTrack('community');
+
+  final String wireName;
+  const RecommendedTrackSource(this.wireName);
+
+  static RecommendedTrackSource fromWire(String? s) {
+    return RecommendedTrackSource.values.firstWhere(
+      (v) => v.wireName == s,
+      orElse: () => RecommendedTrackSource.communityTrack,
+    );
+  }
+}
+
+/// Traccia consigliata sul profilo di uno Spazio Pro.
+/// L'owner del business cura una lista di percorsi (proprie + community)
+/// che ritiene rilevanti per i suoi clienti. I metadati sono
+/// denormalizzati al momento dell'add per evitare N query in lettura.
+class RecommendedTrack {
+  /// ID Firestore del documento. Coincide con [trackId] (dedup automatico).
+  final String? id;
+
+  /// ID della traccia originale (in users/{ownerId}/tracks o community_tracks).
+  final String trackId;
+  final RecommendedTrackSource sourceType;
+
+  /// Owner della traccia originale (utile per costruire il path private).
+  /// Per community track, è il `ownerId` denormalizzato dal doc community.
+  final String? trackOwnerId;
+  final String? trackOwnerUsername;
+
+  /// Owner del business che ha aggiunto la voce.
+  final String addedBy;
+  final DateTime addedAt;
+  final int order;
+  final String? note;
+
+  // Metadati denormalizzati per preview rapida
+  final String trackName;
+  final double trackDistance; // metri
+  final double trackElevationGain; // metri
+  final String trackActivityType;
+  final int? trackDurationSec;
+  final String? trackPhotoUrl;
+
+  const RecommendedTrack({
+    this.id,
+    required this.trackId,
+    required this.sourceType,
+    this.trackOwnerId,
+    this.trackOwnerUsername,
+    required this.addedBy,
+    required this.addedAt,
+    this.order = 0,
+    this.note,
+    required this.trackName,
+    required this.trackDistance,
+    required this.trackElevationGain,
+    required this.trackActivityType,
+    this.trackDurationSec,
+    this.trackPhotoUrl,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'trackId': trackId,
+        'sourceType': sourceType.wireName,
+        if (trackOwnerId != null) 'trackOwnerId': trackOwnerId,
+        if (trackOwnerUsername != null) 'trackOwnerUsername': trackOwnerUsername,
+        'addedBy': addedBy,
+        'addedAt': Timestamp.fromDate(addedAt),
+        'order': order,
+        if (note != null && note!.isNotEmpty) 'note': note,
+        'trackName': trackName,
+        'trackDistance': trackDistance,
+        'trackElevationGain': trackElevationGain,
+        'trackActivityType': trackActivityType,
+        if (trackDurationSec != null) 'trackDurationSec': trackDurationSec,
+        if (trackPhotoUrl != null) 'trackPhotoUrl': trackPhotoUrl,
+      };
+
+  factory RecommendedTrack.fromMap(String id, Map<String, dynamic> m) =>
+      RecommendedTrack(
+        id: id,
+        trackId: m['trackId']?.toString() ?? id,
+        sourceType: RecommendedTrackSource.fromWire(m['sourceType']?.toString()),
+        trackOwnerId: m['trackOwnerId']?.toString(),
+        trackOwnerUsername: m['trackOwnerUsername']?.toString(),
+        addedBy: m['addedBy']?.toString() ?? '',
+        addedAt: m['addedAt'] is Timestamp
+            ? (m['addedAt'] as Timestamp).toDate()
+            : DateTime.now(),
+        order: (m['order'] as num?)?.toInt() ?? 0,
+        note: m['note']?.toString(),
+        trackName: m['trackName']?.toString() ?? 'Senza nome',
+        trackDistance: (m['trackDistance'] as num?)?.toDouble() ?? 0,
+        trackElevationGain:
+            (m['trackElevationGain'] as num?)?.toDouble() ?? 0,
+        trackActivityType: m['trackActivityType']?.toString() ?? 'trekking',
+        trackDurationSec: (m['trackDurationSec'] as num?)?.toInt(),
+        trackPhotoUrl: m['trackPhotoUrl']?.toString(),
+      );
+
+  String get distanceKmFormatted =>
+      '${(trackDistance / 1000).toStringAsFixed(1)} km';
+
+  String get elevationFormatted =>
+      '+${trackElevationGain.toStringAsFixed(0)} m';
+}
+
 /// Voce di listino (servizio/prodotto offerto dal business).
 enum PriceUnit {
   day,

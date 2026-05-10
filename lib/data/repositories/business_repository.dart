@@ -330,6 +330,86 @@ class BusinessRepository {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // RECOMMENDED TRACKS (percorsi consigliati)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Aggiunge una traccia ai consigliati. Idempotente: doc ID = trackId.
+  /// Se già presente, sovrascrive la nota.
+  Future<void> addRecommendedTrack(
+    String businessId,
+    RecommendedTrack rec,
+  ) async {
+    final ref = _businesses
+        .doc(businessId)
+        .collection('recommended_tracks')
+        .doc(rec.trackId);
+    await ref.set(rec.toMap());
+  }
+
+  Future<void> removeRecommendedTrack(
+    String businessId,
+    String trackId,
+  ) async {
+    await _businesses
+        .doc(businessId)
+        .collection('recommended_tracks')
+        .doc(trackId)
+        .delete();
+  }
+
+  Future<void> updateRecommendedTrackNote(
+    String businessId,
+    String trackId,
+    String? note,
+  ) async {
+    await _businesses
+        .doc(businessId)
+        .collection('recommended_tracks')
+        .doc(trackId)
+        .update({
+      'note': note ?? FieldValue.delete(),
+    });
+  }
+
+  /// Riordina i consigliati impostando il campo `order` in batch.
+  Future<void> reorderRecommendedTracks(
+    String businessId,
+    List<String> trackIdsInOrder,
+  ) async {
+    final batch = _db.batch();
+    for (var i = 0; i < trackIdsInOrder.length; i++) {
+      final ref = _businesses
+          .doc(businessId)
+          .collection('recommended_tracks')
+          .doc(trackIdsInOrder[i]);
+      batch.update(ref, {'order': i});
+    }
+    await batch.commit();
+  }
+
+  Stream<List<RecommendedTrack>> watchRecommendedTracks(String businessId) {
+    return _businesses
+        .doc(businessId)
+        .collection('recommended_tracks')
+        .orderBy('order')
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => RecommendedTrack.fromMap(d.id, d.data()))
+            .toList());
+  }
+
+  Future<List<RecommendedTrack>> getRecommendedTracks(String businessId) async {
+    final snap = await _businesses
+        .doc(businessId)
+        .collection('recommended_tracks')
+        .orderBy('order')
+        .get();
+    return snap.docs
+        .map((d) => RecommendedTrack.fromMap(d.id, d.data()))
+        .toList();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
 

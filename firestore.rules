@@ -184,6 +184,15 @@ service cloud.firestore {
         allow create, update, delete: if isSignedIn();
       }
 
+      // ─── Recommended tracks (percorsi consigliati dal business) ───
+      // Read pubblico (parte del profilo business). Write client-side
+      // gating: vero owner check via UI (verifica owner del business
+      // doc richiederebbe get() costoso).
+      match /recommended_tracks/{trackId} {
+        allow read: if true;
+        allow create, update, delete: if isSignedIn();
+      }
+
       // ─── Reviews (Sprint 2) ─────────────────────────────────────
       match /reviews/{reviewId} {
         allow read: if true;

@@ -11,6 +11,7 @@ import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_edit_page.dart';
 import 'business_post_composer_page.dart';
+import 'business_recommended_tracks_manager_page.dart';
 import 'business_services_manager_page.dart';
 
 /// Profilo pubblico di uno Spazio Pro (rifugio, noleggio, guida, ecc).
@@ -80,6 +81,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
               _buildLocation(b),
               if (isOwner) _buildOwnerActions(b),
               _buildGallery(b, isOwner),
+              _buildRecommendedTracks(b, isOwner),
               _buildServicesPreview(b, isOwner),
               _buildPostsPreview(b, isOwner),
               _buildOpeningHours(b, isOwner),
@@ -402,6 +404,17 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                   context,
                   MaterialPageRoute(
                     builder: (_) =>
+                        BusinessRecommendedTracksManagerPage(business: b),
+                  ),
+                ),
+                icon: const Icon(Icons.route),
+                label: const Text('Percorsi consigliati'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
                         BusinessServicesManagerPage(businessId: b.id!),
                   ),
                 ),
@@ -584,6 +597,65 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
       },
     });
     BusinessPhotosService().deletePhotoByUrl(url);
+  }
+
+  // ─── PERCORSI CONSIGLIATI (preview top 3) ────────────────────────────────
+  Widget _buildRecommendedTracks(Business b, bool isOwner) {
+    return StreamBuilder<List<RecommendedTrack>>(
+      stream: _repo.watchRecommendedTracks(b.id!),
+      builder: (context, snap) {
+        final tracks = snap.data ?? const [];
+        if (tracks.isEmpty) {
+          if (!isOwner) return const SizedBox.shrink();
+          return _ownerCta(
+            'Aggiungi percorsi consigliati',
+            Icons.route,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    BusinessRecommendedTracksManagerPage(business: b),
+              ),
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.route,
+                      size: 18, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  const Text('Percorsi consigliati',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  if (tracks.length > 3 || isOwner)
+                    TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              BusinessRecommendedTracksManagerPage(
+                                  business: b),
+                        ),
+                      ),
+                      child: Text(isOwner
+                          ? 'Gestisci (${tracks.length})'
+                          : 'Tutti (${tracks.length})'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...tracks.take(3).map((t) => _RecommendedTrackPreview(track: t)),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // ─── SERVIZI / LISTINO (preview top 3) ───────────────────────────────────
@@ -804,6 +876,92 @@ class _ServiceTile extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _RecommendedTrackPreview extends StatelessWidget {
+  final RecommendedTrack track;
+  const _RecommendedTrackPreview({required this.track});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          // TODO: aprire detail traccia in base a sourceType
+          // Per ora mostriamo solo il fatto che è cliccabile
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Apri "${track.trackName}" '
+                  '(${track.sourceType.wireName})'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        },
+        child: SizedBox(
+          height: 80,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 80,
+                child: track.trackPhotoUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: track.trackPhotoUrl!,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.route,
+                            size: 32, color: AppColors.primary),
+                      ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        track.trackName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${track.distanceKmFormatted} · ${track.elevationFormatted}',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                      if (track.note != null && track.note!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            '"${track.note!}"',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
