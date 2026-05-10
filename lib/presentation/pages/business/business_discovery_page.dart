@@ -326,9 +326,11 @@ class _BusinessCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: SizedBox(
+          height: 100,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             // Thumbnail
             SizedBox(
               width: 100,
@@ -367,16 +369,20 @@ class _BusinessCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text(
-                          b.type.displayName,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary),
+                        Flexible(
+                          child: Text(
+                            b.type.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary),
+                          ),
                         ),
                         const Text(' • ',
                             style: TextStyle(
                                 color: AppColors.textMuted)),
-                        Icon(Icons.location_on,
+                        const Icon(Icons.location_on,
                             size: 12, color: AppColors.textSecondary),
                         Text(
                           '${distanceKm.toStringAsFixed(1)} km',
@@ -389,13 +395,15 @@ class _BusinessCard extends StatelessWidget {
                     if (b.shortDescription != null ||
                         b.description != null) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        b.shortDescription ?? b.description!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary),
+                      Flexible(
+                        child: Text(
+                          b.shortDescription ?? b.description!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary),
+                        ),
                       ),
                     ],
                   ],
@@ -403,6 +411,7 @@ class _BusinessCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
