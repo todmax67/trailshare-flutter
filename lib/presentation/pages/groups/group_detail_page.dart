@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/owner_pro_status_cache.dart';
 import '../../../core/utils/group_brand.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
@@ -10,6 +11,8 @@ import 'group_challenges_tab.dart';
 import 'group_tracks_tab.dart';
 import 'group_members_page.dart';
 import 'group_customize_page.dart';
+import '../../widgets/paywall_sheet.dart';
+import '../business/business_profile_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
@@ -56,6 +59,12 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
 
     final group = await _repo.getGroup(widget.groupId);
     final isAdmin = await _repo.isAdmin(widget.groupId);
+
+    // Sprint B.2: pre-fetch del flag Pro dell'owner per renderizzare il
+    // branding (logo/cover/color) al primo build senza flicker.
+    if (group != null && group.createdBy.isNotEmpty) {
+      await OwnerProStatusCache().isOwnerPro(group.createdBy);
+    }
 
     if (mounted) {
       setState(() {
@@ -188,12 +197,34 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               switch (value) {
                 case 'customize':
                   if (_group != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => GroupCustomizePage(group: _group!),
-                      ),
-                    ).then((_) => _loadGroup());
+                    // Sprint B.2: gate accesso dietro Pro dell'owner.
+                    // Se l'owner del gruppo non è Consumer Pro, mostriamo
+                    // il paywall invece di aprire la pagina.
+                    () async {
+                      // "Personalizza" accessibile se il gruppo è
+                      // Pro-equivalent: owner Consumer Pro OR override
+                      // admin isBusinessGroup=true (seed clients).
+                      final ownerIsPro = await OwnerProStatusCache()
+                          .isOwnerPro(_group!.createdBy);
+                      final canCustomize =
+                          ownerIsPro || _group!.isBusinessGroup;
+                      if (!context.mounted) return;
+                      if (!canCustomize) {
+                        await showPaywallSheet(
+                          context,
+                          trigger: PaywallTrigger.generic,
+                        );
+                        return;
+                      }
+                      if (!context.mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              GroupCustomizePage(group: _group!),
+                        ),
+                      ).then((_) => _loadGroup());
+                    }();
                   }
                   break;
                 case 'leave':
@@ -205,8 +236,11 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               }
             },
             itemBuilder: (context) => [
-              // "Personalizza" visibile solo se admin di un gruppo Business
-              if (_isAdmin && _group?.isBusinessGroup == true)
+              // "Personalizza" visibile a tutti gli admin (Sprint B): se
+              // il gruppo non è Pro-equivalent, il tap apre il paywall
+              // Consumer Pro come upsell. Per gruppi Pro o
+              // isBusinessGroup=true apre direttamente la pagina.
+              if (_isAdmin)
                 const PopupMenuItem(
                   value: 'customize',
                   child: Row(
@@ -677,6 +711,16 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Badge "Community di [BusinessName]" se il gruppo è linkato a
+          // uno Spazio Pro. Tap apre il profilo business.
+          if (group.isLinkedToBusiness) ...[
+            _LinkedBusinessBadge(
+              businessId: group.linkedBusinessId!,
+              businessName:
+                  group.linkedBusinessName ?? 'Spazio Pro',
+            ),
+            const SizedBox(height: 12),
+          ],
           // Cover banner 16:9 (Business con cover caricata)
           if (group.hasCustomCover) ...[
             ClipRRect(
@@ -1065,6 +1109,73 @@ class _InfoTabAvatar extends StatelessWidget {
           color: Colors.white,
           fontSize: 36,
           fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// Badge "Community di [BusinessName]" mostrato in cima al tab Info
+/// quando il gruppo è linkato a uno Spazio Pro. Tap apre il profilo del
+/// business.
+class _LinkedBusinessBadge extends StatelessWidget {
+  final String businessId;
+  final String businessName;
+  const _LinkedBusinessBadge({
+    required this.businessId,
+    required this.businessName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BusinessProfilePage(businessId: businessId),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(Icons.business, color: AppColors.primary, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'COMMUNITY VIP DI',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    Text(
+                      businessName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.primary),
+            ],
+          ),
         ),
       ),
     );

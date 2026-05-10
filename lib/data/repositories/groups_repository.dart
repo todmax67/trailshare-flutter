@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:math';
 
+import '../../core/services/owner_pro_status_cache.dart';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MODELLI
 // ═══════════════════════════════════════════════════════════════════════════
@@ -59,18 +61,52 @@ class Group {
   final String? pinnedPostText;
   final DateTime? pinnedPostUpdatedAt;
 
+  /// ID dello Spazio Pro (`businesses/{id}`) di cui questo gruppo è la
+  /// "Community VIP". Quando settato, il gruppo:
+  ///  - diventa Pro-equivalent automaticamente (cap espansi + branding
+  ///    visibile, senza bisogno del flag admin `isBusinessGroup=true`);
+  ///  - mostra un badge "Community di [BusinessName]" cliccabile che
+  ///    apre la pagina del business;
+  ///  - può essere gestito dal pannello owner del business.
+  /// Mirror reverse del campo `businesses/{id}.linkedGroupId`.
+  final String? linkedBusinessId;
+
+  /// Nome denormalizzato del business linkato (per evitare un fetch
+  /// dello Spazio Pro solo per mostrare il badge nella header).
+  /// Aggiornato dall'app al link/unlink, non garantito sempre fresh.
+  final String? linkedBusinessName;
+
   bool get isPublic => visibility == 'public';
   bool get isPrivate => visibility == 'private';
   bool get isSecret => visibility == 'secret';
   bool get isDiscoverable => visibility != 'secret';
 
-  /// Vero quando il gruppo ha una rappresentazione visuale custom
-  /// (logo caricato dall'admin, possibile solo per gruppi Business).
-  bool get hasCustomLogo => isBusinessGroup && avatarUrl != null && avatarUrl!.isNotEmpty;
+  /// `true` se questo gruppo è la Community VIP di uno Spazio Pro.
+  /// Comporta automaticamente accesso a branding + cap espansi.
+  bool get isLinkedToBusiness =>
+      linkedBusinessId != null && linkedBusinessId!.isNotEmpty;
 
-  /// Vero quando il gruppo ha una cover image 16:9 caricata
-  /// (banner mostrato in cima al tab Info, gruppi Business).
-  bool get hasCustomCover => isBusinessGroup && coverUrl != null && coverUrl!.isNotEmpty;
+  /// Vero quando il gruppo ha una rappresentazione visuale custom
+  /// (logo caricato dall'admin).
+  ///
+  /// Il branding è visibile se il gruppo è "Pro-equivalent" — tre path:
+  ///   1. owner Consumer Pro (`user_profiles.isPro=true`, store-driven)
+  ///   2. `isBusinessGroup=true` (override admin, es. seed clients)
+  ///   3. `linkedBusinessId != null` (gruppo è Community VIP di uno
+  ///      Spazio Pro — Pro-equivalent automatico)
+  /// Altrimenti il branding resta nascosto.
+  bool get hasCustomLogo {
+    if (avatarUrl == null || avatarUrl!.isEmpty) return false;
+    if (isBusinessGroup || isLinkedToBusiness) return true;
+    return OwnerProStatusCache().isOwnerProCached(createdBy) == true;
+  }
+
+  /// Stesso gating di [hasCustomLogo].
+  bool get hasCustomCover {
+    if (coverUrl == null || coverUrl!.isEmpty) return false;
+    if (isBusinessGroup || isLinkedToBusiness) return true;
+    return OwnerProStatusCache().isOwnerProCached(createdBy) == true;
+  }
 
   /// Rank per il sort della discovery community: i gruppi Business
   /// con tier alto vengono mostrati in cima ("featured placement").
@@ -174,6 +210,8 @@ class Group {
     this.qrJoinCount = 0,
     this.pinnedPostText,
     this.pinnedPostUpdatedAt,
+    this.linkedBusinessId,
+    this.linkedBusinessName,
   });
 
   factory Group.fromFirestore(DocumentSnapshot doc) {
@@ -203,6 +241,8 @@ class Group {
       pinnedPostText: (data['pinnedPostText'] as String?),
       pinnedPostUpdatedAt:
           (data['pinnedPostUpdatedAt'] as Timestamp?)?.toDate(),
+      linkedBusinessId: data['linkedBusinessId']?.toString(),
+      linkedBusinessName: data['linkedBusinessName']?.toString(),
     );
   }
 }
@@ -1739,18 +1779,17 @@ class GroupsRepository {
       final additionalAdmins = adminsSnap.docs
           .where((d) => d.id != group.createdBy)
           .length;
-      // Limite tier-aware: la UI dovrebbe già aver bloccato, ma
-      // teniamo il check server-side come safety.
-      // null = illimitato (Enterprise / non Business)
-      // 0 = solo founder (Verified/Trial)
-      // 5 = Pro
-      final maxAdditional = _additionalAdminCapInternal(group);
+      // Limite Sprint B (cap derivati da owner Pro status):
+      // - owner Free  → 0 co-admin (solo founder)
+      // - owner Pro   → 5 co-admin
+      // La UI dovrebbe già aver bloccato; check server-side come safety.
+      final maxAdditional = await _additionalAdminCapInternal(group);
       if (maxAdditional != null && additionalAdmins >= maxAdditional) {
         return {
           'success': false,
           'error': maxAdditional == 0
-              ? 'Tier Verified non supporta co-admin. Passa a Pro.'
-              : 'Hai raggiunto il limite di $maxAdditional co-admin del tier Pro.',
+              ? 'I gruppi Free non supportano co-admin. Passa a TrailShare Pro.'
+              : 'Hai raggiunto il limite di $maxAdditional co-admin.',
         };
       }
       await memberDocRef.update({'role': 'admin'});
@@ -1794,22 +1833,14 @@ class GroupsRepository {
     }
   }
 
-  /// Helper interno per il cap admin tier-aware. Replica la logica di
-  /// `BusinessCaps.additionalAdminCap` ma evita una dipendenza
-  /// circolare core/utils ↔ data/repositories.
-  int? _additionalAdminCapInternal(Group group) {
-    if (!group.isBusinessGroup) return null;
-    switch (group.businessTier) {
-      case 'enterprise':
-        return null;
-      case 'pro':
-        return 5;
-      case 'verified':
-      case 'trial':
-        return 0;
-      default:
-        return null;
-    }
+  /// Helper interno per il cap admin Sprint B (legge owner Pro status).
+  /// Evita la dipendenza circolare core/utils ↔ data/repositories
+  /// importando il servizio direttamente.
+  Future<int?> _additionalAdminCapInternal(Group group) async {
+    if (group.createdBy.isEmpty) return 0;
+    final ownerIsPro =
+        await OwnerProStatusCache().isOwnerPro(group.createdBy);
+    return ownerIsPro ? 5 : 0;
   }
 
   /// Genera la stringa CSV della lista membri del gruppo per l'export

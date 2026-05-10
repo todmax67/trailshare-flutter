@@ -52,7 +52,8 @@ service cloud.firestore {
             .hasOnly(['bio', 'username', 'avatarUrl', 'wishlist',
                       'totalTracks', 'totalDistance', 'totalElevationGain', 'earnedBadges',
                       'fcmTokens', 'following', 'email', 'createdAt', 'lastActive',
-                      'socialFeaturingOptIn']))
+                      'socialFeaturingOptIn',
+                      'region', 'regionSetAt']))
         ||
         (isSignedIn() && !isOwner(userId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers']));
