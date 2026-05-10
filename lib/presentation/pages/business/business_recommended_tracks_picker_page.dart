@@ -33,7 +33,7 @@ class _BusinessRecommendedTracksPickerPageState
 
   bool _loading = true;
   List<Track> _myTracks = [];
-  List<CommunityTrack> _communityTracks = [];
+  List<CommunityTrackPreview> _communityTracks = [];
   Set<String> _alreadyRecommended = {};
   String _searchQuery = '';
 
@@ -53,15 +53,22 @@ class _BusinessRecommendedTracksPickerPageState
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
+      // Community: filtra near business (50 km), preview lightweight
+      // (no GPS points → memory friendly).
       final results = await Future.wait([
         _myRepo.getMyTracksLightweight(limit: 200),
-        _communityRepo.getRecentTracks(limit: 50),
+        _communityRepo.getRecentTracksPreview(
+          limit: 50,
+          nearLat: widget.business.location.lat,
+          nearLng: widget.business.location.lng,
+          radiusKm: 50,
+        ),
         _businessRepo.getRecommendedTracks(widget.business.id!),
       ]);
       if (!mounted) return;
       setState(() {
         _myTracks = results[0] as List<Track>;
-        _communityTracks = results[1] as List<CommunityTrack>;
+        _communityTracks = results[1] as List<CommunityTrackPreview>;
         _alreadyRecommended =
             (results[2] as List<RecommendedTrack>).map((r) => r.trackId).toSet();
         _loading = false;
@@ -106,7 +113,7 @@ class _BusinessRecommendedTracksPickerPageState
     );
   }
 
-  Future<void> _addCommunity(CommunityTrack track) async {
+  Future<void> _addCommunity(CommunityTrackPreview track) async {
     final note = await _askNote();
     if (note == _AskNoteResult.cancelled) return;
     final uid =
@@ -181,7 +188,7 @@ class _BusinessRecommendedTracksPickerPageState
     return _myTracks.where((t) => t.name.toLowerCase().contains(q)).toList();
   }
 
-  List<CommunityTrack> get _filteredCommunityTracks {
+  List<CommunityTrackPreview> get _filteredCommunityTracks {
     if (_searchQuery.isEmpty) return _communityTracks;
     final q = _searchQuery.toLowerCase();
     return _communityTracks
@@ -201,7 +208,7 @@ class _BusinessRecommendedTracksPickerPageState
           labelColor: AppColors.primary,
           tabs: const [
             Tab(icon: Icon(Icons.person), text: 'Le mie tracce'),
-            Tab(icon: Icon(Icons.public), text: 'Community'),
+            Tab(icon: Icon(Icons.public), text: 'Community vicine'),
           ],
         ),
       ),
@@ -286,7 +293,7 @@ class _BusinessRecommendedTracksPickerPageState
           padding: const EdgeInsets.all(24),
           child: Text(
             _searchQuery.isEmpty
-                ? 'Nessuna traccia community recente disponibile'
+                ? 'Nessuna traccia community entro 50 km da questo Spazio Pro'
                 : 'Nessun risultato per "$_searchQuery"',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.textSecondary),
