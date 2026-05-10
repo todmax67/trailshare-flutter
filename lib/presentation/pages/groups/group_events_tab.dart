@@ -51,14 +51,14 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          // Cap check: gruppi Verified/Trial sono limitati a 4 eventi
-          // attivi (futuri o in corso). Pro/Enterprise illimitati.
-          // Gruppi non Business: nessun cap, comportamento "free".
+          // Cap check (Sprint B): gruppi Free (owner non Pro) sono limitati
+          // a [BusinessCaps.freeEventCap] eventi attivi (futuri o in corso).
+          // Owner Consumer Pro → eventi illimitati.
           final group = await _repo.getGroup(widget.groupId);
-          if (group != null && BusinessCaps.applies(group)) {
+          if (group != null && await BusinessCaps.appliesAsync(group)) {
             final upcoming =
                 await _repo.getEvents(widget.groupId, upcomingOnly: true);
-            if (upcoming.length >= BusinessCaps.verifiedEventCap) {
+            if (upcoming.length >= BusinessCaps.freeEventCap) {
               if (!context.mounted) return;
               await showEventsCapReached(context, group);
               return;

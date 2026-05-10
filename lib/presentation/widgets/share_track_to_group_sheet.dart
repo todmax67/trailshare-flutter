@@ -78,16 +78,17 @@ class _ShareTrackToGroupSheetState extends State<_ShareTrackToGroupSheet> {
     if (trackId == null) return;
     final groupId = entry.group.id;
 
-    // Cap check: se il gruppo è Verified/Trial e ha già raggiunto
-    // il limite di 10 tracce condivise, blocca l'aggiunta e propone
-    // upgrade. La rimozione (wantShared=false) non è mai bloccata.
-    if (wantShared && BusinessCaps.applies(entry.group)) {
+    // Cap check (Sprint B): se l'owner del gruppo è Free e ha già
+    // raggiunto il limite di [freeTrackCap] tracce condivise, blocca
+    // l'aggiunta e propone upgrade Consumer Pro. La rimozione
+    // (wantShared=false) non è mai bloccata.
+    if (wantShared && await BusinessCaps.appliesAsync(entry.group)) {
       final current = await _tracksRepo.getGroupTracks(groupId);
       // Se la traccia è già condivisa (toggle off→on dopo rimozione)
       // l'array contiene il trackId: non conta come superamento.
       final alreadyIn =
           current.any((t) => t.id == trackId);
-      if (!alreadyIn && current.length >= BusinessCaps.verifiedTrackCap) {
+      if (!alreadyIn && current.length >= BusinessCaps.freeTrackCap) {
         if (!mounted) return;
         await showTracksCapReached(context, entry.group);
         return;

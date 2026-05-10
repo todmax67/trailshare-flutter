@@ -1947,10 +1947,91 @@ async function updateProStatus(uid, data) {
       },
       { merge: true }
     );
+
+    // Sprint B (2026-05-10): mirror del flag isPro su user_profiles così
+    // altri utenti possono leggerlo (es. cap dei gruppi derivati dal Pro
+    // status dell'OWNER del gruppo, non del current user).
+    // user_profiles è già public-read; isPro non è in whitelist update
+    // client-side → solo admin SDK lo scrive (qui).
+    const isProActive =
+      data.isPro === true &&
+      (data.expiresAtMs == null || data.expiresAtMs > Date.now());
+    try {
+      await db.collection('user_profiles').doc(uid).set(
+        {
+          isPro: isProActive,
+          proExpiresAtMs: data.expiresAtMs ?? null,
+          proUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (mirrorErr) {
+      logger.error(
+        `[updateProStatus] user_profiles mirror failed for uid=${uid}`,
+        mirrorErr
+      );
+    }
   } catch (e) {
     logger.error(`[updateProStatus] failed for uid=${uid}`, e);
   }
 }
+
+/// Backfill one-shot: legge `users/{uid}.proStatus` per ogni utente e
+/// rimirror su `user_profiles/{uid}.isPro`. Da chiamare una volta dopo
+/// il deploy del mirror (utenti già Pro non sono coperti automaticamente).
+/// Protetto admin via custom claim email.
+const ADMIN_BACKFILL_SECRET = defineSecret('ADMIN_BACKFILL_SECRET');
+
+exports.backfillIsProMirror = onRequest(
+  { region: 'europe-west3', cors: true, secrets: [ADMIN_BACKFILL_SECRET] },
+  async (req, res) => {
+    // Auth basic via header X-Admin-Secret (uso one-shot, niente claims).
+    const secret = req.header('X-Admin-Secret');
+    if (secret !== ADMIN_BACKFILL_SECRET.value()) {
+      logger.warn('[backfillIsProMirror] unauthorized');
+      res.status(401).send('unauthorized');
+      return;
+    }
+
+    let scanned = 0;
+    let mirrored = 0;
+    let skipped = 0;
+    const errors = [];
+
+    try {
+      const snap = await db.collection('users').get();
+      for (const doc of snap.docs) {
+        scanned += 1;
+        const proStatus = doc.data()?.proStatus;
+        if (!proStatus) {
+          skipped += 1;
+          continue;
+        }
+        const isProActive =
+          proStatus.isPro === true &&
+          (proStatus.expiresAtMs == null ||
+            proStatus.expiresAtMs > Date.now());
+        try {
+          await db.collection('user_profiles').doc(doc.id).set(
+            {
+              isPro: isProActive,
+              proExpiresAtMs: proStatus.expiresAtMs ?? null,
+              proUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          mirrored += 1;
+        } catch (e) {
+          errors.push({ uid: doc.id, msg: e.message });
+        }
+      }
+      res.json({ ok: true, scanned, mirrored, skipped, errors });
+    } catch (e) {
+      logger.error('[backfillIsProMirror] failed', e);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+);
 
 // ===================================================================
 // 6.6 — TRAIL CONDITIONS AI SUMMARY

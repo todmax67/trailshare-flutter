@@ -2,32 +2,86 @@ import 'package:flutter/material.dart';
 
 import 'group_brand.dart';
 import '../../data/repositories/groups_repository.dart';
+import '../services/owner_pro_status_cache.dart';
+import '../../presentation/widgets/paywall_sheet.dart';
 
-/// Limiti del tier Verified (e Trial). I tier Pro/Enterprise non
-/// hanno cap.
+/// Cap dei gruppi nel modello a 3 livelli (Sprint B, 2026-05-10).
+///
+/// **Modello attuale**:
+/// - **Free** (owner del gruppo NON è Consumer Pro): cap su tracce ed
+///   eventi, niente co-admin oltre al founder.
+/// - **Consumer Pro** (owner del gruppo HA Consumer Pro €2.99/€19.99 via
+///   store): tracce illim., eventi illim., fino a [proAdminCap] co-admin.
+/// - **Spazio Pro / Business**: entity separata `businesses/{id}`, NON è
+///   un tier dei gruppi. Vedi `business.dart`.
+///
+/// Il flag `isBusinessGroup` + `businessTier` sui gruppi è LEGACY (verrà
+/// rimosso in B.4). Per ora viene ignorato dai cap: l'unica cosa che
+/// conta è se l'owner del gruppo è Consumer Pro.
 class BusinessCaps {
-  static const int verifiedTrackCap = 10;
-  static const int verifiedEventCap = 4;
+  /// Cap tracce condivise per gruppi Free (owner senza Pro).
+  static const int freeTrackCap = 10;
 
-  /// Numero MASSIMO di admin **aggiuntivi** rispetto al founder per il
-  /// tier Pro. Verified/Trial hanno 0 (solo founder). Enterprise non
-  /// ha limite. Gruppi non Business: ignorato (gestione ruoli libera
-  /// come oggi).
+  /// Cap eventi attivi (futuri o in corso) per gruppi Free.
+  static const int freeEventCap = 4;
+
+  /// Numero MASSIMO di admin **aggiuntivi** rispetto al founder per i
+  /// gruppi Consumer Pro. Free: 0 (solo founder).
   static const int proAdminCap = 5;
 
-  /// I tier per cui i cap si applicano. Pro/Enterprise hanno
-  /// illimitato. I gruppi non Business non hanno cap né
-  /// vincoli — restano al comportamento "free" attuale.
+  // Manteniamo gli alias legacy per non rompere i call sites legacy
+  // ancora presenti (sostituiti gradualmente). Sono identici ai nuovi.
+  @Deprecated('Use freeTrackCap instead')
+  static const int verifiedTrackCap = freeTrackCap;
+  @Deprecated('Use freeEventCap instead')
+  static const int verifiedEventCap = freeEventCap;
+
+  /// `true` se al gruppo si applicano i cap (= NON è espanso).
+  ///
+  /// Un gruppo è "espanso" (cap rimossi) se:
+  ///   1. l'OWNER ha Consumer Pro attivo (path utente, via store), OPPURE
+  ///   2. l'admin TrailShare ha flagato `isBusinessGroup=true` (path admin,
+  ///      es. seed clients program — concesso manualmente da Firestore
+  ///      o dalla sezione "Gruppi Business" del pannello admin).
+  ///
+  /// Async perché legge `user_profiles/{ownerId}.isPro` con cache TTL 5min
+  /// (vedi [OwnerProStatusCache]).
+  static Future<bool> appliesAsync(Group group) async {
+    // Gruppo Pro-equivalent: 3 path possibili (vedi Group.hasCustomLogo).
+    if (group.isBusinessGroup || group.isLinkedToBusiness) return false;
+    if (group.createdBy.isEmpty) return true;
+    final ownerIsPro =
+        await OwnerProStatusCache().isOwnerPro(group.createdBy);
+    return !ownerIsPro;
+  }
+
+  /// Numero max di admin aggiuntivi (oltre al founder). `null` =
+  /// illimitato (riservato a casi futuri Enterprise). `0` = solo founder.
+  /// Stesso gating di [appliesAsync].
+  static Future<int?> additionalAdminCapAsync(Group group) async {
+    if (group.isBusinessGroup || group.isLinkedToBusiness) return proAdminCap;
+    if (group.createdBy.isEmpty) return 0;
+    final ownerIsPro =
+        await OwnerProStatusCache().isOwnerPro(group.createdBy);
+    return ownerIsPro ? proAdminCap : 0;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // API LEGACY SYNC — solo per call sites che non possono awaitare
+  // (es. build() di widget). Usa il dato `groups.businessTier` legacy
+  // come fallback finché non migrati. Da rimuovere in B.4.
+  // ─────────────────────────────────────────────────────────────────
+
+  @Deprecated('Use appliesAsync — legge owner.isPro invece del tier legacy')
   static bool applies(Group group) {
-    if (!group.isBusinessGroup) return false;
+    if (!group.isBusinessGroup) return true; // gruppi normali = cap base
     return group.businessTier == 'verified' ||
         group.businessTier == 'trial';
   }
 
-  /// Numero massimo di admin aggiuntivi (oltre al founder) consentiti
-  /// in base al tier. `null` = illimitato. `0` = solo founder.
+  @Deprecated('Use additionalAdminCapAsync')
   static int? additionalAdminCap(Group group) {
-    if (!group.isBusinessGroup) return null;
+    if (!group.isBusinessGroup) return 0;
     switch (group.businessTier) {
       case 'enterprise':
         return null;
@@ -37,18 +91,56 @@ class BusinessCaps {
       case 'trial':
         return 0;
       default:
-        return null;
+        return 0;
     }
   }
 }
 
-/// Modale che informa l'admin Business che ha raggiunto un cap del
-/// tier Verified e propone l'upgrade a Pro.
-///
-/// Per ora l'azione "Passa a Pro" è un placeholder che mostra uno
-/// snackbar — l'integrazione Stripe è in attesa del consulto
-/// commercialista.
-Future<void> _showVerifiedCapReachedSheet(
+// ─────────────────────────────────────────────────────────────────
+// CAP REACHED SHEET
+// Spinge l'owner del gruppo verso Consumer Pro (€2.99/€19.99) via il
+// paywall esistente. Niente più Stripe / Business Pro qui — un gruppo
+// non è mai un Business: per chi vuole Business c'è Spazio Pro entity.
+// ─────────────────────────────────────────────────────────────────
+
+enum _CapResource { tracks, events, admins }
+
+extension _CapResourceX on _CapResource {
+  int get freeCap => switch (this) {
+        _CapResource.tracks => BusinessCaps.freeTrackCap,
+        _CapResource.events => BusinessCaps.freeEventCap,
+        _CapResource.admins => 0,
+      };
+
+  String get noun => switch (this) {
+        _CapResource.tracks => 'tracce condivise',
+        _CapResource.events => 'eventi attivi',
+        _CapResource.admins => 'co-admin oltre al founder',
+      };
+
+  IconData get icon => switch (this) {
+        _CapResource.tracks => Icons.route,
+        _CapResource.events => Icons.event,
+        _CapResource.admins => Icons.admin_panel_settings,
+      };
+
+  String get description {
+    switch (this) {
+      case _CapResource.tracks:
+        return 'I gruppi Free includono fino a $freeCap $noun. '
+            'Con TrailShare Pro diventano illimitate.';
+      case _CapResource.events:
+        return 'I gruppi Free includono fino a $freeCap $noun. '
+            'Con TrailShare Pro diventano illimitati.';
+      case _CapResource.admins:
+        return 'Sui gruppi Free solo il founder è admin. '
+            'Con TrailShare Pro puoi promuovere fino a '
+            '${BusinessCaps.proAdminCap} co-admin.';
+    }
+  }
+}
+
+Future<void> _showCapReachedSheet(
   BuildContext context, {
   required Group group,
   required _CapResource resource,
@@ -61,96 +153,26 @@ Future<void> _showVerifiedCapReachedSheet(
   );
 }
 
-enum _CapResource { tracks, events, admins }
-
-extension _CapResourceX on _CapResource {
-  int get cap => switch (this) {
-        _CapResource.tracks => BusinessCaps.verifiedTrackCap,
-        _CapResource.events => BusinessCaps.verifiedEventCap,
-        _CapResource.admins => 0, // Verified non ha admin aggiuntivi
-      };
-
-  String get noun => switch (this) {
-        _CapResource.tracks => 'tracce condivise',
-        _CapResource.events => 'eventi attivi',
-        _CapResource.admins => 'admin oltre al founder',
-      };
-
-  IconData get icon => switch (this) {
-        _CapResource.tracks => Icons.route,
-        _CapResource.events => Icons.event,
-        _CapResource.admins => Icons.admin_panel_settings,
-      };
-
-  String descriptionFor(String tier) {
-    switch (this) {
-      case _CapResource.tracks:
-        return 'Il tier Verified include fino a $cap $noun per gruppo.';
-      case _CapResource.events:
-        return 'Il tier Verified include fino a $cap $noun per gruppo.';
-      case _CapResource.admins:
-        if (tier == 'pro') {
-          return 'Il tier Pro permette fino a ${BusinessCaps.proAdminCap} '
-              'co-admin oltre al founder. Hai raggiunto il limite massimo '
-              'per questo gruppo.';
-        }
-        return 'Sul tier Verified solo il founder è admin del gruppo: '
-            'non puoi promuovere altri membri a co-admin.';
-    }
-  }
-
-  String upgradePitchFor(String tier) {
-    switch (this) {
-      case _CapResource.tracks:
-      case _CapResource.events:
-        return 'Per togliere il limite passa al tier Pro: $noun illimitati, '
-            'statistiche dettagliate, team admin, featured placement.';
-      case _CapResource.admins:
-        if (tier == 'pro') {
-          return 'Per più co-admin contattaci per il tier Enterprise '
-              '(multi-gruppo, white-label, priority support).';
-        }
-        return 'Pro permette fino a ${BusinessCaps.proAdminCap} co-admin '
-            'oltre al founder, più tracce ed eventi illimitati, '
-            'featured placement e statistiche avanzate.';
-    }
-  }
-}
-
-/// Wrapper pubblico per evitare di esporre l'enum interno.
 Future<void> showTracksCapReached(BuildContext context, Group group) =>
-    _showVerifiedCapReachedSheet(
+    _showCapReachedSheet(
       context,
       group: group,
       resource: _CapResource.tracks,
     );
 
 Future<void> showEventsCapReached(BuildContext context, Group group) =>
-    _showVerifiedCapReachedSheet(
+    _showCapReachedSheet(
       context,
       group: group,
       resource: _CapResource.events,
     );
 
 Future<void> showAdminsCapReached(BuildContext context, Group group) =>
-    _showVerifiedCapReachedSheet(
+    _showCapReachedSheet(
       context,
       group: group,
       resource: _CapResource.admins,
     );
-
-String _titleForTier(String tier) {
-  switch (tier) {
-    case 'pro':
-      return 'Hai raggiunto il limite Pro';
-    case 'enterprise':
-      return 'Hai raggiunto il limite Enterprise';
-    case 'verified':
-    case 'trial':
-    default:
-      return 'Hai raggiunto il limite Verified';
-  }
-}
 
 class _CapReachedSheet extends StatelessWidget {
   final Group group;
@@ -181,15 +203,14 @@ class _CapReachedSheet extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              _titleForTier(group.businessTier),
+              'Hai raggiunto il limite del piano Free',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              '${resource.descriptionFor(group.businessTier)} '
-              '${resource.upgradePitchFor(group.businessTier)}',
+              resource.description,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 height: 1.45,
@@ -209,9 +230,7 @@ class _CapReachedSheet extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      group.businessTier == 'pro'
-                          ? 'Business Enterprise — su preventivo'
-                          : 'Business Pro — €49,99/mese o €499/anno',
+                      'TrailShare Pro — €2,99/mese o €19,99/anno',
                       style: TextStyle(
                         color: accent,
                         fontWeight: FontWeight.w700,
@@ -234,25 +253,22 @@ class _CapReachedSheet extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            group.businessTier == 'pro'
-                                ? 'Per Enterprise scrivici a info@trailshare.app'
-                                : 'Upgrade a Pro disponibile a breve — pagamenti via Stripe in arrivo',
-                          ),
-                        ),
+                      // Apre il paywall Consumer Pro esistente. Solo l'owner
+                      // del gruppo può effettivamente upgradare per espandere
+                      // i cap di QUESTO gruppo (cap derivati dal Pro
+                      // dell'owner). Membri non-owner che cliccano vedranno
+                      // comunque il paywall ma sblocca solo i loro benefit
+                      // personali.
+                      await showPaywallSheet(
+                        context,
+                        trigger: PaywallTrigger.generic,
                       );
                     },
                     style: FilledButton.styleFrom(backgroundColor: accent),
                     icon: const Icon(Icons.trending_up),
-                    label: Text(
-                      group.businessTier == 'pro'
-                          ? 'Contatta Enterprise'
-                          : 'Passa a Pro',
-                    ),
+                    label: const Text('Passa a Pro'),
                   ),
                 ),
               ],

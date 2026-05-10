@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
+import '../services/owner_pro_status_cache.dart';
 import '../../data/repositories/groups_repository.dart';
 
 /// Palette guidata per il colore brand dei gruppi Business L1.
@@ -31,13 +32,43 @@ class GroupBrandSwatch {
   const GroupBrandSwatch(this.label, this.color);
 }
 
-/// Colore accent da usare nelle viste interne al gruppo. Restituisce il
-/// brand color custom se il gruppo è Business e ha un valore impostato,
-/// altrimenti l'arancio TrailShare di default.
+/// Colore accent da usare nelle viste interne al gruppo.
+///
+/// Sprint B (2026-05-10): il branding custom è ora gated dietro lo stato
+/// **Consumer Pro dell'OWNER del gruppo** (non più dietro il legacy
+/// `isBusinessGroup`). Quando l'owner downgrade da Pro, il branding
+/// sparisce automaticamente al successivo render.
+///
+/// Comportamento:
+/// - cache hit (Pro=true) E brandColor presente → ritorna brandColor
+/// - cache hit (Pro=false) o cache miss → arancio TrailShare default
+/// - cache miss = primo render: il chiamante deve aver fatto un
+///   pre-fetch via [OwnerProStatusCache.primeOwners] o
+///   [isOwnerPro] await per evitare flicker
 Color groupAccentColor(Group? group) {
   if (group == null) return AppColors.primary;
-  if (!group.isBusinessGroup) return AppColors.primary;
   final v = group.brandColor;
   if (v == null) return AppColors.primary;
-  return Color(v);
+  // Branding visibile se il gruppo è "Pro-equivalent". Vedi
+  // Group.hasCustomLogo per la lista dei path.
+  if (group.isBusinessGroup || group.isLinkedToBusiness) return Color(v);
+  final ownerPro =
+      OwnerProStatusCache().isOwnerProCached(group.createdBy);
+  if (ownerPro == true) return Color(v);
+  return AppColors.primary;
+}
+
+/// `true` se il gruppo deve mostrare il logo custom (avatarUrl).
+/// Gating: owner Consumer Pro OR override admin `isBusinessGroup=true`.
+bool groupShowsCustomLogo(Group group) {
+  if (group.avatarUrl == null || group.avatarUrl!.isEmpty) return false;
+  if (group.isBusinessGroup || group.isLinkedToBusiness) return true;
+  return OwnerProStatusCache().isOwnerProCached(group.createdBy) == true;
+}
+
+/// `true` se il gruppo deve mostrare la cover custom (coverUrl).
+bool groupShowsCustomCover(Group group) {
+  if (group.coverUrl == null || group.coverUrl!.isEmpty) return false;
+  if (group.isBusinessGroup || group.isLinkedToBusiness) return true;
+  return OwnerProStatusCache().isOwnerProCached(group.createdBy) == true;
 }

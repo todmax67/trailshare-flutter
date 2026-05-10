@@ -223,12 +223,14 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
   Future<void> _promote(GroupMember member) async {
     final group = _group;
     if (group == null) return;
-    // Cap pre-check lato UI (la chiamata repo lo ricontrolla).
-    final maxAdditional = BusinessCaps.additionalAdminCap(group);
+    // Cap pre-check lato UI (Sprint B: deriva da owner Pro status).
+    // null = illimitato (riservato Enterprise futuro).
+    final maxAdditional = await BusinessCaps.additionalAdminCapAsync(group);
     if (maxAdditional != null) {
       final currentAdmins =
           _members.where((m) => m.isAdmin && m.userId != group.createdBy).length;
       if (currentAdmins >= maxAdditional) {
+        if (!mounted) return;
         await showAdminsCapReached(context, group);
         return;
       }

@@ -5,6 +5,7 @@ import '../../../data/repositories/groups_repository.dart';
 import 'create_group_page.dart';
 import 'group_detail_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/owner_pro_status_cache.dart';
 import '../../../core/utils/group_brand.dart';
 import '../../widgets/business_group_card_decorations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -45,6 +46,10 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
   Future<void> _loadMyGroups({bool forceServer = false}) async {
     setState(() => _isLoadingMy = true);
     final groups = await _repo.getMyGroups(forceServer: forceServer);
+    // Sprint B.2: pre-fetch flag Pro degli owner per evitare flicker
+    // del branding al primo render della lista.
+    await OwnerProStatusCache()
+        .primeOwners(groups.map((g) => g.createdBy));
     if (mounted) {
       setState(() {
         _myGroups = groups;
@@ -56,6 +61,8 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
   Future<void> _loadPublicGroups() async {
     setState(() => _isLoadingPublic = true);
     final groups = await _repo.getDiscoverableGroups();
+    await OwnerProStatusCache()
+        .primeOwners(groups.map((g) => g.createdBy));
     if (mounted) {
       setState(() {
         _publicGroups = groups;

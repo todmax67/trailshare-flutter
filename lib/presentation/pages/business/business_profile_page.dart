@@ -11,6 +11,7 @@ import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../widgets/star_rating.dart';
 import 'business_analytics_page.dart';
+import 'business_community_sheet.dart';
 import 'business_edit_page.dart';
 import 'business_post_composer_page.dart';
 import 'business_recommended_tracks_manager_page.dart';
@@ -464,6 +465,17 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                 ),
                 icon: const Icon(Icons.analytics_outlined),
                 label: const Text('Statistiche'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => showBusinessCommunitySheet(context, b),
+                icon: Icon(
+                  b.linkedGroupId != null ? Icons.groups : Icons.groups_2,
+                ),
+                label: Text(
+                  b.linkedGroupId != null
+                      ? 'Apri community'
+                      : 'Crea community',
+                ),
               ),
               OutlinedButton.icon(
                 onPressed: () => Navigator.push(

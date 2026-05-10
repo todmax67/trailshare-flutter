@@ -95,6 +95,56 @@ class BusinessRepository {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // COMMUNITY VIP — link bidirezionale con un Group esistente
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Linka un gruppo come Community VIP del Business. Setta il link
+  /// bidirezionale: `businesses/{id}.linkedGroupId` e
+  /// `groups/{groupId}.linkedBusinessId` + `linkedBusinessName`
+  /// (denormalizzato per il badge).
+  ///
+  /// La chiamata DEVE essere fatta dall'owner del Business e dall'admin
+  /// del gruppo (controllo lato UI; le rules sono più permissive ma
+  /// l'utente ha bisogno di entrambi i ruoli per orchestrare).
+  Future<void> linkGroupAsCommunity({
+    required String businessId,
+    required String groupId,
+    required String businessName,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_businesses.doc(businessId), {
+      'linkedGroupId': groupId,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+    batch.update(_db.collection('groups').doc(groupId), {
+      'linkedBusinessId': businessId,
+      'linkedBusinessName': businessName,
+    });
+    await batch.commit();
+    debugPrint(
+        '[BusinessRepo] linkGroupAsCommunity: $businessId ↔ $groupId');
+  }
+
+  /// Rimuove il link bidirezionale Business ↔ Group. Il gruppo torna
+  /// gruppo normale (Free, salvo owner Pro o isBusinessGroup admin).
+  Future<void> unlinkCommunityGroup({
+    required String businessId,
+    required String groupId,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_businesses.doc(businessId), {
+      'linkedGroupId': FieldValue.delete(),
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+    batch.update(_db.collection('groups').doc(groupId), {
+      'linkedBusinessId': FieldValue.delete(),
+      'linkedBusinessName': FieldValue.delete(),
+    });
+    await batch.commit();
+    debugPrint('[BusinessRepo] unlinkCommunityGroup: $businessId ↔ $groupId');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // QUERY DISCOVERY
   // ═══════════════════════════════════════════════════════════════════════════
 
