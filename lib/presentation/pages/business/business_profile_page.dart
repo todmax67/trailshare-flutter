@@ -903,12 +903,12 @@ class _RecommendedTrackPreview extends StatelessWidget {
           );
         },
         child: SizedBox(
-          height: 80,
+          height: 96,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
-                width: 80,
+                width: 96,
                 child: track.trackPhotoUrl != null
                     ? CachedNetworkImage(
                         imageUrl: track.trackPhotoUrl!,

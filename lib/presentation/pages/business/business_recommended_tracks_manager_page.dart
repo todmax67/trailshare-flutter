@@ -236,7 +236,7 @@ class _RecommendedCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            height: 80,
+            height: 100,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
