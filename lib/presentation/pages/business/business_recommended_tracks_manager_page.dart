@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_recommended_tracks_picker_page.dart';
+import 'recommended_track_navigator.dart';
 
 /// Pagina di gestione dei percorsi consigliati per uno Spazio Pro.
 /// L'owner può:
@@ -232,7 +233,9 @@ class _RecommendedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Column(
+      child: InkWell(
+        onTap: () => openRecommendedTrackDetail(context, track),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
@@ -345,6 +348,7 @@ class _RecommendedCard extends StatelessWidget {
               ),
             ),
         ],
+        ),
       ),
     );
   }

@@ -13,6 +13,7 @@ import 'business_edit_page.dart';
 import 'business_post_composer_page.dart';
 import 'business_recommended_tracks_manager_page.dart';
 import 'business_services_manager_page.dart';
+import 'recommended_track_navigator.dart';
 
 /// Profilo pubblico di uno Spazio Pro (rifugio, noleggio, guida, ecc).
 /// Visualizza:
@@ -891,17 +892,7 @@ class _RecommendedTrackPreview extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () {
-          // TODO: aprire detail traccia in base a sourceType
-          // Per ora mostriamo solo il fatto che è cliccabile
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Apri "${track.trackName}" '
-                  '(${track.sourceType.wireName})'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        },
+        onTap: () => openRecommendedTrackDetail(context, track),
         child: SizedBox(
           height: 96,
           child: Row(

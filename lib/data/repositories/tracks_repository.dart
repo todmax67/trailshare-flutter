@@ -188,6 +188,22 @@ class TracksRepository {
             .toList());
   }
 
+  /// Ottiene una traccia di un altro utente (path users/{ownerId}/tracks/{trackId}).
+  /// Le rules permettono read pubblico ai signed-in. Utile per percorsi
+  /// consigliati su Spazi Pro dove l'owner del business ha consigliato
+  /// una traccia di un altro utente.
+  Future<Track?> getTrackByOwnerAndId(
+      String ownerId, String trackId) async {
+    try {
+      final doc = await _tracksCollection(ownerId).doc(trackId).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return _trackFromFirestore(doc.id, doc.data()!);
+    } catch (e) {
+      debugPrint('[TracksRepository] Errore getTrackByOwnerAndId: $e');
+      return null;
+    }
+  }
+
   /// Ottiene una traccia specifica per ID
   Future<Track?> getTrackById(String trackId) async {
     final userId = _auth.currentUser?.uid;
