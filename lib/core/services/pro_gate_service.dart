@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/monetization_config.dart';
 import '../constants/pro_products.dart';
+import 'owner_pro_status_cache.dart';
 
 /// Feature flag che decide se l'utente ha accesso alle funzioni
 /// **TrailShare Pro** (a pagamento).
@@ -123,6 +124,15 @@ class ProGateService extends ChangeNotifier {
       _currentProductId = null;
     }
     notifyListeners();
+    // Sprint B (2026-05-10): invalida la cache cross-user del Pro status
+    // per il current user. Senza questo, dopo un acquisto la cache di
+    // OwnerProStatusCache resta stale (TTL 5min) e i gating "owner Pro"
+    // continuano a vedere isPro=false → es. "Personalizza gruppo" apre
+    // paywall invece della pagina, anche se Apple ha già confermato Pro.
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      OwnerProStatusCache().invalidate(uid);
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_kKey, value);
