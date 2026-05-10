@@ -335,6 +335,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const Divider(height: 32),
 
+          // Sezione Privacy
+          _buildSectionHeader('Privacy'),
+          _buildSocialFeaturingToggle(),
+          const Divider(height: 32),
+
           // Sezione Legale
           _buildSectionHeader(context.l10n.legalSection),
           _buildListTile(
@@ -527,6 +532,52 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 32),
         ],
       ),
+    );
+  }
+
+  /// Toggle per consenso uso tracce dell'utente da parte del manager
+  /// social TrailShare (account ufficiali IG/FB/TikTok). Default OFF:
+  /// senza consenso esplicito, le tracce non vengono usate per post
+  /// promozionali anche se sono `isPublic=true` (la pubblicazione in
+  /// community è una cosa, l'uso a fini marketing un'altra).
+  Widget _buildSocialFeaturingToggle() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+    final docStream = FirebaseFirestore.instance
+        .collection('user_profiles')
+        .doc(uid)
+        .snapshots();
+    return StreamBuilder<DocumentSnapshot>(
+      stream: docStream,
+      builder: (context, snap) {
+        final data = snap.data?.data() as Map<String, dynamic>?;
+        final enabled = data?['socialFeaturingOptIn'] == true;
+        return SwitchListTile(
+          secondary: const Icon(Icons.share_outlined,
+              color: AppColors.primary),
+          title: const Text('Uso tracce sui canali social'),
+          subtitle: const Text(
+            'Permetti a TrailShare di pubblicare le tue tracce sugli '
+            'account ufficiali (Instagram, Facebook). Le tracce restano '
+            'tue, sempre attribuite con username.',
+          ),
+          value: enabled,
+          onChanged: (v) async {
+            final messenger = ScaffoldMessenger.of(context);
+            try {
+              await FirebaseFirestore.instance
+                  .collection('user_profiles')
+                  .doc(uid)
+                  .set({'socialFeaturingOptIn': v},
+                      SetOptions(merge: true));
+            } catch (e) {
+              messenger.showSnackBar(
+                SnackBar(content: Text('Errore: $e')),
+              );
+            }
+          },
+        );
+      },
     );
   }
 

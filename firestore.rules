@@ -51,7 +51,8 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['bio', 'username', 'avatarUrl', 'wishlist',
                       'totalTracks', 'totalDistance', 'totalElevationGain', 'earnedBadges',
-                      'fcmTokens', 'following', 'email', 'createdAt', 'lastActive']))
+                      'fcmTokens', 'following', 'email', 'createdAt', 'lastActive',
+                      'socialFeaturingOptIn']))
         ||
         (isSignedIn() && !isOwner(userId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers']));
