@@ -144,11 +144,11 @@ service cloud.firestore {
 
       // Update dei contatori: SOLO via transaction che modifica anche
       // la sub-collection (Firestore non lo verifica direttamente, ma
-      // limitiamo affectedKeys ai soli counter).
+      // limitiamo affectedKeys ai soli counter/rating).
       allow update: if isSignedIn()
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['followerCount', 'postsCount', 'reviewCount',
-                      'updatedAt']);
+                      'rating', 'updatedAt']);
 
       // Delete: solo owner o super admin
       allow delete: if isSignedIn()

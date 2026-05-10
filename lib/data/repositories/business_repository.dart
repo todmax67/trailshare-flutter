@@ -330,6 +330,139 @@ class BusinessRepository {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // REVIEWS (recensioni con rating aggregato transactional)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Stream delle recensioni di un business, ordinate per data desc.
+  Stream<List<BusinessReview>> watchReviews(String businessId,
+      {int limit = 100}) {
+    return _businesses
+        .doc(businessId)
+        .collection('reviews')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => BusinessReview.fromMap(d.id, d.data()))
+            .toList());
+  }
+
+  /// Recupera la review dell'utente corrente per il business (o null).
+  Future<BusinessReview?> getMyReview(String businessId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return null;
+    final doc = await _businesses
+        .doc(businessId)
+        .collection('reviews')
+        .doc(uid)
+        .get();
+    if (!doc.exists) return null;
+    return BusinessReview.fromMap(doc.id, doc.data()!);
+  }
+
+  /// Crea/aggiorna review (idempotente: doc ID = userId, 1 review/utente).
+  /// Aggiorna atomically `rating` e `reviewCount` sul business doc.
+  Future<void> upsertReview({
+    required String businessId,
+    required int rating,
+    String? comment,
+    required String userDisplayName,
+    String? userAvatarUrl,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('Non autenticato');
+    if (rating < 1 || rating > 5) {
+      throw ArgumentError('Rating deve essere 1-5');
+    }
+    final reviewRef =
+        _businesses.doc(businessId).collection('reviews').doc(uid);
+    final businessRef = _businesses.doc(businessId);
+
+    await _db.runTransaction((tx) async {
+      final bizSnap = await tx.get(businessRef);
+      final existingReview = await tx.get(reviewRef);
+
+      final oldCount =
+          (bizSnap.data()?['reviewCount'] as num?)?.toInt() ?? 0;
+      final oldAvg =
+          (bizSnap.data()?['rating'] as num?)?.toDouble() ?? 0;
+
+      int newCount;
+      double newAvg;
+
+      if (existingReview.exists) {
+        // Update: sostituisci old rating con new
+        final oldRating =
+            (existingReview.data()?['rating'] as num?)?.toInt() ?? 0;
+        newCount = oldCount;
+        if (newCount == 0) {
+          newAvg = rating.toDouble();
+        } else {
+          newAvg = oldAvg + (rating - oldRating) / newCount;
+        }
+      } else {
+        // Create: incrementa count + ricalcola
+        newCount = oldCount + 1;
+        newAvg = (oldAvg * oldCount + rating) / newCount;
+      }
+
+      final review = BusinessReview(
+        userId: uid,
+        rating: rating,
+        comment: comment,
+        createdAt: existingReview.exists
+            ? ((existingReview.data()?['createdAt'] as Timestamp?)
+                    ?.toDate() ??
+                DateTime.now())
+            : DateTime.now(),
+        editedAt: existingReview.exists ? DateTime.now() : null,
+        userDisplayName: userDisplayName,
+        userAvatarUrl: userAvatarUrl,
+      );
+      tx.set(reviewRef, review.toMap());
+      tx.update(businessRef, {
+        'reviewCount': newCount,
+        'rating': double.parse(newAvg.toStringAsFixed(2)),
+      });
+    });
+    debugPrint(
+        '[BusinessRepo] Review upserted business=$businessId user=$uid rating=$rating');
+  }
+
+  /// Elimina la review dell'utente. Aggiorna aggregati transactional.
+  Future<void> deleteReview(String businessId, String userId) async {
+    final reviewRef =
+        _businesses.doc(businessId).collection('reviews').doc(userId);
+    final businessRef = _businesses.doc(businessId);
+
+    await _db.runTransaction((tx) async {
+      final bizSnap = await tx.get(businessRef);
+      final reviewSnap = await tx.get(reviewRef);
+      if (!reviewSnap.exists) return;
+
+      final oldCount =
+          (bizSnap.data()?['reviewCount'] as num?)?.toInt() ?? 0;
+      final oldAvg =
+          (bizSnap.data()?['rating'] as num?)?.toDouble() ?? 0;
+      final deletedRating =
+          (reviewSnap.data()?['rating'] as num?)?.toInt() ?? 0;
+
+      final newCount = (oldCount - 1).clamp(0, double.maxFinite.toInt());
+      final newAvg = newCount == 0
+          ? 0.0
+          : (oldAvg * oldCount - deletedRating) / newCount;
+
+      tx.delete(reviewRef);
+      tx.update(businessRef, {
+        'reviewCount': newCount,
+        'rating': double.parse(newAvg.toStringAsFixed(2)),
+      });
+    });
+    debugPrint(
+        '[BusinessRepo] Review deleted business=$businessId user=$userId');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // RECOMMENDED TRACKS (percorsi consigliati)
   // ═══════════════════════════════════════════════════════════════════════════
 

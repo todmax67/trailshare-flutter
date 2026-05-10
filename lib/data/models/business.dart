@@ -469,6 +469,60 @@ class BusinessPost {
       );
 }
 
+/// Recensione di uno Spazio Pro lasciata da un utente.
+/// Una recensione per utente per business (doc ID = userId).
+class BusinessReview {
+  /// ID Firestore del doc. Coincide con [userId] per garantire 1 review/utente.
+  final String? id;
+  final String userId;
+  final int rating; // 1-5
+  final String? comment;
+  final DateTime createdAt;
+  final DateTime? editedAt;
+
+  // Denormalizzati al momento del create per evitare N query in lista
+  final String userDisplayName;
+  final String? userAvatarUrl;
+
+  const BusinessReview({
+    this.id,
+    required this.userId,
+    required this.rating,
+    this.comment,
+    required this.createdAt,
+    this.editedAt,
+    required this.userDisplayName,
+    this.userAvatarUrl,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'userId': userId,
+        'rating': rating,
+        if (comment != null && comment!.isNotEmpty) 'comment': comment,
+        'createdAt': Timestamp.fromDate(createdAt),
+        if (editedAt != null) 'editedAt': Timestamp.fromDate(editedAt!),
+        'userDisplayName': userDisplayName,
+        if (userAvatarUrl != null) 'userAvatarUrl': userAvatarUrl,
+      };
+
+  factory BusinessReview.fromMap(String id, Map<String, dynamic> m) =>
+      BusinessReview(
+        id: id,
+        userId: m['userId']?.toString() ?? id,
+        rating: (m['rating'] as num?)?.toInt() ?? 0,
+        comment: m['comment']?.toString(),
+        createdAt: m['createdAt'] is Timestamp
+            ? (m['createdAt'] as Timestamp).toDate()
+            : DateTime.now(),
+        editedAt: m['editedAt'] is Timestamp
+            ? (m['editedAt'] as Timestamp).toDate()
+            : null,
+        userDisplayName:
+            m['userDisplayName']?.toString() ?? 'Utente',
+        userAvatarUrl: m['userAvatarUrl']?.toString(),
+      );
+}
+
 /// Sorgente di una traccia consigliata.
 enum RecommendedTrackSource {
   /// Traccia privata di un utente (path: users/{ownerId}/tracks/{trackId}).

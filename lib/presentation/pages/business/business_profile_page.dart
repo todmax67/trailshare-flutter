@@ -9,9 +9,11 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/business_photos_service.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
+import '../../widgets/star_rating.dart';
 import 'business_edit_page.dart';
 import 'business_post_composer_page.dart';
 import 'business_recommended_tracks_manager_page.dart';
+import 'business_reviews_page.dart';
 import 'business_services_manager_page.dart';
 import 'recommended_track_navigator.dart';
 
@@ -200,6 +202,8 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                       ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                _RatingBadge(business: b),
               ],
             ),
           ),
@@ -877,6 +881,53 @@ class _ServiceTile extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Badge rating + count cliccabile sotto il nome del business.
+/// Apre la pagina dettaglio recensioni.
+class _RatingBadge extends StatelessWidget {
+  final Business business;
+  const _RatingBadge({required this.business});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BusinessReviewsPage(business: business),
+        ),
+      ),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            StarRating(
+              value: business.rating ?? 0,
+              size: 14,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              business.reviewCount == 0
+                  ? 'Nessuna recensione'
+                  : '${(business.rating ?? 0).toStringAsFixed(1)} '
+                      '(${business.reviewCount})',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right,
+                size: 14, color: AppColors.textMuted),
+          ],
+        ),
       ),
     );
   }
