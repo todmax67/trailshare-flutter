@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/repositories/groups_repository.dart';
 import '../business_web_app.dart';
+import 'web_business_picker_page.dart';
 import 'web_dashboard_page.dart';
 import 'web_groups_picker_page.dart';
 import 'web_planner_page.dart';
@@ -115,7 +116,8 @@ class _WebHomePageState extends State<WebHomePage> {
   }
 
   Widget _buildContent() {
-    // 0 Dashboard | 1 Tracce | 2 Pianificatore | 3 Profilo | 4 Gruppi Business
+    // 0 Dashboard | 1 Tracce | 2 Pianificatore | 3 Profilo
+    // 4 Spazi Pro (nuovo entry B2B) | 5 Gruppi Business (legacy)
     switch (_selectedIndex) {
       case 0:
         return const WebDashboardPage();
@@ -126,6 +128,8 @@ class _WebHomePageState extends State<WebHomePage> {
       case 3:
         return const WebProfilePage();
       case 4:
+        return const WebBusinessPickerPage();
+      case 5:
         return const WebGroupsPickerPage();
       default:
         return const SizedBox.shrink();
@@ -217,12 +221,18 @@ class _Sidebar extends StatelessWidget {
             label: 'Profilo',
             index: 3,
           ),
+          _navItem(
+            icon: Icons.storefront_outlined,
+            iconActive: Icons.storefront,
+            label: 'Spazi Pro',
+            index: 4,
+          ),
           if (hasBusiness)
             _navItem(
               icon: Icons.business_outlined,
               iconActive: Icons.business,
               label: 'Gruppi Business',
-              index: 4,
+              index: 5,
             ),
           const Spacer(),
           if (userEmail != null)

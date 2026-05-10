@@ -7,6 +7,7 @@ import '../core/constants/app_colors.dart';
 import '../data/models/track.dart';
 import '../data/repositories/tracks_repository.dart';
 import '../l10n/generated/app_localizations.dart';
+import 'pages/web_business_dashboard_page.dart';
 import 'pages/web_home_page.dart';
 import 'pages/web_login_page.dart';
 import 'pages/web_track_detail_page.dart';
@@ -20,6 +21,7 @@ class WebRoutes {
   static const String tracks = '/tracks';
   static const String planner = '/planner';
   static const String profile = '/profile';
+  static const String business = '/business';
   static const String groups = '/groups';
 
   static int tabFromPath(String path) {
@@ -27,7 +29,8 @@ class WebRoutes {
     if (path == tracks || path.startsWith('$tracks/')) return 1;
     if (path == planner) return 2;
     if (path == profile) return 3;
-    if (path == groups) return 4;
+    if (path == business || path.startsWith('$business/')) return 4;
+    if (path == groups) return 5;
     return 0;
   }
 
@@ -40,6 +43,8 @@ class WebRoutes {
       case 3:
         return profile;
       case 4:
+        return business;
+      case 5:
         return groups;
       case 0:
       default:
@@ -48,6 +53,7 @@ class WebRoutes {
   }
 
   static String trackDetail(String trackId) => '$tracks/$trackId';
+  static String businessDashboard(String businessId) => '$business/$businessId';
 }
 
 /// Root MaterialApp della dashboard B2B web con routing path-based.
@@ -125,8 +131,15 @@ class BusinessWebApp extends StatelessWidget {
       child = const WebHomePage(initialTab: 2);
     } else if (segments[0] == 'profile') {
       child = const WebHomePage(initialTab: 3);
+    } else if (segments[0] == 'business') {
+      if (segments.length == 1) {
+        child = const WebHomePage(initialTab: 4);
+      } else {
+        // /business/:id deep link → dashboard del singolo Spazio Pro
+        child = WebBusinessDashboardPage(businessId: segments[1]);
+      }
     } else if (segments[0] == 'groups') {
-      child = const WebHomePage(initialTab: 4);
+      child = const WebHomePage(initialTab: 5);
     } else {
       // Unknown path → fallback a dashboard
       child = const WebHomePage(initialTab: 0);
