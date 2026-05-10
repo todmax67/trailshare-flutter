@@ -2719,6 +2719,140 @@ exports.stravaSubscribeWebhook = onCall(
   }
 );
 
+// ===================================================================
+// SPAZI PRO — Notifiche FCM ai follower per nuovi business posts
+// ===================================================================
+//
+// Quando un owner business pubblica un aggiornamento, tutti i follower
+// ricevono una notifica push. Pattern allineato a `notifyGroupMembers`:
+// legge fcmTokens da user_profiles, sendEachForMulticast, cleanup
+// token invalidi.
+
+exports.onBusinessPostCreated = onDocumentCreated(
+  'businesses/{businessId}/posts/{postId}',
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const post = snap.data();
+    const { businessId, postId } = event.params;
+
+    // Carica metadata business per nome + verifica owner
+    const bizDoc = await db.collection('businesses').doc(businessId).get();
+    if (!bizDoc.exists) {
+      logger.warn(`[BusinessPost] Business ${businessId} non trovato`);
+      return;
+    }
+    const business = bizDoc.data();
+    const businessName = business.name || 'Spazio Pro';
+
+    // Recupera follower
+    const followersSnap = await db
+      .collection('businesses')
+      .doc(businessId)
+      .collection('followers')
+      .get();
+
+    if (followersSnap.empty) {
+      logger.info(`[BusinessPost] Nessun follower per business ${businessId}`);
+      return;
+    }
+
+    // Aggrega FCM tokens da user_profiles
+    const allTokens = [];
+    const tokenOwnerMap = {};
+    const followerIds = followersSnap.docs.map((d) => d.id);
+    const authorId = post.authorId;
+
+    for (const userId of followerIds) {
+      // Skip l'autore stesso (evita auto-notifica)
+      if (userId === authorId) continue;
+      try {
+        const profileDoc = await db
+          .collection('user_profiles')
+          .doc(userId)
+          .get();
+        if (!profileDoc.exists) continue;
+        const tokens = profileDoc.data().fcmTokens || [];
+        for (const token of tokens) {
+          allTokens.push(token);
+          tokenOwnerMap[token] = userId;
+        }
+      } catch (e) {
+        logger.warn(
+          `[BusinessPost] Errore fetch profile ${userId}: ${e?.message}`
+        );
+      }
+    }
+
+    if (allTokens.length === 0) {
+      logger.info(
+        `[BusinessPost] Nessun token FCM tra i ${followerIds.length} follower`
+      );
+      return;
+    }
+
+    // Body: primi 100 caratteri del post
+    const text = (post.text || '').toString();
+    const body = text.length > 100 ? `${text.substring(0, 97)}…` : text;
+
+    logger.info(
+      `[BusinessPost] Invio a ${allTokens.length} dispositivi (business=${businessId}, post=${postId})`
+    );
+
+    const message = {
+      notification: { title: businessName, body },
+      data: {
+        type: 'business_post',
+        businessId,
+        postId,
+      },
+      tokens: allTokens,
+    };
+
+    let response;
+    try {
+      response = await admin.messaging().sendEachForMulticast(message);
+      logger.info(
+        `[BusinessPost] FCM result: ${response.successCount} ok, ${response.failureCount} fail`
+      );
+    } catch (e) {
+      logger.error(`[BusinessPost] FCM error: ${e?.message}`);
+      return;
+    }
+
+    // Cleanup token invalidi
+    if (response.failureCount > 0) {
+      const tokensToRemove = {};
+      response.responses.forEach((result, index) => {
+        if (
+          result.error &&
+          (result.error.code === 'messaging/registration-token-not-registered' ||
+            result.error.code === 'messaging/invalid-registration-token')
+        ) {
+          const token = allTokens[index];
+          const userId = tokenOwnerMap[token];
+          if (!tokensToRemove[userId]) tokensToRemove[userId] = [];
+          tokensToRemove[userId].push(token);
+        }
+      });
+      for (const [userId, tokens] of Object.entries(tokensToRemove)) {
+        try {
+          await db.collection('user_profiles').doc(userId).update({
+            fcmTokens: admin.firestore.FieldValue.arrayRemove(...tokens),
+          });
+          logger.info(
+            `[BusinessPost] Rimossi ${tokens.length} token invalidi per ${userId}`
+          );
+        } catch (e) {
+          logger.warn(
+            `[BusinessPost] Errore cleanup tokens ${userId}: ${e?.message}`
+          );
+        }
+      }
+    }
+  }
+);
+
 // Retry automatico per upload in stato `pending`: ogni 10 minuti cerca le
 // tracce con stravaUploadStatus=pending da almeno 5 min e ripolla
 // /uploads/{stravaUploadId}. Se Strava ha completato, scrive activityId.
