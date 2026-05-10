@@ -15,6 +15,8 @@ import '../../../core/services/delete_account_service.dart';
 import 'offline_maps_page.dart';
 import 'faq_page.dart';
 import '../admin/geohash_migration_page.dart';
+import '../business/business_create_page.dart';
+import '../business/business_profile_page.dart';
 import '../admin/trail_import_page.dart';
 import '../admin/database_stats_page.dart';
 import '../admin/recalculate_stats_page.dart';
@@ -444,6 +446,23 @@ class _SettingsPageState extends State<SettingsPage> {
                 );
               },
             ),
+            _buildListTile(
+              icon: Icons.add_business,
+              title: 'Crea Spazio Pro',
+              subtitle: 'Aggiungi un nuovo profilo business (rifugio, noleggio, ecc.)',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BusinessCreatePage()),
+                );
+              },
+            ),
+            _buildListTile(
+              icon: Icons.business_center_outlined,
+              title: 'Apri Spazio Pro (debug)',
+              subtitle: 'Inserisci ID business per testare il profilo',
+              onTap: () => _openBusinessByIdDialog(),
+            ),
           ],
 
           _buildListTile(
@@ -507,6 +526,41 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 32),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openBusinessByIdDialog() async {
+    final ctrl = TextEditingController();
+    final id = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Apri Spazio Pro'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'ID business (Firestore doc id)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Apri'),
+          ),
+        ],
+      ),
+    );
+    if (id == null || id.isEmpty || !mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BusinessProfilePage(businessId: id),
       ),
     );
   }
