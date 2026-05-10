@@ -304,6 +304,7 @@ class CommunityTracksRepository {
     double? nearLat,
     double? nearLng,
     double? radiusKm,
+    bool bypassCache = false,
   }) async {
     try {
       Query<Map<String, dynamic>> query = _tracksCollection
@@ -319,7 +320,10 @@ class CommunityTracksRepository {
             .where('startLat', isGreaterThanOrEqualTo: nearLat - dLat)
             .where('startLat', isLessThanOrEqualTo: nearLat + dLat);
       }
-      final snapshot = await query.limit(limit).get();
+      final qLimited = query.limit(limit);
+      final snapshot = await (bypassCache
+          ? qLimited.get(const GetOptions(source: Source.server))
+          : qLimited.get());
 
       final out = <CommunityTrackPreview>[];
       for (final doc in snapshot.docs) {

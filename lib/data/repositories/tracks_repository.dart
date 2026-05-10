@@ -136,14 +136,23 @@ class TracksRepository {
   ///
   /// Per il dettaglio mappa (che richiede i punti) usare
   /// [getTrackById] — fa una read singola completa.
-  Future<List<Track>> getMyTracksLightweight({int limit = 1000}) async {
+  ///
+  /// [bypassCache] = true: usa `Source.server` per evitare decoding della
+  /// cache locale (utile quando i doc sono pesanti per points embedded e
+  /// la cache satura va in OOM). Default false per non rompere offline.
+  Future<List<Track>> getMyTracksLightweight({
+    int limit = 1000,
+    bool bypassCache = false,
+  }) async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return [];
     try {
-      final snapshot = await _tracksCollection(userId)
+      final query = _tracksCollection(userId)
           .orderBy('createdAt', descending: true)
-          .limit(limit)
-          .get();
+          .limit(limit);
+      final snapshot = await (bypassCache
+          ? query.get(const GetOptions(source: Source.server))
+          : query.get());
       return snapshot.docs.map((doc) {
         // Copia mutabile + rimozione points prima del parse
         final data = Map<String, dynamic>.from(doc.data());

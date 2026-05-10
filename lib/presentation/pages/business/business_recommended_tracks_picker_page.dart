@@ -55,13 +55,16 @@ class _BusinessRecommendedTracksPickerPageState
     try {
       // Community: filtra near business (50 km), preview lightweight
       // (no GPS points → memory friendly).
+      // bypassCache: evita decoding della cache locale Firestore satura
+      // (i doc tracks contengono points embedded, OOM su 256MB heap).
       final results = await Future.wait([
-        _myRepo.getMyTracksLightweight(limit: 200),
+        _myRepo.getMyTracksLightweight(limit: 50, bypassCache: true),
         _communityRepo.getRecentTracksPreview(
-          limit: 50,
+          limit: 30,
           nearLat: widget.business.location.lat,
           nearLng: widget.business.location.lng,
           radiusKm: 50,
+          bypassCache: true,
         ),
         _businessRepo.getRecommendedTracks(widget.business.id!),
       ]);
