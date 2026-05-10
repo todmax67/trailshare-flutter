@@ -1,10 +1,10 @@
 # TrailShare — Roadmap di sviluppo
 
-Ultimo aggiornamento: 2026-05-10  ·  Versione corrente in store: `2.2.0+57` (B2B Groups L1 in Apple Review + Play Store) · Produzione consolidata: `1.9.0+52` · In sviluppo per `v2.3.0`: Spazi Pro entity (B2B refactor) + wearable bidirezionale + AI Manager
+Ultimo aggiornamento: 2026-05-10  ·  Versione corrente in store: `v2.3.0` (Pro consumer Apple LIVE) · In sviluppo per `v2.3.5`: Spazi Pro entity (B2B refactor) + wearable bidirezionale + AI Manager
 
 Documento vivo. Le voci sono ordinate per priorità all'interno di ogni categoria. Stima sforzo indicativa in giornate uomo.
 
-> **Nota sulla v2.2.0+57**: introduceva i **gruppi business L1** con tier sul gruppo (`Group.isBusinessGroup` + `businessTier`). Dal 2026-05-10 quel modello è considerato **legacy**: il B2B è stato refattorizzato come entity dedicata (`businesses/{id}` — "Spazi Pro"). Vedi [Epic 7](#epic-7--spazi-pro-business-target-v230--v260) per il nuovo approccio. La transizione gruppi-business → Spazi-Pro è descritta nel [Sprint B](#sprint-b--strategia-3-piani-target-v230).
+> **Nota sulla v2.2.0+57**: introduceva i **gruppi business L1** con tier sul gruppo (`Group.isBusinessGroup` + `businessTier`). Dal 2026-05-10 quel modello è considerato **legacy**: il B2B è stato refattorizzato come entity dedicata (`businesses/{id}` — "Spazi Pro"). Vedi [Epic 7](#epic-7--spazi-pro-business-target-v235--v260) per il nuovo approccio. La transizione gruppi-business → Spazi-Pro è descritta nel [Sprint B](#sprint-b--strategia-3-piani-target-v235).
 
 ---
 
@@ -190,7 +190,7 @@ Posizionamento mercato IT outdoor:
 
 ---
 
-## Epic 7 — Spazi Pro Business (target v2.3.0 → v2.6.0) 🔄 in sviluppo
+## Epic 7 — Spazi Pro Business (target v2.3.5 → v2.6.0) 🔄 in sviluppo
 
 Obiettivo: aprire un **secondo flusso di ricavi B2B** vendendo TrailShare a hotel di
 montagna, rifugi, noleggi ebike, guide outdoor, scuole alpinismo e tour operator.
@@ -202,9 +202,9 @@ e — opzionalmente — un linked group privato per la community VIP del busines
 > della v2.2.0 è stato **superato**. Adesso `businesses/{id}` è una entity di
 > primo livello separata dai gruppi. I gruppi business legacy rimangono per
 > backward compat ma in stato deprecato — il refactor di transizione è
-> nello [Sprint B v2.3.0](#sprint-b--strategia-3-piani-target-v230).
+> nello [Sprint B v2.3.5](#sprint-b--strategia-3-piani-target-v235).
 
-### 7.A — Spazio Pro entity & profilo pubblico (v2.3.0) ✅ live
+### 7.A — Spazio Pro entity & profilo pubblico (v2.3.5) 🔄 codice live in dev
 
 | # | Feature | Priorità | Effort | Tier | Status |
 |---|---|---|---|---|---|
@@ -222,7 +222,7 @@ e — opzionalmente — un linked group privato per la community VIP del busines
 | 7.A12 | Creazione admin-only via Settings (B-flow: super admin crea, owner rifinisce) | 🟧 | S | Business | ✅ |
 | 7.A13 | Tier badges (Verified / Pro / Enterprise) | 🟨 | XS | Business | ✅ |
 
-### 7.B — Web admin Spazi Pro (v2.3.0) ✅ live
+### 7.B — Web admin Spazi Pro (v2.3.5) 🔄 codice live in dev
 
 Riusa pagine mobile in dialog. Decisione strategica 2026-05-02: Flutter Web monocodebase, no SvelteKit.
 
@@ -386,7 +386,7 @@ Long-tail SEO da contenuti utente. 1000 utenti che condividono = 1000 landing or
 
 ---
 
-## Epic 9 — Wearable Integrations (v2.3.0) ✅ live
+## Epic 9 — Wearable Integrations (v2.3.5) 🔄 codice live in dev
 
 Obiettivo: TrailShare diventa il punto di raccolta di tutte le attività outdoor
 dell'utente, anche se registrate con altri device. **Differenziatore chiave** vs
@@ -439,7 +439,7 @@ Komoot e AllTrails.
 
 ---
 
-## Epic 10 — AI Manager Social (v2.3.0) ✅ live
+## Epic 10 — AI Manager Social (v2.3.5, runtime già live su Firebase project separato) 🔄
 
 Obiettivo: automazione contenuto social per TrailShare con safety net umana.
 Pipeline drafting → bridging → publishing su IG + FB. Repository standalone:
@@ -538,7 +538,7 @@ Approccio: ML sui PESI degli edge OSM (NON neural routing).
 
 ---
 
-## Sprint plans v2.3.0 — operativo
+## Sprint plans v2.3.5 — operativo
 
 > Pianificazione di lavoro a 1-2 settimane, integrata con Epic. Aggiornato 2026-05-10.
 
@@ -557,7 +557,7 @@ Goal: i seed clients (rifugio Curò + noleggio ebike) dicono "vale 200€/anno f
 | Mappa-picker per riposizionare business | 7.C4 | S |
 | Push notif business posts | 7.C5 | S |
 
-### Sprint B — Strategia 3 piani (target v2.3.0)
+### Sprint B — Strategia 3 piani (target v2.3.5)
 
 Goal: tassonomia pulita, schema Spazi Pro come canonical, gruppi business legacy deprecati.
 
@@ -649,15 +649,17 @@ Goal: tassonomia pulita, schema Spazi Pro come canonical, gruppi business legacy
 | v2.0.0 | Skipped | Foundation paywall accorpato in 2.1 |
 | v2.1.0+55 | Test interno superato | Mountain Recognition AR + Photo Mode + paywall foundation |
 | v2.1.1+56 | Apple Review cancellata, Play Store rilasciata | 3 stili mappa Pro (Topo, Hybrid, Inverno) MapTiler |
-| v2.2.0+57 | Apple Review + Play Store rolling | B2B Groups L1 (logo + badge verificato) — schema poi superseded da v2.3 |
-| **v2.3.0** | **In sviluppo (next release)** | Spazi Pro entity B2B + Wearable bidirezionale + AI Manager |
+| v2.2.0+57 | Produzione | B2B Groups L1 (logo + badge verificato) — schema poi superseded da v2.3.5 |
+| **v2.3.0** | **Produzione (Pro Apple LIVE)** | Sblocco subscription Pro consumer su App Store — Apple Review approvata |
+| **v2.3.5** | **In sviluppo (next release)** | Spazi Pro entity B2B + Wearable bidirezionale + AI Manager + refactor gruppi legacy |
 
 ### Prossimi target
 
-- **v2.3.0** (in sviluppo) — Sprint A + B chiusi:
-  - Epic 7 (Spazi Pro mobile + web admin) live
-  - Epic 9 (Wearable: Health + Strava bidirezionale) live
-  - Epic 10 (AI Manager) live
+- **v2.3.5** (in sviluppo) — Sprint A + B chiusi:
+  - Epic 7 (Spazi Pro mobile + web admin) → store
+  - Epic 9 (Wearable: Health + Strava bidirezionale) → store
+  - Epic 10 (AI Manager) integrazione lato app TrailShare
+    (manager runtime già live su Firebase project separato)
   - Polish residuo + percorsi consigliati + reviews + stats business
   - Refactor gruppi business legacy
 - **v2.4.0** — Sprint C + D:
@@ -681,19 +683,20 @@ Goal: tassonomia pulita, schema Spazi Pro come canonical, gruppi business legacy
   - Routing engine ML in shadow mode (Epic 11.D)
   - Custom domain Spazi Pro Enterprise (Epic 7.D5)
 
-### Criteri di rilascio v2.3.0
+### Criteri di rilascio v2.3.5
 
 1. Spazi Pro: 2 seed clients onboardati (rifugio + noleggio) con feedback positivo raccolto
 2. Wearable: Strava bidirezionale verificato end-to-end con utenti reali
-3. AI Manager: 4 settimane di pubblicazione automatica IG+FB senza intervento umano (dopo `socialFeaturingOptIn`)
+3. AI Manager: `socialFeaturingOptIn` flag in app + 4 settimane di pubblicazione automatica IG+FB senza intervento umano
 4. Web admin: nessun crash su login + dashboard + creazione/edit business
 5. Refactor gruppi legacy: zero clienti business attivi paganti coinvolti (zero rischio)
+6. Polish UX: percorsi consigliati + reviews + stats business funzionanti dal mobile e web
 
 ---
 
 ## Storico versioni (release notes essenziali)
 
-### v2.3.0 (in sviluppo, 2026-05-10)
+### v2.3.5 (in sviluppo, 2026-05-10)
 
 **Epic 7 — Spazi Pro Business**
 - Nuova entity `businesses/{id}` separata dai gruppi
@@ -717,8 +720,15 @@ Goal: tassonomia pulita, schema Spazi Pro come canonical, gruppi business legacy
 - Bridge `social_lab/scripts/bridge.mjs` con LaunchAgent watcher
 - Telegram bot cockpit per approve/reject
 
+### v2.3.0 (Apple + Play Store, produzione)
+- **Sblocco subscription Pro consumer su App Store** (Apple Review approvata)
+- IAP `trailshare_pro_monthly` €2,99 + `trailshare_pro_yearly` €19,99 attivi su Apple
+- Receipt validation server-side via `validateAppleReceipt`
+- Cross-device Pro sync via `users/{uid}.proStatus`
+- (Schema B2B `Group.businessTier` di v2.2.0 ancora presente — sarà superseded da v2.3.5)
+
 ### v2.2.0+57 (Apple Review + Play Store, 2026-05-02)
-- B2B Groups L1: logo personalizzato + badge ✓ verificato (schema poi rivisto in v2.3.0)
+- B2B Groups L1: logo personalizzato + badge ✓ verificato (schema poi rivisto in v2.3.5)
 - Tracce condivise nei gruppi via `Track.groupIds`
 - Force-server fetch su Firestore al return da detail page
 - Storage rules per `groups/{gid}/logo.jpg`
