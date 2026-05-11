@@ -177,7 +177,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
   List<PublicTrail> get _filteredTrails {
     var list = _trails.where((trail) {
       // 4.4 — Ricerca testuale full-text accent-insensitive su:
-      // nome, ref (numerazione CAI/SAT), network, operator, regione.
+      // nome, ref (numerazione CAI/SAT), network, operator, regione,
+      // difficoltà CAI (es. "ee"), tipo attività (es. "mtb").
       if (_searchQuery.isNotEmpty) {
         final hit = TextSearch.matchesAny(_searchQuery, [
           trail.name,
@@ -185,6 +186,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
           trail.network,
           trail.operator,
           trail.region,
+          trail.difficulty,
+          trail.activityType,
+          trail.parsedActivityType.displayName,
         ]);
         if (!hit) return false;
       }

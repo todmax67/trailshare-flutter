@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import '../../../core/utils/text_search.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -221,10 +222,14 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
   List<CommunityTrack> get _filteredCommunity {
     if (_searchQuery.isEmpty) return _communityTracks;
-    return _communityTracks.where((track) =>
-        track.name.toLowerCase().contains(_searchQuery) ||
-        track.ownerUsername.toLowerCase().contains(_searchQuery)
-    ).toList();
+    // 4.4 — Ricerca accent-insensitive (allineata a Discover).
+    // Esempio: "perù" matcha "Peru'", "città" matcha "Citta'".
+    return _communityTracks.where((track) {
+      return TextSearch.matchesAny(_searchQuery, [
+        track.name,
+        track.ownerUsername,
+      ]);
+    }).toList();
   }
 
   void _onSearchChanged(String query) {

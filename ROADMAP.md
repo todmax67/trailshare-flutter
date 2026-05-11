@@ -103,9 +103,9 @@ Target: aumentare ritenzione e dwell time.
 | # | Feature | Priorità | Effort | Status |
 |---|---|---|---|---|
 | 4.1 | Navigazione: preview pre-partenza con ETA + ETA dinamico real-time | 🟧 | XS | ✅ |
-| 4.2 | Navigazione: waypoint intermedi | 🟨 | XS | ☐ |
-| 4.3 | Navigazione: pausa automatica se fermo >5 min | 🟨 | XS | ☐ |
-| 4.4 | Discover: ricerca testuale full-text | 🟧 | S | ☐ |
+| 4.2 | Navigazione: waypoint intermedi | 🟨 | XS | ✅ (planner mobile già supporta multi-waypoint senza limite, web cap 10) |
+| 4.3 | Navigazione: pausa automatica se fermo >5 min | 🟨 | XS | ✅ (TrackingBloc._autoPause già live, snackbar autoPauseTriggered/Resumed) |
+| 4.4 | Discover: ricerca testuale full-text | 🟧 | S | ✅ (TextSearch accent-insensitive su nome/ref/network/operator/regione/difficoltà/attività; community migrato dalla `contains` basic) |
 | 4.5 | Discover: filtro per regione amministrativa | 🟨 | S | ✅ (bbox 20 regioni + sezione filter sheet) |
 | 4.6 | Track detail: grafico HR per zone (cardiac zones) | 🟨 | S | ☐ — Pro feature naturale |
 | 4.7 | Track detail: confronto con PR personale | 🟨 | M | ☐ — engagement booster |
