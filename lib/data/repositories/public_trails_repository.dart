@@ -102,12 +102,39 @@ class PublicTrailsRepository {
   /// Carica geometria completa per un sentiero (per pagina dettaglio)
   Future<List<TrackPoint>?> getFullGeometry(String trailId) async {
     try {
+      // NUOVO SCHEMA: geometry pesante in public_trail_geometries/{id}.
+      // Provo prima qui per evitare di scaricare il doc index (più pesante
+      // del solito con i metadati).
+      final geoDoc = await _firestore
+          .collection('public_trail_geometries')
+          .doc(trailId)
+          .get();
+      if (geoDoc.exists) {
+        final coordsJsonStr = geoDoc.data()?['coordinatesJson'];
+        if (coordsJsonStr is String && coordsJsonStr.isNotEmpty) {
+          final List<dynamic> coordsList = jsonDecode(coordsJsonStr);
+          final out = <TrackPoint>[];
+          for (final p in coordsList) {
+            if (p is List && p.length >= 2) {
+              out.add(TrackPoint(
+                longitude: (p[0] as num).toDouble(),
+                latitude: (p[1] as num).toDouble(),
+                elevation: p.length > 2 ? (p[2] as num?)?.toDouble() : null,
+                timestamp: DateTime.now(),
+              ));
+            }
+          }
+          if (out.isNotEmpty) return out;
+        }
+      }
+
+      // FALLBACK LEGACY: geometry.coordinatesJson inline nel doc trail.
       final doc = await _trailsCollection.doc(trailId).get();
       if (!doc.exists) return null;
-      
+
       final data = doc.data()!;
       final geometry = data['geometry'];
-      
+
       if (geometry != null && geometry is Map) {
         final coordsJsonStr = geometry['coordinatesJson'];
         if (coordsJsonStr != null && coordsJsonStr is String) {
@@ -400,12 +427,30 @@ class PublicTrailsRepository {
       if (metadataOnly) {
         // Solo metadati: skip parsing coordinate per velocità
       } else {
-      final geometry = data['geometry'];
-      if (geometry != null && geometry is Map) {
+      // PREFERITO (nuovo schema): simplifiedPoints inline nel doc index.
+      // Lista di [lon, lat], max ~30 pt — basta per render mappa.
+      final simplifiedPointsRaw = data['simplifiedPoints'];
+      if (simplifiedPointsRaw is List && simplifiedPointsRaw.isNotEmpty) {
+        for (final p in simplifiedPointsRaw) {
+          if (p is List && p.length >= 2) {
+            final lon = (p[0] as num).toDouble();
+            final lat = (p[1] as num).toDouble();
+            if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+              points.add(TrackPoint(latitude: lat, longitude: lon, timestamp: DateTime.now()));
+            }
+          }
+        }
+      }
+
+      // LEGACY (pre-split): geometry.coordinatesJson inline. Mantenuto per
+      // backward-compat finché la migrazione non sposta tutto in
+      // public_trail_geometries/.
+      final dynamic geometry = data['geometry'];
+      if (points.isEmpty && geometry != null && geometry is Map) {
         final coordsJsonStr = geometry['coordinatesJson'];
         if (coordsJsonStr != null && coordsJsonStr is String) {
           final List<dynamic> coordsList = jsonDecode(coordsJsonStr);
-          
+
           // Converti a LatLng per semplificazione
           final latLngPoints = <LatLng>[];
           for (var p in coordsList) {
@@ -417,12 +462,12 @@ class PublicTrailsRepository {
               }
             }
           }
-          
+
           // Semplifica se richiesto
-          final finalPoints = simplified 
+          final finalPoints = simplified
               ? GeometrySimplifier.simplify(latLngPoints, maxPoints: 30)
               : latLngPoints;
-          
+
           points = finalPoints.map((ll) => TrackPoint(
             latitude: ll.latitude,
             longitude: ll.longitude,

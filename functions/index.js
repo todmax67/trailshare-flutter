@@ -8,7 +8,7 @@ const { onCall, onRequest } = require("firebase-functions/v2/https");
 const functions = require("firebase-functions");
 const { logger } = require("firebase-functions");
 const { defineSecret } = require('firebase-functions/params');
-const { GeoPoint } = require("firebase-admin/firestore");
+const { GeoPoint, FieldPath } = require("firebase-admin/firestore");
 const axios = require('axios');
 admin.initializeApp();
 const db = admin.firestore();
@@ -3414,5 +3414,143 @@ exports.stravaReconcilePending = onSchedule(
         logger.error(`[stravaReconcile] track=${doc.id} ${e?.message}`);
       }
     }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MIGRAZIONE: split public_trails → public_trails (index) + public_trail_geometries
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Motivazione: i doc legacy in `public_trails/` includono `geometry.coordinatesJson`
+// fino a ~800 KB. Con 4400+ trail la Discover map scarica decine di MB e
+// blocca il client. Spostiamo la geometria pesante in `public_trail_geometries/{id}`
+// e calcoliamo un `simplifiedPoints` inline (max 30 pt) per il render mappa.
+//
+// Idempotente: skippa trail già migrati (presenza di `simplifiedPoints` o
+// assenza di `geometry.coordinatesJson`). Chiamabile più volte.
+
+const ADMIN_EMAILS = ['admin@trailshare.app', 'todde.massimiliano@gmail.com', 'info@bluspose.it'];
+
+function _sampleEvenly(coords, maxPoints) {
+  if (!Array.isArray(coords) || coords.length === 0) return [];
+  if (coords.length <= maxPoints) {
+    return coords.map((c) => [Number(c[0]), Number(c[1])]);
+  }
+  const stride = coords.length / maxPoints;
+  const out = [];
+  for (let i = 0; i < maxPoints; i++) {
+    const idx = Math.min(coords.length - 1, Math.floor(i * stride));
+    out.push([Number(coords[idx][0]), Number(coords[idx][1])]);
+  }
+  const last = coords[coords.length - 1];
+  if (out.length === 0 || out[out.length - 1][0] !== Number(last[0]) || out[out.length - 1][1] !== Number(last[1])) {
+    out.push([Number(last[0]), Number(last[1])]);
+  }
+  return out;
+}
+
+exports.migratePublicTrailsSplit = onCall(
+  { region: 'europe-west3', timeoutSeconds: 540, memory: '1GiB' },
+  async (request) => {
+    const email = request.auth?.token?.email;
+    if (!email || !ADMIN_EMAILS.includes(email)) {
+      throw new Error('unauthorized: admin only');
+    }
+
+    const batchSize = Number(request.data?.batchSize) || 200;
+    const dryRun = request.data?.dryRun === true;
+    const startAfter = request.data?.startAfter || null;
+
+    let scanned = 0;
+    let migrated = 0;
+    let alreadyMigrated = 0;
+    let noGeometry = 0;
+    let errors = 0;
+    let lastDocId = null;
+    const errorSamples = [];
+
+    let q = db.collection('public_trails').orderBy(FieldPath.documentId()).limit(batchSize);
+    if (startAfter) {
+      q = q.startAfter(startAfter);
+    }
+
+    const snap = await q.get();
+    logger.info(`[migratePublicTrailsSplit] processing ${snap.size} docs (startAfter=${startAfter}, dryRun=${dryRun})`);
+
+    for (const doc of snap.docs) {
+      scanned += 1;
+      lastDocId = doc.id;
+      try {
+        const data = doc.data();
+        const hasSimplified = Array.isArray(data.simplifiedPoints) && data.simplifiedPoints.length > 0;
+        const geom = data.geometry;
+        const inlineJson = geom && typeof geom === 'object' ? geom.coordinatesJson : null;
+
+        if (hasSimplified && !inlineJson) {
+          alreadyMigrated += 1;
+          continue;
+        }
+        if (!inlineJson || typeof inlineJson !== 'string') {
+          noGeometry += 1;
+          continue;
+        }
+
+        let coords;
+        try {
+          coords = JSON.parse(inlineJson);
+        } catch (e) {
+          errors += 1;
+          if (errorSamples.length < 5) errorSamples.push({ id: doc.id, err: 'parse:' + e.message });
+          continue;
+        }
+        if (!Array.isArray(coords) || coords.length < 2) {
+          noGeometry += 1;
+          continue;
+        }
+
+        const simplified = _sampleEvenly(coords, 30);
+
+        if (dryRun) {
+          migrated += 1;
+          continue;
+        }
+
+        // 1) Scrivi geometria completa in collection separata
+        await db.collection('public_trail_geometries').doc(doc.id).set({
+          coordinatesJson: inlineJson,
+          pointsCount: coords.length,
+          osmId: data.osmId || null,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // 2) Aggiorna doc index: aggiungi simplifiedPoints, rimuovi coordinatesJson
+        await doc.ref.update({
+          simplifiedPoints: simplified,
+          'geometry.coordinatesJson': admin.firestore.FieldValue.delete(),
+          migratedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        migrated += 1;
+      } catch (e) {
+        errors += 1;
+        if (errorSamples.length < 5) errorSamples.push({ id: doc.id, err: e.message });
+        logger.error(`[migratePublicTrailsSplit] doc=${doc.id} ${e.message}`);
+      }
+    }
+
+    const hasMore = snap.size === batchSize;
+    logger.info(`[migratePublicTrailsSplit] done batch: scanned=${scanned} migrated=${migrated} already=${alreadyMigrated} noGeom=${noGeometry} errors=${errors} hasMore=${hasMore}`);
+
+    return {
+      scanned,
+      migrated,
+      alreadyMigrated,
+      noGeometry,
+      errors,
+      errorSamples,
+      lastDocId,
+      hasMore,
+      nextStartAfter: hasMore ? lastDocId : null,
+    };
   }
 );

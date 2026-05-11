@@ -40,6 +40,14 @@ service cloud.firestore {
       allow delete: if isAdminByEmail();
     }
 
+    // --- Geometry pesanti (split da public_trails per ridurre payload Discover) ---
+    // 1 doc per trail con coordinatesJson completo. Read pubblico (la mappa
+    // dettaglio lo fa lazy-load); write solo admin.
+    match /public_trail_geometries/{trailId} {
+      allow read: if true;
+      allow create, update, delete: if isAdminByEmail();
+    }
+
     // --- Storico import sentieri (admin only, A4) ---
     // Solo admin-by-email può scrivere; read aperto a admin (per UI
     // pannello). Niente PII, solo conteggi + regione + timestamp.

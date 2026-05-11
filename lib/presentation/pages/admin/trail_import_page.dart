@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -325,6 +326,8 @@ class _TrailImportPageState extends State<TrailImportPage> {
             ],
             const SizedBox(height: 16),
             _buildHistoryCard(),
+            const SizedBox(height: 16),
+            _buildMigrationCard(),
             const SizedBox(height: 32),
           ],
         ),
@@ -781,6 +784,109 @@ class _TrailImportPageState extends State<TrailImportPage> {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} $h:$m';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // MIGRAZIONE SPLIT public_trails → public_trail_geometries
+  // ─────────────────────────────────────────────────────────────────────────
+  bool _isMigrating = false;
+  String _migrationLog = '';
+
+  Future<void> _runMigration({bool dryRun = false}) async {
+    setState(() {
+      _isMigrating = true;
+      _migrationLog = dryRun ? '🧪 DRY RUN avviato...\n' : '🚀 Migrazione avviata...\n';
+    });
+    final fn = FirebaseFunctions.instanceFor(region: 'europe-west3')
+        .httpsCallable('migratePublicTrailsSplit');
+    String? startAfter;
+    int totalScanned = 0, totalMigrated = 0, totalAlready = 0, totalErrors = 0;
+    try {
+      while (true) {
+        final res = await fn.call({
+          'batchSize': 200,
+          'dryRun': dryRun,
+          if (startAfter != null) 'startAfter': startAfter,
+        });
+        final data = Map<String, dynamic>.from(res.data as Map);
+        totalScanned += (data['scanned'] as int);
+        totalMigrated += (data['migrated'] as int);
+        totalAlready += (data['alreadyMigrated'] as int);
+        totalErrors += (data['errors'] as int);
+        setState(() {
+          _migrationLog +=
+              '📦 batch: scanned=${data['scanned']} migrated=${data['migrated']} already=${data['alreadyMigrated']} errors=${data['errors']}\n';
+        });
+        if (data['hasMore'] != true) break;
+        startAfter = data['nextStartAfter'] as String?;
+      }
+      setState(() {
+        _migrationLog +=
+            '\n✅ FATTO: scanned=$totalScanned migrated=$totalMigrated already=$totalAlready errors=$totalErrors\n';
+      });
+    } catch (e) {
+      setState(() => _migrationLog += '\n❌ Errore: $e\n');
+    } finally {
+      setState(() => _isMigrating = false);
+    }
+  }
+
+  Widget _buildMigrationCard() {
+    return Card(
+      color: Colors.orange.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.swap_horiz, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Migrazione split geometry',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+                'One-shot: sposta `geometry.coordinatesJson` da public_trails a public_trail_geometries e aggiunge `simplifiedPoints` per Discover. Idempotente.',
+                style: TextStyle(fontSize: 12)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _isMigrating ? null : () => _runMigration(dryRun: true),
+                  icon: const Icon(Icons.science, size: 18),
+                  label: const Text('Dry run'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _isMigrating ? null : () => _runMigration(dryRun: false),
+                  icon: _isMigrating
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.play_arrow, size: 18),
+                  label: Text(_isMigrating ? 'In corso...' : 'Esegui migrazione'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white),
+                ),
+              ],
+            ),
+            if (_migrationLog.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(_migrationLog,
+                    style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontSize: 11)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 

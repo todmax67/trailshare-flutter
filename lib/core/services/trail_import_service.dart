@@ -576,15 +576,21 @@ class TrailImportService {
     final difficulty = _difficultyFromTags(details.tags) ??
         _estimateDifficulty(distance, elevationStats.gain);
 
+    // Calcola simplifiedPoints (max ~30 pt) per il Discover map: il doc
+    // index resta piccolo (~2 KB) e si carica veloce anche con 1000+ trail.
+    // La geometria completa è in public_trail_geometries/{docId}.
+    final simplifiedPoints = _samplePoints(coordsForWrite, 30);
+
     final docData = <String, dynamic>{
       'name': route.name,
       'osmId': route.id,
       'source': 'waymarked',
       'region': region,
+      // Geometry "metadata-only" nel doc index: niente coordinatesJson pesante.
       'geometry': {
         'type': 'LineString',
-        'coordinatesJson': coordsJson,
       },
+      'simplifiedPoints': simplifiedPoints,
       'center': GeoPoint(center[1], center[0]),
       'startPoint': {'lat': coords.first[1], 'lon': coords.first[0]},
       'endPoint': {'lat': coords.last[1], 'lon': coords.last[0]},
@@ -625,6 +631,14 @@ class TrailImportService {
       docData['importedAt'] = FieldValue.serverTimestamp();
     }
     await _trailsCollection.doc(docId).set(docData, SetOptions(merge: existingDoc.exists));
+
+    // Geometry pesante separata: 1 doc per trail, lazy-loaded dal detail.
+    await _firestore.collection('public_trail_geometries').doc(docId).set({
+      'coordinatesJson': coordsJson,
+      'pointsCount': coordsForWrite.length,
+      'osmId': route.id,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
 
     imported.add(ImportedTrail(
       docId: docId,
@@ -714,6 +728,27 @@ class TrailImportService {
     final lon = (x * 180) / 20037508.34;
     final lat = (math.atan(math.exp((y * math.pi) / 20037508.34)) * 360) / math.pi - 90;
     return [lon, lat];
+  }
+
+  /// Campiona N punti equidistanti da un tracciato completo (per simplifiedPoints).
+  /// Output: List<List<double>> [[lon,lat], ...]. Drop elevazione (non serve in mappa).
+  List<List<double>> _samplePoints(List<List<double>> coords, int maxPoints) {
+    if (coords.isEmpty) return const [];
+    if (coords.length <= maxPoints) {
+      return coords.map((c) => [c[0], c[1]]).toList();
+    }
+    final stride = coords.length / maxPoints;
+    final out = <List<double>>[];
+    for (int i = 0; i < maxPoints; i++) {
+      final idx = (i * stride).floor().clamp(0, coords.length - 1);
+      out.add([coords[idx][0], coords[idx][1]]);
+    }
+    // Garantisci punto finale.
+    final last = coords.last;
+    if (out.last[0] != last[0] || out.last[1] != last[1]) {
+      out.add([last[0], last[1]]);
+    }
+    return out;
   }
 
   /// WGS84 → EPSG:3857 web mercator. L'API Waymarked by_area accetta bbox in mercator.
