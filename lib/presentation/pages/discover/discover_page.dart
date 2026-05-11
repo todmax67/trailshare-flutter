@@ -165,7 +165,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Future<void> _refreshTrails() async {
     _lastLoadedBounds = null;
     _trails.clear();
-    _clusters.clear();
+    _clusters = []; // const [] altrove → riassegna a lista mutabile
     await _trailsRepository.invalidateCache();
     await _loadTrailsForViewport();
   }
@@ -500,7 +500,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
         minLng: bounds.west,
         maxLng: bounds.east,
         zoom: zoom,
-        limit: 200,
+        // Dopo split geometry i doc sono ~2KB → posso alzare il cap.
+        // 800 trail × 2KB ≈ 1.6MB, gestibile.
+        limit: 800,
       );
       
       if (mounted) {

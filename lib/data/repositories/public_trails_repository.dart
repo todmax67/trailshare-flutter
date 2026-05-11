@@ -317,16 +317,25 @@ class PublicTrailsRepository {
       final trails = <PublicTrail>[];
       final seenIds = <String>{};
       
-      // Query parallele
-      final futures = ranges.take(10).map((range) async {
+      // Query parallele. Per-range cap = limit complessivo / range usati,
+      // moltiplicato ×2 per non castrare zone dense (i doc index pesano
+      // ~2KB dopo lo split geometry, possiamo permettercelo).
+      final rangesToUse = ranges.take(10).toList();
+      final perRangeLimit = (limit / rangesToUse.length).ceil() * 2 + 20;
+      final futures = rangesToUse.map((range) async {
         try {
+          // Source.server: la cache locale può essere satura dai vecchi
+          // doc legacy con coordinatesJson inline (fino a 800KB l'uno) →
+          // le query con cache si bloccano. Bypassiamo finché la cache
+          // non si è ripulita dopo la migrazione.
           final snapshot = await _trailsCollection
               .where('geoHash', isGreaterThanOrEqualTo: range.start)
               .where('geoHash', isLessThan: range.end)
-              .limit(limit ~/ ranges.length + 10)
-              .get();
+              .limit(perRangeLimit)
+              .get(const GetOptions(source: Source.server));
           return snapshot.docs;
         } catch (e) {
+          debugPrint('[PublicTrails] range query error: $e');
           return <QueryDocumentSnapshot<Map<String, dynamic>>>[];
         }
       });
