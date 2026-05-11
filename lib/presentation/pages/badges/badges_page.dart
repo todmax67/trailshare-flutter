@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/extensions/l10n_extension.dart';
-import '../../../core/services/gamification_service.dart';
-import '../../../core/extensions/theme_colors_extension.dart';
 
-/// Pagina Badge
+import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/badge_evaluator_service.dart';
+import '../../../data/models/badge_family.dart';
+
+/// Pagina Badge "Garmin-style" (Epic refactor).
+///
+/// 11 famiglie × 4 tier (Bronze / Argento / Oro / Platino) = 44 badge.
+/// Ogni famiglia è una "card" con:
+/// - icona grande dentro un ring colorato del tier corrente
+/// - titolo + descrizione del tier
+/// - progress bar verso il prossimo tier
+/// - "X / Y unità" come label
+///
+/// Tab "I miei badge" mostra solo le famiglie con almeno il bronze;
+/// "Tutti" mostra ogni famiglia anche se non ancora iniziata.
 class BadgesPage extends StatefulWidget {
   const BadgesPage({super.key});
 
@@ -14,19 +23,17 @@ class BadgesPage extends StatefulWidget {
   State<BadgesPage> createState() => _BadgesPageState();
 }
 
-class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateMixin {
-  final GamificationService _gamification = GamificationService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  
+class _BadgesPageState extends State<BadgesPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  List<UnlockedBadge> _unlockedBadges = [];
-  bool _isLoading = true;
+  List<BadgeProgress> _progress = [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadBadges();
+    _load();
   }
 
   @override
@@ -35,275 +42,105 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  Future<void> _loadBadges() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      setState(() => _isLoading = false);
-      return;
-    }
-
-    try {
-      // ⭐ STEP 1: Calcola totali reali dalle tracce utente
-      final tracksSnapshot = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('tracks')
-          .get();
-
-      double totalDistance = 0;
-      double totalElevation = 0;
-      int totalTracks = tracksSnapshot.docs.length;
-
-      for (final doc in tracksSnapshot.docs) {
-        final data = doc.data();
-        totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
-        totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
-      }
-
-      debugPrint('[BadgesPage] Totali: $totalTracks tracce, ${totalDistance.toStringAsFixed(0)}m distanza, +${totalElevation.toStringAsFixed(0)}m dislivello');
-
-      // ⭐ STEP 2: Ottieni followers count dal profilo
-      int followersCount = 0;
-      int cheersReceived = 0;
-      
-      final profileDoc = await _firestore
-          .collection('user_profiles')
-          .doc(user.uid)
-          .get();
-
-      if (profileDoc.exists) {
-        final profileData = profileDoc.data()!;
-        final followers = profileData['followers'] as List?;
-        followersCount = followers?.length ?? 0;
-      }
-
-      // ⭐ STEP 3: Conta cheers ricevuti sulle tracce pubblicate dell'utente
-      final publishedSnapshot = await _firestore
-          .collection('published_tracks')
-          .where('originalOwnerId', isEqualTo: user.uid)
-          .get();
-
-      for (final doc in publishedSnapshot.docs) {
-        final data = doc.data();
-        // Gestisce entrambi i nomi campo (cheerCount da publish, cheersCount da update)
-        final c1 = (data['cheerCount'] as num?)?.toInt() ?? 0;
-        final c2 = (data['cheersCount'] as num?)?.toInt() ?? 0;
-        cheersReceived += c1 > c2 ? c1 : c2; // Prende il valore più alto
-      }
-
-      debugPrint('[BadgesPage] Social: $followersCount followers, $cheersReceived cheers ricevuti');
-
-      // ⭐ STEP 4: Controlla e sblocca badge maturati
-      // (currentStreak = 0 per ora, richiede calcolo separato)
-      final newBadges = await _gamification.checkAndUnlockBadges(
-        totalDistance: totalDistance,
-        totalElevation: totalElevation,
-        totalTracks: totalTracks,
-        followersCount: followersCount,
-        cheersReceived: cheersReceived,
-        currentStreak: 0, // TODO: calcolare streak giorni consecutivi
-      );
-
-      if (newBadges.isNotEmpty) {
-        debugPrint('[BadgesPage] 🎉 Nuovi badge sbloccati: ${newBadges.map((b) => b.name).join(', ')}');
-      }
-
-      // ⭐ STEP 5: Ricarica badge aggiornati
-      final badges = await _gamification.getUnlockedBadges(user.uid);
-
-      if (mounted) {
-        setState(() {
-          _unlockedBadges = badges;
-          _isLoading = false;
-        });
-
-        // Mostra dialog per nuovi badge sbloccati
-        for (final badge in newBadges) {
-          if (mounted) {
-            await _showBadgeUnlockedDialog(badge);
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('[BadgesPage] Errore: $e');
-      // Fallback: carica solo badge esistenti
-      final badges = await _gamification.getUnlockedBadges(user.uid);
-      if (mounted) {
-        setState(() {
-          _unlockedBadges = badges;
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  /// Mostra dialog per badge appena sbloccato
-  Future<void> _showBadgeUnlockedDialog(GameBadge badge) async {
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('🎊', style: TextStyle(fontSize: 48)),
-            const SizedBox(height: 8),
-            Text(
-              context.l10n.newBadge,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Text(badge.icon, style: const TextStyle(fontSize: 48)),
-                  const SizedBox(height: 8),
-                  Text(
-                    badge.name,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    badge.description,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.l10n.fantastic),
-          ),
-        ],
-      ),
-    );
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final progress = await BadgeEvaluatorService().getAllProgress();
+    if (!mounted) return;
+    setState(() {
+      _progress = progress;
+      _loading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final earned = _progress.where((p) => p.currentTier != null).toList();
+    final totalUnlocks = earned.fold<int>(
+        0, (s, p) => s + (p.currentTier!.index + 1));
+    final maxUnlocks = GameBadgeFamily.values.length * 4;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.l10n.badges),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        title: const Text('Badge'),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: context.textMuted,
-          indicatorColor: AppColors.primary,
           tabs: [
-            Tab(text: context.l10n.unlockedCount(_unlockedBadges.length)),
-            Tab(text: context.l10n.allCount(GamificationService.availableBadges.length)),
+            Tab(text: 'Conquistati (${earned.length})'),
+            Tab(text: 'Tutti (${GameBadgeFamily.values.length})'),
           ],
         ),
       ),
-      body: _isLoading
+      body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
+          : Column(
               children: [
-                _buildUnlockedTab(),
-                _buildAllBadgesTab(),
+                _buildHeader(totalUnlocks, maxUnlocks),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildEarnedTab(earned),
+                      _buildAllTab(),
+                    ],
+                  ),
+                ),
               ],
             ),
     );
   }
 
-  Widget _buildUnlockedTab() {
-    if (_unlockedBadges.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    return ListView.builder(
+  Widget _buildHeader(int unlocked, int max) {
+    final ratio = max > 0 ? unlocked / max : 0.0;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(16),
-      itemCount: _unlockedBadges.length,
-      itemBuilder: (context, index) {
-        final unlocked = _unlockedBadges[index];
-        return _BadgeCard(
-          badge: unlocked.badge,
-          isUnlocked: true,
-          unlockedAt: unlocked.unlockedAt,
-        );
-      },
-    );
-  }
-
-  Widget _buildAllBadgesTab() {
-    final unlockedIds = _unlockedBadges.map((b) => b.badge.id).toSet();
-    final allBadges = GamificationService.availableBadges;
-
-    final grouped = <GameBadgeCategory, List<GameBadge>>{};
-    for (final badge in allBadges) {
-      grouped.putIfAbsent(badge.category, () => []).add(badge);
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        for (final category in GameBadgeCategory.values)
-          if (grouped.containsKey(category)) ...[
-            _buildCategoryHeader(category),
-            ...grouped[category]!.map((badge) => _BadgeCard(
-              badge: badge,
-              isUnlocked: unlockedIds.contains(badge.id),
-            )),
-            const SizedBox(height: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary,
+            AppColors.primary.withValues(alpha: 0.75),
           ],
-      ],
-    );
-  }
-
-  Widget _buildCategoryHeader(GameBadgeCategory category) {
-    String title;
-    IconData icon;
-
-    switch (category) {
-      case GameBadgeCategory.milestone:
-        title = context.l10n.milestones;
-        icon = Icons.flag;
-        break;
-      case GameBadgeCategory.distance:
-        title = context.l10n.distance;
-        icon = Icons.straighten;
-        break;
-      case GameBadgeCategory.elevation:
-        title = context.l10n.elevation;
-        icon = Icons.terrain;
-        break;
-      case GameBadgeCategory.social:
-        title = context.l10n.socialCategory;
-        icon = Icons.people;
-        break;
-      case GameBadgeCategory.streak:
-        title = context.l10n.streakCategory;
-        icon = Icons.local_fire_department;
-        break;
-      case GameBadgeCategory.challenge:
-        title = context.l10n.challenges;
-        icon = Icons.emoji_events;
-        break;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: AppColors.primary),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
+          Row(
+            children: [
+              const Icon(Icons.emoji_events,
+                  color: Colors.white, size: 28),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'I tuoi traguardi',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                '$unlocked / $max',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 8,
+              backgroundColor: Colors.white.withValues(alpha: 0.25),
+              valueColor: const AlwaysStoppedAnimation(Colors.white),
             ),
           ),
         ],
@@ -311,7 +148,77 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEarnedTab(List<BadgeProgress> earned) {
+    if (earned.isEmpty) return _buildEmpty();
+    final grouped = _groupByCategory(earned);
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          for (final entry in grouped.entries) ...[
+            _buildSectionTitle(entry.key),
+            ...entry.value.map((p) => _BadgeFamilyCard(progress: p)),
+            const SizedBox(height: 16),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAllTab() {
+    final grouped = _groupByCategory(_progress);
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          for (final entry in grouped.entries) ...[
+            _buildSectionTitle(entry.key),
+            ...entry.value.map((p) => _BadgeFamilyCard(progress: p)),
+            const SizedBox(height: 16),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Map<String, List<BadgeProgress>> _groupByCategory(
+      List<BadgeProgress> list) {
+    final out = <String, List<BadgeProgress>>{};
+    for (final p in list) {
+      out.putIfAbsent(p.family.categoryGroup, () => []).add(p);
+    }
+    // Ordine custom delle categorie
+    final ordered = <String>[
+      'Volume',
+      'Sport',
+      'Costanza',
+      'Esplorazione',
+      'Social',
+    ];
+    return {
+      for (final k in ordered)
+        if (out.containsKey(k)) k: out[k]!,
+    };
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: context.textMuted,
+          letterSpacing: 1.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -320,27 +227,21 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
           children: [
             const Text('🏅', style: TextStyle(fontSize: 64)),
             const SizedBox(height: 16),
-            Text(
-              context.l10n.noBadgesYet,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            const Text(
+              'Nessun badge ancora',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              context.l10n.completeTracksForBadges,
-              style: TextStyle(color: Colors.grey[600]),
+              'Registra la tua prima traccia per iniziare a sbloccare i badge!',
+              style: TextStyle(color: context.textSecondary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () {
-                _tabController.animateTo(1);
-              },
+              onPressed: () => _tabController.animateTo(1),
               icon: const Icon(Icons.visibility),
-              label: Text(context.l10n.viewAllBadges),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
+              label: const Text('Mostra tutti i badge'),
             ),
           ],
         ),
@@ -349,59 +250,355 @@ class _BadgesPageState extends State<BadgesPage> with SingleTickerProviderStateM
   }
 }
 
-class _BadgeCard extends StatelessWidget {
-  final GameBadge badge;
-  final bool isUnlocked;
-  final DateTime? unlockedAt;
+/// Card di una famiglia di badge. Rappresenta tutti e 4 i tier in modo
+/// compatto: tier ring colorato + progress + 4 mini-pallini in fondo
+/// che indicano quali tier sono unlocked.
+class _BadgeFamilyCard extends StatelessWidget {
+  final BadgeProgress progress;
+  const _BadgeFamilyCard({required this.progress});
 
-  const _BadgeCard({
-    required this.badge,
-    required this.isUnlocked,
-    this.unlockedAt,
+  @override
+  Widget build(BuildContext context) {
+    final family = progress.family;
+    final tier = progress.currentTier;
+    final tierColor = tier?.color ?? Colors.grey.shade400;
+    final isLocked = tier == null;
+
+    return GestureDetector(
+      onTap: () => _openDetail(context),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isLocked
+                ? context.themedBorder
+                : tierColor.withValues(alpha: 0.4),
+            width: isLocked ? 1 : 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            _TierRing(family: family, tier: tier),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          family.title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      if (tier != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: tierColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            tier.label.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: tierColor,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    progress.progressLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress.progressToNext,
+                      minHeight: 5,
+                      backgroundColor: Colors.grey.withValues(alpha: 0.18),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        progress.nextTier?.color ??
+                            (tier?.color ?? AppColors.primary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _TierDotsRow(progress: progress),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openDetail(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _BadgeFamilyDetail(progress: progress),
+    );
+  }
+}
+
+class _TierRing extends StatelessWidget {
+  final GameBadgeFamily family;
+  final GameBadgeTier? tier;
+  const _TierRing({required this.family, required this.tier});
+
+  @override
+  Widget build(BuildContext context) {
+    final isLocked = tier == null;
+    final color = tier?.color ?? Colors.grey.shade400;
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: isLocked
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: tier!.gradient,
+              ),
+        color: isLocked ? Colors.grey.shade200 : null,
+        border: Border.all(
+          color: color,
+          width: 2,
+        ),
+        boxShadow: isLocked
+            ? null
+            : [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: Center(
+        child: Opacity(
+          opacity: isLocked ? 0.35 : 1.0,
+          child: Text(
+            family.icon,
+            style: const TextStyle(fontSize: 28),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 4 pallini affiancati che indicano lo stato di ciascun tier
+/// (pieni se unlocked, vuoti se non ancora). Visibili sotto la
+/// progress bar nella card.
+class _TierDotsRow extends StatelessWidget {
+  final BadgeProgress progress;
+  const _TierDotsRow({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final tier in GameBadgeTier.values) ...[
+          Container(
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.only(right: 4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: progress.tierUnlocked(tier)
+                  ? tier.color
+                  : Colors.grey.withValues(alpha: 0.3),
+            ),
+          ),
+          if (tier != GameBadgeTier.platinum)
+            Container(
+              width: 12,
+              height: 1,
+              margin: const EdgeInsets.only(right: 4),
+              color: progress.tierUnlocked(tier.next ?? tier)
+                  ? (tier.next?.color ?? Colors.transparent)
+                      .withValues(alpha: 0.4)
+                  : Colors.grey.withValues(alpha: 0.2),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _BadgeFamilyDetail extends StatelessWidget {
+  final BadgeProgress progress;
+  const _BadgeFamilyDetail({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    final family = progress.family;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _TierRing(family: family, tier: progress.currentTier),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        family.title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        progress.progressLabel,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: context.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Tier list
+            for (final tier in GameBadgeTier.values) ...[
+              _TierRow(family: family, tier: tier, progress: progress),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 8),
+            if (progress.nextTier != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.flag, color: AppColors.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Ti mancano ${BadgeProgress.formatValue(progress.remainingToNext)} ${family.unit} '
+                        'per il tier ${progress.nextTier!.label}.',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: GameBadgeTier.platinum.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.workspace_premium,
+                        color: GameBadgeTier.platinum.color),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Platino raggiunto. Tier massimo sbloccato!',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TierRow extends StatelessWidget {
+  final GameBadgeFamily family;
+  final GameBadgeTier tier;
+  final BadgeProgress progress;
+  const _TierRow({
+    required this.family,
+    required this.tier,
+    required this.progress,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    
+    final unlocked = progress.tierUnlocked(tier);
+    final unlockedAt = progress.unlockedAtFor(tier);
+    final threshold = family.thresholdFor(tier);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isUnlocked ? colorScheme.surface : colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        color: unlocked
+            ? tier.color.withValues(alpha: 0.06)
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isUnlocked 
-              ? AppColors.primary.withValues(alpha: 0.3)
-              : colorScheme.outlineVariant,
+          color: unlocked
+              ? tier.color.withValues(alpha: 0.4)
+              : Colors.grey.withValues(alpha: 0.2),
         ),
-        boxShadow: isUnlocked
-            ? [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                ),
-              ]
-            : null,
       ),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: isUnlocked 
-                  ? AppColors.primary.withValues(alpha: 0.1)
-                  : colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
+              shape: BoxShape.circle,
+              gradient: unlocked
+                  ? LinearGradient(
+                      colors: tier.gradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: unlocked ? null : Colors.grey.withValues(alpha: 0.2),
             ),
             child: Center(
-              child: Text(
-                badge.icon,
-                style: TextStyle(
-                  fontSize: 24,
-                  color: isUnlocked ? null : colorScheme.onSurfaceVariant,
-                ),
+              child: Icon(
+                unlocked ? Icons.check : Icons.lock_outline,
+                color: unlocked ? Colors.white : Colors.grey,
+                size: 18,
               ),
             ),
           ),
@@ -411,52 +608,30 @@ class _BadgeCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  badge.name,
+                  '${tier.label} · ${BadgeProgress.formatValue(threshold)} ${family.unit}',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isUnlocked ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: unlocked ? tier.color : context.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  badge.description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isUnlocked ? colorScheme.onSurfaceVariant : colorScheme.outline,
-                  ),
-                ),
-                if (badge.requirement != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      badge.requirement!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isUnlocked ? AppColors.primary : colorScheme.outline,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
                 if (unlockedAt != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      context.l10n.unlockedOn('${unlockedAt!.day}/${unlockedAt!.month}/${unlockedAt!.year}'),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.success,
-                      ),
+                  Text(
+                    'Sbloccato il ${_formatDate(unlockedAt)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: context.textMuted,
                     ),
                   ),
               ],
             ),
           ),
-          if (isUnlocked)
-            const Icon(Icons.check_circle, color: AppColors.success, size: 24)
-          else
-            Icon(Icons.lock_outline, color: colorScheme.outline, size: 24),
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime d) {
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
   }
 }

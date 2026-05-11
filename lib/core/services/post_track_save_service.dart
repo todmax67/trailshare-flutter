@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'badge_evaluator_service.dart';
 import 'gamification_service.dart';
 import 'challenges_service.dart';
 import 'segment_matching_service.dart';
@@ -115,10 +116,13 @@ class PostTrackSaveService {
 
       double totalDistance = 0;
       double totalElevation = 0;
-      int totalTracks = tracksSnapshot.docs.length;
+      int totalTracks = 0;
 
       for (final doc in tracksSnapshot.docs) {
         final data = doc.data();
+        // Escludi tracce pianificate (Planner ORS) dai totali
+        if (data['isPlanned'] == true) continue;
+        totalTracks += 1;
         totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
         totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
       }
@@ -165,6 +169,15 @@ class PostTrackSaveService {
 
       if (newBadges.isNotEmpty) {
         debugPrint('[PostTrackSave] 🏅 Nuovi badge: ${newBadges.map((b) => b.name).join(', ')}');
+      }
+
+      // Sistema badge Garmin-style (Epic refactor): popola in parallelo
+      // i tier multi-livello (totalDistance_bronze..platinum, ecc.).
+      // Best-effort, non blocca il flow se errore.
+      try {
+        await BadgeEvaluatorService().getAllProgress();
+      } catch (e) {
+        debugPrint('[PostTrackSave] BadgeEvaluator error: $e');
       }
     } catch (e) {
       debugPrint('[PostTrackSave] ❌ Errore badge: $e');
