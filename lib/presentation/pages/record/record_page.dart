@@ -19,6 +19,7 @@ import '../../widgets/heart_rate_widget.dart';
 import '../../../core/services/feature_tips.dart';
 import '../../../core/services/heading_service.dart';
 import '../../../core/services/hud_prefs_service.dart';
+import '../../../core/utils/eta_estimator.dart';
 import '../../../core/services/recording_status_service.dart';
 import '../../widgets/map_heading_toggle.dart';
 import '../../widgets/map_overlays.dart';
@@ -115,6 +116,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   double _refDistanceFromTrail = 0;
   bool _refOffTrail = false;
   bool _refArrived = false;
+  /// Epic 4.1 — ETA dinamico ricalcolato ad ogni update guidato sulla
+  /// base della velocità corrente reale (non più solo Naismith pre-start).
+  Duration? _refDynamicEta;
   DateTime? _refLastOffTrailAnnouncement;
   final Set<String> _refSpokenThresholds = {};
   bool _refAutoStartRequested = false;
@@ -659,6 +663,32 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _refDistanceFromTrail = distFromRoute;
     final wasOffTrail = _refOffTrail;
     _refOffTrail = offTrail;
+
+    // Epic 4.1 — ETA dinamico basato su velocità corrente.
+    // Stima del dislivello residuo: proporzionale alla quota di
+    // percorso ancora da fare (totalEle × remaining/total). È
+    // un'approssimazione, ma evita di scorrere tutto il profilo ad
+    // ogni update.
+    {
+      final totalDist = ref.totalDistance ?? 0;
+      final totalEle = ref.totalElevationGain ?? 0;
+      final remainingEle = (totalDist > 0)
+          ? totalEle * (remaining / totalDist).clamp(0.0, 1.0)
+          : 0.0;
+      // Velocità corrente in km/h da m/s dell'ultimo punto GPS.
+      final rawSpeed = p.speed;
+      final speedMs = (rawSpeed != null && rawSpeed.isFinite && rawSpeed >= 0)
+          ? rawSpeed
+          : 0.0;
+      final speedKmh = speedMs * 3.6;
+      _refDynamicEta = EtaEstimator.estimateDynamic(
+        remainingDistanceMeters: remaining,
+        remainingElevationGainMeters: remainingEle,
+        activityType: _selectedActivity,
+        currentSpeedKmh: speedKmh,
+      );
+    }
+
     // 1.D4 — riapri l'HUD sui trigger guida critici (off-trail, arrivo)
     if (offTrail != wasOffTrail) _bumpHudActivity();
 
@@ -1210,11 +1240,29 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   }
 
   Widget _buildGuidedProgressRow() {
+    // Epic 4.1 — ETA dinamico + orario d'arrivo se disponibile.
+    final eta = _refDynamicEta;
+    String? etaValue;
+    String? etaLabel;
+    if (eta != null && eta > Duration.zero) {
+      etaValue = EtaEstimator.formatArrivalClock(DateTime.now(), eta);
+      etaLabel = 'Arrivo • ${EtaEstimator.formatCompact(eta)}';
+    }
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        _guidedStat(Icons.straighten, _formatDistanceMeters(_refRemainingDistance), 'Residuo'),
-        _guidedStat(Icons.near_me, '${_refDistanceFromTrail.round()} m', 'Dal percorso'),
+        _guidedStat(
+          Icons.straighten,
+          _formatDistanceMeters(_refRemainingDistance),
+          'Residuo',
+        ),
+        _guidedStat(
+          Icons.near_me,
+          '${_refDistanceFromTrail.round()} m',
+          'Dal percorso',
+        ),
+        if (etaValue != null && etaLabel != null)
+          _guidedStat(Icons.schedule, etaValue, etaLabel),
       ],
     );
   }

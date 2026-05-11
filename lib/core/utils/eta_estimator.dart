@@ -46,6 +46,59 @@ class EtaEstimator {
     return Duration(seconds: totalSeconds);
   }
 
+  /// ETA dinamico durante la navigazione: usa la **velocità corrente
+  /// dell'utente** quando ragionevole, fallback su Naismith [estimate]
+  /// se la velocità non è affidabile (utente fermo, GPS instabile,
+  /// inizio sessione).
+  ///
+  /// La logica è "best-effort":
+  /// - se [currentSpeedKmh] >= 1 km/h → ETA = remaining/speed + correzione
+  ///   salita rimanente (Naismith pondera 1h ogni metersPerHourClimb)
+  /// - altrimenti → fallback su Naismith con i parametri dell'attività
+  ///
+  /// La salita rimanente è approssimata in modo proporzionale:
+  ///   remainingElevation ≈ totalElevation × (remainingDistance / totalDistance)
+  /// È un'approssimazione ragionevole; per averla esatta servirebbe
+  /// scorrere il profilo altimetrico residuo, che non è sempre
+  /// disponibile (track community OSM).
+  static Duration estimateDynamic({
+    required double remainingDistanceMeters,
+    required double remainingElevationGainMeters,
+    required ActivityType activityType,
+    required double currentSpeedKmh,
+  }) {
+    if (remainingDistanceMeters <= 0) return Duration.zero;
+    final params = _paramsFor(activityType);
+    // Se la velocità corrente non è affidabile (utente fermo, GPS rumore,
+    // inizio sessione), fallback su Naismith statico.
+    if (currentSpeedKmh < 1.0) {
+      return estimate(
+        distanceMeters: remainingDistanceMeters,
+        elevationGainMeters: remainingElevationGainMeters,
+        activityType: activityType,
+      );
+    }
+    final flatHours = (remainingDistanceMeters / 1000) / currentSpeedKmh;
+    final climbHours = params.metersPerHourClimb > 0
+        ? (remainingElevationGainMeters / params.metersPerHourClimb)
+        : 0;
+    final totalSeconds = ((flatHours + climbHours) * 3600).round();
+    return Duration(seconds: totalSeconds.clamp(0, 60 * 60 * 24));
+  }
+
+  /// Format orario di arrivo come "HH:mm" (24h locale).
+  /// Es. now=14:00, eta=35min → "14:35".
+  /// Se la durata supera le 23h ritorna formato compatto Naismith
+  /// (l'orario assoluto su >1 giorno è poco utile).
+  static String formatArrivalClock(DateTime now, Duration eta) {
+    if (eta <= Duration.zero) return '—';
+    if (eta.inHours >= 24) return formatCompact(eta);
+    final arrival = now.add(eta);
+    final h = arrival.hour.toString().padLeft(2, '0');
+    final m = arrival.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
   /// Formattazione compatta della Duration:
   /// - 0:45  → "45 min"
   /// - 2:00  → "2 h"

@@ -102,7 +102,7 @@ Target: aumentare ritenzione e dwell time.
 
 | # | Feature | Priorità | Effort | Status |
 |---|---|---|---|---|
-| 4.1 | Navigazione: preview pre-partenza con ETA | 🟧 | XS | ⚠️ parziale |
+| 4.1 | Navigazione: preview pre-partenza con ETA + ETA dinamico real-time | 🟧 | XS | ✅ |
 | 4.2 | Navigazione: waypoint intermedi | 🟨 | XS | ☐ |
 | 4.3 | Navigazione: pausa automatica se fermo >5 min | 🟨 | XS | ☐ |
 | 4.4 | Discover: ricerca testuale full-text | 🟧 | S | ☐ |
