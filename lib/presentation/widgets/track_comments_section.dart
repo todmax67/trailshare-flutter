@@ -1,11 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/l10n_extension.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/utils/mention_parser.dart';
 import '../../data/models/track_comment.dart';
+import '../../data/repositories/follow_repository.dart';
 import '../../data/repositories/track_comments_repository.dart';
+import '../pages/profile/public_profile_page.dart';
 import 'app_snackbar.dart';
 
 /// Sezione commenti per una traccia community (o tour pubblico).
@@ -43,15 +47,80 @@ class TrackCommentsSection extends StatefulWidget {
 
 class _TrackCommentsSectionState extends State<TrackCommentsSection> {
   final _repo = TrackCommentsRepository();
+  final _followRepo = FollowRepository();
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   bool _submitting = false;
 
+  // Epic 3.6 — Autocomplete @mentions nel composer.
+  List<UserProfile> _suggestions = const [];
+  MentionInProgress? _activeMention;
+  int _searchSeq = 0; // race-condition guard (latest-wins)
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onTextChanged);
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onTextChanged() {
+    final sel = _controller.selection;
+    if (!sel.isValid || !sel.isCollapsed) {
+      _clearSuggestions();
+      return;
+    }
+    final inProgress =
+        MentionParser.findInProgress(_controller.text, sel.baseOffset);
+    if (inProgress == null) {
+      _clearSuggestions();
+      return;
+    }
+    _activeMention = inProgress;
+    if (inProgress.partial.isEmpty) {
+      // Aspettiamo almeno 1 carattere prima di interrogare Firestore.
+      setState(() => _suggestions = const []);
+      return;
+    }
+    _searchSeq += 1;
+    final mySeq = _searchSeq;
+    _followRepo.searchUsers(inProgress.partial).then((users) {
+      if (!mounted || mySeq != _searchSeq) return;
+      setState(() => _suggestions = users.take(5).toList());
+    });
+  }
+
+  void _clearSuggestions() {
+    if (_activeMention == null && _suggestions.isEmpty) return;
+    setState(() {
+      _activeMention = null;
+      _suggestions = const [];
+    });
+  }
+
+  void _applySuggestion(UserProfile u) {
+    final m = _activeMention;
+    if (m == null) return;
+    final text = _controller.text;
+    // Sostituisce "@partial" con "@username " (lo spazio fa "chiudere"
+    // la menzione così l'utente può continuare a scrivere).
+    final replacement = '@${u.username} ';
+    final newText = text.substring(0, m.start) +
+        replacement +
+        text.substring(m.end);
+    final newCursor = m.start + replacement.length;
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursor),
+    );
+    _clearSuggestions();
   }
 
   Future<void> _submit() async {
@@ -166,6 +235,11 @@ class _TrackCommentsSectionState extends State<TrackCommentsSection> {
           },
         ),
         const SizedBox(height: 12),
+        if (_suggestions.isNotEmpty)
+          _MentionSuggestions(
+            users: _suggestions,
+            onPick: _applySuggestion,
+          ),
         _CommentInput(
           controller: _controller,
           focusNode: _focusNode,
@@ -174,6 +248,67 @@ class _TrackCommentsSectionState extends State<TrackCommentsSection> {
           enabled: currentUid != null,
         ),
       ],
+    );
+  }
+}
+
+class _MentionSuggestions extends StatelessWidget {
+  final List<UserProfile> users;
+  final ValueChanged<UserProfile> onPick;
+  const _MentionSuggestions({required this.users, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.themedBorder),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (int i = 0; i < users.length; i++) ...[
+            if (i > 0) Divider(height: 1, color: context.themedBorder),
+            InkWell(
+              onTap: () => onPick(users[i]),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor:
+                          AppColors.primary.withValues(alpha: 0.15),
+                      backgroundImage:
+                          users[i].avatarUrl != null &&
+                                  users[i].avatarUrl!.isNotEmpty
+                              ? NetworkImage(users[i].avatarUrl!)
+                              : null,
+                      child: users[i].avatarUrl == null ||
+                              users[i].avatarUrl!.isEmpty
+                          ? Icon(Icons.person,
+                              size: 14, color: AppColors.primary)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '@${users[i].username}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -251,14 +386,82 @@ class _CommentTile extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  comment.text,
-                  style: const TextStyle(fontSize: 14, height: 1.4),
+                _MentionAwareText(
+                  text: comment.text,
+                  mentions: comment.mentions,
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Renderizza il testo di un commento spezzandolo in TextSpan e
+/// trasformando ogni `@username` riconosciuto (presente nella mappa
+/// [mentions]) in uno span colorato e tappabile che apre il
+/// PublicProfilePage dell'utente.
+class _MentionAwareText extends StatefulWidget {
+  final String text;
+  final Map<String, String> mentions;
+  const _MentionAwareText({required this.text, required this.mentions});
+
+  @override
+  State<_MentionAwareText> createState() => _MentionAwareTextState();
+}
+
+class _MentionAwareTextState extends State<_MentionAwareText> {
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void dispose() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Pulizia recognizer dal rebuild precedente.
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+
+    final segments = MentionParser.split(widget.text);
+    final spans = <InlineSpan>[];
+    for (final seg in segments) {
+      if (seg.isMention && widget.mentions.containsKey(seg.username)) {
+        final uid = widget.mentions[seg.username]!;
+        final recognizer = TapGestureRecognizer()
+          ..onTap = () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PublicProfilePage(userId: uid),
+              ),
+            );
+          };
+        _recognizers.add(recognizer);
+        spans.add(TextSpan(
+          text: seg.text,
+          style: const TextStyle(
+            color: AppColors.primary,
+            fontWeight: FontWeight.w700,
+          ),
+          recognizer: recognizer,
+        ));
+      } else {
+        spans.add(TextSpan(text: seg.text));
+      }
+    }
+    return Text.rich(
+      TextSpan(
+        children: spans,
+        style: const TextStyle(fontSize: 14, height: 1.4),
       ),
     );
   }

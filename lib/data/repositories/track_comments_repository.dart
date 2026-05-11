@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../core/utils/mention_parser.dart';
 import '../models/track_comment.dart';
 
 /// CRUD per i [TrackComment] su una traccia community.
@@ -74,6 +75,12 @@ class TrackCommentsRepository {
       // profilo non obbligatorio; procediamo con i fallback.
     }
 
+    // Epic 3.6 — risolvi le menzioni @username → uid prima di salvare.
+    // La mappa è denormalizzata sul commento per evitare query ai client
+    // quando renderizzano gli span tappabili. La Cloud Function
+    // `onCommentCreated` (futura) la userà per FCM ai menzionati.
+    final mentions = await _resolveMentions(trimmed);
+
     final docRef = _col(trackId).doc();
     final now = DateTime.now();
     final comment = TrackComment(
@@ -83,10 +90,42 @@ class TrackCommentsRepository {
       avatarUrl: avatarUrl,
       text: trimmed,
       createdAt: now,
+      mentions: mentions,
     );
     await docRef.set(comment.toFirestore());
-    debugPrint('[TrackComments] commento aggiunto su $trackId da $username');
+    debugPrint(
+        '[TrackComments] commento aggiunto su $trackId da $username '
+        '(mentions: ${mentions.length})');
     return comment;
+  }
+
+  /// Per ogni @username citato in [text] cerca l'uid corrispondente su
+  /// `user_profiles` (lookup case-insensitive su `username` lowercase).
+  /// Usernames non trovati vengono silenziosamente ignorati (resta il
+  /// testo @username nel commento, senza tap-link).
+  Future<Map<String, String>> _resolveMentions(String text) async {
+    final usernames = MentionParser.extractUsernames(text);
+    if (usernames.isEmpty) return const {};
+    final Map<String, String> result = {};
+    // Limitiamo a 10 lookup in parallelo per non sprecare query su un
+    // commento con troppe menzioni (caso patologico, raro).
+    final capped = usernames.take(10).toList();
+    final futures = capped.map((uname) async {
+      try {
+        final snap = await _firestore
+            .collection('user_profiles')
+            .where('username', isEqualTo: uname)
+            .limit(1)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          result[uname] = snap.docs.first.id;
+        }
+      } catch (e) {
+        debugPrint('[TrackComments] mention lookup error for $uname: $e');
+      }
+    });
+    await Future.wait(futures);
+    return result;
   }
 
   /// Cancella un commento. Permessi gestiti lato regole Firestore:

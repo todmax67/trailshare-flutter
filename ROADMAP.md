@@ -92,7 +92,7 @@ Target: aumentare ritenzione e dwell time.
 | 3.3 | Classifiche regionali (per regione + mese) | 🟨 | M | ✅ |
 | 3.4 | Heatmap trail popolari | 🟨 | M | ☐ rimandato a v2.x |
 | 3.5 | Commenti sulle tracce community | 🟨 | S | ✅ |
-| 3.6 | Mentions/tags utenti nei commenti | 🟩 | S | ☐ rimandato |
+| 3.6 | Mentions/tags utenti nei commenti | 🟩 | S | ✅ (parsing @ + autocomplete + render tappable + FCM ai menzionati) |
 | 3.7 | Report mensile automatico "Il mio mese" | 🟨 | M | ✅ |
 | 3.8 | Compass-up navigation in registrazione | 🟧 | S | ✅ |
 

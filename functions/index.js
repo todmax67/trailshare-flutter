@@ -410,6 +410,89 @@ exports.oncheersCreated = onDocumentCreated("published_tracks/{trackId}/cheers/{
     return null;
 });
 
+/// Epic 3.6 — Notifica FCM quando un utente viene menzionato in un
+/// commento. Il client salva `mentions: { username: uid }` nel doc al
+/// momento dell'addComment; qui basta leggere la mappa e inviare a
+/// ciascun uid (skipping self-mention).
+exports.onCommentCreated = onDocumentCreated(
+    "published_tracks/{trackId}/comments/{commentId}",
+    async (event) => {
+        const trackId = event.params.trackId;
+        const snap = event.data;
+        if (!snap) return null;
+        const comment = snap.data();
+        const mentions = comment.mentions || {};
+        const mentionedUids = Object.values(mentions).filter(Boolean);
+        if (mentionedUids.length === 0) return null;
+
+        const authorId = String(comment.userId || "");
+        const authorUsername = comment.username || "Un utente";
+
+        const trackDoc = await admin.firestore()
+            .collection("published_tracks").doc(trackId).get();
+        const trackName = trackDoc.exists
+            ? (trackDoc.data().name || "una traccia")
+            : "una traccia";
+
+        for (const uid of mentionedUids) {
+            // Skip self-mention
+            if (String(uid).trim() === authorId.trim()) {
+                logger.info(`Mention self-skip per ${uid}`);
+                continue;
+            }
+            try {
+                const profileRef = admin.firestore()
+                    .collection("user_profiles").doc(uid);
+                const profileDoc = await profileRef.get();
+                if (!profileDoc.exists) continue;
+                const tokens = profileDoc.data().fcmTokens;
+                if (!tokens || tokens.length === 0) continue;
+
+                const message = {
+                    notification: {
+                        title: "💬 Ti hanno menzionato",
+                        body: `${authorUsername} ti ha citato in un commento su "${trackName}"`,
+                    },
+                    data: {
+                        type: "mention",
+                        trackId: trackId,
+                        commentId: event.params.commentId,
+                    },
+                    tokens: tokens,
+                };
+                const response = await admin.messaging()
+                    .sendEachForMulticast(message);
+                logger.info(
+                    `Mention notify uid=${uid}: ` +
+                    `success=${response.successCount} fail=${response.failureCount}`
+                );
+
+                // Pulizia token invalidi (stesso pattern di oncheersCreated)
+                if (response.failureCount > 0) {
+                    const toDelete = [];
+                    response.responses.forEach((r, i) => {
+                        if (r.error && (
+                            r.error.code === "messaging/registration-token-not-registered" ||
+                            r.error.code === "messaging/invalid-registration-token"
+                        )) {
+                            toDelete.push(tokens[i]);
+                        }
+                    });
+                    if (toDelete.length > 0) {
+                        await profileRef.update({
+                            fcmTokens: admin.firestore.FieldValue
+                                .arrayRemove(...toDelete),
+                        });
+                    }
+                }
+            } catch (e) {
+                logger.error(`Mention notify error per ${uid}: ${e}`);
+            }
+        }
+        return null;
+    }
+);
+
 exports.onCheerDeleted = onDocumentDeleted("published_tracks/{trackId}/cheers/{userId}", (event) => {
     // ... il codice di questa funzione rimane invariato
     const trackId = event.params.trackId;
