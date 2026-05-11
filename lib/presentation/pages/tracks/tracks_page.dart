@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/utils/text_search.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../track_detail/track_detail_page.dart';
@@ -22,6 +23,10 @@ class TracksPage extends StatefulWidget {
 
 class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  // 5.6 — Search bar nella lista tracce: filtra in-memory per nome,
+  // activityType e tag personalizzati (5.5). Vuoto = mostra tutto.
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
   final TracksRepository _repository = TracksRepository();
   
   // ⭐ PAGINAZIONE
@@ -46,7 +51,22 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
   void dispose() {
     _tabController.dispose();
     _scrollController.dispose(); // ⭐ Dispose del controller
+    _searchController.dispose();
     super.dispose();
+  }
+
+  /// 5.6 — Tracce dopo applicazione del search query. Cerca in nome,
+  /// activityType displayName e tags (5.5) accent-insensitive.
+  List<Track> get _filteredTracks {
+    final all = _tracks ?? const <Track>[];
+    if (_searchQuery.isEmpty) return all;
+    return all.where((t) {
+      return TextSearch.matchesAny(_searchQuery, [
+        t.name,
+        t.activityType.displayName,
+        ...t.tags,
+      ]);
+    }).toList();
   }
 
   /// ⭐ Listener per caricare più tracce quando si raggiunge il fondo
@@ -297,31 +317,80 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
       );
     }
 
+    final filtered = _filteredTracks;
+    final isFiltering = _searchQuery.isNotEmpty;
     return RefreshIndicator(
       onRefresh: _loadTracks,
-      child: ListView.builder(
-        controller: _scrollController, // ⭐ Controller per scroll
-        padding: const EdgeInsets.all(16),
-        itemCount: _tracks!.length + (_hasMore ? 1 : 0), // ⭐ +1 per il loader
-        itemBuilder: (context, index) {
-          // ⭐ Se siamo all'ultimo item e ci sono altre pagine, mostra loader
-          if (index >= _tracks!.length) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(
-                child: CircularProgressIndicator(),
+      child: Column(
+        children: [
+          // 5.6 — Search bar (sticky in cima)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _searchQuery = v),
+              decoration: InputDecoration(
+                hintText: 'Cerca per nome, attività o tag…',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      ),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
               ),
-            );
-          }
-          
-          final track = _tracks![index];
-          return _TrackCard(
-            track: track,
-            onTap: () => _openTrackDetail(track),
-            onMapTap: () => _openTrackOnMap(track),
-            onDelete: () => _deleteTrack(track),
-          );
-        },
+            ),
+          ),
+          if (isFiltering && filtered.isEmpty)
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Nessuna traccia trova per "$_searchQuery"',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                // Quando filtra non mostriamo il loader paginazione: il filtro è
+                // sulla porzione già caricata. L'utente può continuare scroll
+                // per caricare ancora (paginazione resta attiva tra ricerche).
+                itemCount: filtered.length +
+                    (_hasMore && !isFiltering ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (!isFiltering && index >= filtered.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  final track = filtered[index];
+                  return _TrackCard(
+                    track: track,
+                    onTap: () => _openTrackDetail(track),
+                    onMapTap: () => _openTrackOnMap(track),
+                    onDelete: () => _deleteTrack(track),
+                  );
+                },
+              ),
+            ),
+        ],
       ),
     );
   }

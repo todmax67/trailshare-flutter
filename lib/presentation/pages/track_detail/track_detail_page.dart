@@ -17,6 +17,7 @@ import '../../widgets/interactive_track_map.dart';
 import '../../widgets/track_charts_widget.dart';
 import '../../widgets/lap_splits_widget.dart';
 import '../../widgets/personal_records_card.dart';
+import '../../widgets/track_tags_editor.dart';
 import '../../widgets/track_segments_section.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -139,6 +140,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     case 'shareToGroup':
                       showShareTrackToGroupSheet(context, track: _track);
                       break;
+                    case 'split':
+                      _showSplitDialog();
+                      break;
+                    case 'merge':
+                      _showMergeDialog();
+                      break;
                     case 'delete':
                       _showDeleteDialog();
                       break;
@@ -169,6 +176,28 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
+                  // 5.4 — Split / Merge solo se sei l'owner
+                  if (_track.userId != null &&
+                      _track.userId ==
+                          FirebaseAuth.instance.currentUser?.uid) ...[
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'split',
+                      child: ListTile(
+                        leading: Icon(Icons.content_cut),
+                        title: Text('Spezza in due tracce'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'merge',
+                      child: ListTile(
+                        leading: Icon(Icons.merge_type),
+                        title: Text("Unisci con un'altra traccia"),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
                   const PopupMenuDivider(),
                   PopupMenuItem(
                     value: 'delete',
@@ -248,6 +277,22 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       _track.userId == FirebaseAuth.instance.currentUser?.uid) ...[
                     const SizedBox(height: 16),
                     PersonalRecordsCard(current: _track),
+                    // 5.5 — Editor tag personalizzati (solo owner)
+                    if (_track.id != null) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: TrackTagsEditor(
+                          trackId: _track.id!,
+                          initialTags: _track.tags,
+                          onChanged: (tags) {
+                            setState(() {
+                              _track = _track.copyWith(tags: tags);
+                            });
+                          },
+                        ),
+                      ),
+                    ],
                   ],
 
                   // Segmenti creati da questa traccia
@@ -1154,6 +1199,214 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         );
       }
     }
+  }
+
+  /// 5.4 — Dialog Spezza traccia. Slider sceglie il punto di split,
+  /// con preview live km/% del primo segmento. Conferma → 2 nuove
+  /// tracce + delete originale → torna alla lista.
+  void _showSplitDialog() {
+    final total = _track.points.length;
+    if (total < 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('La traccia è troppo corta per essere spezzata.')),
+      );
+      return;
+    }
+    double sliderValue = 0.5;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSt) {
+            final splitIndex =
+                (total * sliderValue).round().clamp(2, total - 2);
+            // Approssimazione veloce: la frazione del distance totale è
+            // ragionevolmente vicina alla split-distance reale per UX.
+            final firstDistKm =
+                (_track.stats.distance / 1000) * sliderValue;
+            final secondDistKm =
+                (_track.stats.distance / 1000) - firstDistKm;
+            return AlertDialog(
+              title: const Text('Spezza traccia'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Scegli dove dividere la traccia in due. Le due parti '
+                    'verranno salvate come tracce separate e questa verrà '
+                    'cancellata.',
+                    style: TextStyle(
+                        fontSize: 12, color: context.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
+                  Slider(
+                    value: sliderValue,
+                    min: 0.1,
+                    max: 0.9,
+                    divisions: 16,
+                    label: '${(sliderValue * 100).toStringAsFixed(0)}%',
+                    onChanged: (v) => setSt(() => sliderValue = v),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${firstDistKm.toStringAsFixed(2)} km',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        '${secondDistKm.toStringAsFixed(2)} km',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Punto $splitIndex / $total',
+                    style: TextStyle(
+                        fontSize: 11, color: context.textMuted),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annulla'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await _doSplit(splitIndex);
+                  },
+                  child: const Text('Spezza'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _doSplit(int splitIndex) async {
+    final repo = TracksRepository();
+    final result = await repo.splitTrack(_track, splitIndex);
+    if (!mounted) return;
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Errore nello split della traccia.')),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Traccia spezzata in 2 nuove tracce')),
+    );
+    Navigator.pop(context); // torna alla lista
+  }
+
+  /// 5.4 — Dialog Unisci tracce. Mostra picker con le altre tracce
+  /// dell'utente; selezionata una, esegue il merge e chiude verso la
+  /// lista (la nuova traccia compare in cima per `createdAt`).
+  Future<void> _showMergeDialog() async {
+    final repo = TracksRepository();
+    final all = await repo.getMyTracksLightweight(limit: 100);
+    if (!mounted) return;
+    final candidates = all
+        .where((t) => t.id != null && t.id != _track.id)
+        .toList();
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Nessuna altra traccia da unire.')),
+      );
+      return;
+    }
+    final picked = await showModalBottomSheet<Track>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Scegli la traccia da unire',
+                    style: TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: candidates.length,
+                  itemBuilder: (_, i) {
+                    final t = candidates[i];
+                    final d = t.recordedAt ?? t.createdAt;
+                    return ListTile(
+                      leading: const Icon(Icons.route),
+                      title: Text(t.name),
+                      subtitle: Text(
+                          '${(t.stats.distance / 1000).toStringAsFixed(2)} km · '
+                          '${d.day}/${d.month}/${d.year}'),
+                      onTap: () => Navigator.pop(ctx, t),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unire le tracce?'),
+        content: Text(
+            'Verrà creata una nuova traccia con i punti concatenati di '
+            '"${_track.name}" e "${picked.name}". Le due originali '
+            'verranno cancellate.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Unisci'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final newId = await repo.mergeTracks(_track, picked);
+    if (!mounted) return;
+    if (newId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Errore nell\'unione delle tracce.')),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Tracce unite con successo')),
+    );
+    Navigator.pop(context); // torna alla lista
   }
 
   void _showDeleteDialog() {

@@ -404,6 +404,11 @@ class Track {
   // ID dell'attività Strava da cui questa traccia è stata importata
   final String? stravaSourceActivityId;
 
+  /// 5.5 — Tag personalizzati creati dall'utente (es. "vacanze 2026",
+  /// "test scarpe nuove", "con cane"). Salvati lowercase per ricerca
+  /// case-insensitive coerente. Filtrabili in "Le mie tracce".
+  final List<String> tags;
+
   const Track({
     this.id,
     required this.name,
@@ -423,6 +428,7 @@ class Track {
     this.healthSteps, // 👣 Passi (opzionale)
     this.importedFromStrava = false,
     this.stravaSourceActivityId,
+    this.tags = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -464,6 +470,10 @@ class Track {
     if (stravaSourceActivityId != null) {
       map['stravaSourceActivityId'] = stravaSourceActivityId;
     }
+    // 5.5 — Salviamo i tag solo se non vuoti per non sporcare il doc.
+    if (tags.isNotEmpty) {
+      map['tags'] = tags;
+    }
 
     return map;
   }
@@ -487,6 +497,7 @@ class Track {
     int? healthSteps, // 👣
     bool? importedFromStrava,
     String? stravaSourceActivityId,
+    List<String>? tags,
   }) {
     return Track(
       id: id ?? this.id,
@@ -507,6 +518,7 @@ class Track {
       healthSteps: healthSteps ?? this.healthSteps, // 👣
       importedFromStrava: importedFromStrava ?? this.importedFromStrava,
       stravaSourceActivityId: stravaSourceActivityId ?? this.stravaSourceActivityId,
+      tags: tags ?? this.tags,
     );
   }
 }

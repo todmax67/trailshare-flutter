@@ -121,9 +121,9 @@ Target: aumentare ritenzione e dwell time.
 | 5.1 | Widget home-screen iOS/Android | 🟨 | M | ☐ |
 | 5.2 | Apple Watch companion app | 🟩 | XL | ☐ |
 | 5.3 | **Garmin Connect IQ app** | 🟩 | XL | ✅ in produzione (vedi Epic 9.C) |
-| 5.4 | Merge/split tracce | 🟩 | S | ☐ |
-| 5.5 | Tag/categorie personalizzate sulle tracce | 🟩 | S | ☐ |
-| 5.6 | Ricerca nelle proprie tracce | 🟨 | XS | ☐ |
+| 5.4 | Merge/split tracce | 🟩 | S | ✅ (track detail menu: spezza con slider, unisci con picker; stats ricomputate) |
+| 5.5 | Tag/categorie personalizzate sulle tracce | 🟩 | S | ✅ (Track.tags lowercase + TrackTagsEditor + autocomplete da getAllUserTags) |
+| 5.6 | Ricerca nelle proprie tracce | 🟨 | XS | ✅ (search bar tracks_page accent-insensitive su nome/attività/tag) |
 
 ---
 

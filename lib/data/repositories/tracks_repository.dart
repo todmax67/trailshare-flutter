@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -734,8 +736,193 @@ class TracksRepository {
       healthSteps: healthSteps, // 👣 Passi
       importedFromStrava: data['importedFromStrava'] == true,
       stravaSourceActivityId: data['stravaSourceActivityId']?.toString(),
+      // 5.5 — Tag personalizzati salvati lowercase
+      tags: data['tags'] is List
+          ? List<String>.from(data['tags'] as List)
+          : const <String>[],
     );
   }
+
+  /// 5.5 — Aggiorna SOLO il campo `tags` di una traccia esistente.
+  /// I tag vengono normalizzati lowercase + trimmed + dedup prima del save.
+  Future<bool> updateTrackTags(String trackId, List<String> tags) async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    final normalized = tags
+        .map((t) => t.trim().toLowerCase())
+        .where((t) => t.isNotEmpty && t.length <= 30)
+        .toSet()
+        .toList();
+    try {
+      await _tracksCollection(user.uid).doc(trackId).update({
+        'tags': normalized,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[TracksRepository] updateTrackTags error: $e');
+      return false;
+    }
+  }
+
+  /// 5.5 — Restituisce l'insieme di tutti i tag usati dall'utente
+  /// nelle sue tracce (per autocomplete del tag editor).
+  Future<List<String>> getAllUserTags() async {
+    final tracks = await getMyTracksLightweight(limit: 500);
+    final set = <String>{};
+    for (final t in tracks) {
+      set.addAll(t.tags);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  /// 5.4 — Spezza una traccia in due al [splitIndex] (esclusivo: primo
+  /// pezzo include points[0..splitIndex-1], secondo pezzo
+  /// points[splitIndex..end]). Le stats vengono ricalcolate per
+  /// distance/duration/elevation in modo coerente. Salva i 2 nuovi
+  /// documenti, cancella l'originale. Ritorna gli ID dei 2 nuovi
+  /// oppure null su errore.
+  Future<({String firstId, String secondId})?> splitTrack(
+    Track track,
+    int splitIndex,
+  ) async {
+    if (track.id == null) return null;
+    final points = track.points;
+    if (splitIndex <= 1 || splitIndex >= points.length - 1) return null;
+
+    final first = points.sublist(0, splitIndex);
+    final second = points.sublist(splitIndex);
+
+    // Stats ricalcolate dalle distanze cumulative dei punti
+    final firstStats = _recomputeStats(first);
+    final secondStats = _recomputeStats(second);
+
+    final firstTrack = track.copyWith(
+      id: null, // nuovo doc
+      name: '${track.name} (parte 1)',
+      points: first,
+      stats: firstStats,
+      recordedAt: track.recordedAt,
+      createdAt: DateTime.now(),
+    );
+    final secondTrack = track.copyWith(
+      id: null,
+      name: '${track.name} (parte 2)',
+      points: second,
+      stats: secondStats,
+      recordedAt: first.last.timestamp,
+      createdAt: DateTime.now(),
+    );
+
+    try {
+      final firstId = await saveTrack(firstTrack);
+      final secondId = await saveTrack(secondTrack);
+      await deleteTrack(track.id!);
+      debugPrint(
+          '[TracksRepository] split OK: ${track.id} → $firstId + $secondId');
+      return (firstId: firstId, secondId: secondId);
+    } catch (e) {
+      debugPrint('[TracksRepository] split error: $e');
+      return null;
+    }
+  }
+
+  /// 5.4 — Unisce due tracce concatenando i punti (in ordine cronologico
+  /// di [recordedAt]/[createdAt]). Stats sommate. Salva nuova traccia,
+  /// cancella le originali. Ritorna l'ID della nuova traccia o null.
+  Future<String?> mergeTracks(Track a, Track b) async {
+    if (a.id == null || b.id == null) return null;
+    if (a.id == b.id) return null;
+
+    // Ordina cronologicamente per evitare polilinee zigzaganti.
+    final aDate = a.recordedAt ?? a.createdAt;
+    final bDate = b.recordedAt ?? b.createdAt;
+    final ordered = aDate.isBefore(bDate) ? [a, b] : [b, a];
+    final allPoints = [...ordered[0].points, ...ordered[1].points];
+    final newStats = _recomputeStats(allPoints);
+
+    final merged = ordered[0].copyWith(
+      id: null,
+      name: '${ordered[0].name} + ${ordered[1].name}',
+      points: allPoints,
+      stats: newStats,
+      recordedAt: ordered[0].recordedAt,
+      createdAt: DateTime.now(),
+      // Unisci anche i tag dedup-lowercase.
+      tags: {...ordered[0].tags, ...ordered[1].tags}.toList(),
+    );
+
+    try {
+      final newId = await saveTrack(merged);
+      await deleteTrack(a.id!);
+      await deleteTrack(b.id!);
+      debugPrint(
+          '[TracksRepository] merge OK: ${a.id}+${b.id} → $newId');
+      return newId;
+    } catch (e) {
+      debugPrint('[TracksRepository] merge error: $e');
+      return null;
+    }
+  }
+
+  /// Helper: ricalcola distance / duration / elevation gain & loss /
+  /// min & max elevation per una sequenza di punti. Usato da split e
+  /// merge per produrre stats coerenti con i nuovi point[].
+  TrackStats _recomputeStats(List<TrackPoint> points) {
+    if (points.isEmpty) return const TrackStats();
+    double distance = 0;
+    double elevationGain = 0;
+    double elevationLoss = 0;
+    double minEle = double.infinity;
+    double maxEle = -double.infinity;
+    for (int i = 0; i < points.length; i++) {
+      final p = points[i];
+      if (p.elevation != null) {
+        if (p.elevation! < minEle) minEle = p.elevation!;
+        if (p.elevation! > maxEle) maxEle = p.elevation!;
+      }
+      if (i > 0) {
+        final prev = points[i - 1];
+        distance += _haversine(prev, p);
+        if (prev.elevation != null && p.elevation != null) {
+          final diff = p.elevation! - prev.elevation!;
+          if (diff > 0) {
+            elevationGain += diff;
+          } else {
+            elevationLoss += -diff;
+          }
+        }
+      }
+    }
+    final duration =
+        points.last.timestamp.difference(points.first.timestamp);
+    return TrackStats(
+      distance: distance,
+      elevationGain: elevationGain,
+      elevationLoss: elevationLoss,
+      duration: duration,
+      movingTime: duration, // approssimazione: senza i flag di auto-pause
+      minElevation: minEle == double.infinity ? 0 : minEle,
+      maxElevation: maxEle == -double.infinity ? 0 : maxEle,
+    );
+  }
+
+  /// Haversine in metri tra due TrackPoint (lat/lng decimali).
+  double _haversine(TrackPoint a, TrackPoint b) {
+    const r = 6371000.0;
+    final dLat = _toRad(b.latitude - a.latitude);
+    final dLng = _toRad(b.longitude - a.longitude);
+    final lat1 = _toRad(a.latitude);
+    final lat2 = _toRad(b.latitude);
+    final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.sin(dLng / 2) *
+            math.sin(dLng / 2) *
+            math.cos(lat1) *
+            math.cos(lat2);
+    return 2 * r * math.asin(math.min(1.0, math.sqrt(h)));
+  }
+
+  double _toRad(double deg) => deg * math.pi / 180.0;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // HELPER
