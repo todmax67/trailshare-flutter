@@ -1723,6 +1723,105 @@ function encodeGeohash(lat, lng, precision = 7) {
   return hash;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Epic 3.4 — Heatmap trail popolari
+// ═══════════════════════════════════════════════════════════════════
+// Aggrega le `published_tracks` per cella geohash precision 4
+// (~20km × 20km, ~50-100 celle per coprire l'Italia) e scrive in
+// `heatmap_cells/{geohash}` { count, geohash, lat, lng, updatedAt }.
+//
+// Strategia:
+// - Schedulato la domenica alle 04:00 (dopo i leaderboards che girano alle 02:00).
+// - Endpoint HTTP per bootstrap manuale (la prima volta, o dopo bulk
+//   ingest tracce).
+// - lat/lng di ogni cella = media dei punti di partenza delle tracce
+//   che cadono dentro (centroide pesato dall'attività reale, non centro
+//   geometrico della cella).
+// - Pulizia: celle che non hanno più tracce vengono cancellate per
+//   evitare residui zombie.
+async function _aggregateHeatmap() {
+  const snap = await db.collection("published_tracks").get();
+  const buckets = new Map();
+  for (const doc of snap.docs) {
+    const d = doc.data();
+    const lat = (typeof d.startLat === 'number') ? d.startLat : null;
+    const lng = (typeof d.startLng === 'number') ? d.startLng : null;
+    if (lat == null || lng == null) continue;
+    const cell = encodeGeohash(lat, lng, 4);
+    const b = buckets.get(cell) || { count: 0, sumLat: 0, sumLng: 0 };
+    b.count += 1;
+    b.sumLat += lat;
+    b.sumLng += lng;
+    buckets.set(cell, b);
+  }
+
+  const seen = new Set();
+  const entries = [...buckets.entries()];
+  for (let i = 0; i < entries.length; i += 400) {
+    const slice = entries.slice(i, i + 400);
+    const batch = db.batch();
+    for (const [hash, b] of slice) {
+      const ref = db.collection("heatmap_cells").doc(hash);
+      batch.set(ref, {
+        geohash: hash,
+        count: b.count,
+        lat: b.sumLat / b.count,
+        lng: b.sumLng / b.count,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      seen.add(hash);
+    }
+    await batch.commit();
+  }
+
+  // Cella esistente non più rappresentata = traccia cancellata → delete.
+  const existing = await db.collection("heatmap_cells").get();
+  const stale = existing.docs.filter((d) => !seen.has(d.id));
+  for (let i = 0; i < stale.length; i += 400) {
+    const slice = stale.slice(i, i + 400);
+    const batch = db.batch();
+    slice.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+
+  logger.info(
+    `[heatmap] aggregated ${entries.length} cells from ${snap.size} tracks, ` +
+    `deleted ${stale.length} stale`
+  );
+  return { cells: entries.length, tracks: snap.size, stale: stale.length };
+}
+
+exports.aggregateHeatmapWeekly = onSchedule(
+  {
+    schedule: "every sunday 04:00",
+    timeZone: "Europe/Rome",
+    region: "europe-west3",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (_event) => {
+    try {
+      await _aggregateHeatmap();
+    } catch (e) {
+      logger.error('[heatmap] weekly aggregation failed', e);
+    }
+    return null;
+  }
+);
+
+exports.aggregateHeatmapNow = onRequest(
+  { region: "europe-west3", cors: true, timeoutSeconds: 540, memory: "512MiB" },
+  async (req, res) => {
+    try {
+      const r = await _aggregateHeatmap();
+      res.json({ ok: true, ...r });
+    } catch (e) {
+      logger.error('[heatmap] manual aggregation failed', e);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+);
+
 exports.migrateGeoHash = onRequest({ timeoutSeconds: 540, memory: '1GiB' }, async (req, res) => {
   const batch_size = 500;
   let updated = 0;

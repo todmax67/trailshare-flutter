@@ -40,6 +40,15 @@ service cloud.firestore {
       allow delete: if isAdminByEmail();
     }
 
+    // --- Heatmap trail popolari (Epic 3.4) ---
+    // Aggregato weekly da Cloud Function `aggregateHeatmapWeekly` su
+    // base published_tracks. Read pubblico (no PII); write solo admin
+    // SDK (Cloud Function bypassa rules).
+    match /heatmap_cells/{geohash} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // --- REGOLE PROFILI UTENTE ---
     match /user_profiles/{userId} {
       allow read: if true;

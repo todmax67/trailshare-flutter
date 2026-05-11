@@ -18,6 +18,7 @@ import '../../../core/constants/map_styles.dart';
 import '../../widgets/map_layer_button.dart';
 import 'models/discover_filters.dart';
 import 'widgets/discover_filter_sheet.dart';
+import '../../../data/repositories/heatmap_repository.dart';
 import '../../../data/repositories/trail_photos_repository.dart';
 import '../../../data/models/track.dart';
 import 'dart:ui' as ui;
@@ -56,6 +57,12 @@ class _DiscoverPageState extends State<DiscoverPage> {
   // ⭐ VIEWPORT-BASED LOADING per sentieri
   Timer? _viewportDebounce;
   LatLngBounds? _lastLoadedBounds;
+
+  // Epic 3.4 — Heatmap trail popolari
+  final HeatmapRepository _heatmapRepo = HeatmapRepository();
+  List<HeatmapCell> _heatmapCells = const [];
+  bool _heatmapVisible = false;
+  bool _heatmapLoading = false;
 
   @override
   void initState() {
@@ -306,6 +313,41 @@ class _DiscoverPageState extends State<DiscoverPage> {
     }
     
     return LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+  }
+
+  /// Epic 3.4 — toggle heatmap overlay. Al primo "on" fetcha le celle;
+  /// successivi toggle riusano la cache locale (le celle cambiano solo
+  /// alla domenica notte via Cloud Function).
+  Future<void> _toggleHeatmap() async {
+    if (_heatmapVisible) {
+      setState(() => _heatmapVisible = false);
+      return;
+    }
+    if (_heatmapCells.isEmpty && !_heatmapLoading) {
+      setState(() => _heatmapLoading = true);
+      final cells = await _heatmapRepo.getAll();
+      if (!mounted) return;
+      setState(() {
+        _heatmapCells = cells;
+        _heatmapLoading = false;
+        _heatmapVisible = true;
+      });
+    } else {
+      setState(() => _heatmapVisible = true);
+    }
+  }
+
+  /// Restituisce un colore caldo (giallo → rosso) in base al count
+  /// relativo della cella vs il massimo della collezione corrente.
+  Color _heatmapColor(int count, int maxCount) {
+    if (maxCount <= 0) return Colors.orange;
+    final t = (count / maxCount).clamp(0.0, 1.0);
+    return Color.lerp(
+          const Color(0xFFFFEB3B), // giallo
+          const Color(0xFFD32F2F), // rosso
+          t,
+        ) ??
+        Colors.orange;
   }
 
   void _centerOnUser() {
@@ -725,6 +767,29 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   : null,
             ),
 
+            // Epic 3.4 — Heatmap overlay (sotto le polyline così tracce
+            // selezionate restano leggibili sopra). Cerchi semitrasparenti
+            // grandi al variare del count (giallo → rosso). Raggio fisso
+            // ~10km (mezza cella geohash p4).
+            if (_heatmapVisible && _heatmapCells.isNotEmpty)
+              CircleLayer(
+                circles: () {
+                  final maxC = _heatmapCells
+                      .map((c) => c.count)
+                      .fold<int>(1, (a, b) => a > b ? a : b);
+                  return _heatmapCells
+                      .map((c) => CircleMarker(
+                            point: c.center,
+                            radius: 10000, // 10 km
+                            useRadiusInMeter: true,
+                            color: _heatmapColor(c.count, maxC)
+                                .withValues(alpha: 0.35),
+                            borderStrokeWidth: 0,
+                          ))
+                      .toList();
+                }(),
+              ),
+
             // Polyline: zoom medio = tratteggio, zoom alto = completo
             if (_clusters.isEmpty && _currentZoom >= 13)
               PolylineLayer(
@@ -1015,6 +1080,30 @@ class _DiscoverPageState extends State<DiscoverPage> {
               MapLayerButton(
                 currentIndex: _currentMapStyle,
                 onChanged: (i) => setState(() => _currentMapStyle = i),
+              ),
+              const SizedBox(height: 8),
+              // Epic 3.4 — toggle Heatmap trail popolari
+              FloatingActionButton.small(
+                heroTag: 'heatmap_toggle',
+                onPressed: _heatmapLoading ? null : _toggleHeatmap,
+                backgroundColor: _heatmapVisible
+                    ? AppColors.primary
+                    : Colors.white,
+                child: _heatmapLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    : Icon(
+                        Icons.local_fire_department,
+                        color: _heatmapVisible
+                            ? Colors.white
+                            : AppColors.primary,
+                      ),
               ),
               const SizedBox(height: 8),
               // Pulsante centra su utente. Sempre visibile: se non abbiamo
