@@ -80,12 +80,19 @@ exports.getProfileDashboardStats = onCall(async (request) => {
         };
     }
 
+    // Conta solo le tracce realmente registrate (escludi planner-only).
+    let realTracksCount = 0;
     tracksSnapshot.forEach(doc => {
         try {
             const track = doc.data();
             if (!track) return;
+            // Escludi le tracce pianificate (Planner ORS): non sono
+            // attività svolte, non devono concorrere a totali, record
+            // e time series del dashboard.
+            if (track.isPlanned === true) return;
+            realTracksCount += 1;
 
-            // --- Statistiche Totali (su tutte le tracce) ---
+            // --- Statistiche Totali (solo tracce non pianificate) ---
             totalDistance += track.distance || 0;
             totalElevationGain += track.elevationGain || 0;
             totalDuration += track.duration || 0;
@@ -139,7 +146,7 @@ exports.getProfileDashboardStats = onCall(async (request) => {
     });
 
     return {
-        totalTracks: tracksSnapshot.size,
+        totalTracks: realTracksCount,
         totalDistance,
         totalElevationGain,
         totalDuration,
@@ -672,6 +679,10 @@ exports.calculateWeeklyLeaderboards = onSchedule("every sunday 02:00", async (ev
             let totalDistance = 0, totalElevation = 0, totalXp = 0;
             trackSnapshot.forEach((trackDoc) => {
                 const trackData = trackDoc.data();
+                // Skip tracce pianificate dal Planner: non sono attività
+                // realmente svolte, non danno XP né concorrono ai totali
+                // settimanali della leaderboard.
+                if (trackData.isPlanned === true) return;
                 totalDistance += trackData.distance || 0;
                 totalElevation += trackData.elevationGain || 0;
                 totalXp += XP_FOR_SAVING_TRACK;
