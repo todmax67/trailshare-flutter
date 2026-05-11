@@ -333,14 +333,46 @@ class TrailImportService {
     final errors = <ImportError>[];
     final allRoutes = <int, WaymarkedRoute>{};
     
-    // 1. Cerca percorsi
-    // Cerca per termini (sempre)
+    // 1a. SEARCH BY BBOX — se abbiamo un bbox della regione, prendiamo
+    //     direttamente tutti i percorsi tracciati nell'area (fino a
+    //     limit=200). Funziona anche su regioni dove i preset
+    //     hardcoded non hanno termini specifici (es. Calabria,
+    //     Sardegna) ed è la strategia più affidabile.
+    if (geoBbox != null) {
+      onProgress?.call(ImportProgress(
+        phase: 'search',
+        current: 1,
+        total: searchTerms.length + 1,
+        message: 'Ricerca geografica nel bbox $region...',
+      ));
+      try {
+        final byBbox = await searchByBbox(
+          minLat: geoBbox[0],
+          maxLat: geoBbox[1],
+          minLng: geoBbox[2],
+          maxLng: geoBbox[3],
+          limit: 200,
+        );
+        for (final route in byBbox) {
+          allRoutes.putIfAbsent(route.id, () => route);
+        }
+        debugPrint(
+            '[TrailImport] Bbox search → ${byBbox.length} percorsi');
+      } catch (e) {
+        debugPrint('[TrailImport] bbox search error: $e');
+      }
+      await Future.delayed(_apiDelay);
+    }
+
+    // 1b. Cerca per termini (opzionale: arricchisce con percorsi che
+    //     potrebbero non avere geometria completa nel bbox ma sono
+    //     comunque taggati con quel nome).
     for (int t = 0; t < searchTerms.length; t++) {
       final term = searchTerms[t];
       onProgress?.call(ImportProgress(
         phase: 'search',
-        current: t + 1,
-        total: searchTerms.length,
+        current: t + 2,
+        total: searchTerms.length + 2,
         message: 'Ricerca "$term"...',
       ));
       for (final route in await searchWaymarkedTrails(term)) {
@@ -348,13 +380,18 @@ class TrailImportService {
       }
       await Future.delayed(_apiDelay);
     }
-    
-    // Se abbiamo un bbox, aggiungi anche ricerca per nome regione
-    if (geoBbox != null && region.isNotEmpty && !searchTerms.contains(region)) {
+
+    // Se abbiamo un bbox e il nome regione non è nei termini, cerca
+    // anche per nome (es. utente seleziona "Lombardia" dal dropdown
+    // ma non lo mette nei termini → recuperiamo i trail il cui nome
+    // contiene "Lombardia").
+    if (geoBbox != null &&
+        region.isNotEmpty &&
+        !searchTerms.contains(region)) {
       onProgress?.call(ImportProgress(
         phase: 'search',
-        current: searchTerms.length + 1,
-        total: searchTerms.length + 1,
+        current: searchTerms.length + 2,
+        total: searchTerms.length + 2,
         message: 'Ricerca "$region"...',
       ));
       for (final route in await searchWaymarkedTrails(region)) {

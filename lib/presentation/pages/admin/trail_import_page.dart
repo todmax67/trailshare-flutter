@@ -109,9 +109,16 @@ class _TrailImportPageState extends State<TrailImportPage> {
       );
       return;
     }
-    if (termsText.isEmpty) {
+    // Se abbiamo una regione ufficiale con bbox, i termini diventano
+    // opzionali: il service cerca direttamente per bbox e trova tutti i
+    // sentieri della regione. Per "Area custom" invece i termini
+    // restano obbligatori perché Nominatim può dare bbox poco precisi.
+    final hasOfficialRegion = !_useCustomRegion && _selectedRegion != null;
+    if (termsText.isEmpty && !hasOfficialRegion) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inserisci almeno un termine di ricerca')),
+        const SnackBar(
+            content: Text(
+                'Inserisci almeno un termine di ricerca (o seleziona una regione dal dropdown)')),
       );
       return;
     }
@@ -522,13 +529,22 @@ class _TrailImportPageState extends State<TrailImportPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              _selectedRegion != null && !_useCustomRegion
+                  ? 'Termini opzionali: con regione dal dropdown la ricerca è geografica (bbox).'
+                  : 'Inserisci almeno un termine.',
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: _searchTermsController,
-              decoration: const InputDecoration(
-                labelText: 'Termini di ricerca (uno per riga)',
-                hintText: 'rifugio curò\npizzo coca\nalta via orobie',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.search),
+              decoration: InputDecoration(
+                labelText:
+                    'Termini di ricerca (uno per riga, opzionali con dropdown regione)',
+                hintText:
+                    'rifugio curò\npizzo coca\nalta via orobie',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.search),
                 alignLabelWithHint: true,
               ),
               maxLines: 8,
