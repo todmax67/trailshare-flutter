@@ -78,10 +78,14 @@ class AdminRepository {
     if (_cachedUid == uid && _cachedIsAdmin != null) return _cachedIsAdmin!;
 
     try {
+      // Source.server: la cache locale può essere satura dopo grossi
+      // import / migrazioni e questa get() rimane appesa silenziosamente,
+      // facendo sparire il pannello admin.
       final doc = await FirebaseFirestore.instance
           .collection('user_profiles')
           .doc(uid)
-          .get();
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 8));
       final data = doc.data();
       _cachedIsAdmin = data?['admin'] == true;
       _cachedUid = uid;
