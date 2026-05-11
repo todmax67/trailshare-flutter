@@ -254,11 +254,14 @@ service cloud.firestore {
     // ⚠️  Le rules in Firestore sono additive: questa wildcard NON deve
     // coprire `integrations/*` altrimenti override la rule più stretta sopra
     // e l'owner potrebbe sovrascrivere i token OAuth.
+    //
+    // NB: `{document=**}` è un Path, non una String — Path NON ha .matches().
+    // Useremo l'indexing sul primo segmento per escludere `integrations`.
     match /users/{userId}/{document=**} {
       allow read: if isSignedIn() && isOwner(userId)
-                  && !document.matches('integrations(/.*)?');
+                  && document[0] != 'integrations';
       allow write: if isSignedIn() && isOwner(userId)
-                   && !document.matches('integrations(/.*)?');
+                   && document[0] != 'integrations';
     }
 
     // --- REGOLE TRACCE COMMUNITY ---
