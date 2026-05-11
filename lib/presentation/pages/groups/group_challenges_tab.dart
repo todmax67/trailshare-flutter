@@ -157,7 +157,31 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                       ],
                     ),
                   ),
-                  if (isActive)
+                  if (challenge.isWon)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('🏆', style: TextStyle(fontSize: 12)),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Vinta',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (isActive)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
@@ -204,6 +228,18 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
                 context.l10n.createdByFemale(challenge.createdByName),
                 style: TextStyle(color: Colors.grey[500], fontSize: 11),
               ),
+              if (challenge.isWon &&
+                  challenge.completedByUsername != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '🏆 Vinta da ${challenge.completedByUsername}',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

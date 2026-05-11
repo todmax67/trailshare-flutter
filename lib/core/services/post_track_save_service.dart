@@ -9,6 +9,7 @@ import '../extensions/l10n_extension.dart';
 import '../../data/models/segment.dart';
 import '../../data/models/track.dart';
 import '../../data/models/weekly_challenge.dart';
+import '../../data/repositories/groups_repository.dart';
 import '../../data/repositories/segments_repository.dart';
 import '../../presentation/widgets/level_up_dialog.dart';
 import '../../presentation/widgets/segment_results_dialog.dart';
@@ -319,6 +320,25 @@ class PostTrackSaveService {
         }
       } catch (e) {
         debugPrint('[PostTrackSave] ⚠️ Errore weekly challenge: $e');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 5.b: Aggiorna sfide di gruppo (Epic 3.2)
+    // Best-effort: per ogni gruppo dell'utente, somma il contributo
+    // della traccia alle sfide attive (distance/elevation/tracks/streak).
+    // La Cloud Function `onChallengeStandingUpdated` controlla
+    // eventuale completamento target e notifica i partecipanti.
+    // ═══════════════════════════════════════════════════════════════
+    if (track != null) {
+      try {
+        await GroupsRepository().autoUpdateGroupChallengesForTrack(
+          trackDate: track.recordedAt ?? track.createdAt,
+          distanceMeters: distanceMeters,
+          elevationGain: elevationGain,
+        );
+      } catch (e) {
+        debugPrint('[PostTrackSave] ⚠️ Errore group challenges: $e');
       }
     }
 

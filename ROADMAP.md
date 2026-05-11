@@ -88,7 +88,7 @@ Target: aumentare ritenzione e dwell time.
 | # | Feature | Priorità | Effort | Status |
 |---|---|---|---|---|
 | 3.1 | Sfide settimanali personali generative | 🟧 | M | ✅ |
-| 3.2 | Sfide gruppo / amici | 🟨 | L | ☐ rimandato a v2.x |
+| 3.2 | Sfide gruppo / amici | 🟨 | L | ✅ (auto-update standings su track save + Cloud Function completion + FCM broadcast vincitore + badge UI) |
 | 3.3 | Classifiche regionali (per regione + mese) | 🟨 | M | ✅ |
 | 3.4 | Heatmap trail popolari | 🟨 | M | ✅ (Cloud Function weekly aggregator geohash p4 + toggle Discover) |
 | 3.5 | Commenti sulle tracce community | 🟨 | S | ✅ |

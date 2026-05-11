@@ -370,6 +370,13 @@ class GroupChallenge {
   final DateTime endDate;
   final String createdBy;
   final String createdByName;
+  /// Epic 3.2 — quando un partecipante raggiunge il target la Cloud
+  /// Function `onChallengeStandingUpdated` marca questi campi. Permette
+  /// alla UI di mostrare il badge "Completata da X" e di skippare il
+  /// dialog di celebrazione se l'utente non è il vincitore.
+  final DateTime? completedAt;
+  final String? completedByUserId;
+  final String? completedByUsername;
 
   const GroupChallenge({
     required this.id,
@@ -380,6 +387,9 @@ class GroupChallenge {
     required this.endDate,
     required this.createdBy,
     this.createdByName = '',
+    this.completedAt,
+    this.completedByUserId,
+    this.completedByUsername,
   });
 
   factory GroupChallenge.fromFirestore(DocumentSnapshot doc) {
@@ -393,11 +403,20 @@ class GroupChallenge {
       endDate: (data['endDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       createdBy: data['createdBy'] ?? '',
       createdByName: data['createdByName'] ?? '',
+      completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
+      completedByUserId: data['completedByUserId']?.toString(),
+      completedByUsername: data['completedByUsername']?.toString(),
     );
   }
 
-  bool get isActive => DateTime.now().isAfter(startDate) && DateTime.now().isBefore(endDate);
-  bool get isCompleted => DateTime.now().isAfter(endDate);
+  /// Sfida nel range temporale corretto E non ancora vinta.
+  bool get isActive =>
+      completedAt == null &&
+      DateTime.now().isAfter(startDate) &&
+      DateTime.now().isBefore(endDate);
+  bool get isExpired => DateTime.now().isAfter(endDate);
+  bool get isWon => completedAt != null;
+  bool get isCompleted => isWon || isExpired;
 
   String get typeIcon {
     switch (type) {
@@ -1194,7 +1213,124 @@ class GroupsRepository {
     }
   }
 
-  /// Aggiorna punteggio utente nella sfida
+  /// Epic 3.2 — incremento atomico del contributo dell'utente a una
+  /// sfida di gruppo. Usato da [autoUpdateGroupChallengesForTrack] al
+  /// salvataggio di una traccia. Transaction garantisce idempotenza
+  /// vs run concorrenti (es. salvataggio + retry network).
+  Future<void> incrementChallengeStanding(
+    String groupId,
+    String challengeId,
+    double delta, {
+    String? username,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || delta <= 0) return;
+
+    String resolvedUsername = username ?? '';
+    if (resolvedUsername.isEmpty) {
+      try {
+        final profileDoc = await _firestore
+            .collection('user_profiles')
+            .doc(user.uid)
+            .get();
+        resolvedUsername =
+            profileDoc.data()?['username']?.toString() ?? 'Utente';
+      } catch (_) {
+        resolvedUsername = 'Utente';
+      }
+    }
+
+    final standingRef = _groupDoc(groupId)
+        .collection('challenges')
+        .doc(challengeId)
+        .collection('standings')
+        .doc(user.uid);
+
+    try {
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(standingRef);
+        final previous = (snap.data()?['value'] as num?)?.toDouble() ?? 0;
+        tx.set(standingRef, {
+          'username': resolvedUsername,
+          'value': previous + delta,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+    } catch (e) {
+      debugPrint('[Groups] Errore increment standing: $e');
+    }
+  }
+
+  /// Per ogni gruppo a cui appartiene l'utente, scansiona le sfide
+  /// attive che includono la traccia nel proprio intervallo e aggiorna
+  /// le standings con il contributo della traccia. Da chiamare DOPO
+  /// il salvataggio (post_track_save_service).
+  ///
+  /// Contributo per tipo sfida:
+  /// - distance  → metri della traccia
+  /// - elevation → dislivello positivo
+  /// - tracks    → 1 (ogni traccia conta come +1)
+  /// - streak    → 1 al giorno (semplice: ogni traccia +1, l'aggregatore
+  ///               futuro potrebbe fare smart-grouping per giorno)
+  Future<void> autoUpdateGroupChallengesForTrack({
+    required DateTime trackDate,
+    required double distanceMeters,
+    required double elevationGain,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final myGroups = await getMyGroups();
+      if (myGroups.isEmpty) return;
+
+      // Risolvi username una sola volta.
+      String username = 'Utente';
+      try {
+        final profile = await _firestore
+            .collection('user_profiles')
+            .doc(user.uid)
+            .get();
+        username = profile.data()?['username']?.toString() ?? username;
+      } catch (_) {}
+
+      for (final group in myGroups) {
+        final challenges =
+            await getChallenges(group.id, activeOnly: true);
+        for (final c in challenges) {
+          if (trackDate.isBefore(c.startDate) ||
+              trackDate.isAfter(c.endDate)) {
+            continue;
+          }
+          double delta = 0;
+          switch (c.type) {
+            case 'distance':
+              delta = distanceMeters;
+              break;
+            case 'elevation':
+              delta = elevationGain;
+              break;
+            case 'tracks':
+            case 'streak':
+              delta = 1;
+              break;
+          }
+          if (delta <= 0) continue;
+          await incrementChallengeStanding(
+            group.id,
+            c.id,
+            delta,
+            username: username,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[Groups] autoUpdateGroupChallengesForTrack error: $e');
+    }
+  }
+
+  /// Aggiorna punteggio utente nella sfida (LEGACY setter — usato da
+  /// pochi call sites manuali. Per il flusso post-save usa
+  /// [autoUpdateGroupChallengesForTrack]).
   Future<void> updateChallengeStanding(String groupId, String challengeId, double value) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;

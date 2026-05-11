@@ -1,6 +1,6 @@
 // File: functions/index.js (VERSIONE CORRETTA E COMPLETA)
 
-const { onDocumentCreated, onDocumentUpdated, onDocumentDeleted } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated, onDocumentDeleted, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const admin = require("firebase-admin");
@@ -409,6 +409,115 @@ exports.oncheersCreated = onDocumentCreated("published_tracks/{trackId}/cheers/{
 
     return null;
 });
+
+/// Epic 3.2 — Quando un partecipante di una sfida di gruppo aggiorna
+/// le sue standings, verifica se ha raggiunto il target. In quel caso:
+///  1. marca la sfida come completata sul doc parent (completedAt/By)
+///  2. manda FCM a tutti i membri del gruppo "🏆 X ha vinto la sfida!"
+/// La prima scrittura vince (campo completedAt assente ≠ presente).
+exports.onChallengeStandingUpdated = onDocumentWritten(
+    "groups/{groupId}/challenges/{challengeId}/standings/{userId}",
+    async (event) => {
+        const after = event.data && event.data.after && event.data.after.exists
+            ? event.data.after.data()
+            : null;
+        if (!after) return null;
+        const newValue = Number(after.value || 0);
+        if (newValue <= 0) return null;
+
+        const { groupId, challengeId, userId } = event.params;
+        const challengeRef = admin.firestore()
+            .collection("groups").doc(groupId)
+            .collection("challenges").doc(challengeId);
+
+        try {
+            // Transaction per evitare double-mark se due saves arrivano contemporanei.
+            const completedNow = await admin.firestore().runTransaction(async (tx) => {
+                const cSnap = await tx.get(challengeRef);
+                if (!cSnap.exists) return false;
+                const c = cSnap.data();
+                if (c.completedAt) return false; // già vinta
+                const target = Number(c.target || 0);
+                if (target <= 0 || newValue < target) return false;
+                tx.update(challengeRef, {
+                    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    completedByUserId: userId,
+                    completedByUsername: after.username || "Utente",
+                });
+                return true;
+            });
+            if (!completedNow) return null;
+
+            // Carica gruppo per nome + member tokens
+            const groupSnap = await admin.firestore()
+                .collection("groups").doc(groupId).get();
+            if (!groupSnap.exists) return null;
+            const group = groupSnap.data();
+            const memberIds = Array.isArray(group.memberIds)
+                ? group.memberIds : [];
+            const cSnap = await challengeRef.get();
+            const challenge = cSnap.data();
+            const winnerName = after.username || "Un membro";
+
+            logger.info(
+                `[groupChallenge] vinta da ${winnerName} ` +
+                `(gid=${groupId} cid=${challengeId}). Notifico ${memberIds.length} membri.`
+            );
+
+            for (const memberId of memberIds) {
+                try {
+                    const profileRef = admin.firestore()
+                        .collection("user_profiles").doc(memberId);
+                    const profileSnap = await profileRef.get();
+                    if (!profileSnap.exists) continue;
+                    const tokens = profileSnap.data().fcmTokens;
+                    if (!tokens || tokens.length === 0) continue;
+                    const isWinner = memberId === userId;
+                    const message = {
+                        notification: {
+                            title: isWinner
+                                ? `🏆 Hai vinto la sfida!`
+                                : `🏆 Sfida ${group.name || "di gruppo"} vinta!`,
+                            body: isWinner
+                                ? `Hai completato "${challenge.title}" nel gruppo ${group.name || ""}`
+                                : `${winnerName} ha completato "${challenge.title}"`,
+                        },
+                        data: {
+                            type: "group_challenge_won",
+                            groupId: groupId,
+                            challengeId: challengeId,
+                        },
+                        tokens: tokens,
+                    };
+                    const response = await admin.messaging()
+                        .sendEachForMulticast(message);
+                    if (response.failureCount > 0) {
+                        const toDelete = [];
+                        response.responses.forEach((r, i) => {
+                            if (r.error && (
+                                r.error.code === "messaging/registration-token-not-registered" ||
+                                r.error.code === "messaging/invalid-registration-token"
+                            )) {
+                                toDelete.push(tokens[i]);
+                            }
+                        });
+                        if (toDelete.length > 0) {
+                            await profileRef.update({
+                                fcmTokens: admin.firestore.FieldValue
+                                    .arrayRemove(...toDelete),
+                            });
+                        }
+                    }
+                } catch (e) {
+                    logger.error(`[groupChallenge] FCM member ${memberId} error: ${e}`);
+                }
+            }
+        } catch (e) {
+            logger.error('[groupChallenge] tx error', e);
+        }
+        return null;
+    }
+);
 
 /// Epic 3.6 — Notifica FCM quando un utente viene menzionato in un
 /// commento. Il client salva `mentions: { username: uid }` nel doc al
