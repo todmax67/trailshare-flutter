@@ -670,6 +670,12 @@ class RecommendedTrack {
   final int? trackDurationSec;
   final String? trackPhotoUrl;
 
+  /// 7.D3 — Punto di partenza denormalizzato per mostrare il marker
+  /// sulla mappa aggregata della landing pubblica senza dover fetchare
+  /// la traccia originale per ognuna. Optional per back-compat.
+  final double? trackStartLat;
+  final double? trackStartLng;
+
   const RecommendedTrack({
     this.id,
     required this.trackId,
@@ -686,6 +692,8 @@ class RecommendedTrack {
     required this.trackActivityType,
     this.trackDurationSec,
     this.trackPhotoUrl,
+    this.trackStartLat,
+    this.trackStartLng,
   });
 
   Map<String, dynamic> toMap() => {
@@ -703,6 +711,8 @@ class RecommendedTrack {
         'trackActivityType': trackActivityType,
         if (trackDurationSec != null) 'trackDurationSec': trackDurationSec,
         if (trackPhotoUrl != null) 'trackPhotoUrl': trackPhotoUrl,
+        if (trackStartLat != null) 'trackStartLat': trackStartLat,
+        if (trackStartLng != null) 'trackStartLng': trackStartLng,
       };
 
   factory RecommendedTrack.fromMap(String id, Map<String, dynamic> m) =>
@@ -725,6 +735,8 @@ class RecommendedTrack {
         trackActivityType: m['trackActivityType']?.toString() ?? 'trekking',
         trackDurationSec: (m['trackDurationSec'] as num?)?.toInt(),
         trackPhotoUrl: m['trackPhotoUrl']?.toString(),
+        trackStartLat: (m['trackStartLat'] as num?)?.toDouble(),
+        trackStartLng: (m['trackStartLng'] as num?)?.toDouble(),
       );
 
   String get distanceKmFormatted =>

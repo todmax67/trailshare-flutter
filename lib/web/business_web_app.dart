@@ -8,6 +8,7 @@ import '../data/models/track.dart';
 import '../data/repositories/tracks_repository.dart';
 import '../l10n/generated/app_localizations.dart';
 import 'pages/web_business_dashboard_page.dart';
+import 'pages/web_business_public_page.dart';
 import 'pages/web_home_page.dart';
 import 'pages/web_login_page.dart';
 import 'pages/web_track_detail_page.dart';
@@ -113,6 +114,15 @@ class BusinessWebApp extends StatelessWidget {
   Route<dynamic> _onGenerateRoute(RouteSettings settings) {
     final uri = Uri.parse(settings.name ?? '/');
     final segments = uri.pathSegments;
+
+    // 7.D1 — Landing pubblica `/b/{slug}` per Spazi Pro: NESSUN AuthGate,
+    // pagina visibile a tutti (anche bot SEO + visitatori non loggati).
+    if (segments.length == 2 && segments[0] == 'b') {
+      return MaterialPageRoute<dynamic>(
+        settings: settings,
+        builder: (_) => WebBusinessPublicPage(slug: segments[1]),
+      );
+    }
 
     Widget child;
 

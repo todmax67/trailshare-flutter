@@ -252,9 +252,9 @@ Riusa pagine mobile in dialog. Decisione strategica 2026-05-02: Flutter Web mono
 
 | # | Feature | Priorità | Effort | Tier | Status |
 |---|---|---|---|---|---|
-| 7.D1 | Landing pubblica `/b/{slug}` brandizzata (hero, listino, post, mappa) | 🟧 | M | Free | ☐ |
-| 7.D2 | OG tags + Twitter card + Schema.org `LocalBusiness` per ranking | 🟨 | S | Free | ☐ |
-| 7.D3 | Map view aggregata di tutte le tracce consigliate del business | 🟧 | S | Free | ☐ |
+| 7.D1 | Landing pubblica `/b/{slug}` brandizzata (hero, listino, post, mappa) | 🟧 | M | Free | ✅ (WebBusinessPublicPage no AuthGate: hero brandizzato + descrizione + contatti + mappa + recensioni + recommended + CTA "Apri TrailShare") |
+| 7.D2 | OG tags + Twitter card + Schema.org `LocalBusiness` per ranking | 🟨 | S | Free | ⚠️ MVP (OG/Twitter/JSON-LD generici Organization in index.html; per-business via SSR Cloud Function = follow-up) |
+| 7.D3 | Map view aggregata di tutte le tracce consigliate del business | 🟧 | S | Free | ✅ (marker punti partenza tracce sulla mappa landing + lista card sotto; bbox auto-fit) |
 | 7.D4 | CTA "Scarica TrailShare e segui" con QR pre-popolato | 🟥 | S | Free | ✅ (inglobata in 7.C9: la card QR contiene CTA "Apri TrailShare per seguire") |
 | 7.D5 | Custom domain support (es. `mtb.baitaduturhotel.it` → Spazio Pro) | 🟩 | L | Enterprise | ☐ |
 

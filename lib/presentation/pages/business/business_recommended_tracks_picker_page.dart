@@ -107,6 +107,12 @@ class _BusinessRecommendedTracksPickerPageState
       trackActivityType: track.activityType.name,
       trackDurationSec: track.stats.duration.inSeconds,
       trackPhotoUrl: track.photos.isNotEmpty ? track.photos.first.url : null,
+      // 7.D3 — denormalizziamo il punto di partenza per il marker sulla
+      // landing pubblica senza dover fetchare la traccia originale.
+      trackStartLat:
+          track.points.isNotEmpty ? track.points.first.latitude : null,
+      trackStartLng:
+          track.points.isNotEmpty ? track.points.first.longitude : null,
     );
     await _businessRepo.addRecommendedTrack(widget.business.id!, rec);
     if (!mounted) return;
@@ -137,6 +143,8 @@ class _BusinessRecommendedTracksPickerPageState
       trackActivityType: track.activityType,
       trackDurationSec: track.duration,
       trackPhotoUrl: track.photoUrls.isNotEmpty ? track.photoUrls.first : null,
+      trackStartLat: track.startLat,
+      trackStartLng: track.startLng,
     );
     await _businessRepo.addRecommendedTrack(widget.business.id!, rec);
     if (!mounted) return;
