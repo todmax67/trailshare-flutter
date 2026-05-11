@@ -103,6 +103,9 @@ dependencies:
   # 6.B — Paywall / Pro subscription
   in_app_purchase: ^3.2.0
 
+  # Prompt nativo "Valuta app" (StoreKit / Play in-app review)
+  in_app_review: ^2.0.10
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

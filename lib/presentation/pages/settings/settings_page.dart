@@ -1,5 +1,6 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
+import 'package:in_app_review/in_app_review.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/services/hud_prefs_service.dart';
@@ -31,6 +32,13 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/services/push_notification_service.dart';
 import '../../../core/services/pro_gate_service.dart';
 import '../../widgets/paywall_sheet.dart';
+
+/// ID numerico dell'app su App Store Connect (necessario per
+/// `in_app_review.openStoreListing` come fallback su iOS quando il
+/// prompt nativo non è disponibile o è stato throttled da Apple).
+/// TODO: aggiornare con l'ID reale quando l'app sarà pubblicata su App
+/// Store (oggi è solo TestFlight beta).
+const String _kAppStoreId = '0000000000';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -1092,10 +1100,40 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  /// Apre il prompt nativo "Valuta app". Su iOS usa
+  /// `SKStoreReviewController` (StoreKit), su Android la In-App Review API
+  /// di Google Play Services — entrambi mostrano la review sheet
+  /// IN-APP, l'utente non lascia TrailShare.
+  ///
+  /// Se il device non supporta il prompt nativo (es. Play Services
+  /// assenti, iOS < 10.3, oppure il prompt è stato già mostrato troppe
+  /// volte e Apple lo throttla), fallback su [openStoreListing] che
+  /// apre la pagina dello store nel browser/app store nativa.
   Future<void> _openAppStore(BuildContext context) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.l10n.appComingSoon)),
-    );
+    final InAppReview inAppReview = InAppReview.instance;
+    try {
+      if (await inAppReview.isAvailable()) {
+        await inAppReview.requestReview();
+        return;
+      }
+    } catch (e) {
+      debugPrint('[Settings] requestReview failed: $e');
+    }
+    // Fallback: apre la pagina store. appStoreId è l'ID numerico
+    // dell'app su App Store Connect (lo prendiamo da una const così
+    // resta facile da aggiornare quando l'app sarà pubblicata).
+    try {
+      await inAppReview.openStoreListing(
+        appStoreId: _kAppStoreId,
+        microsoftStoreId: null,
+      );
+    } catch (e) {
+      debugPrint('[Settings] openStoreListing failed: $e');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.appComingSoon)),
+      );
+    }
   }
 
   void _showChangelog(BuildContext context) {
