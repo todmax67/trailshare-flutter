@@ -951,18 +951,33 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.publishToCommunity),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(context.l10n.publishDialogContent),
-            const SizedBox(height: 16),
-            _buildSummaryRow(context.l10n.nameLabel, _track.name),
-            _buildSummaryRow(context.l10n.distanceLabel, '${_track.stats.distanceKm.toStringAsFixed(1)} km'),
-            _buildSummaryRow(context.l10n.elevationGainLabel, '+${_track.stats.elevationGain.toStringAsFixed(0)} m'),
-            if (_track.description != null && _track.description!.isNotEmpty)
-              _buildSummaryRow(context.l10n.descriptionLabel, _track.description!),
-          ],
+        // Wrap in SingleChildScrollView: senza, una descrizione lunga
+        // sforava verticalmente il dialog (overflow). Constrain max
+        // height per evitare di "schiacciare" gli action buttons.
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+            maxWidth: 400,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.l10n.publishDialogContent),
+                const SizedBox(height: 16),
+                _buildSummaryRow(context.l10n.nameLabel, _track.name),
+                _buildSummaryRow(context.l10n.distanceLabel,
+                    '${_track.stats.distanceKm.toStringAsFixed(1)} km'),
+                _buildSummaryRow(context.l10n.elevationGainLabel,
+                    '+${_track.stats.elevationGain.toStringAsFixed(0)} m'),
+                if (_track.description != null &&
+                    _track.description!.isNotEmpty)
+                  _buildSummaryRow(
+                      context.l10n.descriptionLabel, _track.description!),
+              ],
+            ),
+          ),
         ),
         actions: [
           TextButton(
