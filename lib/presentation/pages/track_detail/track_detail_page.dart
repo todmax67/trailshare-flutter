@@ -16,6 +16,7 @@ import '../../../data/repositories/community_tracks_repository.dart';
 import '../../widgets/interactive_track_map.dart';
 import '../../widgets/track_charts_widget.dart';
 import '../../widgets/lap_splits_widget.dart';
+import '../../widgets/personal_records_card.dart';
 import '../../widgets/track_segments_section.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -236,6 +237,17 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                         debugPrint('[TrackDetail] Lap tap: $startIndex - $endIndex');
                       },
                     ),
+                  ],
+
+                  // Epic 4.7 — Confronto con Personal Records (stesso
+                  // activityType). Mostrata solo se l'utente è owner
+                  // della traccia (per confronti cross-user non ha
+                  // senso). La card si auto-nasconde se non ci sono
+                  // altre tracce con cui confrontare.
+                  if (_track.userId != null &&
+                      _track.userId == FirebaseAuth.instance.currentUser?.uid) ...[
+                    const SizedBox(height: 16),
+                    PersonalRecordsCard(current: _track),
                   ],
 
                   // Segmenti creati da questa traccia

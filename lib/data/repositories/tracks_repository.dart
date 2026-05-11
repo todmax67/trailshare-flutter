@@ -165,6 +165,55 @@ class TracksRepository {
     }
   }
 
+  /// Epic 4.7 — calcola i Personal Records dell'utente per le tracce
+  /// dello stesso `activityType`, escludendo opzionalmente la traccia
+  /// corrente (così il "best" rappresenta lo storico vs cui confrontarla).
+  ///
+  /// Best:
+  /// - distance (metri)
+  /// - duration (secondi)
+  /// - elevation gain (metri)
+  /// - avg pace (sec/km) per attività di velocità (running/cycling/etc.)
+  ///
+  /// Implementazione lightweight: usa [getMyTracksLightweight] (skip
+  /// points), filtra in-memory. Cap a 500 tracce per limitare memoria.
+  Future<PersonalRecords?> getPersonalRecordsForActivity({
+    required String activityType,
+    String? excludeTrackId,
+  }) async {
+    final tracks = await getMyTracksLightweight(limit: 500);
+    final sameActivity = tracks.where((t) {
+      if (excludeTrackId != null && t.id == excludeTrackId) return false;
+      return t.activityType.name == activityType;
+    }).toList();
+    if (sameActivity.isEmpty) return null;
+
+    Track? bestDistance;
+    Track? bestDuration;
+    Track? bestElevation;
+    for (final t in sameActivity) {
+      if (bestDistance == null ||
+          t.stats.distance > bestDistance.stats.distance) {
+        bestDistance = t;
+      }
+      if (bestDuration == null ||
+          t.stats.duration.inSeconds > bestDuration.stats.duration.inSeconds) {
+        bestDuration = t;
+      }
+      if (bestElevation == null ||
+          t.stats.elevationGain > bestElevation.stats.elevationGain) {
+        bestElevation = t;
+      }
+    }
+    return PersonalRecords(
+      activityType: activityType,
+      bestDistance: bestDistance,
+      bestDuration: bestDuration,
+      bestElevation: bestElevation,
+      sampleSize: sameActivity.length,
+    );
+  }
+
   /// ⭐ NUOVO: Ottiene le mie tracce con paginazione
   Future<PaginatedTracksResult> getMyTracksPaginated({
     int limit = 10,
@@ -709,4 +758,35 @@ class TracksRepository {
     if (value is String) return int.tryParse(value);
     return null;
   }
+}
+
+/// Epic 4.7 — Personal Records dell'utente per uno specifico activityType.
+/// Vengono passati alla [PersonalRecordsCard] nella track detail page per
+/// confrontare la traccia corrente vs lo storico personale.
+class PersonalRecords {
+  final String activityType;
+  final Track? bestDistance;
+  final Track? bestDuration;
+  final Track? bestElevation;
+  /// Numero tracce dello stesso tipo (utile per disclaimer "su N attività").
+  final int sampleSize;
+
+  const PersonalRecords({
+    required this.activityType,
+    this.bestDistance,
+    this.bestDuration,
+    this.bestElevation,
+    this.sampleSize = 0,
+  });
+
+  /// `true` se la traccia [current] è il nuovo best per la metrica.
+  bool isNewDistanceRecord(Track current) =>
+      bestDistance == null ||
+      current.stats.distance > bestDistance!.stats.distance;
+  bool isNewDurationRecord(Track current) =>
+      bestDuration == null ||
+      current.stats.duration.inSeconds > bestDuration!.stats.duration.inSeconds;
+  bool isNewElevationRecord(Track current) =>
+      bestElevation == null ||
+      current.stats.elevationGain > bestElevation!.stats.elevationGain;
 }

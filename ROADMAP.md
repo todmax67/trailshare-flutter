@@ -107,8 +107,8 @@ Target: aumentare ritenzione e dwell time.
 | 4.3 | Navigazione: pausa automatica se fermo >5 min | 🟨 | XS | ✅ (TrackingBloc._autoPause già live, snackbar autoPauseTriggered/Resumed) |
 | 4.4 | Discover: ricerca testuale full-text | 🟧 | S | ✅ (TextSearch accent-insensitive su nome/ref/network/operator/regione/difficoltà/attività; community migrato dalla `contains` basic) |
 | 4.5 | Discover: filtro per regione amministrativa | 🟨 | S | ✅ (bbox 20 regioni + sezione filter sheet) |
-| 4.6 | Track detail: grafico HR per zone (cardiac zones) | 🟨 | S | ☐ — Pro feature naturale |
-| 4.7 | Track detail: confronto con PR personale | 🟨 | M | ☐ — engagement booster |
+| 4.6 | Track detail: grafico HR per zone (cardiac zones) | 🟨 | S | ✅ (HeartRateZonesWidget live in track_detail_page, 5 zone Z1-Z5 con avg/peak header + fallback maxHR stimata + CTA impostazioni) |
+| 4.7 | Track detail: confronto con PR personale | 🟨 | M | ✅ (PersonalRecordsCard: best distance/duration/elevation per activityType, badge "Nuovo PR" o % vs best) |
 | 4.8 | Track detail: split per km con tempo cumulativo | 🟩 | XS | ✅ |
 | 4.9 | Mappe dark reale (Stadia/MapTiler con API key) | 🟩 | S | ☐ |
 
