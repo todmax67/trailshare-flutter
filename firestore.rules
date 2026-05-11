@@ -264,13 +264,15 @@ service cloud.firestore {
     // coprire `integrations/*` altrimenti override la rule più stretta sopra
     // e l'owner potrebbe sovrascrivere i token OAuth.
     //
-    // NB: `{document=**}` è un Path, non una String — Path NON ha .matches().
-    // Useremo l'indexing sul primo segmento per escludere `integrations`.
-    match /users/{userId}/{document=**} {
+    // NB: `{collectionName}` (single segment, String) supporta nativamente
+    // `!=` per il match. Path object (`{document=**}`) NON supporta
+    // indexing/.matches() in modo affidabile — usare String. `{docId=**}`
+    // dopo cattura il resto (sub-sub-docs eventuali).
+    match /users/{userId}/{collectionName}/{docId=**} {
       allow read: if isSignedIn() && isOwner(userId)
-                  && document[0] != 'integrations';
+                  && collectionName != 'integrations';
       allow write: if isSignedIn() && isOwner(userId)
-                   && document[0] != 'integrations';
+                   && collectionName != 'integrations';
     }
 
     // --- REGOLE TRACCE COMMUNITY ---
