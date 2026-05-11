@@ -62,7 +62,11 @@ service cloud.firestore {
                       'totalTracks', 'totalDistance', 'totalElevationGain', 'earnedBadges',
                       'fcmTokens', 'following', 'email', 'createdAt', 'lastActive',
                       'socialFeaturingOptIn',
-                      'region', 'regionSetAt']))
+                      'region', 'regionSetAt',
+                      // Gamification: XP / level / data ultimo grant.
+                      // Scritti dal client GamificationService.grantXp
+                      // dopo ogni track save / cheer / follow / ecc.
+                      'xp', 'level', 'lastXpGrant']))
         ||
         (isSignedIn() && !isOwner(userId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers']));

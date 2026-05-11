@@ -95,6 +95,83 @@ class GamificationService {
   // GESTIONE XP
   // ============================================
 
+  /// Ricalcola XP totale dell'utente dalle tracce esistenti (escluse
+  /// pianificate). Idempotente: se l'XP corrente è già >= calcolato,
+  /// non fa nulla. Usato come backfill one-shot dopo il fix rules
+  /// (commit 'fix(rules): xp/level affectedKeys whitelist') per
+  /// recuperare l'XP perso negli ultimi mesi quando ogni grantXp
+  /// veniva silently rejected dalle rules.
+  ///
+  /// Formula coerente con `grantXpForTrack`:
+  ///   per ogni track: 50 + (km × 10) + (D+/100 × 15)
+  ///   + 100 XP bonus first_track
+  ///
+  /// Ritorna l'XP totale ricalcolato (anche se nessun update è avvenuto).
+  Future<int> recomputeXpFromTracks() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return 0;
+    try {
+      final tracksSnap = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('tracks')
+          .get();
+      int totalXp = 0;
+      int realTracks = 0;
+      for (final doc in tracksSnap.docs) {
+        final d = doc.data();
+        if (d['isPlanned'] == true) continue;
+        realTracks += 1;
+        final dist = (d['distance'] as num?)?.toDouble() ?? 0;
+        final ele = (d['elevationGain'] as num?)?.toDouble() ?? 0;
+        totalXp += xpRewards['track_completed']!;
+        totalXp += ((dist / 1000) * xpRewards['km_hiked']!).toInt();
+        totalXp += ((ele / 100) * xpRewards['elevation_100m']!).toInt();
+      }
+      if (realTracks > 0) {
+        totalXp += xpRewards['first_track']!;
+      }
+
+      // Aggiunge XP da cheers ricevuti + tracce pubblicate.
+      try {
+        final pubSnap = await _firestore
+            .collection('published_tracks')
+            .where('originalOwnerId', isEqualTo: user.uid)
+            .get();
+        int totalCheers = 0;
+        for (final p in pubSnap.docs) {
+          totalCheers += ((p.data()['cheerCount'] as num?)?.toInt() ?? 0);
+          totalXp += xpRewards['track_published']!;
+        }
+        totalXp += totalCheers * xpRewards['cheers_received']!;
+      } catch (_) {}
+
+      final profileRef = _firestore.collection('user_profiles').doc(user.uid);
+      final currentDoc = await profileRef.get();
+      final currentXp =
+          (currentDoc.data()?['xp'] as num?)?.toInt() ?? 0;
+      // Non sovrascrivere se già più alto (utente potrebbe avere XP da
+      // grants non-track come follower, ecc.).
+      if (totalXp <= currentXp) {
+        debugPrint(
+            '[Gamification] recomputeXp: $currentXp già >= $totalXp, skip');
+        return currentXp;
+      }
+      final level = calculateLevel(totalXp);
+      await profileRef.set({
+        'xp': totalXp,
+        'level': level,
+        'lastXpGrant': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      debugPrint(
+          '[Gamification] recomputeXp: backfill $currentXp → $totalXp (livello $level)');
+      return totalXp;
+    } catch (e) {
+      debugPrint('[Gamification] recomputeXp error: $e');
+      return 0;
+    }
+  }
+
   Future<XpRewardResult> grantXp({
     required String reason,
     required int amount,

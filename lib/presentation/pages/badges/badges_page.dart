@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/services/badge_evaluator_service.dart';
+import '../../../core/services/gamification_service.dart';
 import '../../../data/models/badge_family.dart';
 
 /// Pagina Badge "Garmin-style" (Epic refactor).
@@ -44,6 +45,13 @@ class _BadgesPageState extends State<BadgesPage>
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    // Backfill one-shot: ricalcola XP totale dalle tracce esistenti.
+    // Idempotente (se già allineato non aggiorna). Risolve il caso in
+    // cui le rules pre-fix avevano respinto ogni grantXp e il livello
+    // era sempre 1 nonostante decine di tracce.
+    try {
+      await GamificationService().recomputeXpFromTracks();
+    } catch (_) {}
     final progress = await BadgeEvaluatorService().getAllProgress();
     if (!mounted) return;
     setState(() {
