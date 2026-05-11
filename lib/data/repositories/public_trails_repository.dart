@@ -20,7 +20,12 @@ class PublicTrailsRepository {
   final TrailsCacheService _cache = trailsCacheService;
   
   // Soglie zoom per clustering
-  static const double _clusterZoomThreshold = 9.0;
+  /// Soglia zoom sotto la quale ritornavamo cluster aggregati invece dei
+  /// trail veri. Disabilitata (0.0) perché rompeva la ricerca (i singoli
+  /// sentieri non erano visibili / selezionabili). Manteniamo solo il
+  /// limit=200 + `metadataOnly` quando zoom basso per evitare di scaricare
+  /// payload enormi.
+  static const double _clusterZoomThreshold = 0.0;
   static const double _simplifiedZoomThreshold = 14.0;
 
   CollectionReference<Map<String, dynamic>> get _trailsCollection {

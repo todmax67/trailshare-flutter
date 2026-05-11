@@ -505,26 +505,25 @@ class _DiscoverPageState extends State<DiscoverPage> {
       
       if (mounted) {
         setState(() {
-          _clusters = result.clusters;
-          if (result.hasClusters) {
-            // In modalità cluster, sostituisci tutto
-            _trails = result.trails;
-          } else {
-            // In modalità trails, accumula con deduplicazione
-            final existingIds = _trails.map((t) => t.id).toSet();
-            final newTrails = result.trails.where((t) => !existingIds.contains(t.id)).toList();
-            if (newTrails.isNotEmpty) {
-              _trails = [..._trails, ...newTrails];
-            }
+          // Cluster disabilitati (rompevano la ricerca): ignoriamo
+          // result.clusters anche se la repo lo ritornasse.
+          _clusters = const [];
+          // Accumula con deduplicazione
+          final existingIds = _trails.map((t) => t.id).toSet();
+          final newTrails = result.trails
+              .where((t) => !existingIds.contains(t.id))
+              .toList();
+          if (newTrails.isNotEmpty) {
+            _trails = [..._trails, ...newTrails];
           }
           _lastLoadedBounds = bounds;
           _isLoadingTrails = false;
         });
       }
-      
+
       final source = result.fromCache ? '⚡ cache' : '🌐 server';
-      final type = result.hasClusters ? 'cluster' : 'trails';
-      debugPrint('[DiscoverPage] $source: ${result.totalCount} $type (zoom: ${zoom.toStringAsFixed(1)})');
+      debugPrint(
+          '[DiscoverPage] $source: ${result.trails.length} trails (zoom: ${zoom.toStringAsFixed(1)})');
       
     } catch (e) {
       debugPrint('[DiscoverPage] Errore caricamento: $e');
@@ -848,58 +847,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 }).toList(),
               ),
 
-            // ⭐ NUOVO: Cluster markers (zoom basso)
-            if (_clusters.isNotEmpty)
-              MarkerLayer(
-                markers: _clusters.map((cluster) => Marker(
-                  point: cluster.center,
-                  width: 56,
-                  height: 56,
-                  child: GestureDetector(
-                    onTap: () {
-                      // Zoom in sul cluster
-                      _mapController.move(cluster.center, _currentZoom + 2);
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${cluster.count}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const Text(
-                              '🥾',
-                              style: TextStyle(fontSize: 10),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                )).toList(),
-              ),
-
-            // Marker punto di partenza con icona attività
-            if (_clusters.isEmpty)
-              MarkerLayer(
+            // Marker punto di partenza con icona attività (cluster
+            // disabilitati: rompevano la ricerca su zoom basso).
+            MarkerLayer(
                 markers: trails.map((trail) {
                   final startLat = trail.startLat;
                   final startLng = trail.startLng;
