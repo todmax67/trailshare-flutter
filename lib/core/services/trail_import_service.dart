@@ -51,9 +51,13 @@ class TrailImportService {
     int limit = 100,
   }) async {
     try {
-      // API Waymarked: bbox=minLng,minLat,maxLng,maxLat
-      final bbox = "$minLng,$minLat,$maxLng,$maxLat";
-      final url = "$_waymarkedApiBase/list/by_bbox?bbox=$bbox&limit=$limit";
+      // API Waymarked: bbox in EPSG:3857 web mercator, ordine
+      // west,south,east,north. (Con WGS84 l'endpoint accetta la query
+      // ma torna sempre results=[].)
+      final sw = _lonLatToMercator(minLng, minLat);
+      final ne = _lonLatToMercator(maxLng, maxLat);
+      final bbox = "${sw[0].toStringAsFixed(1)},${sw[1].toStringAsFixed(1)},${ne[0].toStringAsFixed(1)},${ne[1].toStringAsFixed(1)}";
+      final url = "$_waymarkedApiBase/list/by_area?bbox=$bbox&limit=$limit";
       debugPrint("[TrailImport] Ricerca bbox: $bbox");
       
       final response = await http.get(Uri.parse(url), headers: {"Accept": "application/json"});
@@ -63,10 +67,23 @@ class TrailImportService {
         return [];
       }
       
-      final data = jsonDecode(response.body);
-      final results = data["results"] as List? ?? [];
-      debugPrint("[TrailImport] Trovati ${results.length} percorsi nel bbox");
-      return results.map((r) => WaymarkedRoute.fromJson(r)).where((r) => r.name.isNotEmpty).toList();
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      // L'API Waymarked usa chiavi diverse a seconda dell'endpoint:
+      // `results` per /list/search, `routes` per /list/by_area.
+      // Fallback su qualsiasi value che sia List<Map>.
+      List? results = (data['results'] ?? data['routes'] ?? data['relations']) as List?;
+      if (results == null) {
+        // ultimo tentativo: prima List trovata
+        for (final v in data.values) {
+          if (v is List && v.isNotEmpty && v.first is Map) {
+            results = v;
+            break;
+          }
+        }
+      }
+      results ??= const [];
+      debugPrint("[TrailImport] Bbox response keys=${data.keys.toList()} → ${results.length} percorsi");
+      return results.map((r) => WaymarkedRoute.fromJson(r as Map<String, dynamic>)).where((r) => r.name.isNotEmpty).toList();
     } catch (e) {
       debugPrint("[TrailImport] Errore searchByBbox: $e");
       return [];
@@ -345,23 +362,44 @@ class TrailImportService {
         total: searchTerms.length + 1,
         message: 'Ricerca geografica nel bbox $region...',
       ));
+      // Waymarked `by_area` rifiuta bbox troppo grandi (>~0.5° lato → torna
+      // []). Tile in sotto-bbox di max ~0.5° e accumula.
       try {
-        final byBbox = await searchByBbox(
-          minLat: geoBbox[0],
-          maxLat: geoBbox[1],
-          minLng: geoBbox[2],
-          maxLng: geoBbox[3],
-          limit: 200,
-        );
-        for (final route in byBbox) {
-          allRoutes.putIfAbsent(route.id, () => route);
+        const tileSize = 0.5;
+        final tiles = <List<double>>[];
+        for (double la = geoBbox[0]; la < geoBbox[1]; la += tileSize) {
+          for (double lo = geoBbox[2]; lo < geoBbox[3]; lo += tileSize) {
+            tiles.add([
+              la,
+              (la + tileSize).clamp(geoBbox[0], geoBbox[1]),
+              lo,
+              (lo + tileSize).clamp(geoBbox[2], geoBbox[3]),
+            ]);
+          }
         }
-        debugPrint(
-            '[TrailImport] Bbox search → ${byBbox.length} percorsi');
+        debugPrint('[TrailImport] Bbox $region → ${tiles.length} tile da ${tileSize}°');
+        int tileIdx = 0;
+        for (final t in tiles) {
+          tileIdx++;
+          onProgress?.call(ImportProgress(
+            phase: 'search',
+            current: tileIdx,
+            total: tiles.length,
+            message: 'Tile $tileIdx/${tiles.length} ($region)',
+          ));
+          final byBbox = await searchByBbox(
+            minLat: t[0], maxLat: t[1], minLng: t[2], maxLng: t[3],
+            limit: 200,
+          );
+          for (final route in byBbox) {
+            allRoutes.putIfAbsent(route.id, () => route);
+          }
+          await Future.delayed(_apiDelay);
+        }
+        debugPrint('[TrailImport] Bbox search totale → ${allRoutes.length} percorsi unici');
       } catch (e) {
         debugPrint('[TrailImport] bbox search error: $e');
       }
-      await Future.delayed(_apiDelay);
     }
 
     // 1b. Cerca per termini (opzionale: arricchisce con percorsi che
@@ -381,23 +419,10 @@ class TrailImportService {
       await Future.delayed(_apiDelay);
     }
 
-    // Se abbiamo un bbox e il nome regione non è nei termini, cerca
-    // anche per nome (es. utente seleziona "Lombardia" dal dropdown
-    // ma non lo mette nei termini → recuperiamo i trail il cui nome
-    // contiene "Lombardia").
-    if (geoBbox != null &&
-        region.isNotEmpty &&
-        !searchTerms.contains(region)) {
-      onProgress?.call(ImportProgress(
-        phase: 'search',
-        current: searchTerms.length + 2,
-        total: searchTerms.length + 2,
-        message: 'Ricerca "$region"...',
-      ));
-      for (final route in await searchWaymarkedTrails(region)) {
-        allRoutes.putIfAbsent(route.id, () => route);
-      }
-    }
+    // NOTA: rimossa la ricerca aggiuntiva per nome regione — produceva
+    // falsi positivi (es. "Piemonte" → match solo su Sentiero Italia -
+    // Piemonte E00, ignorando tutto il resto). Con il tiling bbox il
+    // recupero geografico è completo.
     debugPrint("[TrailImport] Trovati ${allRoutes.length} percorsi unici");
     // 2. Processa percorsi
     final routesList = allRoutes.values.toList();
@@ -488,11 +513,29 @@ class TrailImportService {
       return;
     }
 
+    // Filtra coord non-finite (NaN/Inf) prodotte da mercator su geometrie sporche.
+    coords.removeWhere((c) =>
+        c.length < 2 ||
+        !c[0].isFinite ||
+        !c[1].isFinite ||
+        c[1].abs() > 90 ||
+        c[0].abs() > 180);
+    if (coords.length < 5) {
+      skipped.add(SkippedTrail(name: route.name, reason: 'Coord non valide'));
+      return;
+    }
+
     final elevations = await fetchElevations(coords);
     final elevationStats = calculateElevationStats(elevations);
     final distance = _calculateTotalDistance(coords);
     final isCircular = _isCircular(coords);
     final center = coords[coords.length ~/ 2];
+    // Guard: se center o stats non finiti, salta.
+    if (!center[0].isFinite || !center[1].isFinite ||
+        !distance.isFinite || !elevationStats.gain.isFinite) {
+      skipped.add(SkippedTrail(name: route.name, reason: 'Valori non finiti'));
+      return;
+    }
     final geoHash = GeoHashUtil.encode(center[1], center[0], precision: 7);
 
     final coordsWithEle = <List<double>>[];
@@ -502,6 +545,29 @@ class TrailImportService {
         coords[j][1],
         j < elevations.length ? elevations[j] : 0.0,
       ]);
+    }
+
+    // Firestore limita un documento a 1 MB. Super-route come Sentiero Italia
+    // possono avere 50k+ punti → coordinatesJson > 1MB → write rifiutato
+    // con "invalid nested entity". Downsample finché il JSON sta sotto ~800 KB.
+    var coordsForWrite = coordsWithEle;
+    var coordsJson = jsonEncode(coordsForWrite);
+    const maxJsonBytes = 800 * 1024;
+    while (coordsJson.length > maxJsonBytes && coordsForWrite.length > 500) {
+      final stride = (coordsForWrite.length / (coordsForWrite.length / 2).ceil()).ceil();
+      final reduced = <List<double>>[];
+      for (int j = 0; j < coordsForWrite.length; j += stride) {
+        reduced.add(coordsForWrite[j]);
+      }
+      // mantieni sempre l'ultimo punto per chiusura tracciato
+      if (reduced.last != coordsForWrite.last) reduced.add(coordsForWrite.last);
+      coordsForWrite = reduced;
+      coordsJson = jsonEncode(coordsForWrite);
+      debugPrint('[TrailImport] downsample ${route.name} → ${coordsForWrite.length} pts (${coordsJson.length} bytes)');
+    }
+    if (coordsJson.length > maxJsonBytes) {
+      skipped.add(SkippedTrail(name: route.name, reason: 'Tracciato troppo grande (${coordsJson.length ~/ 1024} KB)'));
+      return;
     }
 
     // C9 — Activity type smart dai tag OSM (route=hiking|mtb|bicycle|foot)
@@ -517,7 +583,7 @@ class TrailImportService {
       'region': region,
       'geometry': {
         'type': 'LineString',
-        'coordinatesJson': jsonEncode(coordsWithEle),
+        'coordinatesJson': coordsJson,
       },
       'center': GeoPoint(center[1], center[0]),
       'startPoint': {'lat': coords.first[1], 'lon': coords.first[0]},
@@ -532,7 +598,7 @@ class TrailImportService {
         geoHash.substring(0, 5),
         geoHash.substring(0, 4),
       ],
-      'pointsCount': coordsWithEle.length,
+      'pointsCount': coordsForWrite.length,
       'distance': distance.round(),
       'elevationGain': elevationStats.gain.round(),
       'elevationLoss': elevationStats.loss.round(),
@@ -648,6 +714,13 @@ class TrailImportService {
     final lon = (x * 180) / 20037508.34;
     final lat = (math.atan(math.exp((y * math.pi) / 20037508.34)) * 360) / math.pi - 90;
     return [lon, lat];
+  }
+
+  /// WGS84 → EPSG:3857 web mercator. L'API Waymarked by_area accetta bbox in mercator.
+  List<double> _lonLatToMercator(double lon, double lat) {
+    final x = lon * 20037508.34 / 180;
+    final y = math.log(math.tan((90 + lat) * math.pi / 360)) / (math.pi / 180);
+    return [x, y * 20037508.34 / 180];
   }
 
   double _calculateTotalDistance(List<List<double>> coords) {
