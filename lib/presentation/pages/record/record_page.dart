@@ -18,6 +18,7 @@ import '../../widgets/live_track_button.dart';
 import '../../widgets/heart_rate_widget.dart';
 import '../../../core/services/feature_tips.dart';
 import '../../../core/services/heading_service.dart';
+import '../../../core/services/hud_prefs_service.dart';
 import '../../../core/services/recording_status_service.dart';
 import '../../widgets/map_heading_toggle.dart';
 import '../../widgets/map_overlays.dart';
@@ -159,6 +160,17 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   bool _statsExpanded = false;
   /// Analogo per la card unificata guida+lifeline.
   bool _overlayExpanded = false;
+
+  /// 1.D4 — Auto-hide HUD dopo N secondi di inattività. Quando false lo
+  /// stats header si nasconde (AnimatedOpacity 0 + IgnorePointer), e
+  /// resta solo un chip mini in alto a sinistra come "shortcut" per
+  /// rimostrarlo. Tap mappa, tap chip, o cambio stato recording lo
+  /// riattivano.
+  bool _hudVisible = true;
+  Timer? _hudHideTimer;
+  bool _lastIsRecording = false;
+  bool _lastIsPaused = false;
+  bool _lastIsIdle = true;
 
   StreamSubscription<LifelineState>? _lifelineSub;
   bool _inactivityDialogShown = false;
@@ -586,6 +598,17 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     }
     _wasAutoPaused = isAutoNow;
 
+    // 1.D4 — su cambio stato recording (start, pause, resume, idle) rimostra
+    // l'HUD: l'utente deve confermare visivamente la transizione.
+    if (state.isRecording != _lastIsRecording ||
+        state.isPaused != _lastIsPaused ||
+        state.isIdle != _lastIsIdle) {
+      _lastIsRecording = state.isRecording;
+      _lastIsPaused = state.isPaused;
+      _lastIsIdle = state.isIdle;
+      _bumpHudActivity();
+    }
+
     setState(() {});
   }
 
@@ -634,11 +657,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _refDistanceToNextTurn = distToTurn;
     _refRemainingDistance = remaining;
     _refDistanceFromTrail = distFromRoute;
+    final wasOffTrail = _refOffTrail;
     _refOffTrail = offTrail;
+    // 1.D4 — riapri l'HUD sui trigger guida critici (off-trail, arrivo)
+    if (offTrail != wasOffTrail) _bumpHudActivity();
 
     // Arrivo → trigger save dialog automatico
     if (remaining < 30 && !_refArrived) {
       _refArrived = true;
+      _bumpHudActivity();
       _voice?.speak('Sei arrivato a destinazione. Salvataggio registrazione.');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_isSaving) _showSaveDialog();
@@ -869,9 +896,46 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     }
     _batterySubscription?.cancel();
     _lifelineSub?.cancel();
+    _hudHideTimer?.cancel();
     _voice?.dispose();
     _trackingBloc.dispose();
     super.dispose();
+  }
+
+  // ─── 1.D4 Auto-hide HUD helpers ─────────────────────────────────────
+  /// Re-mostra l'HUD e (re)avvia il timer di auto-hide. Da chiamare su
+  /// ogni "interazione" significativa:
+  /// - gesture sulla mappa (pan/zoom)
+  /// - tap sul chip mini
+  /// - cambio stato recording (start/pause/resume/arrivo)
+  /// - eventi guida (off-trail, arrivato)
+  void _bumpHudActivity() {
+    if (!HudPrefsService().enabled) {
+      // Se l'utente ha disattivato l'auto-hide nelle settings, l'HUD
+      // resta sempre visibile.
+      if (!_hudVisible && mounted) setState(() => _hudVisible = true);
+      return;
+    }
+    final state = _trackingBloc.state;
+    if (state.isIdle) return; // HUD non esiste in idle
+    if (!_hudVisible && mounted) {
+      setState(() => _hudVisible = true);
+    }
+    _hudHideTimer?.cancel();
+    _hudHideTimer = Timer(
+      Duration(seconds: HudPrefsService().seconds),
+      _hideHudIfRecording,
+    );
+  }
+
+  void _hideHudIfRecording() {
+    if (!mounted) return;
+    final state = _trackingBloc.state;
+    // Non nasconde mai in pausa o off-trail: lo stato deve restare ben
+    // visibile (l'utente potrebbe non essersi accorto della pausa).
+    if (!state.isRecording) return;
+    if (_refOffTrail || _refArrived) return;
+    setState(() => _hudVisible = false);
   }
 
   /// Banner informativo per modalità guidata in versione compatta con
@@ -1655,7 +1719,19 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             Positioned(bottom: 180, left: 0, right: 0,
               child: PhotoGalleryWidget(photos: _photos, isRecording: !state.isIdle, onAddPhoto: state.isIdle ? null : _showPhotoOptions, onDeletePhoto: _deletePhoto),
             ),
-          if (!state.isIdle) _buildStatsHeader(state),
+          // 1.D4 — stats header con auto-hide. Quando _hudVisible è false
+          // fade-out (250ms) + IgnorePointer; un chip mini in alto a
+          // sinistra resta cliccabile per riportarlo on.
+          if (!state.isIdle)
+            AnimatedOpacity(
+              opacity: _hudVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 250),
+              child: IgnorePointer(
+                ignoring: !_hudVisible,
+                child: _buildStatsHeader(state),
+              ),
+            ),
+          if (!state.isIdle && !_hudVisible) _buildHudReshowChip(state),
           // Banner guidato: solo durante registrazione attiva.
           // A registrazione ferma (idle) nasconderlo così l'utente vede la
           // schermata idle pulita e può uscire dalla pagina.
@@ -2046,7 +2122,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     final center = state.points.isNotEmpty ? LatLng(state.points.last.latitude, state.points.last.longitude) : (_userPosition ?? const LatLng(45.9, 9.9));
     return FlutterMap(
       mapController: _mapController,
-      options: MapOptions(initialCenter: center, initialZoom: 16, minZoom: 4, maxZoom: 18, onPositionChanged: (position, hasGesture) { if (hasGesture) _followUser = false; }),
+      options: MapOptions(initialCenter: center, initialZoom: 16, minZoom: 4, maxZoom: 18, onPositionChanged: (position, hasGesture) { if (hasGesture) { _followUser = false; _bumpHudActivity(); } }),
       children: [
         TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.trailshare.app', tileProvider: OfflineFallbackTileProvider()),
         // Polyline di riferimento (sotto la traccia utente) quando in modalità guidata
@@ -2134,7 +2210,10 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       left: 0,
       right: 0,
       child: GestureDetector(
-        onTap: () => setState(() => _statsExpanded = !_statsExpanded),
+        onTap: () {
+          setState(() => _statsExpanded = !_statsExpanded);
+          _bumpHudActivity();
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: EdgeInsets.only(
@@ -2153,6 +2232,54 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           child: _statsExpanded
               ? _buildStatsExpanded(state)
               : _buildStatsCompact(state),
+        ),
+      ),
+    );
+  }
+
+  /// 1.D4 — Chip mini visualizzato in alto a sinistra quando lo stats
+  /// HUD è in auto-hide. Mostra solo distanza+pulse, tap → rimostra
+  /// l'HUD per altri N secondi.
+  Widget _buildHudReshowChip(TrackingState state) {
+    final isRec = state.isRecording;
+    final accent = isRec ? AppColors.trackRecording : AppColors.warning;
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 12,
+      child: GestureDetector(
+        onTap: _bumpHudActivity,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isRec ? Icons.fiber_manual_record : Icons.pause,
+                color: Colors.white,
+                size: 10,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${state.stats.distanceKm.toStringAsFixed(2)} km',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/services/hud_prefs_service.dart';
 import '../../../core/services/strava_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -302,6 +303,11 @@ class _SettingsPageState extends State<SettingsPage> {
           // Sezione Strava
           _buildSectionHeader('Strava'),
           _buildStravaSection(),
+          const Divider(height: 32),
+
+          // Sezione Registrazione (1.D4 — auto-hide HUD)
+          _buildSectionHeader('Registrazione'),
+          _buildHudAutoHideSection(),
           const Divider(height: 32),
 
           // Sezione Sicurezza
@@ -704,6 +710,70 @@ class _SettingsPageState extends State<SettingsPage> {
               value: data['importFromStravaEnabled'] == true,
               onChanged: (v) => stravaService.setImportFromStravaEnabled(v),
             ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 1.D4 — Sezione "Registrazione": toggle auto-hide HUD + scelta
+  /// secondi (5/10/20). Listener su HudPrefsService così la UI si
+  /// aggiorna immediatamente al cambio.
+  Widget _buildHudAutoHideSection() {
+    return AnimatedBuilder(
+      animation: HudPrefsService(),
+      builder: (context, _) {
+        final prefs = HudPrefsService();
+        return Column(
+          children: [
+            SwitchListTile(
+              secondary: Icon(
+                Icons.visibility_off_outlined,
+                color: prefs.enabled
+                    ? AppColors.primary
+                    : context.textSecondary,
+              ),
+              title: const Text('Nascondi HUD automaticamente'),
+              subtitle: const Text(
+                'Durante la registrazione le statistiche scompaiono '
+                'dopo un periodo di inattività, lasciando più mappa visibile. '
+                'Tap su mappa o sul chip per rimostrarle.',
+              ),
+              value: prefs.enabled,
+              activeThumbColor: AppColors.primary,
+              onChanged: (v) => prefs.setEnabled(v),
+            ),
+            if (prefs.enabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.timer_outlined,
+                        color: context.textSecondary, size: 20),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Tempo prima del nascondimento',
+                        style: TextStyle(color: context.textPrimary),
+                      ),
+                    ),
+                    SegmentedButton<int>(
+                      segments: HudPrefsService.allowedSeconds
+                          .map((s) => ButtonSegment<int>(
+                                value: s,
+                                label: Text('${s}s'),
+                              ))
+                          .toList(),
+                      selected: {prefs.seconds},
+                      onSelectionChanged: (set) =>
+                          prefs.setSeconds(set.first),
+                      style: ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         );
       },

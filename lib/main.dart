@@ -9,6 +9,7 @@ import 'core/services/lifeline_alert_service.dart';
 import 'core/services/health_service.dart';
 import 'core/services/offline_tile_provider.dart';
 import 'core/services/garmin_sync_service.dart';
+import 'core/services/hud_prefs_service.dart';
 import 'core/services/pro_gate_service.dart';
 import 'core/services/subscription_manager.dart';
 import 'core/services/deep_link_service.dart';
@@ -81,6 +82,10 @@ void main() async {
   // Carica stato Pro persistito (da SharedPreferences) prima di runApp
   // così la UI parte con il valore corretto, niente flicker di paywall.
   await ProGateService().load();
+
+  // 1.D4 — preferenze auto-hide HUD (record page). Caricamento veloce,
+  // legge solo 2 chiavi da SharedPreferences.
+  await HudPrefsService().load();
 
   // Apre il sync con Firestore: ascolta authStateChanges e allinea Pro
   // con users/{uid}.proStatus (sorgente autorevole, scritta da

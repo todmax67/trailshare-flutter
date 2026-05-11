@@ -61,7 +61,7 @@ Target: rendere TrailShare l'app più sicura per chi va in montagna da solo in I
 | 1.D1 | Stats header compatto | 🟧 | S | ✅ |
 | 1.D2 | Merge banner guida + lifeline | 🟧 | S | ✅ |
 | 1.D3 | Banner lifeline minimizzabile | 🟨 | XS | ✅ |
-| 1.D4 | Auto-hide HUD dopo 10s inattività | 🟨 | S | ⚠️ rimandato |
+| 1.D4 | Auto-hide HUD dopo N s inattività + chip mini reshow + pref Settings | 🟨 | S | ✅ |
 
 ---
 
