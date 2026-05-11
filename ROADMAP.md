@@ -349,7 +349,7 @@ Decisione 2026-05-02: marketing site vanilla HTML, dashboard **Flutter Web monoc
 |---|---|---|---|---|---|
 | 8.B1.1 | Le mie tracce (lista + filtri + mappa generale) | 🟥 | M | Free | ✅ |
 | 8.B1.2 | Track detail web con mappa interattiva + grafici elevazione/HR | 🟥 | M | Free | ✅ |
-| 8.B1.3 | Pianificatore (ORS proxy + waypoint + export GPX) | 🟥 | M | Free | ⚠️ con bug "scegliere punti più vicini" da fixare |
+| 8.B1.3 | Pianificatore (ORS proxy + waypoint + export GPX) | 🟥 | M | Free | ✅ (snap radius 5km + errori strutturati con waypoint problematico evidenziato) |
 | 8.B1.4 | Profilo + statistiche personali (km, dislivello, calorie, trend) | 🟥 | M | Free | ✅ (fix layout 2026-05-10) |
 | 8.B1.5 | Sfide settimanali + classifiche regionali (mirror app mobile) | 🟨 | M | Free | ⚠️ parziale |
 

@@ -45,6 +45,10 @@ class _PlannerTabState extends State<PlannerTab> {
   RouteResult? _routeResult;
   bool _isCalculating = false;
   String? _errorMessage;
+  /// Fix 8.B1.3: indice waypoint problematico segnalato da ORS (errore
+  /// code 2010 = "no routable point near coordinate X"). UI lo colora di
+  /// rosso così l'utente sa quale spostare.
+  int? _errorWaypointIndex;
   RoutingProfile _profile = RoutingProfile.hiking;
   bool _showElevationProfile = true;
   LatLng? _userPosition;
@@ -145,6 +149,7 @@ class _PlannerTabState extends State<PlannerTab> {
     setState(() {
       _waypoints.add(point);
       _errorMessage = null;
+      _errorWaypointIndex = null;
     });
     _calculateRoute();
   }
@@ -171,6 +176,7 @@ class _PlannerTabState extends State<PlannerTab> {
       _waypoints.clear();
       _routeResult = null;
       _errorMessage = null;
+      _errorWaypointIndex = null;
     });
   }
 
@@ -191,27 +197,25 @@ class _PlannerTabState extends State<PlannerTab> {
     setState(() {
       _isCalculating = true;
       _errorMessage = null;
+      _errorWaypointIndex = null;
     });
 
-    try {
-      final result = await _routingService.calculateRoute(
-        _waypoints,
-        profile: _profile,
-      );
+    final outcome = await _routingService.calculateRouteWithDetails(
+      _waypoints,
+      profile: _profile,
+    );
 
-      setState(() {
-        _routeResult = result;
-        _isCalculating = false;
-        if (result == null) {
-          _errorMessage = context.l10n.cannotCalculateRoute;
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _isCalculating = false;
-        _errorMessage = context.l10n.errorWithDetails(e.toString());
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      _isCalculating = false;
+      if (outcome.isSuccess) {
+        _routeResult = outcome.result;
+      } else {
+        _routeResult = null;
+        _errorMessage = outcome.failure!.userMessage;
+        _errorWaypointIndex = outcome.failure!.waypointIndex;
+      }
+    });
   }
 
   Future<void> _saveRoute() async {
@@ -354,6 +358,10 @@ class _PlannerTabState extends State<PlannerTab> {
                 final point = entry.value;
                 final isFirst = index == 0;
                 final isLast = index == _waypoints.length - 1 && _waypoints.length > 1;
+                // Fix 8.B1.3: waypoint flaggato come problematico da ORS →
+                // override visivo (giallo+! e ring extra) per attirare lo
+                // sguardo sull'azione "spostami su un sentiero".
+                final hasError = index == _errorWaypointIndex;
 
                 return Marker(
                   point: point,
@@ -363,13 +371,18 @@ class _PlannerTabState extends State<PlannerTab> {
                     onLongPress: () => _removeWaypointAt(index),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isFirst 
-                            ? AppColors.success 
-                            : isLast 
-                                ? AppColors.danger 
-                                : AppColors.primary,
+                        color: hasError
+                            ? Colors.orange
+                            : isFirst
+                                ? AppColors.success
+                                : isLast
+                                    ? AppColors.danger
+                                    : AppColors.primary,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
+                        border: Border.all(
+                          color: hasError ? Colors.yellow : Colors.white,
+                          width: hasError ? 4 : 3,
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.3),
@@ -380,7 +393,7 @@ class _PlannerTabState extends State<PlannerTab> {
                       ),
                       child: Center(
                         child: Text(
-                          isFirst ? 'S' : isLast ? 'F' : '${index + 1}',
+                          hasError ? '!' : (isFirst ? 'S' : isLast ? 'F' : '${index + 1}'),
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,

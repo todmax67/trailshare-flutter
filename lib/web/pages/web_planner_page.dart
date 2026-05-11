@@ -46,6 +46,10 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
   bool _calculating = false;
   bool _saving = false;
   String? _error;
+  /// Indice (0-based) del waypoint che l'ultimo calcolo ha segnalato come
+  /// problematico. Lo mostriamo in rosso sulla mappa per aiutare l'utente
+  /// a spostarlo. null = nessun waypoint problematico.
+  int? _errorWaypointIndex;
 
   void _onMapTap(TapPosition _, LatLng latlng) {
     if (_waypoints.length >= _maxWaypoints) {
@@ -61,6 +65,7 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
       // Cambiare i waypoint invalida la route già calcolata.
       _route = null;
       _error = null;
+      _errorWaypointIndex = null;
     });
   }
 
@@ -69,6 +74,7 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
       _waypoints.removeAt(index);
       _route = null;
       _error = null;
+      _errorWaypointIndex = null;
     });
   }
 
@@ -77,6 +83,7 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
       _waypoints.clear();
       _route = null;
       _error = null;
+      _errorWaypointIndex = null;
     });
   }
 
@@ -85,29 +92,22 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
     setState(() {
       _calculating = true;
       _error = null;
+      _errorWaypointIndex = null;
     });
-    try {
-      final result = await _routingService.calculateRoute(
-        _waypoints,
-        profile: _profile,
-      );
-      if (!mounted) return;
-      setState(() {
-        _calculating = false;
-        if (result == null) {
-          _error =
-              'Routing fallito: prova waypoint più vicini o cambia attività';
-        } else {
-          _route = result;
-        }
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _calculating = false;
-        _error = 'Errore: $e';
-      });
-    }
+    final outcome = await _routingService.calculateRouteWithDetails(
+      _waypoints,
+      profile: _profile,
+    );
+    if (!mounted) return;
+    setState(() {
+      _calculating = false;
+      if (outcome.isSuccess) {
+        _route = outcome.result;
+      } else {
+        _error = outcome.failure!.userMessage;
+        _errorWaypointIndex = outcome.failure!.waypointIndex;
+      }
+    });
   }
 
   Future<void> _save() async {
@@ -221,7 +221,10 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
                 point: _waypoints[i],
                 width: 32,
                 height: 32,
-                child: _WaypointMarker(index: i + 1),
+                child: _WaypointMarker(
+                  index: i + 1,
+                  hasError: i == _errorWaypointIndex,
+                ),
               ),
           ],
         ),
@@ -443,13 +446,18 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
 
 class _WaypointMarker extends StatelessWidget {
   final int index;
-  const _WaypointMarker({required this.index});
+  /// Fix 8.B1.3: quando l'ultimo calcolo routing è fallito a causa di
+  /// questo waypoint, lo coloriamo di rosso per segnalare visivamente
+  /// che è quello da spostare.
+  final bool hasError;
+  const _WaypointMarker({required this.index, this.hasError = false});
 
   @override
   Widget build(BuildContext context) {
+    final color = hasError ? AppColors.danger : AppColors.primary;
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        color: color,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 3),
         boxShadow: [
@@ -461,7 +469,7 @@ class _WaypointMarker extends StatelessWidget {
       ),
       child: Center(
         child: Text(
-          '$index',
+          hasError ? '!' : '$index',
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
