@@ -392,7 +392,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildListTile(
             icon: Icons.email_outlined,
             title: context.l10n.contactUs,
-            subtitle: 'support@trailshare.app',
+            subtitle: 'info@trailshare.app',
             onTap: () => _openEmail(context),
           ),
           _buildListTile(
@@ -1086,10 +1086,22 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _openEmail(BuildContext context) async {
-    final uri = Uri.parse('mailto:support@trailshare.app?subject=TrailShare%20Support');
+    // Su Android 11+ canLaunchUrl(mailto:) ritorna false anche con
+    // client mail installati, a meno che AndroidManifest non dichiari
+    // la query SENDTO (vedi android/app/src/main/AndroidManifest.xml).
+    // Per maggiore robustezza tentiamo launchUrl direttamente in
+    // externalApplication mode e gestiamo l'errore.
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'info@trailshare.app',
+      query: 'subject=TrailShare Support',
+    );
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.cannotOpenEmail)),
+        );
       }
     } catch (e) {
       if (context.mounted) {
