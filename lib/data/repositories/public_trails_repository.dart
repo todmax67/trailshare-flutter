@@ -428,14 +428,15 @@ class PublicTrailsRepository {
         // Solo metadati: skip parsing coordinate per velocità
       } else {
       // PREFERITO (nuovo schema): simplifiedPoints inline nel doc index.
-      // Lista di [lon, lat], max ~30 pt — basta per render mappa.
+      // Lista di {lng, lat}, max ~30 pt — basta per render mappa.
       final simplifiedPointsRaw = data['simplifiedPoints'];
       if (simplifiedPointsRaw is List && simplifiedPointsRaw.isNotEmpty) {
         for (final p in simplifiedPointsRaw) {
-          if (p is List && p.length >= 2) {
-            final lon = (p[0] as num).toDouble();
-            final lat = (p[1] as num).toDouble();
-            if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+          if (p is Map) {
+            final lon = (p['lng'] as num?)?.toDouble();
+            final lat = (p['lat'] as num?)?.toDouble();
+            if (lon != null && lat != null &&
+                lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
               points.add(TrackPoint(latitude: lat, longitude: lon, timestamp: DateTime.now()));
             }
           }

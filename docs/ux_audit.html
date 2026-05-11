@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>TrailShare — Audit UX/UI</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+  :root{
+    --ink:#1A1A1A; --ink2:#2D3436; --ink3:#636E72; --ink4:#95A1A8;
+    --paper:#FAF9F7; --card:#FFFFFF; --rule:#E8E4DD; --rule2:#F0EBE3;
+    --orange:#E07B4C; --orange-d:#C4683F; --orange-l:#F5A67E; --orange-soft:#FDEFE6;
+    --green:#1E5E3A; --green-soft:#E7F0E9;
+    --red:#E53935; --red-soft:#FDECEB;
+    --amber:#FFA726; --amber-soft:#FFF4E1;
+    --blue:#29B6F6; --blue-soft:#E3F4FD;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'DM Sans',-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .page{max-width:1120px;margin:0 auto;padding:64px 48px 96px}
+
+  /* ——— Header ——— */
+  .masthead{border-bottom:1px solid var(--rule);padding-bottom:28px;margin-bottom:48px}
+  .eyebrow{font:600 11px/1 'DM Sans';letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:14px}
+  h1.doc-title{font:700 54px/1.02 'Outfit';letter-spacing:-.025em;margin:0 0 14px;color:var(--ink)}
+  .lede{font:400 18px/1.55 'DM Sans';color:var(--ink3);max-width:760px;margin:0}
+  .meta{display:flex;gap:28px;margin-top:22px;font:500 12px/1.3 'DM Sans';color:var(--ink4);letter-spacing:.03em}
+  .meta span b{color:var(--ink2);font-weight:600}
+
+  /* ——— Section ——— */
+  section{margin-bottom:64px}
+  .section-head{display:flex;align-items:baseline;gap:16px;margin-bottom:24px;padding-bottom:10px;border-bottom:1px solid var(--rule2)}
+  .section-n{font:700 13px/1 'Outfit';color:var(--orange);letter-spacing:.1em;width:36px}
+  h2{font:700 30px/1.1 'Outfit';letter-spacing:-.02em;margin:0;color:var(--ink)}
+  .section-sub{font:400 15px/1.5 'DM Sans';color:var(--ink3);margin:8px 0 0 52px;max-width:720px}
+
+  /* ——— Executive ——— */
+  .exec{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .exec .box{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:24px 26px}
+  .exec h3{font:700 13px/1 'DM Sans';letter-spacing:.14em;text-transform:uppercase;margin:0 0 14px}
+  .exec.win h3{color:var(--green)} .exec.loss h3{color:var(--red)}
+  .exec ul{margin:0;padding:0;list-style:none}
+  .exec li{font:500 15px/1.4 'DM Sans';color:var(--ink2);padding:10px 0;border-bottom:1px dashed var(--rule2);display:flex;gap:10px}
+  .exec li:last-child{border:0}
+  .exec li .dot{flex:0 0 6px;width:6px;height:6px;border-radius:50%;margin-top:8px}
+  .win .dot{background:var(--green)} .loss .dot{background:var(--red)}
+
+  /* ——— Findings grid ——— */
+  .findings{display:grid;grid-template-columns:1fr;gap:16px}
+  .finding{background:var(--card);border:1px solid var(--rule);border-radius:14px;overflow:hidden}
+  .finding-hd{display:grid;grid-template-columns:64px 1fr auto auto;align-items:center;gap:16px;padding:18px 22px;border-bottom:1px solid var(--rule2)}
+  .f-num{font:700 22px/1 'Outfit';color:var(--ink4);letter-spacing:-.02em}
+  .f-title{font:600 19px/1.25 'Outfit';color:var(--ink);letter-spacing:-.01em}
+  .f-scope{font:500 11px/1 'DM Sans';text-transform:uppercase;letter-spacing:.1em;color:var(--ink4);padding:6px 10px;border:1px solid var(--rule);border-radius:999px}
+  .sev{font:700 10px/1 'DM Sans';text-transform:uppercase;letter-spacing:.12em;padding:7px 11px;border-radius:999px}
+  .sev-hi{color:#fff;background:var(--red)}
+  .sev-md{color:var(--ink);background:var(--amber)}
+  .sev-lo{color:#fff;background:var(--green)}
+  .finding-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .f-col{padding:18px 22px}
+  .f-col + .f-col{border-left:1px solid var(--rule2)}
+  .f-label{font:600 10px/1 'DM Sans';letter-spacing:.14em;text-transform:uppercase;color:var(--ink4);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .f-label.now::before{content:'';width:8px;height:8px;background:var(--red);border-radius:2px}
+  .f-label.fix::before{content:'';width:8px;height:8px;background:var(--green);border-radius:2px}
+  .f-text{font:400 14px/1.55 'DM Sans';color:var(--ink2)}
+  .f-text code{font:500 12px/1.4 ui-monospace,Menlo,monospace;background:var(--paper);padding:1px 6px;border-radius:4px;color:var(--ink)}
+
+  /* ——— Priority table ——— */
+  .prio{background:var(--card);border:1px solid var(--rule);border-radius:14px;overflow:hidden}
+  .prio-row{display:grid;grid-template-columns:48px 1fr 120px 120px 100px;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--rule2);font:500 14px/1.3 'DM Sans'}
+  .prio-row:last-child{border:0}
+  .prio-row.hd{background:var(--paper);font:600 10px/1 'DM Sans';letter-spacing:.14em;text-transform:uppercase;color:var(--ink4);padding:13px 20px}
+  .prio-num{font:700 16px/1 'Outfit';color:var(--orange)}
+  .pill{font:600 11px/1 'DM Sans';padding:6px 10px;border-radius:999px;display:inline-block;letter-spacing:.04em}
+  .pill.hi{background:var(--red-soft);color:var(--red)}
+  .pill.md{background:var(--amber-soft);color:var(--amber)}
+  .pill.lo{background:var(--green-soft);color:var(--green)}
+  .pill.s{background:var(--green-soft);color:var(--green)}
+  .pill.m{background:var(--amber-soft);color:var(--amber)}
+  .pill.l{background:var(--red-soft);color:var(--red)}
+
+  /* ——— Micro sketches ——— */
+  .sketch{background:var(--paper);border:1px dashed var(--rule);border-radius:10px;padding:12px;margin-top:12px;font:500 12px/1.4 ui-monospace,Menlo,monospace;color:var(--ink3);white-space:pre-wrap}
+
+  /* ——— Closing ——— */
+  .ask{background:var(--ink);color:#fff;border-radius:16px;padding:36px 40px;margin-top:40px}
+  .ask h3{font:700 22px/1.2 'Outfit';margin:0 0 10px;letter-spacing:-.01em}
+  .ask p{font:400 15px/1.55 'DM Sans';color:#D5D5D0;margin:0 0 16px;max-width:640px}
+  .ask ul{margin:0;padding-left:20px;color:#D5D5D0;font:400 14px/1.6 'DM Sans'}
+  .ask li{margin:4px 0}
+  .ask li b{color:#fff;font-weight:600}
+
+  @media (max-width: 760px){
+    .page{padding:40px 24px}
+    .exec{grid-template-columns:1fr}
+    .finding-hd{grid-template-columns:1fr auto;row-gap:8px}
+    .f-num{display:none} .f-scope{grid-column:1}
+    .finding-body{grid-template-columns:1fr}
+    .f-col + .f-col{border-left:0;border-top:1px solid var(--rule2)}
+    .prio-row{grid-template-columns:1fr;gap:4px;padding:14px 16px}
+    .prio-row.hd{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="eyebrow">Audit UX / UI · TrailShare Flutter</div>
+    <h1 class="doc-title">Analisi dell'app: cosa funziona, cosa migliorare.</h1>
+    <p class="lede">Lettura del codice attuale (<code>lib/presentation/pages/*</code>, <code>app_themes.dart</code>, <code>app_colors.dart</code>) con focus su <b>Home / BottomNav</b>, <b>Record</b>, <b>Dashboard</b>, <b>Discover</b>, <b>Profile</b>. L'obiettivo è identificare dove l'esperienza è già solida e dove il design può diventare più leggibile, più coerente e più "outdoor-first".</p>
+    <div class="meta">
+      <span><b>Scope</b> · App mobile</span>
+      <span><b>Fonte</b> · todmax67/trailshare-flutter@main</span>
+      <span><b>Framework</b> · Flutter + Material 3</span>
+      <span><b>Data</b> · 22 Aprile 2026</span>
+    </div>
+  </header>
+
+  <!-- ═════════════════════ EXECUTIVE ═════════════════════ -->
+  <section>
+    <div class="section-head"><div class="section-n">01</div><h2>In sintesi</h2></div>
+    <p class="section-sub">TrailShare ha una base tecnica molto solida e un'identità cromatica riconoscibile. I margini di miglioramento più grandi sono su <b>gerarchia visiva</b>, <b>densità informativa</b> e <b>coerenza cross-screen</b> — più che sui singoli componenti.</p>
+
+    <div class="exec">
+      <div class="box win">
+        <h3>◆ Punti di forza</h3>
+        <ul>
+          <li><span class="dot"></span><div><b>Colore primario distintivo.</b> L'arancio <code>#E07B4C</code> è caldo, unico nel panorama delle app outdoor (che sono tutte verdi/blu) e fa da ancora visiva forte.</div></li>
+          <li><span class="dot"></span><div><b>Sistema semantico completo.</b> <code>speedGradient</code> e <code>slopeGradient</code> sono già definiti a livello di design token — cosa rara, molto utile per le mappe.</div></li>
+          <li><span class="dot"></span><div><b>BottomNav con Record centrale prominente.</b> Pattern Strava-like corretto per un'app il cui "verbo" è registrare.</div></li>
+          <li><span class="dot"></span><div><b>Dark theme di prima classe.</b> Non un afterthought — <code>ThemeColorsExtension</code> centralizza le decisioni e il filtro CartoDB per i tile notturni è un dettaglio da veterani.</div></li>
+          <li><span class="dot"></span><div><b>Typography choice corretta.</b> Outfit geometrica per display + system body = leggibilità massima in esterna, sotto il sole, con il dito sudato.</div></li>
+          <li><span class="dot"></span><div><b>Material 3 adottato correttamente,</b> con <code>colorScheme</code> completo e <code>useMaterial3: true</code>.</div></li>
+        </ul>
+      </div>
+
+      <div class="box loss">
+        <h3>◆ Punti da migliorare</h3>
+        <ul>
+          <li><span class="dot"></span><div><b>Gerarchia piatta nelle schermate informative.</b> Dashboard e Profile usano troppi card uguali — il tuo occhio non sa dove guardare prima.</div></li>
+          <li><span class="dot"></span><div><b>Densità eccessiva nei card statistica.</b> Titolo + icona + valore + unità in 12px di padding = tutto compete per l'attenzione.</div></li>
+          <li><span class="dot"></span><div><b>Emoji nelle SnackBar</b> (<code>⌚ ✅ ❌</code>) rompono il tono "strumento serio" — bene per confidence, male per brand.</div></li>
+          <li><span class="dot"></span><div><b>Filter chips inconsistenti.</b> Dashboard ha pillole rotonde, Discover ne usa altre — va unificato.</div></li>
+          <li><span class="dot"></span><div><b>Stato vuoto generico.</b> <code>Icons.analytics_outlined</code> grigio 80px + testo = il 90% delle app fa così. Occasione persa.</div></li>
+          <li><span class="dot"></span><div><b>record_page.dart è 134 KB.</b> Sintomo: la schermata che deve essere <i>più semplice possibile</i> porta il peso dell'app. Da rifattorizzare con una gerarchia modale chiara (idle / registrazione / pausa / stop).</div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════ FINDINGS ═════════════════════ -->
+  <section>
+    <div class="section-head"><div class="section-n">02</div><h2>Osservazioni puntuali</h2></div>
+    <p class="section-sub">Dieci interventi ad alto ritorno. Ogni card ha <b>cosa succede oggi</b> (rosso) e <b>come migliorarlo</b> (verde).</p>
+
+    <div class="findings" style="margin-top:24px">
+
+      <!-- F01 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">01</div>
+          <div class="f-title">Il pulsante Record è un cerchio semplice. Meritano di più.</div>
+          <div class="f-scope">Home · BottomNav</div>
+          <div class="sev sev-hi">Impatto alto</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text">Il <code>_RecordButton</code> è un cerchio 52px con gradiente arancio e icona <code>radio_button_unchecked</code>. È prominente, ma statico — non suggerisce "sto registrando" né attira l'occhio rispetto ai 4 nav item standard.</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">Quando una registrazione è <b>attiva</b>, il bottone deve <b>pulsare</b> (ring espanso con alpha) e mostrare l'icona stop quadrato. Quando è <b>in pausa</b>, icona pausa + ring statico ambra. Quando è <b>idle</b>, icona record classica. Stato comunicato istantaneamente da qualsiasi schermata.</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- F02 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">02</div>
+          <div class="f-title">Dashboard: 4 stat card identici → nessuna gerarchia.</div>
+          <div class="f-scope">Dashboard</div>
+          <div class="sev sev-hi">Impatto alto</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text"><code>GridView(crossAxisCount: 2)</code> con quattro <code>_StatCard</code> uguali: Tracce · Distanza · Dislivello · Tempo. Ogni card ha colore diverso ma peso visivo identico — l'occhio non sa qual è <i>la</i> metrica importante.</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">Un <b>"hero stat"</b> full-width in cima (es. "Questa settimana: 47 km", numero grande Outfit 56) + tre satellite più piccoli sotto. Stesso contenuto, 10× di leggibilità al colpo d'occhio.</div>
+            <div class="sketch">┌────────────────────────────┐
+│  47 km                     │
+│  questa settimana          │
+└────────────────────────────┘
+┌────────┐ ┌────────┐ ┌────────┐
+│  842m  │ │ 4h 12' │ │  3 out │
+│ D+     │ │ tempo  │ │ tracce │
+└────────┘ └────────┘ └────────┘</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- F03 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">03</div>
+          <div class="f-title">Empty state ripetitivo: icona grigia + testo.</div>
+          <div class="f-scope">Dashboard · Tracks · Wishlist</div>
+          <div class="sev sev-md">Impatto medio</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text"><code>Icon(Icons.analytics_outlined, size: 80, color: Colors.grey[300])</code> + titolo + sottotitolo. Replicato in più schermate. Funziona, ma non invita all'azione e non racconta il brand.</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">Illustrazione line-art <b>topografica</b> coerente con il brand (curve di livello stilizzate + piccolo pin arancione) + CTA primaria ("Registra la prima uscita") al posto del testo passivo. Tre illustrazioni distinte per Dashboard/Tracce/Wishlist, stesso stile.</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- F04 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">04</div>
+          <div class="f-title">SnackBar con emoji rompono il tono "strumento".</div>
+          <div class="f-scope">Global · Home (Garmin sync)</div>
+          <div class="sev sev-md">Impatto medio</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text"><code>'⌚ Garmin: ricezione traccia...'</code>, <code>'✅ Traccia Garmin importata!'</code>, <code>'❌ Errore Garmin'</code>. Emoji come sostituti di icone reali.</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">SnackBar custom con <b>icona Material + fondo colorato semantico</b> (success/warning/error dal design system). Più professionale, più accessibile (screen reader), più brand-coerente. Le emoji restano solo in UGC (titoli tracce che scrive l'utente).</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- F05 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">05</div>
+          <div class="f-title">record_page.dart è un monolite da 134 KB.</div>
+          <div class="f-scope">Record · Architettura</div>
+          <div class="sev sev-hi">Impatto alto</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text">Un singolo file gestisce: mappa, tracking GPS, stats live, dialog di salvataggio, scelta attività, POI, lifeline, follow trail. Il risultato è difficile da mantenere e probabilmente difficile da <i>vivere</i> per l'utente sotto stress (= in movimento).</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">Machine a stati chiara: <code>idle</code> → <code>recording</code> → <code>paused</code> → <code>review</code>. Ogni stato ha una <b>UI distinta e semplice</b>. Durante <code>recording</code> la mappa è full-bleed, solo 3 metriche visibili (tempo · km · D+), resto accessibile con swipe-up bottom sheet. Meno è di più quando stai scalando.</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- F06 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">06</div>
+          <div class="f-title">Numeri delle stats non sfruttano tabular-nums né Outfit.</div>
+          <div class="f-scope">Global · Cards · Dashboard</div>
+          <div class="sev sev-md">Impatto medio</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text">Valori tipo <code>"12.4 km"</code>, <code>"842 m"</code> renderizzati con <code>FontWeight.bold</code> sul font di sistema. I numeri hanno larghezze proporzionali → scivolano quando cambiano da 1 a 10.</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">Numeri di statistica sempre in <b>Outfit 700</b> con <code>fontFeatures: [FontFeature.tabularFigures()]</code>. Unità in font body, 60% size, a lato. Stat diventano leggibili al volo e scorrono con stabilità durante il tracking live.</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- F07 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">07</div>
+          <div class="f-title">Discover è l'ingranaggio di crescita — ma è la 1ª tab.</div>
+          <div class="f-scope">Home · Information Architecture</div>
+          <div class="sev sev-md">Impatto medio</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text">Ordine tab: <b>Scopri · Community · Record · Tracce · Profilo</b>. Default = Community (buono). Ma "Scopri" è a sinistra (posizione prima) anche se per un utente al ritorno non è il flusso principale.</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">Due opzioni, da testare: (a) <b>Tracce prima</b> ("le mie cose", classico Strava) → Community → Record → Scopri → Profilo. (b) Tenere Community default ma dare a <i>Scopri</i> un entry point nell'header di Community (es. "Vicino a te" carousel), liberando slot per <b>Dashboard</b> come tab dedicata.</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- F08 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">08</div>
+          <div class="f-title">Card radius 12px ovunque → manca ritmo visivo.</div>
+          <div class="f-scope">Global · Visual</div>
+          <div class="sev sev-lo">Impatto basso</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text">Ogni Card, ogni bottone, ogni input, ogni dialog → <code>BorderRadius.circular(12)</code>. BottomSheet fa 20, solo. Uniformità noiosa: tutto ha lo stesso "peso" tattile.</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">Scala coerente: <b>8</b> per chips/badge · <b>12</b> per input/bottoni · <b>16</b> per card di contenuto · <b>24</b> per dialog/bottomsheet · <b>full</b> per pill-tag. Il sistema già esiste nel codice (8/12/16/20) — va solo applicato con <i>intenzione</i> invece che di default.</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- F09 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">09</div>
+          <div class="f-title">Mancano stati di "protezione" sopra la mappa.</div>
+          <div class="f-scope">Record · Map · Discover</div>
+          <div class="sev sev-md">Impatto medio</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text">Pannelli stat sopra mappa tile = testo scuro su satellite ad alta varianza. In zone luminose (neve, rocce chiare) il contrasto scende sotto il leggibile.</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">Due tecniche, da combinare:<br>(a) <b>Capsule chips</b> — pastiglie bianche con shadow leggera per le stat mobili (tempo, km, velocità).<br>(b) <b>Scrim gradient</b> — overlay nero 0→40% alto 80px sotto i controlli fissi (FAB, nav). Entrambe standard nei tool outdoor seri (Gaia, Komoot).</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- F10 -->
+      <article class="finding">
+        <header class="finding-hd">
+          <div class="f-num">10</div>
+          <div class="f-title">Il brand ha una seconda dimensione inespressa: verde foresta.</div>
+          <div class="f-scope">Brand · Design System</div>
+          <div class="sev sev-lo">Impatto basso · ROI alto</div>
+        </header>
+        <div class="finding-body">
+          <div class="f-col">
+            <div class="f-label now">Oggi</div>
+            <div class="f-text">Il <code>store_logo.png</code> ha un verde bosco profondo che <b>non compare mai</b> in app. Il green semantico usato è <code>#4CAF50</code> (Material default) — sterile, clinico. Il brand ha un'anima più ricca e non la sta mostrando.</div>
+          </div>
+          <div class="f-col">
+            <div class="f-label fix">Proposta</div>
+            <div class="f-text">Introdurre <b>Forest Green</b> <code>#1E5E3A</code> come <i>secondary</i> ufficiale. Usato per: Lifeline (contatti sicuri), tag "completato", badge community, sfondi di sezioni quiete. L'arancio resta <i>azione</i>; il verde diventa <i>fiducia</i>. Due emozioni, stesso brand.</div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ═════════════════════ ROADMAP ═════════════════════ -->
+  <section>
+    <div class="section-head"><div class="section-n">03</div><h2>Priorità consigliate</h2></div>
+    <p class="section-sub">Ordinato per <b>impatto sulla percezione</b> × <b>sforzo di implementazione</b>. I primi tre cambiano l'app sensibilmente in pochi giorni di lavoro.</p>
+
+    <div class="prio" style="margin-top:20px">
+      <div class="prio-row hd">
+        <div>#</div><div>Intervento</div><div>Impatto</div><div>Sforzo</div><div>Sprint</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">1</div>
+        <div><b>Dashboard hero stat</b> + gerarchia riscritta (F02)</div>
+        <div><span class="pill hi">Alto</span></div>
+        <div><span class="pill s">S</span></div>
+        <div>1</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">2</div>
+        <div><b>Stati del Record button</b> (idle/rec/pause) (F01)</div>
+        <div><span class="pill hi">Alto</span></div>
+        <div><span class="pill s">S</span></div>
+        <div>1</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">3</div>
+        <div><b>Sistema numerale Outfit + tabular-nums</b> (F06)</div>
+        <div><span class="pill md">Medio</span></div>
+        <div><span class="pill s">S</span></div>
+        <div>1</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">4</div>
+        <div><b>Forest Green secondary</b> in palette (F10)</div>
+        <div><span class="pill md">Medio</span></div>
+        <div><span class="pill s">S</span></div>
+        <div>1</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">5</div>
+        <div><b>SnackBar custom</b> (via emoji) (F04)</div>
+        <div><span class="pill md">Medio</span></div>
+        <div><span class="pill s">S</span></div>
+        <div>2</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">6</div>
+        <div><b>Scala di radius intenzionale</b> (F08)</div>
+        <div><span class="pill lo">Basso</span></div>
+        <div><span class="pill s">S</span></div>
+        <div>2</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">7</div>
+        <div><b>Capsule + scrim</b> sopra mappa (F09)</div>
+        <div><span class="pill md">Medio</span></div>
+        <div><span class="pill m">M</span></div>
+        <div>2</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">8</div>
+        <div><b>Illustrazioni empty state topografiche</b> (F03)</div>
+        <div><span class="pill md">Medio</span></div>
+        <div><span class="pill m">M</span></div>
+        <div>2</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">9</div>
+        <div><b>A/B test IA BottomNav</b> (F07)</div>
+        <div><span class="pill md">Medio</span></div>
+        <div><span class="pill m">M</span></div>
+        <div>3</div>
+      </div>
+      <div class="prio-row">
+        <div class="prio-num">10</div>
+        <div><b>Rifattorizzazione Record (state machine)</b> (F05)</div>
+        <div><span class="pill hi">Alto</span></div>
+        <div><span class="pill l">L</span></div>
+        <div>3–4</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════ ASK ═════════════════════ -->
+  <div class="ask">
+    <h3>Da dove partiamo?</h3>
+    <p>Questo è un audit "a freddo" basato sul codice. Per trasformarlo in un piano operativo mi serve sapere:</p>
+    <ul>
+      <li><b>Quali schermate</b> vuoi ridisegnare per prime? Propongo Dashboard + Record (alto ROI).</li>
+      <li><b>Possiamo vedere l'app in uso</b> (screenshot reali, screen recording)? Il codice non racconta come l'hai sentita sul campo.</li>
+      <li><b>Ci sono vincoli di roadmap</b> o feature in arrivo di cui tenere conto?</li>
+      <li><b>Il verde bosco #1E5E3A è ok</b>, o preferisci campionare altrove dal logo?</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

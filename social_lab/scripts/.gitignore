@@ -1,0 +1,4 @@
+node_modules/
+sa-bridge-writer.json
+.env
+*.log

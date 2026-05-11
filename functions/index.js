@@ -3432,20 +3432,19 @@ exports.stravaReconcilePending = onSchedule(
 const ADMIN_EMAILS = ['admin@trailshare.app', 'todde.massimiliano@gmail.com', 'info@bluspose.it'];
 
 function _sampleEvenly(coords, maxPoints) {
+  // Output: lista di {lng, lat} — Firestore non accetta array di array.
   if (!Array.isArray(coords) || coords.length === 0) return [];
-  if (coords.length <= maxPoints) {
-    return coords.map((c) => [Number(c[0]), Number(c[1])]);
-  }
+  const toPt = (c) => ({ lng: Number(c[0]), lat: Number(c[1]) });
+  if (coords.length <= maxPoints) return coords.map(toPt);
   const stride = coords.length / maxPoints;
   const out = [];
   for (let i = 0; i < maxPoints; i++) {
     const idx = Math.min(coords.length - 1, Math.floor(i * stride));
-    out.push([Number(coords[idx][0]), Number(coords[idx][1])]);
+    out.push(toPt(coords[idx]));
   }
-  const last = coords[coords.length - 1];
-  if (out.length === 0 || out[out.length - 1][0] !== Number(last[0]) || out[out.length - 1][1] !== Number(last[1])) {
-    out.push([Number(last[0]), Number(last[1])]);
-  }
+  const last = toPt(coords[coords.length - 1]);
+  const tail = out[out.length - 1];
+  if (!tail || tail.lng !== last.lng || tail.lat !== last.lat) out.push(last);
   return out;
 }
 

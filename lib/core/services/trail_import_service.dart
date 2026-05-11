@@ -730,23 +730,22 @@ class TrailImportService {
     return [lon, lat];
   }
 
-  /// Campiona N punti equidistanti da un tracciato completo (per simplifiedPoints).
-  /// Output: List<List<double>> [[lon,lat], ...]. Drop elevazione (non serve in mappa).
-  List<List<double>> _samplePoints(List<List<double>> coords, int maxPoints) {
+  /// Campiona N punti equidistanti per simplifiedPoints.
+  /// Output: List<Map<String,double>> [{lng, lat}, ...]. Firestore non
+  /// accetta array di array, per questo usiamo lista di mappe.
+  List<Map<String, double>> _samplePoints(List<List<double>> coords, int maxPoints) {
     if (coords.isEmpty) return const [];
-    if (coords.length <= maxPoints) {
-      return coords.map((c) => [c[0], c[1]]).toList();
-    }
+    Map<String, double> toPt(List<double> c) => {'lng': c[0], 'lat': c[1]};
+    if (coords.length <= maxPoints) return coords.map(toPt).toList();
     final stride = coords.length / maxPoints;
-    final out = <List<double>>[];
+    final out = <Map<String, double>>[];
     for (int i = 0; i < maxPoints; i++) {
       final idx = (i * stride).floor().clamp(0, coords.length - 1);
-      out.add([coords[idx][0], coords[idx][1]]);
+      out.add(toPt(coords[idx]));
     }
-    // Garantisci punto finale.
-    final last = coords.last;
-    if (out.last[0] != last[0] || out.last[1] != last[1]) {
-      out.add([last[0], last[1]]);
+    final last = toPt(coords.last);
+    if (out.last['lng'] != last['lng'] || out.last['lat'] != last['lat']) {
+      out.add(last);
     }
     return out;
   }

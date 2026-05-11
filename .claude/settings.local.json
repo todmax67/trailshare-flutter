@@ -4,7 +4,28 @@
       "Bash(flutter analyze:*)",
       "Bash(xargs basename *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'chore: track social_lab/assets structure while excluding media files *)"
+      "Bash(git commit -m 'chore: track social_lab/assets structure while excluding media files *)",
+      "Bash(chmod +x /Volumes/Lexar/Sviluppo/trailshare_flutter/tool/fetch_italian_pois.sh)",
+      "Bash(chmod +x tool/clean_italian_pois.sh)",
+      "Bash(bash tool/clean_italian_pois.sh)",
+      "Bash(flutter pub *)",
+      "Bash(flutter test *)",
+      "Bash(cp pubspec.yaml /tmp/pubspec_full2.yaml)",
+      "Bash(git checkout *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(chmod +x tool/fetch_italian_huts.sh)",
+      "Bash(bash tool/fetch_italian_huts.sh)",
+      "Bash(curl -s -X POST --data-urlencode 'data=[out:json][timeout:30];node[\"tourism\"=\"alpine_hut\"]\\(45.95,9.85,46.10,10.10\\);out;' https://overpass-api.de/api/interpreter)",
+      "Bash(curl -s -X POST --data-urlencode 'data=[out:json][timeout:30];\\(way[\"name\"~\"Curò\",i]\\(46.0,9.95,46.1,10.10\\);node[\"name\"~\"Curò\",i]\\(46.0,9.95,46.1,10.10\\);\\);out tags;' https://overpass-api.de/api/interpreter)",
+      "Bash(chmod +x /tmp/fetch_alpi_nw.sh)",
+      "Bash(bash /tmp/fetch_alpi_nw.sh)",
+      "Bash(curl -sIL https://trailshare.app/privacy)",
+      "Bash(curl -sIL https://trailshare.app/terms)",
+      "Bash(curl -sL https://trailshare.app/privacy)",
+      "Bash(curl -sIL https://app.trailshare.app)",
+      "Bash(curl -sL https://app.trailshare.app -o /tmp/app.html)",
+      "Read(//tmp/**)"
     ]
   }
 }
