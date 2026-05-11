@@ -14,6 +14,7 @@ import 'trail_detail_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/constants/api_keys.dart';
+import '../../../core/constants/italian_regions.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../widgets/map_layer_button.dart';
 import 'models/discover_filters.dart';
@@ -214,6 +215,18 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
       // Solo circolari
       if (_filters.onlyCircular && !trail.isCircular) return false;
+
+      // Epic 4.5 — filtro per regione amministrativa: il trail deve
+      // partire dentro il bbox della regione selezionata. La regione
+      // sentinella `international` ha bbox vuoto e contains() ritorna
+      // sempre false, ma il picker la esclude dall'elenco.
+      if (_filters.regionCode != null && _filters.regionCode!.isNotEmpty) {
+        final region = ItalianRegions.byCode(_filters.regionCode);
+        if (region == null) return false;
+        if (trail.points.isEmpty) return false;
+        final start = trail.points.first;
+        if (!region.contains(start.latitude, start.longitude)) return false;
+      }
 
       return true;
     }).toList();

@@ -106,7 +106,7 @@ Target: aumentare ritenzione e dwell time.
 | 4.2 | Navigazione: waypoint intermedi | 🟨 | XS | ☐ |
 | 4.3 | Navigazione: pausa automatica se fermo >5 min | 🟨 | XS | ☐ |
 | 4.4 | Discover: ricerca testuale full-text | 🟧 | S | ☐ |
-| 4.5 | Discover: filtro per regione amministrativa | 🟨 | S | ⚠️ parziale |
+| 4.5 | Discover: filtro per regione amministrativa | 🟨 | S | ✅ (bbox 20 regioni + sezione filter sheet) |
 | 4.6 | Track detail: grafico HR per zone (cardiac zones) | 🟨 | S | ☐ — Pro feature naturale |
 | 4.7 | Track detail: confronto con PR personale | 🟨 | M | ☐ — engagement booster |
 | 4.8 | Track detail: split per km con tempo cumulativo | 🟩 | XS | ✅ |
