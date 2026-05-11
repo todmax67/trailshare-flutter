@@ -238,15 +238,15 @@ Riusa pagine mobile in dialog. Decisione strategica 2026-05-02: Flutter Web mono
 
 | # | Feature | Priorità | Effort | Tier | Status |
 |---|---|---|---|---|---|
-| 7.C1 | **Percorsi consigliati** sul profilo business (track già esistenti + curate dal business) | 🟥 | M | Business | ☐ — caso d'uso originale del noleggio |
-| 7.C2 | **Reviews & rating system** (1-5 stelle + commento, moderation lato owner) | 🟥 | L | Business | ☐ |
-| 7.C3 | **Statistiche profilo business** (visite, click contatti, conversion follow) | 🟧 | M | Business | ☐ |
-| 7.C4 | Mappa-picker per riposizionare business (oggi solo create-time) | 🟧 | S | Business | ☐ |
-| 7.C5 | Push notifiche FCM ai follower per business posts | 🟧 | S | Business | ☐ |
+| 7.C1 | **Percorsi consigliati** sul profilo business (track già esistenti + curate dal business) | 🟥 | M | Business | ✅ (BusinessRecommendedTracksManager + Picker live) |
+| 7.C2 | **Reviews & rating system** (1-5 stelle + commento, moderation lato owner) | 🟥 | L | Business | ✅ (BusinessReviewsPage con avg rating + distribuzione + composer + owner moderation) |
+| 7.C3 | **Statistiche profilo business** (visite, click contatti, conversion follow) | 🟧 | M | Business | ✅ (BusinessAnalyticsPage: 4 KPI + fl_chart line + breakdown contatti) |
+| 7.C4 | Mappa-picker per riposizionare business (oggi solo create-time) | 🟧 | S | Business | ✅ (BusinessLocationPickerPage center-pin pattern) |
+| 7.C5 | Push notifiche FCM ai follower per business posts | 🟧 | S | Business | ✅ (Cloud Function onBusinessPostCreated multicast) |
 | 7.C6 | Self-serve onboarding wizard B2B web (oltre B-flow admin) | 🟧 | M | Business | ☐ |
-| 7.C7 | Linked group opzionale Pro tier (community VIP clienti) | 🟨 | S | Business | ☐ |
+| 7.C7 | Linked group opzionale Pro tier (community VIP clienti) | 🟨 | S | Business | ✅ (BusinessCommunitySheet: crea/collega/scollega; gating Pro-equivalent bidirezionale) |
 | 7.C8 | Bulk import tracce GPX dal web admin (drag&drop) | 🟨 | M | Business | ☐ |
-| 7.C9 | Generatore card invito QR PDF (logo + colori) | 🟨 | M | Business | ☐ |
+| 7.C9 | Generatore card invito QR PDF (logo + colori) | 🟨 | M | Business | ✅ (BusinessQrCardPage 9:16 brandizzata + share PNG via RepaintBoundary 3x; deep link trailshare://b/{id} + https://trailshare.app/b/{slug}) |
 
 ### 7.D — Pagine pubbliche e SEO (target v2.6.0)
 
@@ -255,7 +255,7 @@ Riusa pagine mobile in dialog. Decisione strategica 2026-05-02: Flutter Web mono
 | 7.D1 | Landing pubblica `/b/{slug}` brandizzata (hero, listino, post, mappa) | 🟧 | M | Free | ☐ |
 | 7.D2 | OG tags + Twitter card + Schema.org `LocalBusiness` per ranking | 🟨 | S | Free | ☐ |
 | 7.D3 | Map view aggregata di tutte le tracce consigliate del business | 🟧 | S | Free | ☐ |
-| 7.D4 | CTA "Scarica TrailShare e segui" con QR pre-popolato | 🟥 | S | Free | ☐ |
+| 7.D4 | CTA "Scarica TrailShare e segui" con QR pre-popolato | 🟥 | S | Free | ✅ (inglobata in 7.C9: la card QR contiene CTA "Apri TrailShare per seguire") |
 | 7.D5 | Custom domain support (es. `mtb.baitaduturhotel.it` → Spazio Pro) | 🟩 | L | Enterprise | ☐ |
 
 ### 7.E — Monetization Spazi Pro (target v2.4.0, dipende P.IVA + commercialista)

@@ -5,19 +5,22 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../app.dart';
+import '../../data/repositories/business_repository.dart';
 import '../../data/repositories/groups_repository.dart';
+import '../../presentation/pages/business/business_profile_page.dart';
 import '../../presentation/pages/groups/group_detail_page.dart';
 
 /// Singleton che gestisce i deep link in ingresso.
 ///
-/// Scheme custom supportato:
+/// Scheme custom supportati:
 /// - `trailshare://g/{code}` — join al gruppo via codice invito
+/// - `trailshare://b/{businessId}` — apre profilo Spazio Pro (7.C9)
+/// - `https://trailshare.app/g/{code}` — universal link gruppo
+/// - `https://trailshare.app/b/{slug}` — universal link Spazio Pro (slug)
 ///
-/// Per il momento gestiamo solo il flusso "join gruppo" (Card invito
-/// brandizzata Business). Quando aggiungeremo Universal Links su
-/// `https://trailshare.app/...` l'handler riconoscerà anche quei
-/// pattern senza modifiche al sito (la parte web è già pronta come
-/// pagina ponte).
+/// L'Universal Link/App Link richiede file ben noti su trailshare.app
+/// (`.well-known/apple-app-site-association` + `assetlinks.json`) —
+/// quando saranno pubblicati, il routing è già pronto qui.
 class DeepLinkService {
   DeepLinkService._();
   static final DeepLinkService _instance = DeepLinkService._();
@@ -25,6 +28,7 @@ class DeepLinkService {
 
   final AppLinks _appLinks = AppLinks();
   final GroupsRepository _repo = GroupsRepository();
+  final BusinessRepository _businessRepo = BusinessRepository();
   StreamSubscription<Uri>? _sub;
   bool _initialized = false;
 
@@ -56,6 +60,15 @@ class DeepLinkService {
       return;
     }
 
+    // 7.C9 — link Spazio Pro: trailshare://b/{id} oppure
+    // https://trailshare.app/b/{slug}. L'id custom-scheme è il doc id,
+    // lo slug universal-link è quello human-readable.
+    final businessRef = _extractBusinessRef(uri);
+    if (businessRef != null) {
+      await _handleBusinessRef(businessRef);
+      return;
+    }
+
     final code = _extractGroupCode(uri);
     if (code != null && code.isNotEmpty) {
       await _handleGroupCode(code);
@@ -70,6 +83,54 @@ class DeepLinkService {
         ? 'Strava collegato ✓'
         : 'Errore Strava: ${uri.queryParameters['msg'] ?? 'sconosciuto'}';
     ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// 7.C9 — Estrae il riferimento a uno Spazio Pro dall'URI.
+  /// Ritorna `(isSlug, value)` dove isSlug=true se proviene da Universal
+  /// Link (serve risolvere via slug), false se proviene dallo scheme
+  /// custom (è già un doc id).
+  ({bool isSlug, String value})? _extractBusinessRef(Uri uri) {
+    if (uri.scheme == 'trailshare' && uri.host == 'b') {
+      if (uri.pathSegments.isNotEmpty) {
+        return (isSlug: false, value: uri.pathSegments.first);
+      }
+    }
+    if ((uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host == 'trailshare.app' &&
+        uri.pathSegments.length >= 2 &&
+        uri.pathSegments.first == 'b') {
+      return (isSlug: true, value: uri.pathSegments[1]);
+    }
+    return null;
+  }
+
+  Future<void> _handleBusinessRef(({bool isSlug, String value}) ref) async {
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
+    String? businessId;
+    try {
+      if (ref.isSlug) {
+        final business = await _businessRepo.getBusinessBySlug(ref.value);
+        businessId = business?.id;
+      } else {
+        businessId = ref.value;
+      }
+    } catch (e) {
+      debugPrint('[DeepLink] business lookup error: $e');
+    }
+    final freshCtx = navigatorKey.currentContext;
+    if (freshCtx == null || !freshCtx.mounted) return;
+    if (businessId == null) {
+      ScaffoldMessenger.of(freshCtx).showSnackBar(
+        const SnackBar(content: Text('Spazio Pro non trovato')),
+      );
+      return;
+    }
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => BusinessProfilePage(businessId: businessId!),
+      ),
+    );
   }
 
   /// Riconosce sia il custom scheme che l'URL https (per quando

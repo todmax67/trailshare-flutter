@@ -12,6 +12,7 @@ import '../../../data/repositories/business_repository.dart';
 import '../../widgets/star_rating.dart';
 import 'business_analytics_page.dart';
 import 'business_community_sheet.dart';
+import 'business_qr_card_page.dart';
 import 'business_edit_page.dart';
 import 'business_post_composer_page.dart';
 import 'business_recommended_tracks_manager_page.dart';
@@ -476,6 +477,17 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                       ? 'Apri community'
                       : 'Crea community',
                 ),
+              ),
+              // 7.C9 — Card QR brandizzata da stampare/condividere
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BusinessQrCardPage(business: b),
+                  ),
+                ),
+                icon: const Icon(Icons.qr_code_2),
+                label: const Text('Vetrina QR'),
               ),
               OutlinedButton.icon(
                 onPressed: () => Navigator.push(
