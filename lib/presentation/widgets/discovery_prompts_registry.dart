@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/l10n_extension.dart';
 import '../../core/services/monthly_report_service.dart';
+import '../../core/services/pro_gate_service.dart';
 import '../../core/services/user_region_service.dart';
 import '../../core/services/weekly_challenges_service.dart';
 import '../../data/models/discovery_prompt.dart';
@@ -13,6 +14,7 @@ import '../pages/monthly_report/monthly_report_page.dart';
 import '../pages/mountain_finder/mountain_finder_page.dart';
 import '../pages/settings/emergency_contacts_page.dart';
 import '../pages/tours/tour_edit_page.dart';
+import 'paywall_sheet.dart';
 
 /// Registry dei [DiscoveryPrompt] locali (hard-coded).
 ///
@@ -136,6 +138,28 @@ class DiscoveryPromptsRegistry {
               builder: (_) => const RegionalLeaderboardPage(),
             ),
           );
+        },
+      ),
+
+      // ─── 0.8 Scopri TrailShare Pro (6.B6) ────────────────────────
+      // Card upsell mostrata SOLO agli utenti free che hanno già un po'
+      // di engagement (trackCount >= 5): non vogliamo bombardare il
+      // nuovo utente al primo accesso. Sopra alle card funzionali ma
+      // sotto a "Mountain Finder Intro" e "Lifeline setup" (priorità
+      // assolute). Tap → paywall context-aware (PaywallTrigger.discoveryUpsell).
+      DiscoveryPrompt(
+        id: 'pro_upsell_discovery',
+        title: '🚀 Sblocca TrailShare Pro',
+        description:
+            'Mountain Finder AR illimitato, mappe topografiche '
+            'premium, Trail Conditions AI e tanto altro. Da €2.99/mese.',
+        icon: Icons.workspace_premium,
+        accentColor: const Color(0xFFE07B4C),
+        ctaLabel: 'Scopri Pro',
+        priority: 90,
+        condition: (s) => !ProGateService().isPro && s.trackCount >= 5,
+        onCta: (ctx) {
+          showPaywallSheet(ctx, trigger: PaywallTrigger.discoveryUpsell);
         },
       ),
 

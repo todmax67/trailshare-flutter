@@ -795,6 +795,105 @@ exports.getActiveChallenges = onCall(async (request) => {
 // ===================================================================
 // --- NUOVA FUNZIONE SCHEDULATA PER LE SFIDE MENSILI ---
 // ===================================================================
+/// Epic 6.C3 — Benefit reminder mensile per utenti TrailShare Pro.
+/// Scheduled il 1° di ogni mese alle 10:00 Europe/Rome.
+///
+/// Per ogni utente Pro (user_profiles.isPro=true) conta le tracce
+/// dell'ultimo mese e invia una notifica FCM che ricorda il valore
+/// dell'abbonamento. Riduce churn ricordando il ROI mensile.
+exports.proBenefitReminderMonthly = onSchedule(
+    {
+        schedule: "1 of month 10:00",
+        timeZone: "Europe/Rome",
+        region: "europe-west3",
+        timeoutSeconds: 540,
+        memory: "256MiB",
+    },
+    async (_event) => {
+        const now = new Date();
+        // Range: ultimo mese completo (es. 1 luglio → conta tracce di giugno).
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const end = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthName = start.toLocaleDateString('it-IT', {
+            month: 'long',
+            year: 'numeric',
+        });
+
+        try {
+            const proSnap = await admin.firestore()
+                .collection("user_profiles")
+                .where("isPro", "==", true)
+                .get();
+            logger.info(
+                `[proBenefitReminder] ${proSnap.size} utenti Pro da processare`
+            );
+
+            for (const doc of proSnap.docs) {
+                const uid = doc.id;
+                const data = doc.data();
+                const tokens = data.fcmTokens;
+                if (!tokens || tokens.length === 0) continue;
+
+                try {
+                    const tracksSnap = await admin.firestore()
+                        .collection("users").doc(uid)
+                        .collection("tracks")
+                        .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(start))
+                        .where("createdAt", "<", admin.firestore.Timestamp.fromDate(end))
+                        .get();
+                    const count = tracksSnap.size;
+                    if (count === 0) continue; // niente da celebrare
+
+                    const message = {
+                        notification: {
+                            title: `🏔️ Riepilogo ${monthName}`,
+                            body: count === 1
+                                ? `Hai registrato 1 traccia con TrailShare Pro. Continua così!`
+                                : `Hai registrato ${count} tracce con TrailShare Pro. Continua così!`,
+                        },
+                        data: {
+                            type: "pro_monthly_reminder",
+                            month: start.toISOString().slice(0, 7),
+                            tracks: String(count),
+                        },
+                        tokens: tokens,
+                    };
+                    const response = await admin.messaging()
+                        .sendEachForMulticast(message);
+                    logger.info(
+                        `[proBenefitReminder] uid=${uid} tracce=${count} ` +
+                        `success=${response.successCount} fail=${response.failureCount}`
+                    );
+
+                    // Cleanup token invalidi (stesso pattern delle altre FCM)
+                    if (response.failureCount > 0) {
+                        const toDelete = [];
+                        response.responses.forEach((r, i) => {
+                            if (r.error && (
+                                r.error.code === "messaging/registration-token-not-registered" ||
+                                r.error.code === "messaging/invalid-registration-token"
+                            )) {
+                                toDelete.push(tokens[i]);
+                            }
+                        });
+                        if (toDelete.length > 0) {
+                            await doc.ref.update({
+                                fcmTokens: admin.firestore.FieldValue
+                                    .arrayRemove(...toDelete),
+                            });
+                        }
+                    }
+                } catch (e) {
+                    logger.error(`[proBenefitReminder] uid=${uid} error: ${e}`);
+                }
+            }
+        } catch (e) {
+            logger.error('[proBenefitReminder] global error', e);
+        }
+        return null;
+    }
+);
+
 exports.createMonthlyChallenges = onSchedule("1 of month 00:00", async (event) => {    logger.info("Eseguo la creazione automatica delle sfide mensili...");
     const now = new Date();
     const year = now.getFullYear();

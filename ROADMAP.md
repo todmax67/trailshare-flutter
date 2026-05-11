@@ -141,7 +141,7 @@ Lifeline e tutto il core safety/recording restano **sempre gratis**.
 | 6.2 | Mountain recognition photo + analisi completa + share | 🟧 | L | Pro | ✅ |
 | 6.3 | **3D fly-through replay delle tracce** | 🟨 | L | Pro | ☐ — viral feature |
 | 6.4 | Mappe topografiche premium (Topo / Hybrid / Inverno via MapTiler) | 🟧 | M | Pro | ✅ |
-| 6.5 | **Allenamento HR personalizzato basato su storico** | 🟨 | M | Pro | ☐ — training analytics |
+| 6.5 | **Allenamento HR personalizzato basato su storico** | 🟨 | M | Pro | ✅ MVP (TrainingHrPage: 4 settimane rolling, zona prevalente, suggerimento next session) |
 | 6.6 | Trail conditions AI summary (riassunto da commenti recenti) | 🟨 | M | Pro | ✅ |
 | 6.7 | **Pianificatore IA "trova percorso simile a..."** | 🟨 | M | Pro | ☐ — AI differenziator |
 | 6.8 | **Time-lapse video auto della traccia + foto** | 🟩 | M | Pro | ☐ — viral feature |
@@ -156,7 +156,7 @@ Lifeline e tutto il core safety/recording restano **sempre gratis**.
 | 6.B3 | Premium status sync su `users/{uid}.proStatus` cross-device | 🟥 | S | ✅ |
 | 6.B4 | `PaywallSheet` widget + dinamiche prezzi locale | 🟧 | M | ✅ |
 | 6.B5 | Trial 14 giorni gratis (yearly only) con flag isInTrial | 🟧 | S | ✅ |
-| 6.B6 | Discovery prompt "Scopri Pro" con A/B variant | 🟧 | S | ☐ |
+| 6.B6 | Discovery prompt "Scopri Pro" con A/B variant | 🟧 | S | ✅ MVP (card discover per free utenti con trackCount>=5, tap apre paywall discoveryUpsell) |
 | 6.B7 | Restore purchases + deep link "Gestisci abbonamento" | 🟧 | S | ✅ |
 | 6.B8 | Analytics conversion funnel + churn tracking (Firebase) | 🟨 | S | ☐ |
 | 6.B9 | **App Store Server Notifications V2 webhook** (rinnovi/refund/revoke) | 🟧 | M | ☐ — critico per conversioni |
@@ -168,7 +168,7 @@ Lifeline e tutto il core safety/recording restano **sempre gratis**.
 |---|---|---|---|---|
 | 6.C1 | Settings "Gestisci abbonamento" + cancellazione | 🟥 | XS | ✅ |
 | 6.C2 | Email "Stai per perdere Pro" 3gg prima scadenza (FCM + email) | 🟧 | S | ☐ |
-| 6.C3 | Benefit reminder ogni 30gg ("usato N volte le mappe Pro") | 🟨 | S | ☐ |
+| 6.C3 | Benefit reminder ogni 30gg ("usato N volte le mappe Pro") | 🟨 | S | ✅ (proBenefitReminderMonthly scheduled, FCM con #tracce mese precedente) |
 | 6.C4 | Lifetime discount per utenti attivi (>50 tracce) | 🟨 | S | ☐ |
 | 6.C5 | "Regala Pro a un amico" (referral con sconto reciproco) | 🟩 | M | ☐ |
 

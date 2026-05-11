@@ -4,6 +4,7 @@ import 'package:in_app_review/in_app_review.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/services/hud_prefs_service.dart';
+import '../training/training_hr_page.dart';
 import '../../../core/services/strava_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -220,6 +221,20 @@ class _SettingsPageState extends State<SettingsPage> {
           // ─── Sezione TrailShare Pro (mockup paywall) ─────────────────
           _buildSectionHeader('TrailShare Pro'),
           _buildProTile(),
+          // 6.5 — Entry alla pagina Allenamento HR personalizzato
+          _buildListTile(
+            icon: Icons.fitness_center,
+            title: 'Allenamento HR',
+            subtitle: 'Zone cardio + suggerimenti settimanali (Pro)',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TrainingHrPage(),
+                ),
+              );
+            },
+          ),
           const Divider(height: 32),
 
           // Sezione Salute
@@ -1154,6 +1169,29 @@ class _SettingsPageState extends State<SettingsPage> {
     // più vecchie. Aggiornato in coordinazione con pubspec.yaml
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
+      _ReleaseEntry(
+        version: '2.4.0',
+        title: 'Epic 3 + 4 chiuse, Community VIP, dark map, training HR',
+        bullets: [
+          'Auto-hide HUD configurabile durante registrazione',
+          'Pianificatore: snap automatico 5km + waypoint problematico evidenziato',
+          'Mentions @username nei commenti + notifica FCM',
+          'Heatmap trail popolari (toggle Discover, geohash p4 weekly)',
+          'Sfide gruppo: auto-progress su track save + FCM al vincitore',
+          'Spazi Pro: Community VIP linkata (gruppo dedicato clienti)',
+          'Navigazione guidata: ETA dinamico real-time + orario arrivo',
+          'Discover: filtro per regione amministrativa (20 bbox)',
+          'Ricerca testuale full-text accent-insensitive estesa',
+          'Track detail: confronto con Personal Records (PR)',
+          'Mappa "Notte Pro" MapTiler streets-v2-dark nativa',
+          'Discovery prompt "Scopri Pro" per utenti free attivi',
+          'Training HR personalizzato (4 settimane + suggerimento next session)',
+          'Benefit reminder mensile FCM per utenti Pro',
+          'Fix critico Firestore rules (Path.matches inesistente)',
+          'Fix cache Pro post-purchase + "Valuta app" prompt nativo',
+          '"Contattaci" ora funziona (mailto su Android 11+)',
+        ],
+      ),
       _ReleaseEntry(
         version: '2.3.0',
         title: 'POI OSM, Trail Conditions AI, AR Photo v2',
