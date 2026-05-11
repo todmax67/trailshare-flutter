@@ -110,7 +110,7 @@ Target: aumentare ritenzione e dwell time.
 | 4.6 | Track detail: grafico HR per zone (cardiac zones) | 🟨 | S | ✅ (HeartRateZonesWidget live in track_detail_page, 5 zone Z1-Z5 con avg/peak header + fallback maxHR stimata + CTA impostazioni) |
 | 4.7 | Track detail: confronto con PR personale | 🟨 | M | ✅ (PersonalRecordsCard: best distance/duration/elevation per activityType, badge "Nuovo PR" o % vs best) |
 | 4.8 | Track detail: split per km con tempo cumulativo | 🟩 | XS | ✅ |
-| 4.9 | Mappe dark reale (Stadia/MapTiler con API key) | 🟩 | S | ☐ |
+| 4.9 | Mappe dark reale (Stadia/MapTiler con API key) | 🟩 | S | ✅ ("Notte Pro" MapTiler streets-v2-dark; free "Notte" CartoDB dark_all+filtro mobile resta) |
 
 ---
 

@@ -106,4 +106,16 @@ List<MapStyle> get mapStyles => [
         isPro: true,
         subtitle: 'Piste sci, ciaspole, scialpinismo',
       ),
+      // 4.9 — Dark nativa MapTiler. Senza ColorFilter di schiaritura
+      // perché lo stile è già pensato per essere leggibile su mobile
+      // (contrasti tarati, colori sentieri rinforzati). Resta il free
+      // "Notte" basato su CartoDB per gli utenti senza Pro.
+      MapStyle(
+        name: 'Notte Pro',
+        urlTemplate:
+            'https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}.png?key=${ApiKeys.mapTiler}',
+        icon: Icons.nightlight_round,
+        isPro: true,
+        subtitle: 'Tile dark nativi, ottimi su sentieri di notte',
+      ),
     ];
