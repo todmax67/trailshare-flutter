@@ -40,6 +40,15 @@ service cloud.firestore {
       allow delete: if isAdminByEmail();
     }
 
+    // --- Storico import sentieri (admin only, A4) ---
+    // Solo admin-by-email può scrivere; read aperto a admin (per UI
+    // pannello). Niente PII, solo conteggi + regione + timestamp.
+    match /trail_imports/{importId} {
+      allow read: if isSignedIn() && isAdminByEmail();
+      allow create: if isSignedIn() && isAdminByEmail();
+      allow update, delete: if false;
+    }
+
     // --- Heatmap trail popolari (Epic 3.4) ---
     // Aggregato weekly da Cloud Function `aggregateHeatmapWeekly` su
     // base published_tracks. Read pubblico (no PII); write solo admin

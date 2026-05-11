@@ -79,6 +79,22 @@ Target: colmare i gap rispetto a Komoot / AllTrails / Strava.
 | 2.6 | Dark mode app-wide (con `ThemeColorsExtension`) | 🟨 | M | ✅ |
 | 2.7 | Onboarding interattivo + tutorial REC | 🟨 | M | ✅ |
 
+### 2.D — Admin tools (Import sentieri)
+
+| # | Feature | Priorità | Effort | Status |
+|---|---|---|---|---|
+| 2.D1 | Dropdown 20 regioni italiane ufficiali con bbox auto (no Nominatim) | 🟧 | S | ✅ |
+| 2.D2 | Import singolo da URL/ID relation Waymarked (1 trail diretto) | 🟧 | S | ✅ |
+| 2.D3 | Storico import (Firestore `trail_imports/{id}`, lista ultimi 10 in admin page) | 🟨 | S | ✅ |
+| 2.D4 | Activity-type smart da tag OSM `route` (hiking/mtb/bicycle/ski → activityType TrailShare) | 🟧 | S | ✅ |
+| 2.D5 | Difficoltà CAI smart da tag `sac_scale` (hiking/mountain_hiking/etc. → T/E/EE/EEA) | 🟨 | XS | ✅ |
+| 2.D6 | Update mode: re-import sovrascrive geometria + stats invece di skip | 🟧 | S | ✅ |
+| 2.D7 | Mass-delete trail importati per regione (cleanup admin) | 🟨 | S | ☐ |
+| 2.D8 | Stats per regione (tabella "Italia: 1247 · Lombardia: 234 · ...") | 🟨 | S | ☐ |
+| 2.D9 | Bulk GPX upload dal web admin (zip o multi-file) | 🟨 | M | ☐ |
+| 2.D10 | Multi-fonte: Overpass API per riempire i buchi di Waymarked | 🟩 | M | ☐ |
+| 2.D11 | Termini predefiniti per categoria (chip "Rifugi · Vie ferrate · Alte vie") | 🟩 | S | ☐ |
+
 ---
 
 ## Epic 3 — Engagement (v1.9.0) ✅ in produzione consolidata

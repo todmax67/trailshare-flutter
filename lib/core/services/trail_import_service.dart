@@ -227,11 +227,105 @@ class TrailImportService {
     );
   }
 
+  /// Parsing URL Waymarked Trails per estrarre l'ID della relation.
+  /// Pattern accettati:
+  ///   - https://hiking.waymarkedtrails.org/#route?type=relation&id=12345
+  ///   - https://waymarkedtrails.org/hiking/relations/12345
+  ///   - 12345 (solo numero)
+  int? parseWaymarkedId(String input) {
+    final raw = input.trim();
+    if (raw.isEmpty) return null;
+    // Se è solo un numero
+    final asInt = int.tryParse(raw);
+    if (asInt != null) return asInt;
+    // Pattern ?id=12345
+    final m1 = RegExp(r'[?&]id=(\d+)').firstMatch(raw);
+    if (m1 != null) return int.tryParse(m1.group(1)!);
+    // Pattern /relations/12345
+    final m2 = RegExp(r'/relations?/(\d+)').firstMatch(raw);
+    if (m2 != null) return int.tryParse(m2.group(1)!);
+    // Pattern /relation/12345
+    final m3 = RegExp(r'relation[/=](\d+)').firstMatch(raw);
+    if (m3 != null) return int.tryParse(m3.group(1)!);
+    return null;
+  }
+
+  /// Importa un singolo sentiero direttamente dal suo ID Waymarked
+  /// (A2). Bypassa la fase di ricerca: l'utente conosce già l'OSM
+  /// relation che vuole importare.
+  Future<ImportResult> importSingleFromWaymarked({
+    required int relationId,
+    required String region,
+    bool updateExisting = false,
+    void Function(ImportProgress)? onProgress,
+  }) async {
+    final imported = <ImportedTrail>[];
+    final skipped = <SkippedTrail>[];
+    final errors = <ImportError>[];
+
+    onProgress?.call(ImportProgress(
+      phase: 'import',
+      current: 1,
+      total: 1,
+      message: 'Recupero dati per relation $relationId...',
+    ));
+
+    try {
+      final details = await getWaymarkedRouteDetails(relationId);
+      if (details == null) {
+        return ImportResult(
+          imported: imported,
+          skipped: [SkippedTrail(name: 'relation $relationId', reason: 'Dettagli non disponibili (404?)')],
+          errors: errors,
+          totalFound: 1,
+        );
+      }
+      final fakeRoute = WaymarkedRoute(
+        id: details.id,
+        name: details.name,
+        ref: details.tags?['ref']?.toString(),
+        group: details.tags?['network']?.toString(),
+        symbol: details.tags?['osmc:symbol']?.toString(),
+      );
+      await _processSingleRoute(
+        route: fakeRoute,
+        details: details,
+        region: region,
+        geoBbox: null,
+        updateExisting: updateExisting,
+        imported: imported,
+        skipped: skipped,
+        errors: errors,
+      );
+    } catch (e) {
+      errors.add(ImportError(
+        name: 'relation $relationId',
+        error: e.toString(),
+      ));
+    }
+
+    await _writeImportHistory(
+      regionName: region,
+      source: 'waymarked_single:$relationId',
+      imported: imported.length,
+      skipped: skipped.length,
+      errors: errors.length,
+    );
+
+    return ImportResult(
+      imported: imported,
+      skipped: skipped,
+      errors: errors,
+      totalFound: 1,
+    );
+  }
+
   /// Importa sentieri da Waymarked Trails
   Future<ImportResult> importFromWaymarked({
     required List<String> searchTerms,
     required String region,
     List<double>? geoBbox,
+    bool updateExisting = false,
     void Function(ImportProgress)? onProgress,
   }) async {
     final imported = <ImportedTrail>[];
@@ -274,119 +368,242 @@ class TrailImportService {
     for (int i = 0; i < routesList.length; i++) {
       final route = routesList[i];
       onProgress?.call(ImportProgress(
-        phase: 'import', 
-        current: i + 1, 
-        total: routesList.length, 
+        phase: 'import',
+        current: i + 1,
+        total: routesList.length,
         message: 'Import "${route.name}"...',
       ));
-      
       try {
-        // Dettagli
-        final details = await getWaymarkedRouteDetails(route.id);
-        if (details == null) {
-          skipped.add(SkippedTrail(name: route.name, reason: 'Dettagli non disponibili'));
-          continue;
-        }
-        
-        // Coordinate
-        final coords = extractCoordinatesFromDetails(details);
-        if (coords.length < 5) {
-          skipped.add(SkippedTrail(name: route.name, reason: 'Troppi pochi punti'));
-          continue;
-        }
-        
-        // Filtro geografico
-        if (geoBbox != null) {
-          final center = coords[coords.length ~/ 2];
-          // center[0]=lng, center[1]=lat, bbox=[minLat,maxLat,minLng,maxLng]
-          if (center[1] < geoBbox[0] || center[1] > geoBbox[1] || 
-              center[0] < geoBbox[2] || center[0] > geoBbox[3]) {
-            skipped.add(SkippedTrail(name: route.name, reason: 'Fuori area'));
-            continue;
-          }
-        }
-        
-        // Verifica duplicato
-        final existingDoc = await _trailsCollection.doc('wmt_relation_${route.id}').get();
-        if (existingDoc.exists) {
-          skipped.add(SkippedTrail(name: route.name, reason: 'Già importato'));
-          continue;
-        }
-        
-        // Elevazioni
-        final elevations = await fetchElevations(coords);
-        final elevationStats = calculateElevationStats(elevations);
-        
-        // Calcoli
-        final distance = _calculateTotalDistance(coords);
-        final isCircular = _isCircular(coords);
-        final center = coords[coords.length ~/ 2];
-        final geoHash = GeoHashUtil.encode(center[1], center[0], precision: 7);
-        
-        // Coordinate con elevazione
-        final coordsWithEle = <List<double>>[];
-        for (int j = 0; j < coords.length; j++) {
-          coordsWithEle.add([coords[j][0], coords[j][1], j < elevations.length ? elevations[j] : 0.0]);
-        }
-        
-        // Upload
-        final docId = 'wmt_relation_${route.id}';
-        await _trailsCollection.doc(docId).set({
-          'name': route.name,
-          'osmId': route.id,
-          'source': 'waymarked',
-          'region': region,
-          'geometry': {'type': 'LineString', 'coordinatesJson': jsonEncode(coordsWithEle)},
-          'center': GeoPoint(center[1], center[0]),
-          'startPoint': {'lat': coords.first[1], 'lon': coords.first[0]},
-          'endPoint': {'lat': coords.last[1], 'lon': coords.last[0]},
-          'geoHash': geoHash,
-          'geoHashes': [geoHash, geoHash.substring(0, 6), geoHash.substring(0, 5), geoHash.substring(0, 4)],
-          'pointsCount': coordsWithEle.length,
-          'distance': distance.round(),
-          'elevationGain': elevationStats.gain.round(),
-          'elevationLoss': elevationStats.loss.round(),
-          'maxAltitude': elevationStats.max.round(),
-          'minAltitude': elevationStats.min.round(),
-          'isCircular': isCircular,
-          'difficulty': _estimateDifficulty(distance, elevationStats.gain),
-          'activityType': 'escursionismo',
-          'quality': 'excellent',
-          'isRoute': true,
-          'symbol': route.symbol,
-          'network': route.group,
-          'ref': route.ref,
-          'from': details.from,
-          'to': details.to,
-          'isRifugioRoute': route.name.toLowerCase().contains('rifugio') || 
-                           (details.to?.toLowerCase().contains('rifugio') ?? false),
-          'searchTerms': _generateSearchTerms(route.name, route.ref, details.from, details.to),
-          'importedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        
-        imported.add(ImportedTrail(
-          docId: docId, 
-          name: route.name, 
-          distance: distance, 
-          elevationGain: elevationStats.gain,
-        ));
-        debugPrint('[TrailImport] ✅ ${route.name} - ${(distance/1000).toStringAsFixed(1)}km, +${elevationStats.gain.round()}m');
-        
+        await _processSingleRoute(
+          route: route,
+          details: null, // verrà fetchato dentro
+          region: region,
+          geoBbox: geoBbox,
+          updateExisting: updateExisting,
+          imported: imported,
+          skipped: skipped,
+          errors: errors,
+        );
       } catch (e) {
         errors.add(ImportError(name: route.name, error: e.toString()));
         debugPrint('[TrailImport] ❌ ${route.name}: $e');
       }
-      
       await Future.delayed(_apiDelay);
     }
-    
+
+    // A4 — salva storico import
+    await _writeImportHistory(
+      regionName: region,
+      source: 'waymarked_search',
+      imported: imported.length,
+      skipped: skipped.length,
+      errors: errors.length,
+    );
+
     return ImportResult(
-      imported: imported, 
-      skipped: skipped, 
-      errors: errors, 
+      imported: imported,
+      skipped: skipped,
+      errors: errors,
       totalFound: allRoutes.length,
     );
+  }
+
+  /// Helper: processa una singola route (search risultato o single-import).
+  /// Estrae coordinate, filtra bbox, fetch elevazioni, scrive Firestore.
+  /// Update mode: se [updateExisting]=true e il doc esiste, aggiorna
+  /// invece di skippare. (C10)
+  Future<void> _processSingleRoute({
+    required WaymarkedRoute route,
+    required WaymarkedRouteDetails? details,
+    required String region,
+    required List<double>? geoBbox,
+    required bool updateExisting,
+    required List<ImportedTrail> imported,
+    required List<SkippedTrail> skipped,
+    required List<ImportError> errors,
+  }) async {
+    // Dettagli (se non passati dal chiamante)
+    details ??= await getWaymarkedRouteDetails(route.id);
+    if (details == null) {
+      skipped.add(SkippedTrail(name: route.name, reason: 'Dettagli non disponibili'));
+      return;
+    }
+
+    final coords = extractCoordinatesFromDetails(details);
+    if (coords.length < 5) {
+      skipped.add(SkippedTrail(name: route.name, reason: 'Troppi pochi punti'));
+      return;
+    }
+
+    if (geoBbox != null) {
+      final center = coords[coords.length ~/ 2];
+      if (center[1] < geoBbox[0] || center[1] > geoBbox[1] ||
+          center[0] < geoBbox[2] || center[0] > geoBbox[3]) {
+        skipped.add(SkippedTrail(name: route.name, reason: 'Fuori area'));
+        return;
+      }
+    }
+
+    final docId = 'wmt_relation_${route.id}';
+    final existingDoc = await _trailsCollection.doc(docId).get();
+    if (existingDoc.exists && !updateExisting) {
+      skipped.add(SkippedTrail(name: route.name, reason: 'Già importato'));
+      return;
+    }
+
+    final elevations = await fetchElevations(coords);
+    final elevationStats = calculateElevationStats(elevations);
+    final distance = _calculateTotalDistance(coords);
+    final isCircular = _isCircular(coords);
+    final center = coords[coords.length ~/ 2];
+    final geoHash = GeoHashUtil.encode(center[1], center[0], precision: 7);
+
+    final coordsWithEle = <List<double>>[];
+    for (int j = 0; j < coords.length; j++) {
+      coordsWithEle.add([
+        coords[j][0],
+        coords[j][1],
+        j < elevations.length ? elevations[j] : 0.0,
+      ]);
+    }
+
+    // C9 — Activity type smart dai tag OSM (route=hiking|mtb|bicycle|foot)
+    final activityType = _activityTypeFromTags(details.tags);
+    // Difficoltà smart: prima `sac_scale` OSM, poi fallback su euristica
+    final difficulty = _difficultyFromTags(details.tags) ??
+        _estimateDifficulty(distance, elevationStats.gain);
+
+    final docData = <String, dynamic>{
+      'name': route.name,
+      'osmId': route.id,
+      'source': 'waymarked',
+      'region': region,
+      'geometry': {
+        'type': 'LineString',
+        'coordinatesJson': jsonEncode(coordsWithEle),
+      },
+      'center': GeoPoint(center[1], center[0]),
+      'startPoint': {'lat': coords.first[1], 'lon': coords.first[0]},
+      'endPoint': {'lat': coords.last[1], 'lon': coords.last[0]},
+      // Anche denormalizzati startLat/startLng per il filter Discover.
+      'startLat': coords.first[1],
+      'startLng': coords.first[0],
+      'geoHash': geoHash,
+      'geoHashes': [
+        geoHash,
+        geoHash.substring(0, 6),
+        geoHash.substring(0, 5),
+        geoHash.substring(0, 4),
+      ],
+      'pointsCount': coordsWithEle.length,
+      'distance': distance.round(),
+      'elevationGain': elevationStats.gain.round(),
+      'elevationLoss': elevationStats.loss.round(),
+      'maxAltitude': elevationStats.max.round(),
+      'minAltitude': elevationStats.min.round(),
+      'isCircular': isCircular,
+      'difficulty': difficulty,
+      'activityType': activityType,
+      'quality': 'excellent',
+      'isRoute': true,
+      'symbol': route.symbol,
+      'network': route.group,
+      'ref': route.ref,
+      'from': details.from,
+      'to': details.to,
+      'isRifugioRoute': route.name.toLowerCase().contains('rifugio') ||
+          (details.to?.toLowerCase().contains('rifugio') ?? false),
+      'searchTerms': _generateSearchTerms(
+          route.name, route.ref, details.from, details.to),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    // Su nuovo doc, scrivi anche importedAt; su update preserva il valore originale
+    if (!existingDoc.exists) {
+      docData['importedAt'] = FieldValue.serverTimestamp();
+    }
+    await _trailsCollection.doc(docId).set(docData, SetOptions(merge: existingDoc.exists));
+
+    imported.add(ImportedTrail(
+      docId: docId,
+      name: route.name,
+      distance: distance,
+      elevationGain: elevationStats.gain,
+    ));
+    final action = existingDoc.exists ? '🔄 aggiornato' : '✅ nuovo';
+    debugPrint(
+        '[TrailImport] $action ${route.name} - ${(distance / 1000).toStringAsFixed(1)}km, +${elevationStats.gain.round()}m, type=$activityType');
+  }
+
+  /// C9 — Mappa il tag OSM `route` al nostro activityType TrailShare.
+  String _activityTypeFromTags(Map<String, dynamic>? tags) {
+    if (tags == null) return 'trekking';
+    final r = tags['route']?.toString().toLowerCase();
+    switch (r) {
+      case 'mtb':
+      case 'mountain_biking':
+        return 'mountainBiking';
+      case 'bicycle':
+      case 'cycling':
+        return 'cycling';
+      case 'piste':
+      case 'ski':
+      case 'ski_tour':
+      case 'ski_touring':
+        return 'skiTouring';
+      case 'horse':
+        return 'walking';
+      case 'foot':
+      case 'hiking':
+      case 'walking':
+      case 'trekking':
+      default:
+        return 'trekking';
+    }
+  }
+
+  /// Parsa la SAC scale ufficiale CAI in codice difficoltà TrailShare.
+  /// https://wiki.openstreetmap.org/wiki/Key:sac_scale
+  String? _difficultyFromTags(Map<String, dynamic>? tags) {
+    if (tags == null) return null;
+    final sac = tags['sac_scale']?.toString().toLowerCase();
+    if (sac == null) return null;
+    switch (sac) {
+      case 'hiking':
+        return 't';
+      case 'mountain_hiking':
+        return 'e';
+      case 'demanding_mountain_hiking':
+        return 'ee';
+      case 'alpine_hiking':
+      case 'demanding_alpine_hiking':
+      case 'difficult_alpine_hiking':
+        return 'eea';
+    }
+    return null;
+  }
+
+  /// A4 — Scrive un record nella collezione `trail_imports` con uno
+  /// snapshot dell'operazione (chi/quando/quanti). Best-effort:
+  /// fallimento qui non blocca il caller.
+  Future<void> _writeImportHistory({
+    required String regionName,
+    required String source,
+    required int imported,
+    required int skipped,
+    required int errors,
+  }) async {
+    try {
+      await _firestore.collection('trail_imports').add({
+        'regionName': regionName,
+        'source': source,
+        'imported': imported,
+        'skipped': skipped,
+        'errors': errors,
+        'at': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('[TrailImport] history write error: $e');
+    }
   }
 
   // Utility methods
