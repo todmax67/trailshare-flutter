@@ -1,6 +1,6 @@
 # TrailShare — Roadmap di sviluppo
 
-Ultimo aggiornamento: 2026-05-10  ·  Versione corrente in store: `v2.3.0` (Pro consumer Apple LIVE) · In sviluppo per `v2.3.5`: Spazi Pro entity (B2B refactor) + wearable bidirezionale + AI Manager
+Ultimo aggiornamento: 2026-05-12  ·  Versione corrente: `v2.4.1+68` (Round 3 TestFlight + Play closed) · Highlights v2.4.1: split public_trails/geometry, import sentieri 4500+ trails, i18n core EN, **Viewshed Peak Filter (6.9) live**
 
 Documento vivo. Le voci sono ordinate per priorità all'interno di ogni categoria. Stima sforzo indicativa in giornate uomo.
 
@@ -161,6 +161,7 @@ Lifeline e tutto il core safety/recording restano **sempre gratis**.
 | 6.6 | Trail conditions AI summary (riassunto da commenti recenti) | 🟨 | M | Pro | ✅ |
 | 6.7 | **Pianificatore IA "trova percorso simile a..."** | 🟨 | M | Pro | ☐ — AI differenziator |
 | 6.8 | **Time-lapse video auto della traccia + foto** | 🟩 | M | Pro | ☐ — viral feature |
+| 6.9 | **Viewshed Peak Filter** — solo cime non occluse da crinali (PeakFinder-style, DEM AWS Open Terrain + skyline 360°) | 🟧 | L | Free+Pro | ✅ MVP — Free 20km/10 cime, Pro 100km/illimitato + Hive cache + auto-refresh on-move. Toggle 👁️ in Mountain Finder. |
 
 ### 6.B — Infrastruttura paywall
 
