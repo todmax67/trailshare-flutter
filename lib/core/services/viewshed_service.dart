@@ -41,6 +41,11 @@ class ViewshedService {
   }) async {
     final stopwatch = Stopwatch()..start();
 
+    // Abilita disk cache solo per Pro (idempotente — chiamabile a ripetizione).
+    if (tier.persistentCache && !_tiles.diskCacheReady) {
+      await _tiles.enableDiskCache();
+    }
+
     // Cache check (skip per free → no persistenza intra-sessione).
     if (tier.persistentCache && _cached != null) {
       final dist = _haversineMeters(

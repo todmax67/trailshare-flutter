@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
@@ -36,6 +38,28 @@ class TerrainTileService {
   /// Default zoom: 12 = ~38 m/pixel all'equatore, scende a ~25-30 m/pixel
   /// in Italia. Buon compromesso perf/qualità per skyline a 50-100 km.
   static const int defaultZoom = 12;
+
+  // ── Persistent cache (Pro) ────────────────────────────────────────────
+  static const String _boxName = 'terrain_tiles_v1';
+  Box<Uint8List>? _diskBox;
+  bool _diskInitialized = false;
+
+  /// Abilita la cache persistente Hive. Idempotente. Chiama questo solo
+  /// per utenti Pro — per i free, l'in-memory LRU basta.
+  Future<void> enableDiskCache() async {
+    if (_diskInitialized) return;
+    try {
+      await Hive.initFlutter();
+      _diskBox = await Hive.openBox<Uint8List>(_boxName);
+      _diskInitialized = true;
+      debugPrint('[Terrain] ✅ disk cache aperta (${_diskBox!.length} tile)');
+    } catch (e) {
+      debugPrint('[Terrain] ❌ disk cache init failed: $e');
+    }
+  }
+
+  /// True se la cache su disco è pronta.
+  bool get diskCacheReady => _diskInitialized && _diskBox != null;
 
   /// Costruisce un [DemGrid] coprente la bbox richiesta scaricando i tile
   /// terrarium necessari e mosaicandoli in una griglia unica.
@@ -89,12 +113,81 @@ class TerrainTileService {
     }
     if (_inflight.containsKey(key)) return _inflight[key]!;
 
-    final fut = _doFetch(z, x, y);
+    final fut = _fetchTileWithDiskCache(key, z, x, y);
     _inflight[key] = fut;
     final result = await fut;
     _inflight.remove(key);
     if (result != null) _putCache(key, result);
     return result;
+  }
+
+  /// Disk cache first, poi rete. Salva su disco se Pro tier abilitato.
+  Future<_DemTile?> _fetchTileWithDiskCache(String key, int z, int x, int y) async {
+    // 1. Try disk
+    if (diskCacheReady) {
+      final bytes = _diskBox!.get(key);
+      if (bytes != null) {
+        final tile = _bytesToTile(bytes, z, x, y);
+        if (tile != null) {
+          debugPrint('[Terrain] disk HIT $key');
+          return tile;
+        }
+      }
+    }
+    // 2. Network + decode in isolate
+    final tile = await _doFetch(z, x, y);
+    if (tile != null && diskCacheReady) {
+      try {
+        await _diskBox!.put(key, _tileToBytes(tile));
+      } catch (e) {
+        debugPrint('[Terrain] disk put error: $e');
+      }
+    }
+    return tile;
+  }
+
+  /// Encoding compatto su disco: 16 bytes header (w,h,minLat,maxLat,minLng,maxLng)
+  /// + Float32List elevations (raw little-endian).
+  Uint8List _tileToBytes(_DemTile t) {
+    final out = BytesBuilder();
+    final header = ByteData(16 + 4 * 4);
+    header.setUint32(0, t.width, Endian.little);
+    header.setUint32(4, t.height, Endian.little);
+    header.setFloat32(8, t.minLat, Endian.little);
+    header.setFloat32(12, t.maxLat, Endian.little);
+    header.setFloat32(16, t.minLng, Endian.little);
+    header.setFloat32(20, t.maxLng, Endian.little);
+    out.add(header.buffer.asUint8List());
+    out.add(t.elevations.buffer.asUint8List());
+    return out.toBytes();
+  }
+
+  _DemTile? _bytesToTile(Uint8List bytes, int z, int x, int y) {
+    try {
+      final bd = ByteData.sublistView(bytes, 0, 32);
+      final w = bd.getUint32(0, Endian.little);
+      final h = bd.getUint32(4, Endian.little);
+      final minLat = bd.getFloat32(8, Endian.little);
+      final maxLat = bd.getFloat32(12, Endian.little);
+      final minLng = bd.getFloat32(16, Endian.little);
+      final maxLng = bd.getFloat32(20, Endian.little);
+      // Copia in nuovo Float32List per evitare problemi di allineamento
+      // (la Uint8List restituita da Hive non garantisce alignment a 4 byte).
+      final ele = Float32List(w * h);
+      final eleBytes = ByteData.sublistView(bytes, 32, 32 + w * h * 4);
+      for (int i = 0; i < w * h; i++) {
+        ele[i] = eleBytes.getFloat32(i * 4, Endian.little);
+      }
+      return _DemTile(
+        z: z, x: x, y: y,
+        width: w, height: h,
+        minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+        elevations: ele,
+      );
+    } catch (e) {
+      debugPrint('[Terrain] decode disk bytes failed: $e');
+      return null;
+    }
   }
 
   Future<_DemTile?> _doFetch(int z, int x, int y) async {
@@ -121,26 +214,15 @@ class TerrainTileService {
   }
 
   Future<_DemTile?> _decode(Uint8List bytes, int z, int x, int y) async {
-    final image = img.decodePng(bytes);
-    if (image == null) return null;
-    final w = image.width;
-    final h = image.height;
-    final ele = Float32List(w * h);
-    for (int row = 0; row < h; row++) {
-      for (int col = 0; col < w; col++) {
-        final p = image.getPixel(col, row);
-        final r = p.r.toDouble();
-        final g = p.g.toDouble();
-        final b = p.b.toDouble();
-        ele[row * w + col] = (r * 256 + g + b / 256) - 32768;
-      }
-    }
+    // Decode PNG → Float32List in isolate per non bloccare UI.
+    final decoded = await compute(_decodePngInIsolate, bytes);
+    if (decoded == null) return null;
     final bbox = _tileBbox(z, x, y);
     return _DemTile(
       z: z, x: x, y: y,
-      width: w, height: h,
+      width: decoded.width, height: decoded.height,
       minLat: bbox[0], maxLat: bbox[1], minLng: bbox[2], maxLng: bbox[3],
-      elevations: ele,
+      elevations: decoded.elevations,
     );
   }
 
@@ -258,6 +340,35 @@ class TerrainTileService {
   }
 
   double _sinh(double x) => (math.exp(x) - math.exp(-x)) / 2;
+}
+
+/// Risultato decode in isolate. Solo tipi primitivi (Float32List + int)
+/// per attraversare il confine isolate.
+class _DecodedTile {
+  final int width;
+  final int height;
+  final Float32List elevations;
+  _DecodedTile(this.width, this.height, this.elevations);
+}
+
+/// Top-level fn richiesta da `compute()`. Decodifica PNG terrarium →
+/// Float32List di quote. Niente Flutter API qui dentro (gira in isolate).
+_DecodedTile? _decodePngInIsolate(Uint8List bytes) {
+  final image = img.decodePng(bytes);
+  if (image == null) return null;
+  final w = image.width;
+  final h = image.height;
+  final ele = Float32List(w * h);
+  for (int row = 0; row < h; row++) {
+    for (int col = 0; col < w; col++) {
+      final p = image.getPixel(col, row);
+      final r = p.r.toDouble();
+      final g = p.g.toDouble();
+      final b = p.b.toDouble();
+      ele[row * w + col] = (r * 256 + g + b / 256) - 32768;
+    }
+  }
+  return _DecodedTile(w, h, ele);
 }
 
 class _DemTile {
