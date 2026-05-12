@@ -458,8 +458,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         '${_candidatePeaks.length} entro ${radius}km');
 
     // Se il viewshed è attivo, ricalcola (i candidate sono cambiati).
+    // Tabella tier: auto-refresh on-move è feature Pro. Free deve toggle
+    // off/on manualmente per ricalcolare dopo spostamento.
     if (_viewshedOnly) {
-      unawaited(_recomputeViewshedIfNeeded(pos, force: true));
+      final isPro = ProGateService().isPro;
+      final isAdmin = await AdminRepository.isCurrentUserAdmin();
+      if (isPro || isAdmin) {
+        unawaited(_recomputeViewshedIfNeeded(pos, force: true));
+      }
     }
   }
 
