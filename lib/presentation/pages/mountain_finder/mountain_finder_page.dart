@@ -18,6 +18,7 @@ import '../../../core/utils/mountain_photo_renderer.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
 import '../../../data/models/osm_poi.dart';
+import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/osm_pois_repository.dart';
 import '../../../data/repositories/saved_peaks_repository.dart';
 import '../../widgets/app_snackbar.dart';
@@ -474,8 +475,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     if (_computingViewshed) return; // già in corso, evita race
     if (_candidatePeaks.isEmpty) return;
 
+    // Pro tier sbloccato da: subscription IAP attiva OPPURE admin (per
+    // permettere test in development senza acquisto).
     final isPro = ProGateService().isPro;
-    final tier = isPro ? ViewshedTier.pro : ViewshedTier.free;
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    final tier = (isPro || isAdmin) ? ViewshedTier.pro : ViewshedTier.free;
 
     setState(() => _computingViewshed = true);
     try {
