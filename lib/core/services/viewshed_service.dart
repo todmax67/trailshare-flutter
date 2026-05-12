@@ -192,9 +192,9 @@ class ViewshedTier {
     maxRadiusKm: 20,
     maxVisiblePeaks: 10,
     persistentCache: false,
-    demZoom: 11, // tile più grossi = meno fetch
+    demZoom: 10, // ~150m/pixel → ~4 tile per 20km bbox
     rayStepMeters: 250,
-    azimuthSteps: 180, // 2° step = sufficiente per 20 km
+    azimuthSteps: 180,
   );
 
   static const pro = ViewshedTier(
@@ -202,8 +202,10 @@ class ViewshedTier {
     maxRadiusKm: 100,
     maxVisiblePeaks: 1000,
     persistentCache: true,
-    demZoom: 12,
-    rayStepMeters: 200,
+    // Zoom 10: ~150m/pixel = sufficiente per skyline a 100 km e tiene il
+    // count tile bbox sotto ~35. Zoom 12 dava 630 tile / 230 MB DemGrid.
+    demZoom: 10,
+    rayStepMeters: 250,
     azimuthSteps: 360,
   );
 }

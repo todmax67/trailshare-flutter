@@ -83,6 +83,16 @@ class TerrainTileService {
 
     if (tiles.isEmpty) return null;
 
+    // Cap di sicurezza: oltre questo numero la mosaicata satura la RAM e
+    // l'UI freeza. Indicatore di zoom troppo alto per il raggio richiesto.
+    const maxTilesPerRequest = 100;
+    if (tiles.length > maxTilesPerRequest) {
+      debugPrint('[Terrain] ⚠️ richiesti ${tiles.length} tile, oltre il cap '
+          '$maxTilesPerRequest. Abort: usa uno zoom più basso.');
+      return null;
+    }
+    debugPrint('[Terrain] fetching ${tiles.length} tile (z=$zoom)...');
+
     // Fetch parallelo (ma cap a 8 concurrent per non saturare AWS).
     final fetched = <_DemTile>[];
     final batchSize = 8;
@@ -128,10 +138,7 @@ class TerrainTileService {
       final bytes = _diskBox!.get(key);
       if (bytes != null) {
         final tile = _bytesToTile(bytes, z, x, y);
-        if (tile != null) {
-          debugPrint('[Terrain] disk HIT $key');
-          return tile;
-        }
+        if (tile != null) return tile; // niente log spam (tipicamente 30+ HIT)
       }
     }
     // 2. Network + decode in isolate
