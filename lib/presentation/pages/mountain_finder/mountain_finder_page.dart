@@ -957,22 +957,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                 children: [
                   const Icon(Icons.terrain, color: Colors.white, size: 18),
                   const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      context.l10n.mfTitle,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Bearing live + pitch (debug).
+                  // Bearing live + pitch (debug) prima del titolo così rimane
+                  // sempre visibile; il titolo si elide se manca spazio.
                   Text(
                     _heading != null
-                        ? '${_heading!.toStringAsFixed(0)}° · ${_pitchDeg.toStringAsFixed(0)}°'
+                        ? '${_heading!.toStringAsFixed(0)}°'
                         : '—°',
                     style: const TextStyle(
                       color: Colors.white,
