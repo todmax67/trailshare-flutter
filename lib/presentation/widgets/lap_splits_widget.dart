@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/extensions/l10n_extension.dart';
 import '../../core/utils/elevation_processor.dart';
 import '../../data/models/track.dart';
 import 'package:latlong2/latlong.dart';
@@ -399,10 +400,10 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                 children: [
                   const Icon(Icons.timer, color: AppColors.primary, size: 20),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Statistiche per Km',
-                      style: TextStyle(
+                      context.l10n.statsPerKm,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),

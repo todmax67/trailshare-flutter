@@ -4696,4 +4696,41 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noHeartRateData => 'No heart rate data';
+
+  @override
+  String get createSegment => 'Create segment';
+
+  @override
+  String get noSegmentsOnTrack => 'No segments on this track.';
+
+  @override
+  String get noSegmentsCreatedTapPlus =>
+      'No segments created from this track. Tap \"+\" to create one.';
+
+  @override
+  String get noSegmentsCreated => 'No segments created from this track.';
+
+  @override
+  String get poiAlongRoute => 'POIs along the route';
+
+  @override
+  String get noPoiReported => 'No POIs reported yet.';
+
+  @override
+  String get noPoiReportedRoute =>
+      'No POIs reported by the community on this route.';
+
+  @override
+  String get addPoi => 'Add POI';
+
+  @override
+  String get addPoiHere => 'Add POI here';
+
+  @override
+  String get alsoInArea => 'Also in the area';
+
+  @override
+  String byAuthor(String name) {
+    return 'by: $name';
+  }
 }

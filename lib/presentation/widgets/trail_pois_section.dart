@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/extensions/l10n_extension.dart';
 import '../../data/models/osm_poi.dart';
 import '../../data/models/trail_poi.dart';
 import '../../data/repositories/osm_pois_repository.dart';
@@ -301,7 +302,7 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
               const Icon(Icons.place, size: 18, color: AppColors.info),
               const SizedBox(width: 6),
               Text(
-                'POI lungo il percorso',
+                context.l10n.poiAlongRoute,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
@@ -324,8 +325,8 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 _osmPois.isEmpty
-                    ? 'Nessun POI segnalato al momento.'
-                    : 'Nessun POI segnalato dalla community su questo percorso.',
+                    ? context.l10n.noPoiReported
+                    : context.l10n.noPoiReportedRoute,
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -341,7 +342,7 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
               child: OutlinedButton.icon(
                 onPressed: _openAddPoiSheet,
                 icon: const Icon(Icons.add_location_alt, size: 18),
-                label: const Text('Aggiungi POI'),
+                label: Text(context.l10n.addPoi),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.info,
                   side: const BorderSide(color: AppColors.info),
@@ -365,7 +366,7 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
                     color: Theme.of(context).colorScheme.onSurfaceVariant),
                 const SizedBox(width: 6),
                 Text(
-                  'Anche nella zona',
+                  context.l10n.alsoInArea,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,

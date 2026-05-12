@@ -1650,5 +1650,19 @@
   "chartSpeed": "Velocità",
   "noElevationData": "Nessun dato altimetrico",
   "noSpeedData": "Nessun dato velocità",
-  "noHeartRateData": "Nessun dato battito cardiaco"
+  "noHeartRateData": "Nessun dato battito cardiaco",
+
+  "createSegment": "Crea segmento",
+  "noSegmentsOnTrack": "Nessun segmento su questa traccia.",
+  "noSegmentsCreatedTapPlus": "Nessun segmento creato da questa traccia. Tocca \"+\" per crearne uno.",
+  "noSegmentsCreated": "Nessun segmento creato da questa traccia.",
+
+  "poiAlongRoute": "POI lungo il percorso",
+  "noPoiReported": "Nessun POI segnalato al momento.",
+  "noPoiReportedRoute": "Nessun POI segnalato dalla community su questo percorso.",
+  "addPoi": "Aggiungi POI",
+  "addPoiHere": "Aggiungi POI qui",
+  "alsoInArea": "Anche nella zona",
+  "byAuthor": "di: {name}",
+  "@byAuthor": { "placeholders": { "name": {"type": "String"} } }
 }

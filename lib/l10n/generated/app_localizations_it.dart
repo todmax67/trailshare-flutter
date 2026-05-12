@@ -4718,4 +4718,41 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get noHeartRateData => 'Nessun dato battito cardiaco';
+
+  @override
+  String get createSegment => 'Crea segmento';
+
+  @override
+  String get noSegmentsOnTrack => 'Nessun segmento su questa traccia.';
+
+  @override
+  String get noSegmentsCreatedTapPlus =>
+      'Nessun segmento creato da questa traccia. Tocca \"+\" per crearne uno.';
+
+  @override
+  String get noSegmentsCreated => 'Nessun segmento creato da questa traccia.';
+
+  @override
+  String get poiAlongRoute => 'POI lungo il percorso';
+
+  @override
+  String get noPoiReported => 'Nessun POI segnalato al momento.';
+
+  @override
+  String get noPoiReportedRoute =>
+      'Nessun POI segnalato dalla community su questo percorso.';
+
+  @override
+  String get addPoi => 'Aggiungi POI';
+
+  @override
+  String get addPoiHere => 'Aggiungi POI qui';
+
+  @override
+  String get alsoInArea => 'Anche nella zona';
+
+  @override
+  String byAuthor(String name) {
+    return 'di: $name';
+  }
 }

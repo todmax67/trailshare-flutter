@@ -213,7 +213,7 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
           IconButton(
             icon: const Icon(Icons.add, size: 20),
             onPressed: _openEditor,
-            tooltip: 'Crea segmento',
+            tooltip: context.l10n.createSegment,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
@@ -226,10 +226,10 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Text(
         widget.readOnly
-            ? 'Nessun segmento su questa traccia.'
+            ? context.l10n.noSegmentsOnTrack
             : (_canCreate
-                ? 'Nessun segmento creato da questa traccia. Tocca "+" per crearne uno.'
-                : 'Nessun segmento creato da questa traccia.'),
+                ? context.l10n.noSegmentsCreatedTapPlus
+                : context.l10n.noSegmentsCreated),
         style: TextStyle(
           color: Colors.grey[600],
           fontSize: 13,

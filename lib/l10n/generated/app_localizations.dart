@@ -8503,6 +8503,72 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Nessun dato battito cardiaco'**
   String get noHeartRateData;
+
+  /// No description provided for @createSegment.
+  ///
+  /// In it, this message translates to:
+  /// **'Crea segmento'**
+  String get createSegment;
+
+  /// No description provided for @noSegmentsOnTrack.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun segmento su questa traccia.'**
+  String get noSegmentsOnTrack;
+
+  /// No description provided for @noSegmentsCreatedTapPlus.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun segmento creato da questa traccia. Tocca \"+\" per crearne uno.'**
+  String get noSegmentsCreatedTapPlus;
+
+  /// No description provided for @noSegmentsCreated.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun segmento creato da questa traccia.'**
+  String get noSegmentsCreated;
+
+  /// No description provided for @poiAlongRoute.
+  ///
+  /// In it, this message translates to:
+  /// **'POI lungo il percorso'**
+  String get poiAlongRoute;
+
+  /// No description provided for @noPoiReported.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun POI segnalato al momento.'**
+  String get noPoiReported;
+
+  /// No description provided for @noPoiReportedRoute.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun POI segnalato dalla community su questo percorso.'**
+  String get noPoiReportedRoute;
+
+  /// No description provided for @addPoi.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi POI'**
+  String get addPoi;
+
+  /// No description provided for @addPoiHere.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi POI qui'**
+  String get addPoiHere;
+
+  /// No description provided for @alsoInArea.
+  ///
+  /// In it, this message translates to:
+  /// **'Anche nella zona'**
+  String get alsoInArea;
+
+  /// No description provided for @byAuthor.
+  ///
+  /// In it, this message translates to:
+  /// **'di: {name}'**
+  String byAuthor(String name);
 }
 
 class _AppLocalizationsDelegate

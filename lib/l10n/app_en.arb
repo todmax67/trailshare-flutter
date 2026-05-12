@@ -1650,5 +1650,19 @@
   "chartSpeed": "Speed",
   "noElevationData": "No elevation data",
   "noSpeedData": "No speed data",
-  "noHeartRateData": "No heart rate data"
+  "noHeartRateData": "No heart rate data",
+
+  "createSegment": "Create segment",
+  "noSegmentsOnTrack": "No segments on this track.",
+  "noSegmentsCreatedTapPlus": "No segments created from this track. Tap \"+\" to create one.",
+  "noSegmentsCreated": "No segments created from this track.",
+
+  "poiAlongRoute": "POIs along the route",
+  "noPoiReported": "No POIs reported yet.",
+  "noPoiReportedRoute": "No POIs reported by the community on this route.",
+  "addPoi": "Add POI",
+  "addPoiHere": "Add POI here",
+  "alsoInArea": "Also in the area",
+  "byAuthor": "by: {name}",
+  "@byAuthor": { "placeholders": { "name": {"type": "String"} } }
 }
