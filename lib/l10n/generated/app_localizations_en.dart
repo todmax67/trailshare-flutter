@@ -4517,4 +4517,149 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get hrZonesSetCta => 'Set';
+
+  @override
+  String get settingsNews => 'News';
+
+  @override
+  String get settingsHrTraining => 'HR Training';
+
+  @override
+  String genericErrorWith(String message) {
+    return 'Error: $message';
+  }
+
+  @override
+  String get stravaSignInRequired => 'Sign in to connect Strava';
+
+  @override
+  String get stravaConnect => 'Connect Strava';
+
+  @override
+  String get stravaConnectSubtitle =>
+      'Upload your activities to Strava at end of session';
+
+  @override
+  String get stravaCannotOpen => 'Cannot open Strava';
+
+  @override
+  String get stravaConnected => 'Strava connected';
+
+  @override
+  String get stravaAuthorizedAccount => 'Authorized account';
+
+  @override
+  String get stravaDisconnectQuestion => 'Disconnect Strava?';
+
+  @override
+  String get stravaDisconnectBody =>
+      'Future activities will no longer be uploaded. Activities already uploaded will remain on Strava.';
+
+  @override
+  String get stravaDisconnect => 'Disconnect';
+
+  @override
+  String get stravaDisconnectedOk => 'Strava disconnected';
+
+  @override
+  String get stravaDisconnectError => 'Disconnect failed';
+
+  @override
+  String get stravaAutoUpload => 'Upload to Strava on finish';
+
+  @override
+  String get stravaAutoUploadSubtitle =>
+      'Automatically upload GPX at end of activity';
+
+  @override
+  String get stravaImport => 'Import activities from Strava';
+
+  @override
+  String get stravaImportSubtitle =>
+      'Activities recorded with Garmin/other devices and synced to Strava will be automatically imported here';
+
+  @override
+  String get stravaUploading => 'Uploading to Strava…';
+
+  @override
+  String get stravaUploadingSubtitle => 'Strava is processing the GPX file';
+
+  @override
+  String get stravaUploadFailed => 'Strava upload failed';
+
+  @override
+  String get stravaUploadPending => 'Upload pending';
+
+  @override
+  String get stravaUploadPendingSubtitle =>
+      'Strava has not confirmed the activity yet';
+
+  @override
+  String get stravaUnknownError => 'Unknown error';
+
+  @override
+  String get stravaUploadedOk => 'Uploaded to Strava ✓';
+
+  @override
+  String get stravaUploadTitle => 'Upload to Strava';
+
+  @override
+  String get stravaTrackImported => 'Imported from Strava';
+
+  @override
+  String get stravaTrackUploaded => 'Uploaded to Strava';
+
+  @override
+  String get stravaTrackImportedSubtitle =>
+      'Recorded on another device, synced via Strava';
+
+  @override
+  String get stravaTrackUploadedSubtitle => 'Tap to open the activity';
+
+  @override
+  String get noContacts => 'No contacts';
+
+  @override
+  String get deleteContactQuestion => 'Delete contact?';
+
+  @override
+  String get cannotOpenTos => 'Cannot open Terms of Service';
+
+  @override
+  String get trackTooShortToFollow => 'Track too short to be followed';
+
+  @override
+  String get trackTooShortToSplit => 'The track is too short to be split.';
+
+  @override
+  String get trackSplitError => 'Error splitting the track.';
+
+  @override
+  String get trackSplitOk => 'Track split into 2 new tracks';
+
+  @override
+  String get trackMergeNoOther => 'No other track to merge.';
+
+  @override
+  String get trackMergeError => 'Error merging tracks.';
+
+  @override
+  String lifelineCannotStart(String error) {
+    return 'Cannot start Lifeline: $error';
+  }
+
+  @override
+  String get lifelineHowItWorks => 'How Lifeline works';
+
+  @override
+  String get callCannotOpen => 'Cannot start the call. Dial 112 manually.';
+
+  @override
+  String get noAppAvailable => 'No app available';
+
+  @override
+  String get imOkContinue => 'I\'m OK, continue';
+
+  @override
+  String get imOkSaveStop => 'I\'m OK, stop and save';
 }

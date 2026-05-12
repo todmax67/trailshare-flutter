@@ -280,7 +280,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Impossibile avviare Lifeline: $e'),
+              content: Text(context.l10n.lifelineCannotStart(e.toString())),
               backgroundColor: AppColors.warning,
             ),
           );
@@ -1659,8 +1659,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                     side: const BorderSide(color: Colors.white),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  child: const Text('Annulla',
-                      style: TextStyle(color: Colors.white)),
+                  child: Text(context.l10n.cancel,
+                      style: const TextStyle(color: Colors.white)),
                 ),
               ),
             ],
@@ -1689,9 +1689,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('Impossibile aprire la chiamata. Compone manualmente 112.'),
+          SnackBar(
+            content: Text(context.l10n.callCannotOpen),
             backgroundColor: AppColors.warning,
           ),
         );
@@ -1728,7 +1727,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Annulla'),
+                      child: Text(context.l10n.cancel),
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, true),
@@ -2012,7 +2011,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                 contentPadding: EdgeInsets.zero,
                 dense: true,
                 secondary: const Icon(Icons.directions_run, color: Color(0xFFFC4C02)),
-                title: const Text('Carica su Strava'),
+                title: Text(context.l10n.stravaUploadTitle),
                 value: uploadToStrava,
                 onChanged: (v) => setStateDialog(() => uploadToStrava = v),
               ),
@@ -2862,7 +2861,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Impossibile avviare Lifeline: $e'),
+              content: Text(context.l10n.lifelineCannotStart(e.toString())),
               backgroundColor: AppColors.warning,
             ),
           );
@@ -2986,7 +2985,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nessuna app disponibile')),
+          SnackBar(content: Text(context.l10n.noAppAvailable)),
         );
       }
     } catch (e) {
@@ -3528,10 +3527,10 @@ class _LifelineDisclaimerDialogState
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
-        children: const [
-          Icon(Icons.shield_outlined, color: AppColors.info, size: 24),
-          SizedBox(width: 8),
-          Expanded(child: Text('Come funziona Lifeline')),
+        children: [
+          const Icon(Icons.shield_outlined, color: AppColors.info, size: 24),
+          const SizedBox(width: 8),
+          Expanded(child: Text(context.l10n.lifelineHowItWorks)),
         ],
       ),
       content: SingleChildScrollView(
@@ -3595,7 +3594,7 @@ class _LifelineDisclaimerDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: const Text('Annulla'),
+          child: Text(context.l10n.cancel),
         ),
         ElevatedButton(
           onPressed: _ack ? () => Navigator.pop(context, true) : null,
@@ -3885,7 +3884,7 @@ class _InactivityDialogState extends State<_InactivityDialog> {
               child: ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context, _InactivityResponse.ok),
                 icon: const Icon(Icons.check),
-                label: const Text('Sono OK, continuo'),
+                label: Text(context.l10n.imOkContinue),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.success,
                   foregroundColor: Colors.white,
@@ -3900,8 +3899,8 @@ class _InactivityDialogState extends State<_InactivityDialog> {
                 onPressed: () =>
                     Navigator.pop(context, _InactivityResponse.stopAndSave),
                 icon: const Icon(Icons.stop, color: Colors.white),
-                label: const Text('Sono OK, termina e salva',
-                    style: TextStyle(color: Colors.white)),
+                label: Text(context.l10n.imOkSaveStop,
+                    style: const TextStyle(color: Colors.white)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white),
                   padding: const EdgeInsets.symmetric(vertical: 12),

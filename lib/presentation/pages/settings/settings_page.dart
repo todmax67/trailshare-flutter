@@ -224,7 +224,7 @@ class _SettingsPageState extends State<SettingsPage> {
           // 6.5 — Entry alla pagina Allenamento HR personalizzato
           _buildListTile(
             icon: Icons.fitness_center,
-            title: 'Allenamento HR',
+            title: context.l10n.settingsHrTraining,
             subtitle: 'Zone cardio + suggerimenti settimanali (Pro)',
             onTap: () {
               Navigator.push(
@@ -601,7 +601,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       SetOptions(merge: true));
             } catch (e) {
               messenger.showSnackBar(
-                SnackBar(content: Text('Errore: $e')),
+                SnackBar(content: Text(context.l10n.genericErrorWith(e.toString()))),
               );
             }
           },
@@ -648,10 +648,12 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildStravaSection() {
     final stravaService = StravaService();
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    final l10n = context.l10n;
+
     if (uid == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16),
-        child: Text('Accedi per collegare Strava'),
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Text(l10n.stravaSignInRequired),
       );
     }
     final docStream = FirebaseFirestore.instance
@@ -671,14 +673,14 @@ class _SettingsPageState extends State<SettingsPage> {
         if (!connected) {
           return ListTile(
             leading: const Icon(Icons.directions_run, color: Color(0xFFFC4C02)),
-            title: const Text('Collega Strava'),
-            subtitle: const Text('Carica le attività su Strava a fine sessione'),
+            title: Text(l10n.stravaConnect),
+            subtitle: Text(l10n.stravaConnectSubtitle),
             trailing: const Icon(Icons.open_in_new, size: 18),
             onTap: () async {
               final ok = await stravaService.connect();
               if (!ok && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Impossibile aprire Strava')),
+                  SnackBar(content: Text(l10n.stravaCannotOpen)),
                 );
               }
             },
@@ -689,21 +691,18 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             ListTile(
               leading: const Icon(Icons.directions_run, color: Color(0xFFFC4C02)),
-              title: const Text('Strava collegato'),
-              subtitle: Text(athleteName.isNotEmpty ? athleteName : 'Account autorizzato'),
+              title: Text(l10n.stravaConnected),
+              subtitle: Text(athleteName.isNotEmpty ? athleteName : l10n.stravaAuthorizedAccount),
               trailing: TextButton(
                 onPressed: () async {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      title: const Text('Disconnetti Strava?'),
-                      content: const Text(
-                        'Le attività future non verranno più caricate. '
-                        'Le attività già caricate restano su Strava.',
-                      ),
+                      title: Text(l10n.stravaDisconnectQuestion),
+                      content: Text(l10n.stravaDisconnectBody),
                       actions: [
-                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
-                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Disconnetti')),
+                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
+                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l10n.stravaDisconnect)),
                       ],
                     ),
                   );
@@ -711,25 +710,25 @@ class _SettingsPageState extends State<SettingsPage> {
                     final ok = await stravaService.disconnect();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(ok ? 'Strava disconnesso' : 'Errore disconnessione'),
+                        content: Text(ok ? l10n.stravaDisconnectedOk : l10n.stravaDisconnectError),
                       ));
                     }
                   }
                 },
-                child: const Text('Disconnetti'),
+                child: Text(l10n.stravaDisconnect),
               ),
             ),
             SwitchListTile(
               secondary: const Icon(Icons.cloud_upload_outlined),
-              title: const Text('Carica su Strava al termine'),
-              subtitle: const Text('Upload automatico GPX a fine attività'),
+              title: Text(l10n.stravaAutoUpload),
+              subtitle: Text(l10n.stravaAutoUploadSubtitle),
               value: autoUpload,
               onChanged: (v) => stravaService.setAutoUploadEnabled(v),
             ),
             SwitchListTile(
               secondary: const Icon(Icons.cloud_download_outlined),
-              title: const Text('Importa attività da Strava'),
-              subtitle: const Text('Le attività registrate con Garmin/altri device sincronizzate su Strava verranno importate qui automaticamente'),
+              title: Text(l10n.stravaImport),
+              subtitle: Text(l10n.stravaImportSubtitle),
               value: data['importFromStravaEnabled'] == true,
               onChanged: (v) => stravaService.setImportFromStravaEnabled(v),
             ),
@@ -1280,7 +1279,7 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Novità'),
+        title: Text(context.l10n.settingsNews),
         contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
         content: SizedBox(
           width: double.maxFinite,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -34,7 +35,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
-            return Center(child: Text('Errore: ${snap.error}'));
+            return Center(child: Text(context.l10n.genericErrorWith(snap.error.toString())));
           }
           final contacts = snap.data ?? const [];
 
@@ -182,13 +183,13 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         c.name,
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-      subtitle: Text(subtitle.isEmpty ? 'Nessun contatto' : subtitle),
+      subtitle: Text(subtitle.isEmpty ? context.l10n.noContacts : subtitle),
       trailing: PopupMenuButton<String>(
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: 'edit', child: Text('Modifica')),
+        itemBuilder: (_) => [
+          const PopupMenuItem(value: 'edit', child: Text('Modifica')),
           PopupMenuItem(
             value: 'delete',
-            child: Text('Elimina', style: TextStyle(color: AppColors.danger)),
+            child: Text(context.l10n.delete, style: const TextStyle(color: AppColors.danger)),
           ),
         ],
         onSelected: (v) {
@@ -313,8 +314,8 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Impossibile aprire i Termini di Servizio'),
+          SnackBar(
+            content: Text(context.l10n.cannotOpenTos),
           ),
         );
       }
@@ -332,7 +333,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString())), backgroundColor: AppColors.danger),
       );
     }
   }
@@ -345,7 +346,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString())), backgroundColor: AppColors.danger),
       );
     }
   }
@@ -354,17 +355,17 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminare contatto?'),
+        title: Text(context.l10n.deleteContactQuestion),
         content: Text('${c.name} non riceverà più notifiche Lifeline.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -375,7 +376,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString())), backgroundColor: AppColors.danger),
       );
     }
   }
@@ -511,7 +512,7 @@ class _ContactEditorSheetState extends State<_ContactEditorSheet> {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Annulla'),
+                        child: Text(context.l10n.cancel),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -522,7 +523,7 @@ class _ContactEditorSheetState extends State<_ContactEditorSheet> {
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                         ),
-                        child: const Text('Salva'),
+                        child: Text(context.l10n.save),
                       ),
                     ),
                   ],
@@ -654,7 +655,7 @@ class _TemplateEditorState extends State<_TemplateEditor> {
                     ? null
                     : () => widget.onSaved(_ctrl.text),
                 icon: const Icon(Icons.save, size: 16),
-                label: const Text('Salva'),
+                label: Text(context.l10n.save),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,

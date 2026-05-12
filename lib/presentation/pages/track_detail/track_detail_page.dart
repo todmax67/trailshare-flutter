@@ -348,21 +348,21 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           final imported = data['importedFromStrava'] == true;
           tile = ListTile(
             leading: const Icon(Icons.directions_run, color: stravaOrange),
-            title: Text(imported ? 'Importata da Strava' : 'Caricato su Strava'),
+            title: Text(imported ? context.l10n.stravaTrackImported : context.l10n.stravaTrackUploaded),
             subtitle: Text(imported
-                ? 'Registrata su un altro device, sincronizzata via Strava'
-                : 'Tocca per aprire l\'attività'),
+                ? context.l10n.stravaTrackImportedSubtitle
+                : context.l10n.stravaTrackUploadedSubtitle),
             trailing: const Icon(Icons.open_in_new, size: 18, color: stravaOrange),
             onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
           );
         } else if (status == 'processing' || status == 'pending') {
-          tile = const ListTile(
-            leading: SizedBox(
+          tile = ListTile(
+            leading: const SizedBox(
               width: 24, height: 24,
               child: CircularProgressIndicator(strokeWidth: 2, color: stravaOrange),
             ),
-            title: Text('Caricamento su Strava…'),
-            subtitle: Text('Strava sta elaborando il file GPX'),
+            title: Text(context.l10n.stravaUploading),
+            subtitle: Text(context.l10n.stravaUploadingSubtitle),
           );
         } else if (status == 'error' || status == 'pending') {
           final isError = status == 'error';
@@ -372,11 +372,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               isError ? Icons.error_outline : Icons.schedule,
               color: isError ? AppColors.danger : Colors.orange,
             ),
-            title: Text(isError ? 'Upload Strava fallito' : 'Upload in attesa'),
+            title: Text(isError ? context.l10n.stravaUploadFailed : context.l10n.stravaUploadPending),
             subtitle: Text(
               isError
-                  ? (err ?? 'Errore sconosciuto')
-                  : 'Strava non ha ancora confermato l\'attività',
+                  ? (err ?? context.l10n.stravaUnknownError)
+                  : context.l10n.stravaUploadPendingSubtitle,
             ),
             trailing: _isRetryingStrava
                 ? const SizedBox(
@@ -386,7 +386,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 : TextButton.icon(
                     onPressed: () => _retryStravaUpload(_track.id!),
                     icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Riprova'),
+                    label: Text(context.l10n.retry),
                   ),
           );
         } else {
@@ -426,8 +426,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
     final messenger = ScaffoldMessenger.of(context);
     if (activityId != null) {
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Caricato su Strava ✓'),
+      messenger.showSnackBar(SnackBar(
+        content: Text(context.l10n.stravaUploadedOk),
         backgroundColor: AppColors.success,
       ));
     } else {
@@ -1223,8 +1223,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     final total = _track.points.length;
     if (total < 4) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('La traccia è troppo corta per essere spezzata.')),
+        SnackBar(
+            content: Text(context.l10n.trackTooShortToSplit)),
       );
       return;
     }
@@ -1289,7 +1289,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Annulla'),
+                  child: Text(context.l10n.cancel),
                 ),
                 FilledButton(
                   onPressed: () async {
@@ -1312,13 +1312,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     if (!mounted) return;
     if (result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Errore nello split della traccia.')),
+        SnackBar(
+            content: Text(context.l10n.trackSplitError)),
       );
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Traccia spezzata in 2 nuove tracce')),
+      SnackBar(content: Text(context.l10n.trackSplitOk)),
     );
     Navigator.pop(context); // torna alla lista
   }
@@ -1335,8 +1335,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         .toList();
     if (candidates.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Nessuna altra traccia da unire.')),
+        SnackBar(
+            content: Text(context.l10n.trackMergeNoOther)),
       );
       return;
     }
@@ -1400,7 +1400,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -1414,7 +1414,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     if (!mounted) return;
     if (newId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Errore nell\'unione delle tracce.')),
+        SnackBar(content: Text(context.l10n.trackMergeError)),
       );
       return;
     }

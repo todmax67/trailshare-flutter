@@ -8167,6 +8167,276 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Imposta'**
   String get hrZonesSetCta;
+
+  /// No description provided for @settingsNews.
+  ///
+  /// In it, this message translates to:
+  /// **'Novità'**
+  String get settingsNews;
+
+  /// No description provided for @settingsHrTraining.
+  ///
+  /// In it, this message translates to:
+  /// **'Allenamento HR'**
+  String get settingsHrTraining;
+
+  /// No description provided for @genericErrorWith.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore: {message}'**
+  String genericErrorWith(String message);
+
+  /// No description provided for @stravaSignInRequired.
+  ///
+  /// In it, this message translates to:
+  /// **'Accedi per collegare Strava'**
+  String get stravaSignInRequired;
+
+  /// No description provided for @stravaConnect.
+  ///
+  /// In it, this message translates to:
+  /// **'Collega Strava'**
+  String get stravaConnect;
+
+  /// No description provided for @stravaConnectSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Carica le attività su Strava a fine sessione'**
+  String get stravaConnectSubtitle;
+
+  /// No description provided for @stravaCannotOpen.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire Strava'**
+  String get stravaCannotOpen;
+
+  /// No description provided for @stravaConnected.
+  ///
+  /// In it, this message translates to:
+  /// **'Strava collegato'**
+  String get stravaConnected;
+
+  /// No description provided for @stravaAuthorizedAccount.
+  ///
+  /// In it, this message translates to:
+  /// **'Account autorizzato'**
+  String get stravaAuthorizedAccount;
+
+  /// No description provided for @stravaDisconnectQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Disconnetti Strava?'**
+  String get stravaDisconnectQuestion;
+
+  /// No description provided for @stravaDisconnectBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Le attività future non verranno più caricate. Le attività già caricate restano su Strava.'**
+  String get stravaDisconnectBody;
+
+  /// No description provided for @stravaDisconnect.
+  ///
+  /// In it, this message translates to:
+  /// **'Disconnetti'**
+  String get stravaDisconnect;
+
+  /// No description provided for @stravaDisconnectedOk.
+  ///
+  /// In it, this message translates to:
+  /// **'Strava disconnesso'**
+  String get stravaDisconnectedOk;
+
+  /// No description provided for @stravaDisconnectError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore disconnessione'**
+  String get stravaDisconnectError;
+
+  /// No description provided for @stravaAutoUpload.
+  ///
+  /// In it, this message translates to:
+  /// **'Carica su Strava al termine'**
+  String get stravaAutoUpload;
+
+  /// No description provided for @stravaAutoUploadSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Upload automatico GPX a fine attività'**
+  String get stravaAutoUploadSubtitle;
+
+  /// No description provided for @stravaImport.
+  ///
+  /// In it, this message translates to:
+  /// **'Importa attività da Strava'**
+  String get stravaImport;
+
+  /// No description provided for @stravaImportSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Le attività registrate con Garmin/altri device sincronizzate su Strava verranno importate qui automaticamente'**
+  String get stravaImportSubtitle;
+
+  /// No description provided for @stravaUploading.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricamento su Strava…'**
+  String get stravaUploading;
+
+  /// No description provided for @stravaUploadingSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Strava sta elaborando il file GPX'**
+  String get stravaUploadingSubtitle;
+
+  /// No description provided for @stravaUploadFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'Upload Strava fallito'**
+  String get stravaUploadFailed;
+
+  /// No description provided for @stravaUploadPending.
+  ///
+  /// In it, this message translates to:
+  /// **'Upload in attesa'**
+  String get stravaUploadPending;
+
+  /// No description provided for @stravaUploadPendingSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Strava non ha ancora confermato l\'attività'**
+  String get stravaUploadPendingSubtitle;
+
+  /// No description provided for @stravaUnknownError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore sconosciuto'**
+  String get stravaUnknownError;
+
+  /// No description provided for @stravaUploadedOk.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricato su Strava ✓'**
+  String get stravaUploadedOk;
+
+  /// No description provided for @stravaUploadTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Carica su Strava'**
+  String get stravaUploadTitle;
+
+  /// No description provided for @stravaTrackImported.
+  ///
+  /// In it, this message translates to:
+  /// **'Importata da Strava'**
+  String get stravaTrackImported;
+
+  /// No description provided for @stravaTrackUploaded.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricato su Strava'**
+  String get stravaTrackUploaded;
+
+  /// No description provided for @stravaTrackImportedSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Registrata su un altro device, sincronizzata via Strava'**
+  String get stravaTrackImportedSubtitle;
+
+  /// No description provided for @stravaTrackUploadedSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca per aprire l\'attività'**
+  String get stravaTrackUploadedSubtitle;
+
+  /// No description provided for @noContacts.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun contatto'**
+  String get noContacts;
+
+  /// No description provided for @deleteContactQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare contatto?'**
+  String get deleteContactQuestion;
+
+  /// No description provided for @cannotOpenTos.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire i Termini di Servizio'**
+  String get cannotOpenTos;
+
+  /// No description provided for @trackTooShortToFollow.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia troppo corta per essere seguita'**
+  String get trackTooShortToFollow;
+
+  /// No description provided for @trackTooShortToSplit.
+  ///
+  /// In it, this message translates to:
+  /// **'La traccia è troppo corta per essere spezzata.'**
+  String get trackTooShortToSplit;
+
+  /// No description provided for @trackSplitError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore nello split della traccia.'**
+  String get trackSplitError;
+
+  /// No description provided for @trackSplitOk.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia spezzata in 2 nuove tracce'**
+  String get trackSplitOk;
+
+  /// No description provided for @trackMergeNoOther.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna altra traccia da unire.'**
+  String get trackMergeNoOther;
+
+  /// No description provided for @trackMergeError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore nell\'unione delle tracce.'**
+  String get trackMergeError;
+
+  /// No description provided for @lifelineCannotStart.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile avviare Lifeline: {error}'**
+  String lifelineCannotStart(String error);
+
+  /// No description provided for @lifelineHowItWorks.
+  ///
+  /// In it, this message translates to:
+  /// **'Come funziona Lifeline'**
+  String get lifelineHowItWorks;
+
+  /// No description provided for @callCannotOpen.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire la chiamata. Compone manualmente 112.'**
+  String get callCannotOpen;
+
+  /// No description provided for @noAppAvailable.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna app disponibile'**
+  String get noAppAvailable;
+
+  /// No description provided for @imOkContinue.
+  ///
+  /// In it, this message translates to:
+  /// **'Sono OK, continuo'**
+  String get imOkContinue;
+
+  /// No description provided for @imOkSaveStop.
+  ///
+  /// In it, this message translates to:
+  /// **'Sono OK, termina e salva'**
+  String get imOkSaveStop;
 }
 
 class _AppLocalizationsDelegate
