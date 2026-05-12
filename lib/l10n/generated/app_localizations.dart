@@ -8839,6 +8839,24 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Eliminare foto?'**
   String get deletePhotoQuestion;
+
+  /// No description provided for @mfViewshedOnTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Filtro visibilità ON — tocca per disattivare'**
+  String get mfViewshedOnTooltip;
+
+  /// No description provided for @mfViewshedOffTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Filtro visibilità OFF — mostra solo cime non occluse'**
+  String get mfViewshedOffTooltip;
+
+  /// No description provided for @locationTimeout.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile ottenere la posizione (timeout GPS). Riprova all\'aperto.'**
+  String get locationTimeout;
 }
 
 class _AppLocalizationsDelegate

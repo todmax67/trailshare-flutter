@@ -2393,5 +2393,9 @@
   "reportWillBeRemoved": "La tua segnalazione verrà rimossa.",
   "reportCondition": "Segnala una condizione",
   "deletePoiQuestion": "Eliminare POI?",
-  "deletePhotoQuestion": "Eliminare foto?"
+  "deletePhotoQuestion": "Eliminare foto?",
+
+  "mfViewshedOnTooltip": "Filtro visibilità ON — tocca per disattivare",
+  "mfViewshedOffTooltip": "Filtro visibilità OFF — mostra solo cime non occluse",
+  "locationTimeout": "Impossibile ottenere la posizione (timeout GPS). Riprova all'aperto."
 }

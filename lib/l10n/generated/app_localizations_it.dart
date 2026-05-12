@@ -4901,4 +4901,16 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get deletePhotoQuestion => 'Eliminare foto?';
+
+  @override
+  String get mfViewshedOnTooltip =>
+      'Filtro visibilità ON — tocca per disattivare';
+
+  @override
+  String get mfViewshedOffTooltip =>
+      'Filtro visibilità OFF — mostra solo cime non occluse';
+
+  @override
+  String get locationTimeout =>
+      'Impossibile ottenere la posizione (timeout GPS). Riprova all\'aperto.';
 }

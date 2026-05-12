@@ -13,6 +13,7 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/services/mountain_finder_settings.dart';
 import '../../../core/services/peaks_dataset_service.dart';
 import '../../../core/services/pro_gate_service.dart';
+import '../../../core/services/viewshed_service.dart';
 import '../../../core/utils/mountain_photo_renderer.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
@@ -100,6 +101,18 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// proiezione corrente per permettere all'utente di leggere le
   /// label senza muoversi. Toggle dall'icona lock nell'HUD.
   bool _arLocked = false;
+
+  // ── Viewshed filter (PRO feature, free limitato) ────────────────────
+  /// Quando true, mostriamo solo le cime effettivamente visibili dalla
+  /// posizione utente (no occlusione da crinali). Free: raggio 20km, max 10
+  /// cime. Pro: 100km, illimitato, disk-cache.
+  bool _viewshedOnly = false;
+  /// Set di peak.id che il viewshed considera visibili. Vuoto = nessun filtro.
+  Set<String> _viewshedVisibleIds = const {};
+  /// Loading flag mentre gira il compute viewshed.
+  bool _computingViewshed = false;
+  /// Posizione usata per l'ultimo compute (per invalidare > 500m).
+  Position? _lastViewshedPosition;
 
   @override
   void initState() {
@@ -442,6 +455,77 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     });
     debugPrint('[MountainFinder] candidate peaks aggiornate: '
         '${_candidatePeaks.length} entro ${radius}km');
+
+    // Se il viewshed è attivo, ricalcola (i candidate sono cambiati).
+    if (_viewshedOnly) {
+      unawaited(_recomputeViewshedIfNeeded(pos, force: true));
+    }
+  }
+
+  /// (Re)compute viewshed se posizione è cambiata > 500m o force=true.
+  Future<void> _recomputeViewshedIfNeeded(Position pos, {bool force = false}) async {
+    if (!force && _lastViewshedPosition != null) {
+      final moved = Geolocator.distanceBetween(
+        _lastViewshedPosition!.latitude, _lastViewshedPosition!.longitude,
+        pos.latitude, pos.longitude,
+      );
+      if (moved < 500) return;
+    }
+    if (_computingViewshed) return; // già in corso, evita race
+    if (_candidatePeaks.isEmpty) return;
+
+    final isPro = ProGateService().isPro;
+    final tier = isPro ? ViewshedTier.pro : ViewshedTier.free;
+
+    setState(() => _computingViewshed = true);
+    try {
+      final result = await ViewshedService().computeVisible(
+        observerLat: pos.latitude,
+        observerLng: pos.longitude,
+        candidates: _candidatePeaks,
+        tier: tier,
+      );
+      if (!mounted) return;
+      setState(() {
+        _viewshedVisibleIds = result.visible.map((v) => v.peak.id).toSet();
+        _lastViewshedPosition = pos;
+        _computingViewshed = false;
+      });
+      debugPrint(
+          '[MountainFinder] viewshed: ${result.visible.length} cime visibili '
+          '(tier=${tier.label}, ${result.elapsedMs}ms)');
+    } catch (e) {
+      debugPrint('[MountainFinder] viewshed error: $e');
+      if (mounted) setState(() => _computingViewshed = false);
+    }
+  }
+
+  /// Toggle del filtro "solo cime visibili". Triggera compute la prima volta.
+  Future<void> _toggleViewshed() async {
+    final pos = _userPosition;
+    if (pos == null) {
+      AppSnackBar.info(context, context.l10n.locationTimeout);
+      return;
+    }
+    final wantOn = !_viewshedOnly;
+    setState(() {
+      _viewshedOnly = wantOn;
+      if (!wantOn) {
+        _viewshedVisibleIds = const {};
+        _lastViewshedPosition = null;
+      }
+    });
+    if (wantOn) {
+      await _recomputeViewshedIfNeeded(pos, force: true);
+    }
+  }
+
+  /// Lista cime effettiva considerando il filtro viewshed.
+  List<MountainPeak> get _effectiveCandidatePeaks {
+    if (!_viewshedOnly || _viewshedVisibleIds.isEmpty) return _candidatePeaks;
+    return _candidatePeaks
+        .where((p) => _viewshedVisibleIds.contains(p.id))
+        .toList();
   }
 
   @override
@@ -646,7 +730,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       // Tutti i peak nel cono FOV — niente cap come in live
       // (la differenza Free vs Pro!).
       final allVisible = MountainProjection.projectAll(
-        peaks: _candidatePeaks,
+        peaks: _effectiveCandidatePeaks,
         observerLat: pos.latitude,
         observerLng: pos.longitude,
         observerAltitudeMeters: pos.altitude,
@@ -732,7 +816,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             (isPortrait ? calibV : calibH) / _zoomLevel;
         final projected = (pos != null && heading != null)
             ? MountainProjection.projectAll(
-                peaks: _candidatePeaks,
+                peaks: _effectiveCandidatePeaks,
                 observerLat: pos.latitude,
                 observerLng: pos.longitude,
                 observerAltitudeMeters: pos.altitude,
@@ -898,6 +982,31 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             ),
           ),
           const SizedBox(width: 8),
+          // Viewshed filter: mostra solo cime non occluse da crinali.
+          // Free 20km/10 cime, Pro 100km/illimitato.
+          Material(
+            color: _viewshedOnly
+                ? AppColors.success
+                : Colors.black.withValues(alpha: 0.5),
+            shape: const CircleBorder(),
+            child: IconButton(
+              onPressed: _computingViewshed ? null : _toggleViewshed,
+              icon: _computingViewshed
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                    )
+                  : Icon(
+                      _viewshedOnly ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.white,
+                    ),
+              tooltip: _viewshedOnly
+                  ? context.l10n.mfViewshedOnTooltip
+                  : context.l10n.mfViewshedOffTooltip,
+            ),
+          ),
+          const SizedBox(width: 4),
           // AR lock: congela il puntamento per leggere le label.
           Material(
             color: _arLocked

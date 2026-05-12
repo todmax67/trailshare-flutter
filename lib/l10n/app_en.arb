@@ -2393,5 +2393,9 @@
   "reportWillBeRemoved": "Your report will be removed.",
   "reportCondition": "Report a condition",
   "deletePoiQuestion": "Delete POI?",
-  "deletePhotoQuestion": "Delete photo?"
+  "deletePhotoQuestion": "Delete photo?",
+
+  "mfViewshedOnTooltip": "Visibility filter ON — tap to disable",
+  "mfViewshedOffTooltip": "Visibility filter OFF — show only non-occluded peaks",
+  "locationTimeout": "Cannot get position (GPS timeout). Try again outdoors."
 }
