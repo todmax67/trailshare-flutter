@@ -7,6 +7,7 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/tracks_repository.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Picker per scegliere quali tracce consigliare sul profilo Spazio Pro.
 /// Due tab: "Le mie tracce" (private dell'owner) e "Community recenti".
@@ -173,7 +174,7 @@ class _BusinessRecommendedTracksPickerPageState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, null),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),

@@ -6,6 +6,7 @@ import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../../widgets/app_snackbar.dart';
 import '../groups/group_detail_page.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Bottom sheet che gestisce il link bidirezionale Spazio Pro ↔ Group
 /// (Community VIP del business).
@@ -144,7 +145,7 @@ class _CommunitySheetState extends State<_CommunitySheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),

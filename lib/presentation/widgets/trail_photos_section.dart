@@ -7,6 +7,7 @@ import '../../data/models/trail_photo.dart';
 import '../../data/repositories/trail_photos_repository.dart';
 import 'trail_photo_viewer.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Sezione completa "Foto community" per la pagina dettaglio sentiero.
 ///
@@ -126,7 +127,7 @@ class _TrailPhotosSectionState extends State<TrailPhotosSection> {
       setState(() => _isUploading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Errore: $e'),
+          content: Text(context.l10n.genericErrorWith(e.toString())),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -260,7 +261,7 @@ class _TrailPhotosSectionState extends State<TrailPhotosSection> {
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('Riprova'),
+            child: Text(context.l10n.retry),
           ),
         ],
       ),

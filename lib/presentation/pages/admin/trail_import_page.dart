@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/italian_regions.dart';
 import '../../../core/services/trail_import_service.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina admin per importare sentieri da Waymarked Trails.
 ///
@@ -471,12 +472,12 @@ class _TrailImportPageState extends State<TrailImportPage> {
                   isDense: true,
                 ),
               ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             CheckboxListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('Aggiorna trail già importati',
+              title: Text(context.l10n.updateAlreadyImported,
                   style: TextStyle(fontSize: 13)),
               subtitle: Text(
                 'Se selezionato, sovrascrive geometria e stats invece di skip',

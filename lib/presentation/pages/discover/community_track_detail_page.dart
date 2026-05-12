@@ -332,7 +332,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   if (track.sharedAt != null) ...[
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       context.l10n.sharedOnDate(_formatDate(track.sharedAt!)),
                       style: TextStyle(color: context.textSecondary, fontSize: 12),
@@ -437,7 +437,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             Row(
               children: [
                 Icon(Icons.photo_library, size: 20, color: context.textSecondary),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text(
                   context.l10n.photosWithCount(photoUrls.length),
                   style: const TextStyle(
@@ -518,9 +518,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           children: [
             Text(
               context.l10n.detailsLabel,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            const Divider(height: 24),
+            Divider(height: 24),
             _buildDetailRow(Icons.directions_walk, context.l10n.activityLabel, '${track.activityIcon} ${track.activityType}'),
             if (track.difficulty != null)
               _buildDetailRow(Icons.signal_cellular_alt, context.l10n.difficultyLabel, '${track.difficultyIcon} ${track.difficulty}'),
@@ -571,7 +571,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                 subject: widget.track.name,
               )),
             ),
-            icon: const Icon(Icons.share),
+            icon: Icon(Icons.share),
             label: Text(context.l10n.share),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
@@ -586,8 +586,8 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: _followTrack,
-            icon: const Icon(Icons.navigation),
-            label: const Text('Segui e registra'),
+            icon: Icon(Icons.navigation),
+            label: Text(context.l10n.trackFollowAndRecord),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.info,
               foregroundColor: Colors.white,
@@ -607,7 +607,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
-                : const Icon(Icons.download),
+                : Icon(Icons.download),
             label: Text(_isExporting ? context.l10n.exporting : context.l10n.downloadGpx),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -697,9 +697,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           children: [
             Text(
               context.l10n.promoteDialogDescription,
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 14),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _promoteInfoRow(context.l10n.nameLabel, track.name),
             _promoteInfoRow(context.l10n.authorLabel, track.ownerUsername),
             _promoteInfoRow(context.l10n.distanceLabel, '${track.distanceKm.toStringAsFixed(1)} km'),
@@ -717,7 +717,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                 child: Row(
                   children: [
                     const Icon(Icons.warning_amber, size: 16, color: Colors.amber),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         context.l10n.fewGpsPointsWarning,
@@ -791,7 +791,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(context.l10n.trackPromotedSuccess),
-            backgroundColor: const Color(0xFF388E3C),
+            backgroundColor: Color(0xFF388E3C),
           ),
         );
       } else {
@@ -812,7 +812,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     final points = widget.track.points;
     if (points.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Traccia troppo corta per essere seguita')),
+        SnackBar(content: Text(context.l10n.trackTooShortToFollow)),
       );
       return;
     }
@@ -1012,7 +1012,7 @@ class _PhotoThumbnail extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.broken_image, color: context.textMuted, size: 32),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         context.l10n.errorLabel,
                         style: TextStyle(color: context.textMuted, fontSize: 10),
@@ -1113,13 +1113,13 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
         actions: [
           // Scarica foto
           IconButton(
-            icon: const Icon(Icons.download, color: Colors.white, size: 28),
+            icon: Icon(Icons.download, color: Colors.white, size: 28),
             tooltip: context.l10n.downloadTooltip,
             onPressed: () => _downloadPhoto(widget.photoUrls[_currentIndex]),
           ),
           // Condividi foto
           IconButton(
-            icon: const Icon(Icons.share, color: Colors.white, size: 28),
+            icon: Icon(Icons.share, color: Colors.white, size: 28),
             tooltip: context.l10n.shareTooltip,
             onPressed: () => _sharePhoto(widget.photoUrls[_currentIndex]),
           ),
@@ -1159,7 +1159,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Icon(Icons.broken_image, color: Colors.white54, size: 64),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16),
                           Text(
                             context.l10n.cannotLoadImage,
                             style: const TextStyle(color: Colors.white54),

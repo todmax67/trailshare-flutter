@@ -32,7 +32,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         stream: _repo.watchContacts(),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
             return Center(child: Text(context.l10n.genericErrorWith(snap.error.toString())));
@@ -181,7 +181,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       ),
       title: Text(
         c.name,
-        style: const TextStyle(fontWeight: FontWeight.w600),
+        style: TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Text(subtitle.isEmpty ? context.l10n.noContacts : subtitle),
       trailing: PopupMenuButton<String>(
@@ -189,7 +189,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
           const PopupMenuItem(value: 'edit', child: Text('Modifica')),
           PopupMenuItem(
             value: 'delete',
-            child: Text(context.l10n.delete, style: const TextStyle(color: AppColors.danger)),
+            child: Text(context.l10n.delete, style: TextStyle(color: AppColors.danger)),
           ),
         ],
         onSelected: (v) {
@@ -356,7 +356,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(context.l10n.deleteContactQuestion),
-        content: Text('${c.name} non riceverà più notifiche Lifeline.'),
+        content: Text(context.l10n.contactNoMoreLifelineNotif(c.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -654,7 +654,7 @@ class _TemplateEditorState extends State<_TemplateEditor> {
                 onPressed: _ctrl.text.trim().isEmpty
                     ? null
                     : () => widget.onSaved(_ctrl.text),
-                icon: const Icon(Icons.save, size: 16),
+                icon: Icon(Icons.save, size: 16),
                 label: Text(context.l10n.save),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,

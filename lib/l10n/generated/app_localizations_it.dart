@@ -4755,4 +4755,150 @@ class AppLocalizationsIt extends AppLocalizations {
   String byAuthor(String name) {
     return 'di: $name';
   }
+
+  @override
+  String get paywallNoActivePurchase =>
+      'Nessun acquisto attivo trovato per questo account.';
+
+  @override
+  String get paywallAllFutureProFeatures => 'Tutte le funzioni Pro future';
+
+  @override
+  String get andThe => ' e la ';
+
+  @override
+  String get paywallAnnotatedPeakPhotosLong =>
+      'Foto panoramiche con i nomi delle cime annotati.';
+
+  @override
+  String get paywallUpgradePending => 'Upgrade in attesa di conferma.';
+
+  @override
+  String get paywallAnnotatedPeakPhotos =>
+      'Foto annotate con i nomi delle cime.';
+
+  @override
+  String get paywallUnlimitedSavedPeaks => 'Cime salvate illimitate';
+
+  @override
+  String contactNoMoreLifelineNotif(String name) {
+    return '$name non riceverà più notifiche Lifeline.';
+  }
+
+  @override
+  String get settingsAddBusinessProfileSub =>
+      'Aggiungi un nuovo profilo business (rifugio, noleggio, ecc.)';
+
+  @override
+  String get settingsEnterBusinessId =>
+      'Inserisci ID business per testare il profilo';
+
+  @override
+  String get trackFollowAndRecord => 'Segui e registra';
+
+  @override
+  String get gpsServiceDisabled =>
+      'Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.';
+
+  @override
+  String get locationPermissionDenied =>
+      'Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.';
+
+  @override
+  String get filterOnlyCircular => 'Solo sentieri circolari';
+
+  @override
+  String get noReviewsYet => 'Nessuna recensione ancora';
+
+  @override
+  String get thanksForReview => 'Grazie per la tua recensione!';
+
+  @override
+  String get deleteYourReviewQuestion => 'Elimina la tua recensione?';
+
+  @override
+  String get tapStarsToRate => 'Tocca le stelle per dare una valutazione';
+
+  @override
+  String get reviewPlaceholder =>
+      'Cosa ti è piaciuto? Cosa miglioreresti? (opzionale)';
+
+  @override
+  String get city => 'Città';
+
+  @override
+  String get profileUpdated => 'Profilo aggiornato';
+
+  @override
+  String get shortDescriptionForCards => 'Descrizione breve (per le card)';
+
+  @override
+  String get streetLocation => 'Via / Località';
+
+  @override
+  String get positionUpdatedSaveToApply =>
+      'Posizione aggiornata. Salva per applicare.';
+
+  @override
+  String get notSet => 'Non impostato';
+
+  @override
+  String get loadingStats => 'Caricamento statistiche...';
+
+  @override
+  String get publicTrails => 'Sentieri Pubblici';
+
+  @override
+  String get registeredUsers => 'Utenti Registrati';
+
+  @override
+  String get recordedTracks => 'Tracce Registrate';
+
+  @override
+  String get cheersPerTrack => 'Cheers/Traccia';
+
+  @override
+  String get trailElevation => 'Elevazione Sentieri';
+
+  @override
+  String get noPublishedTrack => 'Nessuna traccia pubblicata';
+
+  @override
+  String get noRegisteredUser => 'Nessun utente registrato';
+
+  @override
+  String get updateAlreadyImported => 'Aggiorna trail già importati';
+
+  @override
+  String get colorSaveError => 'Errore nel salvataggio del colore';
+
+  @override
+  String get removeLogoQuestion => 'Rimuovere il logo?';
+
+  @override
+  String get removeCoverQuestion => 'Rimuovere la copertina?';
+
+  @override
+  String get exportMembers => 'Esporta membri';
+
+  @override
+  String get saveErrorGeneric => 'Errore nel salvataggio';
+
+  @override
+  String get loginRequiredToReport => 'Devi effettuare il login per segnalare';
+
+  @override
+  String get deleteReportQuestion => 'Eliminare segnalazione?';
+
+  @override
+  String get reportWillBeRemoved => 'La tua segnalazione verrà rimossa.';
+
+  @override
+  String get reportCondition => 'Segnala una condizione';
+
+  @override
+  String get deletePoiQuestion => 'Eliminare POI?';
+
+  @override
+  String get deletePhotoQuestion => 'Eliminare foto?';
 }

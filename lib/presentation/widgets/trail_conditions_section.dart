@@ -5,6 +5,7 @@ import '../../data/models/trail_condition.dart';
 import '../../data/repositories/trail_conditions_repository.dart';
 import 'report_condition_sheet.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Sezione "Condizioni sentiero" della pagina dettaglio sentiero.
 ///
@@ -67,8 +68,8 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Devi effettuare il login per segnalare'),
+        SnackBar(
+          content: Text(context.l10n.loginRequiredToReport),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -84,14 +85,14 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminare segnalazione?'),
-        content: const Text('La tua segnalazione verrà rimossa.'),
+        title: Text(context.l10n.deleteReportQuestion),
+        content: Text(context.l10n.reportWillBeRemoved),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -142,8 +143,8 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: _openReportSheet,
-                  icon: const Icon(Icons.add_alert_outlined),
-                  label: const Text('Segnala una condizione'),
+                  icon: Icon(Icons.add_alert_outlined),
+                  label: Text(context.l10n.reportCondition),
                 ),
               ),
               if (_reports.isEmpty) ...[
@@ -207,7 +208,7 @@ class _TrailConditionsSectionState extends State<TrailConditionsSection> {
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('Riprova'),
+            child: Text(context.l10n.retry),
           ),
         ],
       ),

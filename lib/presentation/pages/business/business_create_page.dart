@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/geohash_util.dart';
 import '../../../data/models/business.dart';
 import 'business_profile_page.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina admin-only per creare uno Spazio Pro nuovo.
 /// Per ora si richiede solo il minimo: nome, tipo, lat/lng, ownerId.
@@ -134,7 +135,7 @@ class _BusinessCreatePageState extends State<BusinessCreatePage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Errore: $e'),
+          content: Text(context.l10n.genericErrorWith(e.toString())),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -290,8 +291,8 @@ class _BusinessCreatePageState extends State<BusinessCreatePage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _city,
-              decoration: const InputDecoration(
-                labelText: 'Città',
+              decoration: InputDecoration(
+                labelText: context.l10n.city,
                 border: OutlineInputBorder(),
               ),
             ),

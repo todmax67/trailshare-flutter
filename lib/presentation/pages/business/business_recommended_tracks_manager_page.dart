@@ -7,6 +7,7 @@ import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_recommended_tracks_picker_page.dart';
 import 'recommended_track_navigator.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina di gestione dei percorsi consigliati per uno Spazio Pro.
 /// L'owner può:
@@ -173,11 +174,11 @@ class _BusinessRecommendedTracksManagerPageState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Salva'),
+            child: Text(context.l10n.save),
           ),
         ],
       ),

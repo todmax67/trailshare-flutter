@@ -4,6 +4,7 @@ import '../../core/utils/business_caps.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/groups_repository.dart';
 import '../../data/repositories/tracks_repository.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Bottom sheet che mostra all'utente i suoi gruppi (in cui è admin)
 /// con un toggle per ciascuno: condivide / rimuove la traccia [track]
@@ -132,7 +133,7 @@ class _ShareTrackToGroupSheetState extends State<_ShareTrackToGroupSheet> {
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e')),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString()))),
       );
     }
   }

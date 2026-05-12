@@ -3,6 +3,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/trail_condition.dart';
 import '../../data/repositories/trail_conditions_repository.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Bottom sheet per segnalare le condizioni del sentiero.
 /// Ritorna il [TrailCondition] creato in caso di successo.
@@ -131,7 +132,7 @@ class _ReportConditionSheetState extends State<_ReportConditionSheet> {
                 children: [
                   TextButton(
                     onPressed: _saving ? null : () => Navigator.pop(context),
-                    child: const Text('Annulla'),
+                    child: Text(context.l10n.cancel),
                   ),
                   const Spacer(),
                   FilledButton.icon(

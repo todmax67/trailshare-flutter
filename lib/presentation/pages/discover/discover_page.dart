@@ -96,8 +96,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
         setState(() => _isLoadingLocation = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.'),
+            SnackBar(
+              content: Text(context.l10n.gpsServiceDisabled),
               duration: Duration(seconds: 4),
             ),
           );
@@ -112,8 +112,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
         setState(() => _isLoadingLocation = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.'),
+            SnackBar(
+              content: Text(context.l10n.locationPermissionDenied),
               duration: Duration(seconds: 4),
             ),
           );
@@ -739,7 +739,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: Text(context.l10n.positionBtn, style: const TextStyle(fontSize: 12)),
+              child: Text(context.l10n.positionBtn, style: TextStyle(fontSize: 12)),
             ),
         ],
       ),
@@ -1009,7 +1009,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                     const SizedBox(width: 8),
-                    Text(context.l10n.loading, style: const TextStyle(fontSize: 12)),
+                    Text(context.l10n.loading, style: TextStyle(fontSize: 12)),
                   ],
                 ),
               ),
@@ -1047,7 +1047,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                           context.l10n.noTrailInArea,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(
                           context.l10n.moveOrZoomMap,
                           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -1724,7 +1724,7 @@ class _TrailCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.hiking, size: 32, color: context.textMuted),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 trail.ref ?? context.l10n.trailFallback,
                 style: TextStyle(color: context.textMuted, fontSize: 12),
@@ -1843,7 +1843,7 @@ class _TrailCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.loop, size: 14, color: AppColors.info),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       context.l10n.circularBadge,
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),

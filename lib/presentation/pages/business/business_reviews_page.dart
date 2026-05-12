@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../widgets/star_rating.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina recensioni di uno Spazio Pro.
 /// - Header con avg rating + count + distribuzione
@@ -189,8 +190,8 @@ class _BusinessReviewsPageState extends State<BusinessReviewsPage> {
             children: [
               const Icon(Icons.rate_review_outlined,
                   size: 64, color: AppColors.textMuted),
-              const SizedBox(height: 12),
-              const Text('Nessuna recensione ancora',
+              SizedBox(height: 12),
+              Text(context.l10n.noReviewsYet,
                   textAlign: TextAlign.center),
               if (currentUid != null && !isOwner) ...[
                 const SizedBox(height: 4),
@@ -256,12 +257,12 @@ class _BusinessReviewsPageState extends State<BusinessReviewsPage> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Grazie per la tua recensione!')),
+        SnackBar(content: Text(context.l10n.thanksForReview)),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e')),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString()))),
       );
     }
   }
@@ -270,19 +271,19 @@ class _BusinessReviewsPageState extends State<BusinessReviewsPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Elimina la tua recensione?'),
-        content: const Text(
+        title: Text(context.l10n.deleteYourReviewQuestion),
+        content: Text(
             'La rimozione è definitiva. Potrai scriverne una nuova in futuro.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(
                 foregroundColor: AppColors.danger),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -530,8 +531,8 @@ class _ReviewComposerSheetState extends State<_ReviewComposerSheet> {
   void _submit() {
     if (_rating < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tocca le stelle per dare una valutazione'),
+        SnackBar(
+          content: Text(context.l10n.tapStarsToRate),
         ),
       );
       return;
@@ -575,8 +576,8 @@ class _ReviewComposerSheetState extends State<_ReviewComposerSheet> {
             controller: _commentCtrl,
             maxLines: 4,
             maxLength: 1000,
-            decoration: const InputDecoration(
-              hintText: 'Cosa ti è piaciuto? Cosa miglioreresti? (opzionale)',
+            decoration: InputDecoration(
+              hintText: context.l10n.reviewPlaceholder,
               border: OutlineInputBorder(),
             ),
           ),

@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/business_photos_service.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Gestione listino servizi/prodotti del business.
 /// Se [readOnly] = true mostra in sola lettura (vista cliente).
@@ -319,19 +320,19 @@ class _ServiceEditSheetState extends State<_ServiceEditSheet> {
                       const BusinessService(name: '__DELETE__'),
                     );
                   },
-                  icon: const Icon(Icons.delete, color: AppColors.danger),
-                  label: const Text('Elimina',
+                  icon: Icon(Icons.delete, color: AppColors.danger),
+                  label: Text(context.l10n.delete,
                       style: TextStyle(color: AppColors.danger)),
                 ),
-              const Spacer(),
+              Spacer(),
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Annulla'),
+                child: Text(context.l10n.cancel),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               ElevatedButton(
                 onPressed: _save,
-                child: const Text('Salva'),
+                child: Text(context.l10n.save),
               ),
             ],
           ),

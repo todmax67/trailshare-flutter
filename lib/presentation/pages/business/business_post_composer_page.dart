@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/business_photos_service.dart';
 import '../../../data/repositories/business_repository.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 class BusinessPostComposerPage extends StatefulWidget {
   final String businessId;
@@ -65,7 +66,7 @@ class _BusinessPostComposerPageState extends State<BusinessPostComposerPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e')),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString()))),
       );
       setState(() => _saving = false);
     }

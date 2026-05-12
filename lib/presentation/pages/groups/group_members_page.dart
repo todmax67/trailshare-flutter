@@ -68,7 +68,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
         actions: [
           if (widget.isAdmin)
             IconButton(
-              icon: const Icon(Icons.person_add),
+              icon: Icon(Icons.person_add),
               tooltip: context.l10n.inviteTooltip,
               onPressed: _showInviteDialog,
             ),
@@ -260,11 +260,11 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Conferma'),
+            child: Text(context.l10n.confirm),
           ),
         ],
       ),
@@ -385,7 +385,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                           : null,
                     ),
                     title: Text(profile.username),
-                    subtitle: Text(context.l10n.levelLabel(profile.level), style: const TextStyle(fontSize: 12)),
+                    subtitle: Text(context.l10n.levelLabel(profile.level), style: TextStyle(fontSize: 12)),
                     trailing: ElevatedButton(
                       onPressed: () async {
                         final success = await _repo.addMember(widget.groupId, profile.id);
@@ -406,7 +406,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: Text(context.l10n.inviteAction, style: const TextStyle(fontSize: 13)),
+                      child: Text(context.l10n.inviteAction, style: TextStyle(fontSize: 13)),
                     ),
                   );
                 },

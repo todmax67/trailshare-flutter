@@ -8569,6 +8569,276 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'di: {name}'**
   String byAuthor(String name);
+
+  /// No description provided for @paywallNoActivePurchase.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun acquisto attivo trovato per questo account.'**
+  String get paywallNoActivePurchase;
+
+  /// No description provided for @paywallAllFutureProFeatures.
+  ///
+  /// In it, this message translates to:
+  /// **'Tutte le funzioni Pro future'**
+  String get paywallAllFutureProFeatures;
+
+  /// No description provided for @andThe.
+  ///
+  /// In it, this message translates to:
+  /// **' e la '**
+  String get andThe;
+
+  /// No description provided for @paywallAnnotatedPeakPhotosLong.
+  ///
+  /// In it, this message translates to:
+  /// **'Foto panoramiche con i nomi delle cime annotati.'**
+  String get paywallAnnotatedPeakPhotosLong;
+
+  /// No description provided for @paywallUpgradePending.
+  ///
+  /// In it, this message translates to:
+  /// **'Upgrade in attesa di conferma.'**
+  String get paywallUpgradePending;
+
+  /// No description provided for @paywallAnnotatedPeakPhotos.
+  ///
+  /// In it, this message translates to:
+  /// **'Foto annotate con i nomi delle cime.'**
+  String get paywallAnnotatedPeakPhotos;
+
+  /// No description provided for @paywallUnlimitedSavedPeaks.
+  ///
+  /// In it, this message translates to:
+  /// **'Cime salvate illimitate'**
+  String get paywallUnlimitedSavedPeaks;
+
+  /// No description provided for @contactNoMoreLifelineNotif.
+  ///
+  /// In it, this message translates to:
+  /// **'{name} non riceverà più notifiche Lifeline.'**
+  String contactNoMoreLifelineNotif(String name);
+
+  /// No description provided for @settingsAddBusinessProfileSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi un nuovo profilo business (rifugio, noleggio, ecc.)'**
+  String get settingsAddBusinessProfileSub;
+
+  /// No description provided for @settingsEnterBusinessId.
+  ///
+  /// In it, this message translates to:
+  /// **'Inserisci ID business per testare il profilo'**
+  String get settingsEnterBusinessId;
+
+  /// No description provided for @trackFollowAndRecord.
+  ///
+  /// In it, this message translates to:
+  /// **'Segui e registra'**
+  String get trackFollowAndRecord;
+
+  /// No description provided for @gpsServiceDisabled.
+  ///
+  /// In it, this message translates to:
+  /// **'Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.'**
+  String get gpsServiceDisabled;
+
+  /// No description provided for @locationPermissionDenied.
+  ///
+  /// In it, this message translates to:
+  /// **'Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.'**
+  String get locationPermissionDenied;
+
+  /// No description provided for @filterOnlyCircular.
+  ///
+  /// In it, this message translates to:
+  /// **'Solo sentieri circolari'**
+  String get filterOnlyCircular;
+
+  /// No description provided for @noReviewsYet.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna recensione ancora'**
+  String get noReviewsYet;
+
+  /// No description provided for @thanksForReview.
+  ///
+  /// In it, this message translates to:
+  /// **'Grazie per la tua recensione!'**
+  String get thanksForReview;
+
+  /// No description provided for @deleteYourReviewQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Elimina la tua recensione?'**
+  String get deleteYourReviewQuestion;
+
+  /// No description provided for @tapStarsToRate.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca le stelle per dare una valutazione'**
+  String get tapStarsToRate;
+
+  /// No description provided for @reviewPlaceholder.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa ti è piaciuto? Cosa miglioreresti? (opzionale)'**
+  String get reviewPlaceholder;
+
+  /// No description provided for @city.
+  ///
+  /// In it, this message translates to:
+  /// **'Città'**
+  String get city;
+
+  /// No description provided for @profileUpdated.
+  ///
+  /// In it, this message translates to:
+  /// **'Profilo aggiornato'**
+  String get profileUpdated;
+
+  /// No description provided for @shortDescriptionForCards.
+  ///
+  /// In it, this message translates to:
+  /// **'Descrizione breve (per le card)'**
+  String get shortDescriptionForCards;
+
+  /// No description provided for @streetLocation.
+  ///
+  /// In it, this message translates to:
+  /// **'Via / Località'**
+  String get streetLocation;
+
+  /// No description provided for @positionUpdatedSaveToApply.
+  ///
+  /// In it, this message translates to:
+  /// **'Posizione aggiornata. Salva per applicare.'**
+  String get positionUpdatedSaveToApply;
+
+  /// No description provided for @notSet.
+  ///
+  /// In it, this message translates to:
+  /// **'Non impostato'**
+  String get notSet;
+
+  /// No description provided for @loadingStats.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricamento statistiche...'**
+  String get loadingStats;
+
+  /// No description provided for @publicTrails.
+  ///
+  /// In it, this message translates to:
+  /// **'Sentieri Pubblici'**
+  String get publicTrails;
+
+  /// No description provided for @registeredUsers.
+  ///
+  /// In it, this message translates to:
+  /// **'Utenti Registrati'**
+  String get registeredUsers;
+
+  /// No description provided for @recordedTracks.
+  ///
+  /// In it, this message translates to:
+  /// **'Tracce Registrate'**
+  String get recordedTracks;
+
+  /// No description provided for @cheersPerTrack.
+  ///
+  /// In it, this message translates to:
+  /// **'Cheers/Traccia'**
+  String get cheersPerTrack;
+
+  /// No description provided for @trailElevation.
+  ///
+  /// In it, this message translates to:
+  /// **'Elevazione Sentieri'**
+  String get trailElevation;
+
+  /// No description provided for @noPublishedTrack.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna traccia pubblicata'**
+  String get noPublishedTrack;
+
+  /// No description provided for @noRegisteredUser.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun utente registrato'**
+  String get noRegisteredUser;
+
+  /// No description provided for @updateAlreadyImported.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiorna trail già importati'**
+  String get updateAlreadyImported;
+
+  /// No description provided for @colorSaveError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore nel salvataggio del colore'**
+  String get colorSaveError;
+
+  /// No description provided for @removeLogoQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Rimuovere il logo?'**
+  String get removeLogoQuestion;
+
+  /// No description provided for @removeCoverQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Rimuovere la copertina?'**
+  String get removeCoverQuestion;
+
+  /// No description provided for @exportMembers.
+  ///
+  /// In it, this message translates to:
+  /// **'Esporta membri'**
+  String get exportMembers;
+
+  /// No description provided for @saveErrorGeneric.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore nel salvataggio'**
+  String get saveErrorGeneric;
+
+  /// No description provided for @loginRequiredToReport.
+  ///
+  /// In it, this message translates to:
+  /// **'Devi effettuare il login per segnalare'**
+  String get loginRequiredToReport;
+
+  /// No description provided for @deleteReportQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare segnalazione?'**
+  String get deleteReportQuestion;
+
+  /// No description provided for @reportWillBeRemoved.
+  ///
+  /// In it, this message translates to:
+  /// **'La tua segnalazione verrà rimossa.'**
+  String get reportWillBeRemoved;
+
+  /// No description provided for @reportCondition.
+  ///
+  /// In it, this message translates to:
+  /// **'Segnala una condizione'**
+  String get reportCondition;
+
+  /// No description provided for @deletePoiQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare POI?'**
+  String get deletePoiQuestion;
+
+  /// No description provided for @deletePhotoQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare foto?'**
+  String get deletePhotoQuestion;
 }
 
 class _AppLocalizationsDelegate

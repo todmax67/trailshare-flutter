@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/live_track_service.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Bottone per attivare/disattivare LiveTrack durante la registrazione
 /// 
@@ -124,7 +125,7 @@ class _LiveTrackButtonState extends State<LiveTrackButton>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),

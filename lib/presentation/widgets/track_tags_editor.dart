@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 import '../../data/repositories/tracks_repository.dart';
 import 'app_snackbar.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// 5.5 — Editor inline di tag personalizzati per una traccia.
 ///
@@ -223,7 +224,7 @@ class _AddTagSheetState extends State<_AddTagSheet> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Annulla'),
+                    child: Text(context.l10n.cancel),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(

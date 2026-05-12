@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/track_photos_service.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Widget per visualizzare e gestire foto durante/dopo registrazione
 class PhotoGalleryWidget extends StatelessWidget {
@@ -384,11 +385,11 @@ class AddPhotoButton extends StatelessWidget {
                   onAddPoi!();
                 },
               ),
-              const Divider(height: 1),
+              Divider(height: 1),
             ],
             ListTile(
               leading: Icon(Icons.cancel, color: context.textMuted),
-              title: const Text('Annulla'),
+              title: Text(context.l10n.cancel),
               onTap: () => Navigator.pop(context),
             ),
           ],

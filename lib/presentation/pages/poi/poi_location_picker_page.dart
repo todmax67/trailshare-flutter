@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina full-screen per scegliere la posizione di un nuovo POI tappando
 /// sulla mappa. Mostra la polyline di riferimento (trail/track) per aiutare
@@ -212,7 +213,7 @@ class _PoiLocationPickerPageState extends State<PoiLocationPickerPage> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => Navigator.pop<LatLng?>(context, null),
-                  child: const Text('Annulla'),
+                  child: Text(context.l10n.cancel),
                 ),
               ),
               const SizedBox(width: 10),

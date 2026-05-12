@@ -10,6 +10,7 @@ import '../../core/constants/pro_products.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 import '../../core/services/pro_gate_service.dart';
 import '../../core/services/subscription_manager.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Tipo di trigger che ha aperto il paywall (per analytics + UI hint).
 enum PaywallTrigger {
@@ -291,9 +292,9 @@ class _PaywallSheetState extends State<PaywallSheet> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content:
-                Text('Nessun acquisto attivo trovato per questo account.'),
+                Text(context.l10n.paywallNoActivePurchase),
           ),
         );
       }
@@ -475,7 +476,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
       _Feature(
         icon: Icons.auto_awesome,
         color: const Color(0xFF7C4DFF),
-        title: 'Tutte le funzioni Pro future',
+        title: context.l10n.paywallAllFutureProFeatures,
         subtitle:
             'Le nuove feature Pro che aggiungeremo sono sempre incluse '
             'nel tuo abbonamento, senza costi aggiuntivi.',
@@ -842,7 +843,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
                     _openUrl('https://trailshare.app/terms'),
                 child: Text('Termini', style: link),
               ),
-              Text(' e la ', style: muted),
+              Text(context.l10n.andThe, style: muted),
               GestureDetector(
                 onTap: () =>
                     _openUrl('https://trailshare.app/privacy'),
@@ -1039,7 +1040,7 @@ class _AndroidComingSoonSheet extends StatelessWidget {
         icon: Icons.camera_alt_outlined,
         color: const Color(0xFF1976D2),
         title: 'AR Photo Mode',
-        subtitle: 'Foto panoramiche con i nomi delle cime annotati.',
+        subtitle: context.l10n.paywallAnnotatedPeakPhotosLong,
       ),
       _AndroidFeatureRow(
         icon: Icons.layers_outlined,
@@ -1262,8 +1263,8 @@ class _UpgradeToYearlySheetState extends State<_UpgradeToYearlySheet> {
         break;
       case PurchaseOutcome.pending:
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Upgrade in attesa di conferma.'),
+          SnackBar(
+            content: Text(context.l10n.paywallUpgradePending),
           ),
         );
         break;
@@ -1602,12 +1603,12 @@ Widget _buildFeaturesList(BuildContext context) {
       icon: Icons.camera_alt_outlined,
       color: const Color(0xFF1976D2),
       title: 'Photo Mode Pro',
-      subtitle: 'Foto annotate con i nomi delle cime.',
+      subtitle: context.l10n.paywallAnnotatedPeakPhotos,
     ),
     _AndroidFeatureRow(
       icon: Icons.bookmark_outline,
       color: const Color(0xFFFFB300),
-      title: 'Cime salvate illimitate',
+      title: context.l10n.paywallUnlimitedSavedPeaks,
       subtitle: 'Album personale di vette riconosciute.',
     ),
   ];

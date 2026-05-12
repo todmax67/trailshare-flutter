@@ -7,6 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/trail_poi.dart';
 import '../../data/repositories/poi_repository.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Apre il bottom sheet per creare/modificare un POI.
 ///
@@ -325,7 +326,7 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
                         child: OutlinedButton(
                           onPressed:
                               _saving ? null : () => Navigator.pop(context),
-                          child: const Text('Annulla'),
+                          child: Text(context.l10n.cancel),
                         ),
                       ),
                       const SizedBox(width: 10),

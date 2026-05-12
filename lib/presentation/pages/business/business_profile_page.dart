@@ -19,6 +19,7 @@ import 'business_recommended_tracks_manager_page.dart';
 import 'business_reviews_page.dart';
 import 'business_services_manager_page.dart';
 import 'recommended_track_navigator.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Profilo pubblico di uno Spazio Pro (rifugio, noleggio, guida, ecc).
 /// Visualizza:
@@ -640,11 +641,11 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Rimuovere foto?'),
-        content: const Text('La foto verrà eliminata dalla galleria.'),
+        content: Text('La foto verrà eliminata dalla galleria.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),

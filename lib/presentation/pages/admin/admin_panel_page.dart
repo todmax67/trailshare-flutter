@@ -4,6 +4,7 @@ import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../groups/group_detail_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 class AdminPanelPage extends StatefulWidget {
   const AdminPanelPage({super.key});
@@ -524,7 +525,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Chiudi'),
+              child: Text(context.l10n.close),
             ),
             FilledButton.icon(
               icon: const Icon(Icons.search),
@@ -791,7 +792,7 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),

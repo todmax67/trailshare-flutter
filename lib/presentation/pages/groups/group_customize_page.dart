@@ -9,6 +9,7 @@ import '../../../core/utils/web_layout.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'business_invite_card_page.dart';
 import 'group_stats_page.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina di personalizzazione gruppo Business (Livello 1).
 ///
@@ -61,7 +62,7 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
     });
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Errore nel salvataggio del colore')),
+        SnackBar(content: Text(context.l10n.colorSaveError)),
       );
     }
   }
@@ -91,7 +92,7 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Errore durante il caricamento')),
+        SnackBar(content: Text(context.l10n.uploadError(''))),
       );
     }
   }
@@ -100,14 +101,14 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Rimuovere il logo?'),
+        title: Text(context.l10n.removeLogoQuestion),
         content: const Text(
           'Il gruppo tornera' ' a mostrare l\'avatar generico con la lettera iniziale.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -161,7 +162,7 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Rimuovere la copertina?'),
+        title: Text(context.l10n.removeCoverQuestion),
         content: const Text(
           'Il gruppo tornera\' a mostrare il layout senza banner.',
         ),
@@ -467,12 +468,12 @@ class _CsvExportSectionState extends State<_CsvExportSection> {
       await exportCsv(csv, filename);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Export CSV pronto')),
+        SnackBar(content: Text('Export CSV pronto')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore export: $e')),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString()))),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -489,7 +490,7 @@ class _CsvExportSectionState extends State<_CsvExportSection> {
       children: [
         Row(
           children: [
-            Text('Esporta membri', style: theme.textTheme.titleMedium),
+            Text(context.l10n.exportMembers, style: theme.textTheme.titleMedium),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -630,7 +631,7 @@ class _PinnedPostSectionState extends State<_PinnedPostSection> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Errore nel salvataggio')),
+        SnackBar(content: Text(context.l10n.saveErrorGeneric)),
       );
     }
   }

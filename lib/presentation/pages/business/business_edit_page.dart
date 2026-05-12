@@ -7,6 +7,7 @@ import '../../../core/services/business_photos_service.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_location_picker_page.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Form di edit del profilo business (versione MVP).
 /// Modifica: nome, descrizione, contatti, indirizzo testuale.
@@ -149,13 +150,13 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
       await _repo.updateBusiness(widget.businessId, patch);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profilo aggiornato')),
+        SnackBar(content: Text(context.l10n.profileUpdated)),
       );
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e')),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString()))),
       );
       setState(() => _saving = false);
     }
@@ -170,15 +171,15 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Modifica profilo'),
+        title: Text(context.l10n.editProfile),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
             child: _saving
-                ? const SizedBox(
+                ? SizedBox(
                     width: 18, height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Salva'),
+                : Text(context.l10n.save),
           ),
         ],
       ),
@@ -222,8 +223,8 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
             TextFormField(
               controller: _shortDesc,
               maxLength: 120,
-              decoration: const InputDecoration(
-                labelText: 'Descrizione breve (per le card)',
+              decoration: InputDecoration(
+                labelText: context.l10n.shortDescriptionForCards,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -289,16 +290,16 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
             _section('Indirizzo'),
             TextFormField(
               controller: _address,
-              decoration: const InputDecoration(
-                labelText: 'Via / Località',
+              decoration: InputDecoration(
+                labelText: context.l10n.streetLocation,
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _city,
-              decoration: const InputDecoration(
-                labelText: 'Città',
+              decoration: InputDecoration(
+                labelText: context.l10n.city,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -414,8 +415,8 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
     });
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Posizione aggiornata. Salva per applicare.'),
+      SnackBar(
+        content: Text(context.l10n.positionUpdatedSaveToApply),
         duration: Duration(seconds: 2),
       ),
     );
@@ -688,16 +689,16 @@ class _HoursSheetState extends State<_HoursSheet> {
             value: _HoursMode.unset,
             groupValue: _mode,
             onChanged: (v) => setState(() => _mode = v!),
-            title: const Text('Non impostato'),
+            title: Text(context.l10n.notSet),
             contentPadding: EdgeInsets.zero,
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              const Spacer(),
+              Spacer(),
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Annulla'),
+                child: Text(context.l10n.cancel),
               ),
               const SizedBox(width: 8),
               ElevatedButton(

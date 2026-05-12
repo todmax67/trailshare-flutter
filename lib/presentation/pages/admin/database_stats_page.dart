@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina admin per visualizzare statistiche del database Firestore
 class DatabaseStatsPage extends StatefulWidget {
@@ -219,13 +220,13 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Caricamento statistiche...'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(context.l10n.loadingStats),
                 ],
               ),
             )
@@ -235,10 +236,10 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
-                      const SizedBox(height: 12),
-                      Text('Errore: $_error'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(onPressed: _loadAllStats, child: const Text('Riprova')),
+                      SizedBox(height: 12),
+                      Text(context.l10n.genericErrorWith(_error.toString())),
+                      SizedBox(height: 16),
+                      ElevatedButton(onPressed: _loadAllStats, child: Text(context.l10n.retry)),
                     ],
                   ),
                 )
@@ -269,19 +270,19 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
             children: [
               _StatCard(
                 icon: Icons.hiking,
-                label: 'Sentieri Pubblici',
+                label: context.l10n.publicTrails,
                 value: '$_publicTrails',
                 color: AppColors.primary,
               ),
               _StatCard(
                 icon: Icons.people,
-                label: 'Utenti Registrati',
+                label: context.l10n.registeredUsers,
                 value: '$_userProfiles',
                 color: AppColors.info,
               ),
               _StatCard(
                 icon: Icons.route,
-                label: 'Tracce Registrate',
+                label: context.l10n.recordedTracks,
                 value: '$_totalUserTracks',
                 color: AppColors.success,
               ),
@@ -320,7 +321,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
               ),
               _StatCard(
                 icon: Icons.calculate,
-                label: 'Cheers/Traccia',
+                label: context.l10n.cheersPerTrack,
                 value: _publishedTracks > 0
                     ? (_totalCheers / _publishedTracks).toStringAsFixed(1)
                     : '0',
@@ -378,9 +379,9 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
               percentage: geoPct,
               color: geoPct > 90 ? AppColors.success : geoPct > 50 ? AppColors.warning : AppColors.danger,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             _HealthRow(
-              label: 'Elevazione Sentieri',
+              label: context.l10n.trailElevation,
               value: '$_trailsWithElevation / $_publicTrails',
               percentage: elePct,
               color: elePct > 80 ? AppColors.success : elePct > 40 ? AppColors.warning : AppColors.danger,
@@ -393,10 +394,10 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
 
   Widget _buildRecentPublished() {
     if (_recentPublished.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('Nessuna traccia pubblicata'),
+          child: Text(context.l10n.noPublishedTrack),
         ),
       );
     }
@@ -444,10 +445,10 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
 
   Widget _buildRecentUsers() {
     if (_recentUsers.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('Nessun utente registrato'),
+          child: Text(context.l10n.noRegisteredUser),
         ),
       );
     }

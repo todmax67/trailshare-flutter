@@ -110,7 +110,7 @@ class _SettingsPageState extends State<SettingsPage> {
               context.l10n.maxHRDescription,
               style: TextStyle(fontSize: 13, color: context.textSecondary),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             TextField(
               controller: hrController,
               keyboardType: TextInputType.number,
@@ -120,9 +120,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 border: const OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(context.l10n.orLabel, style: TextStyle(color: context.textMuted)),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             TextField(
               controller: ageController,
               keyboardType: TextInputType.number,
@@ -210,7 +210,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 await PushNotificationService().setNewsUpdatesEnabled(value);
               },
             ),
-            const Divider(height: 32),
+            Divider(height: 32),
           ],
 
           // Sezione Aspetto
@@ -235,7 +235,7 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
-          const Divider(height: 32),
+          Divider(height: 32),
 
           // Sezione Salute
           _buildSectionHeader(context.l10n.healthConnectionSection),
@@ -302,7 +302,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           if (_healthSyncEnabled) ...[
             ListTile(
-              leading: const Icon(Icons.monitor_heart, color: AppColors.danger),
+              leading: Icon(Icons.monitor_heart, color: AppColors.danger),
               title: Text(context.l10n.maxHeartRate),
               subtitle: Text(
                 _maxHR > 0 ? '$_maxHR BPM' : context.l10n.setForCardioZones,
@@ -311,7 +311,7 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => _showMaxHRDialog(),
             ),
             ListTile(
-              leading: const Icon(Icons.dashboard, color: AppColors.primary),
+              leading: Icon(Icons.dashboard, color: AppColors.primary),
               title: Text(context.l10n.healthDashboard),
               subtitle: Text(context.l10n.healthDashboardSubtitle),
               trailing: const Icon(Icons.chevron_right),
@@ -367,7 +367,7 @@ class _SettingsPageState extends State<SettingsPage> {
           // Sezione Privacy
           _buildSectionHeader('Privacy'),
           _buildSocialFeaturingToggle(),
-          const Divider(height: 32),
+          Divider(height: 32),
 
           // Sezione Legale
           _buildSectionHeader(context.l10n.legalSection),
@@ -389,7 +389,7 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: context.l10n.openSourceLicensesSubtitle,
             onTap: () => _openLicenses(context),
           ),
-          const Divider(height: 32),
+          Divider(height: 32),
 
           // Sezione Supporto
           _buildSectionHeader(context.l10n.supportSection),
@@ -427,7 +427,7 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
-          const Divider(height: 32),
+          Divider(height: 32),
 
           // Sezione Info
           _buildSectionHeader(context.l10n.infoSection),
@@ -445,7 +445,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
           // Sezione Admin (solo per admin)
           if (_isAdminUser) ...[
-            const Divider(height: 32),
+            Divider(height: 32),
             _buildSectionHeader(context.l10n.adminSection, danger: false),
             _buildListTile(
               icon: Icons.download,
@@ -483,7 +483,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildListTile(
               icon: Icons.add_business,
               title: 'Crea Spazio Pro',
-              subtitle: 'Aggiungi un nuovo profilo business (rifugio, noleggio, ecc.)',
+              subtitle: context.l10n.settingsAddBusinessProfileSub,
               onTap: () {
                 Navigator.push(
                   context,
@@ -494,7 +494,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildListTile(
               icon: Icons.business_center_outlined,
               title: 'Apri Spazio Pro (debug)',
-              subtitle: 'Inserisci ID business per testare il profilo',
+              subtitle: context.l10n.settingsEnterBusinessId,
               onTap: () => _openBusinessByIdDialog(),
             ),
           ],
@@ -513,7 +513,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
           // Zona pericolosa (solo se loggato)
           if (user != null) ...[
-            const Divider(height: 32),
+            Divider(height: 32),
             _buildSectionHeader(context.l10n.dangerZone, danger: true),
             _buildListTile(
               icon: Icons.delete_forever,
@@ -627,7 +627,7 @@ class _SettingsPageState extends State<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
@@ -973,7 +973,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return ListTile(
       leading: Icon(icon),
-      title: Text(context.l10n.themeLabel, style: const TextStyle(fontWeight: FontWeight.w500)),
+      title: Text(context.l10n.themeLabel, style: TextStyle(fontWeight: FontWeight.w500)),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 13)),
       trailing: const Icon(Icons.chevron_right),
       onTap: _showThemeDialog,

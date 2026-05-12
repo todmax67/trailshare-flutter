@@ -10,6 +10,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_profile_page.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina Discovery degli Spazi Pro: lista + mappa dei business nelle
 /// vicinanze. Filtri per tipo. Niente login richiesto per la lettura
@@ -269,10 +270,10 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
           children: [
             const Icon(Icons.error_outline,
                 size: 48, color: AppColors.danger),
-            const SizedBox(height: 12),
-            Text('Errore: $_error'),
-            const SizedBox(height: 12),
-            ElevatedButton(onPressed: _load, child: const Text('Riprova')),
+            SizedBox(height: 12),
+            Text(context.l10n.genericErrorWith(_error.toString())),
+            SizedBox(height: 12),
+            ElevatedButton(onPressed: _load, child: Text(context.l10n.retry)),
           ],
         ),
       );

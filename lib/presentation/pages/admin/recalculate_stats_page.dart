@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/elevation_processor.dart';
 import '../../../data/models/track.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina admin per ricalcolare le statistiche di tutte le tracce
 /// dai punti GPS salvati in Firestore.
@@ -213,7 +214,7 @@ class _RecalculateStatsPageState extends State<RecalculateStatsPage> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annulla')),
+              child: Text(context.l10n.cancel)),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(

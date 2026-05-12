@@ -4733,4 +4733,147 @@ class AppLocalizationsEn extends AppLocalizations {
   String byAuthor(String name) {
     return 'by: $name';
   }
+
+  @override
+  String get paywallNoActivePurchase =>
+      'No active purchase found for this account.';
+
+  @override
+  String get paywallAllFutureProFeatures => 'All future Pro features';
+
+  @override
+  String get andThe => ' and the ';
+
+  @override
+  String get paywallAnnotatedPeakPhotosLong =>
+      'Panoramic photos with peak names labeled.';
+
+  @override
+  String get paywallUpgradePending => 'Upgrade pending confirmation.';
+
+  @override
+  String get paywallAnnotatedPeakPhotos => 'Photos labeled with peak names.';
+
+  @override
+  String get paywallUnlimitedSavedPeaks => 'Unlimited saved peaks';
+
+  @override
+  String contactNoMoreLifelineNotif(String name) {
+    return '$name will no longer receive Lifeline notifications.';
+  }
+
+  @override
+  String get settingsAddBusinessProfileSub =>
+      'Add a new business profile (hut, rental, etc.)';
+
+  @override
+  String get settingsEnterBusinessId => 'Enter business ID to test the profile';
+
+  @override
+  String get trackFollowAndRecord => 'Follow and record';
+
+  @override
+  String get gpsServiceDisabled =>
+      'GPS service is off. Enable it in your phone settings.';
+
+  @override
+  String get locationPermissionDenied =>
+      'Location permission denied. Enable it in Settings to center the map.';
+
+  @override
+  String get filterOnlyCircular => 'Only circular trails';
+
+  @override
+  String get noReviewsYet => 'No reviews yet';
+
+  @override
+  String get thanksForReview => 'Thanks for your review!';
+
+  @override
+  String get deleteYourReviewQuestion => 'Delete your review?';
+
+  @override
+  String get tapStarsToRate => 'Tap stars to rate';
+
+  @override
+  String get reviewPlaceholder =>
+      'What did you like? What could be improved? (optional)';
+
+  @override
+  String get city => 'City';
+
+  @override
+  String get profileUpdated => 'Profile updated';
+
+  @override
+  String get shortDescriptionForCards => 'Short description (for cards)';
+
+  @override
+  String get streetLocation => 'Street / Location';
+
+  @override
+  String get positionUpdatedSaveToApply => 'Position updated. Save to apply.';
+
+  @override
+  String get notSet => 'Not set';
+
+  @override
+  String get loadingStats => 'Loading stats...';
+
+  @override
+  String get publicTrails => 'Public Trails';
+
+  @override
+  String get registeredUsers => 'Registered Users';
+
+  @override
+  String get recordedTracks => 'Recorded Tracks';
+
+  @override
+  String get cheersPerTrack => 'Cheers/Track';
+
+  @override
+  String get trailElevation => 'Trail Elevation';
+
+  @override
+  String get noPublishedTrack => 'No published track';
+
+  @override
+  String get noRegisteredUser => 'No registered user';
+
+  @override
+  String get updateAlreadyImported => 'Update already imported trails';
+
+  @override
+  String get colorSaveError => 'Error saving color';
+
+  @override
+  String get removeLogoQuestion => 'Remove logo?';
+
+  @override
+  String get removeCoverQuestion => 'Remove cover?';
+
+  @override
+  String get exportMembers => 'Export members';
+
+  @override
+  String get saveErrorGeneric => 'Error during save';
+
+  @override
+  String get loginRequiredToReport => 'You must sign in to report';
+
+  @override
+  String get deleteReportQuestion => 'Delete report?';
+
+  @override
+  String get reportWillBeRemoved => 'Your report will be removed.';
+
+  @override
+  String get reportCondition => 'Report a condition';
+
+  @override
+  String get deletePoiQuestion => 'Delete POI?';
+
+  @override
+  String get deletePhotoQuestion => 'Delete photo?';
 }

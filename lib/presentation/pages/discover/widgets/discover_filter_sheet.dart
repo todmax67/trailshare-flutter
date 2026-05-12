@@ -3,6 +3,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/italian_regions.dart';
 import '../models/discover_filters.dart';
 import '../../../../core/extensions/theme_colors_extension.dart';
+import '../../../../core/extensions/l10n_extension.dart';
 
 /// Bottom sheet modale per i filtri avanzati della pagina Scopri.
 ///
@@ -190,10 +191,10 @@ class _DiscoverFilterSheetState extends State<DiscoverFilterSheet> {
                     },
                   ),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Solo sentieri circolari'),
+                    title: Text(context.l10n.filterOnlyCircular),
                     value: _filters.onlyCircular,
                     onChanged: (v) => setState(
                       () => _filters = _filters.copyWith(onlyCircular: v),

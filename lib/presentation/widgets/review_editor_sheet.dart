@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/trail_review.dart';
 import 'star_rating.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Bottom sheet per scrivere o modificare una recensione.
 ///
@@ -77,16 +78,16 @@ class _ReviewEditorSheetState extends State<ReviewEditorSheet> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminare recensione?'),
-        content: const Text('Questa azione non può essere annullata.'),
+        content: Text('Questa azione non può essere annullata.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -201,12 +202,12 @@ class _ReviewEditorSheetState extends State<ReviewEditorSheet> {
                   FilledButton(
                     onPressed: (_rating == 0 || _isSaving) ? null : _save,
                     child: _isSaving
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Text('Salva'),
+                        : Text(context.l10n.save),
                   ),
                 ],
               ),

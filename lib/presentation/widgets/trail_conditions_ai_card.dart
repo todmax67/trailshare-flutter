@@ -6,6 +6,7 @@ import '../../core/services/pro_gate_service.dart';
 import '../../core/services/trail_conditions_ai_service.dart';
 import '../../data/repositories/trail_conditions_repository.dart';
 import 'paywall_sheet.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Killer feature Pro 6.6: card AI summary delle condizioni sentiero
 /// community. Mostrata in cima alle pagine dettaglio trail/track con
@@ -305,8 +306,8 @@ class _TrailConditionsAiCardState extends State<TrailConditionsAiCard> {
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: () => _generate(forceRefresh: true),
-            icon: const Icon(Icons.refresh, size: 16),
-            label: const Text('Riprova'),
+            icon: Icon(Icons.refresh, size: 16),
+            label: Text(context.l10n.retry),
           ),
         ],
       );

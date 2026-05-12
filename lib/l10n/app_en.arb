@@ -42,7 +42,13 @@
   "totalElevation": "Total elevation",
   "activity": "Activity",
   "activityChanged": "Activity changed to {type}",
-  "@activityChanged": { "placeholders": { "type": {"type": "String"} } },
+  "@activityChanged": {
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
   "details": "Details",
   "statistics": "Statistics",
   "statsPerKm": "Stats per Km",
@@ -63,14 +69,20 @@
   "removeFromCommunity": "Remove from community",
   "published": "Published",
   "trackName": "Track name",
-  "noName": "Unnamed",
+  "noName": "No name",
   "exportGpx": "Export GPX",
   "exportError": "Export error: {error}",
-  "@exportError": { "placeholders": { "error": {"type": "String"} } },
+  "@exportError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "importGpx": "Import GPX",
   "planRoute": "Plan route",
   "plannedRoutes": "Planned routes",
-  "recording": "Recording",
+  "recording": "RECORDING",
   "startRecording": "Start recording",
   "stopRecording": "Stop recording",
   "pauseRecording": "Pause",
@@ -87,7 +99,13 @@
   "confirmPassword": "Confirm password",
   "forgotPassword": "Forgot password?",
   "loginWith": "Log in with {provider}",
-  "@loginWith": { "placeholders": { "provider": {"type": "String"} } },
+  "@loginWith": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
   "trackYourAdventures": "Track your adventures",
   "or": "or",
   "alreadyHaveAccount": "Already have an account?",
@@ -110,9 +128,21 @@
   "noFollowers": "No followers",
   "noFollowing": "Not following anyone",
   "followersCount": "{count} followers",
-  "@followersCount": { "placeholders": { "count": {"type": "int"} } },
+  "@followersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "followingCount": "{count} following",
-  "@followingCount": { "placeholders": { "count": {"type": "int"} } },
+  "@followingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shareProfile": "Share your hikes to get noticed!",
   "discover": "Discover",
   "searchTrails": "Search trails...",
@@ -135,16 +165,22 @@
   "groups": "Groups",
   "myGroups": "My groups",
   "group": "Group",
-  "createGroup": "Create group",
+  "createGroup": "Create Group",
   "joinGroup": "Join",
   "leaveGroup": "Leave group",
   "deleteGroup": "Delete group",
-  "deleteGroupConfirm": "Delete this group? This action cannot be undone.",
+  "deleteGroupConfirm": "Do you want to delete \"{name}\"?\n\nThis action is irreversible.",
   "groupName": "Group name",
   "groupDescription": "Group description",
   "members": "Members",
   "membersCount": "{count} members",
-  "@membersCount": { "placeholders": { "count": {"type": "int"} } },
+  "@membersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "admin": "Admin",
   "inviteCode": "Invite code",
   "inviteCodeHint": "Enter invite code",
@@ -209,7 +245,7 @@
   "lightMode": "Light mode",
   "systemMode": "Follow system",
   "language": "Language",
-  "offlineMaps": "Offline maps",
+  "offlineMaps": "Offline Maps",
   "downloadMap": "Download map",
   "deleteMap": "Delete map",
   "mapDownloaded": "Map downloaded",
@@ -219,13 +255,19 @@
   "imperial": "Imperial (mi, ft)",
   "about": "About",
   "version": "Version",
-  "privacyPolicy": "Privacy policy",
-  "termsOfService": "Terms of service",
-  "deleteAccount": "Delete account",
+  "privacyPolicy": "Privacy Policy",
+  "termsOfService": "Terms of Service",
+  "deleteAccount": "Delete Account",
   "deleteAccountConfirm": "Delete your account? All data will be lost.",
   "liveTracking": "Live tracking",
   "durationLabel": "Duration: {duration}",
-  "@durationLabel": { "placeholders": { "duration": {"type": "String"} } },
+  "@durationLabel": {
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
   "wishlistAdded": "Saved",
   "wishlistRemoved": "Removed",
   "saved": "Saved",
@@ -256,15 +298,20 @@
   "adminPanel": "Admin panel",
   "noUsersFound": "No users",
   "noResultsFound": "No results",
-  "databaseStats": "Database stats",
+  "databaseStats": "Database Stats",
   "tapKmToHighlight": "Tap a km to highlight it on the map",
   "total": "TOT",
-
   "defaultUser": "User",
   "usernameUpdated": "Username updated!",
   "bioUpdated": "Bio updated!",
   "errorWithDetails": "Error: {error}",
-  "@errorWithDetails": { "placeholders": { "error": {"type": "String"} } },
+  "@errorWithDetails": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "logoutConfirm": "Do you want to log out?",
   "loginToSeeProfile": "Log in to see your profile",
   "loginProfileDescription": "Save your tracks, follow other hikers and much more.",
@@ -273,15 +320,29 @@
   "addBio": "Add a bio",
   "editBio": "Edit bio",
   "levelNumber": "Level {level}",
-  "@levelNumber": { "placeholders": { "level": {"type": "int"} } },
+  "@levelNumber": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
   "myContacts": "My contacts",
   "contactsSummary": "{followers} followers · {following} following",
-  "@contactsSummary": { "placeholders": { "followers": {"type": "int"}, "following": {"type": "int"} } },
+  "@contactsSummary": {
+    "placeholders": {
+      "followers": {
+        "type": "int"
+      },
+      "following": {
+        "type": "int"
+      }
+    }
+  },
   "viewDashboard": "View Dashboard",
   "savedRoutes": "Saved Routes",
   "weeklyLeaderboard": "Weekly Leaderboard",
   "myBadges": "My Badges",
-
   "dashboard": "Dashboard",
   "noStatsAvailable": "No statistics available",
   "recordFirstTrackForStats": "Record your first track to see statistics!",
@@ -334,35 +395,76 @@
   "monthOct": "October",
   "monthNov": "November",
   "monthDec": "December",
-
   "activeTabCount": "Active ({count})",
-  "@activeTabCount": { "placeholders": { "count": {"type": "int"} } },
+  "@activeTabCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "myChallengesTabCount": "Mine ({count})",
-  "@myChallengesTabCount": { "placeholders": { "count": {"type": "int"} } },
+  "@myChallengesTabCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "createChallengeBtn": "Create Challenge",
   "noActiveChallenges": "No active challenges",
   "notInAnyChallenges": "You haven't joined any challenges",
   "createFirstChallenge": "Create the first challenge and challenge the community!",
   "joinFromActiveTab": "Join a challenge from the \"Active\" tab",
   "joinChallengeTitle": "Join \"{title}\"",
-  "@joinChallengeTitle": { "placeholders": { "title": {"type": "String"} } },
+  "@joinChallengeTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "goalLabel": "Goal",
   "deadlineLabel": "Deadline",
   "daysCount": "{days} days",
-  "@daysCount": { "placeholders": { "days": {"type": "int"} } },
+  "@daysCount": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "joinChallengeConfirm": "Do you want to join this challenge?",
   "joinAction": "Join",
   "joinedChallenge": "🎉 You joined the challenge!",
   "joinError": "Error joining the challenge",
   "challengeDetail": "Challenge Detail",
   "createdBy": "Created by {name}",
-  "@createdBy": { "placeholders": { "name": {"type": "String"} } },
+  "@createdBy": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "yourProgress": "Your progress",
   "enrolled": "✓ Enrolled",
   "participantsCount": "{count} participants",
-  "@participantsCount": { "placeholders": { "count": {"type": "int"} } },
+  "@participantsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "goalPrefix": "Goal: {goal}",
-  "@goalPrefix": { "placeholders": { "goal": {"type": "String"} } },
+  "@goalPrefix": {
+    "placeholders": {
+      "goal": {
+        "type": "String"
+      }
+    }
+  },
   "createNewChallenge": "Create a new challenge",
   "challengeHint": "E.g.: 100km in a week",
   "descriptionOptional": "Description (optional)",
@@ -374,14 +476,25 @@
   "challengeCreated": "🎉 Challenge created!",
   "creationError": "Error during creation",
   "tracksUnit": "tracks",
-
   "newBadge": "New Badge!",
   "fantastic": "Fantastic!",
   "badges": "Badges",
   "unlockedCount": "Unlocked ({count})",
-  "@unlockedCount": { "placeholders": { "count": {"type": "int"} } },
+  "@unlockedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "allCount": "All ({count})",
-  "@allCount": { "placeholders": { "count": {"type": "int"} } },
+  "@allCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "noBadgesYet": "No badges yet",
   "completeTracksForBadges": "Complete tracks and activities to unlock badges!",
   "viewAllBadges": "View all badges",
@@ -389,13 +502,27 @@
   "socialCategory": "Social",
   "streakCategory": "Streak",
   "unlockedOn": "Unlocked on {date}",
-  "@unlockedOn": { "placeholders": { "date": {"type": "String"} } },
-
+  "@unlockedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "leaderboardLoadError": "Error loading leaderboard",
   "yourPosition": "Your position",
   "youAreLeading": "🏆 You're in the lead!",
   "positionOfTotal": "Position {rank} of {total}",
-  "@positionOfTotal": { "placeholders": { "rank": {"type": "int"}, "total": {"type": "int"} } },
+  "@positionOfTotal": {
+    "placeholders": {
+      "rank": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "noActivityThisWeek": "No activity this week",
   "completeTrackForLeaderboard": "Complete a track to appear in the leaderboard.\nFollow other users to compete with them!",
   "startHike": "Start a hike",
@@ -403,9 +530,13 @@
   "competeWithFriends": "Compete with friends and climb the weekly leaderboard!",
   "youLabel": "YOU",
   "xpThisWeek": "{xp} XP this week",
-  "@xpThisWeek": { "placeholders": { "xp": {"type": "int"} } },
-
-  "settings": "Settings",
+  "@xpThisWeek": {
+    "placeholders": {
+      "xp": {
+        "type": "int"
+      }
+    }
+  },
   "accountSection": "Account",
   "emailLabel": "Email",
   "notAvailable": "Not available",
@@ -432,9 +563,7 @@
   "healthDashboard": "Health Dashboard",
   "healthDashboardSubtitle": "Steps, heart rate, weekly calories",
   "legalSection": "Legal",
-  "privacyPolicy": "Privacy Policy",
   "privacyPolicySubtitle": "How we handle your data",
-  "termsOfService": "Terms of Service",
   "termsOfServiceSubtitle": "App terms and conditions",
   "openSourceLicenses": "Open Source Licenses",
   "openSourceLicensesSubtitle": "Libraries used",
@@ -444,7 +573,6 @@
   "contactUs": "Contact Us",
   "rateApp": "Rate the app",
   "rateAppSubtitle": "Leave a review",
-  "offlineMaps": "Offline Maps",
   "offlineMapsSubtitle": "Download maps for offline use",
   "infoSection": "Information",
   "versionLabel": "Version",
@@ -456,12 +584,10 @@
   "importTrailsSubtitle": "Import trails from Waymarked Trails",
   "geohashMigration": "GeoHash Migration",
   "geohashMigrationSubtitle": "Manage geospatial indexes for trails",
-  "databaseStats": "Database Stats",
   "databaseStatsSubtitle": "View metrics and usage",
   "recalculateStats": "Recalculate Stats",
   "recalculateStatsSubtitle": "Fix elevation and distances from GPS tracks",
   "dangerZone": "Danger Zone",
-  "deleteAccount": "Delete Account",
   "deleteAccountSubtitle": "Permanently delete all your data",
   "accountDeleted": "Account deleted successfully",
   "cannotOpenLink": "Cannot open link",
@@ -485,19 +611,23 @@
   "themeAutomaticSubtitle": "Follows system settings",
   "themeLightSubtitle": "Light theme always on",
   "themeDarkSubtitle": "Dark theme always on",
-
   "stepsToday": "Steps today",
   "restingHR": "Resting HR",
   "goalReached": "🎉 Goal reached!",
   "percentOfGoal": "{pct}% of 10,000",
-  "@percentOfGoal": { "placeholders": { "pct": {"type": "int"} } },
+  "@percentOfGoal": {
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
   "stepsLast7Days": "Steps — Last 7 days",
   "caloriesLast7Days": "Calories — Last 7 days",
   "noStepsData": "No steps data available",
   "noCaloriesData": "No calories data available",
   "stepsUnit": "steps",
   "healthDataInfo": "Data comes from your smartwatch via Health Connect. Make sure your device is synced for up-to-date data.",
-
   "faqHowCanWeHelp": "How can we help you?",
   "faqFindAnswers": "Find answers to frequently asked questions",
   "faqCategoryGeneral": "📱 General",
@@ -508,7 +638,6 @@
   "faqNoAnswer": "Didn't find your answer?",
   "faqContactPrompt": "Contact us and we'll get back to you shortly",
   "faqContactSupport": "Contact support",
-
   "faqGeneralQ1": "What is TrailShare?",
   "faqGeneralA1": "TrailShare is an app for recording and sharing your hikes. You can track your routes with GPS, discover new trails, follow other hikers and join weekly challenges.",
   "faqGeneralQ2": "Is the app free?",
@@ -517,7 +646,6 @@
   "faqGeneralA3": "Yes, an account is required to save your tracks and access social features. You can sign up with email, Google or Apple.",
   "faqGeneralQ4": "Is my data safe?",
   "faqGeneralA4": "Absolutely. Your data is protected and encrypted. You can check our Privacy Policy for full details on how we handle your information.",
-
   "faqTrackingQ1": "How do I record a track?",
   "faqTrackingA1": "Go to the \"Record\" section, tap the green \"Start\" button and walk! The app will automatically record your route. You can pause and resume at any time.",
   "faqTrackingQ2": "Does GPS work in the background?",
@@ -532,7 +660,6 @@
   "faqTrackingA6": "Yes, you can import GPX files from the \"My Tracks\" section. Tap the + button and select \"Import GPX\".",
   "faqTrackingQ7": "Can I export my tracks?",
   "faqTrackingA7": "Of course! Open a track and tap the share icon to export it in GPX format, compatible with most apps and GPS devices.",
-
   "faqSocialQ1": "How do I follow other users?",
   "faqSocialA1": "Search for a user or visit their profile from a public track, then tap \"Follow\". You'll see their new tracks in your feed.",
   "faqSocialQ2": "What is a \"Cheers\"?",
@@ -543,7 +670,6 @@
   "faqSocialA4": "Tracks are private by default. Only those you explicitly publish will be visible to others.",
   "faqSocialQ5": "What is LiveTrack?",
   "faqSocialA5": "LiveTrack lets you share your position in real time during a hike. It generates a link you can send to family or friends so they can follow you on the map.",
-
   "faqGamificationQ1": "How do XP work?",
   "faqGamificationA1": "You earn XP (experience points) by completing tracks, receiving cheers, gaining followers and completing challenges. The more XP you accumulate, the higher your level!",
   "faqGamificationQ2": "How many levels are there?",
@@ -554,7 +680,6 @@
   "faqGamificationA4": "The weekly leaderboard is based on km traveled and elevation gained during the week. It resets every Monday.",
   "faqGamificationQ5": "Can I see other users' badges?",
   "faqGamificationA5": "Yes, by visiting a user's profile you can see their unlocked badges and their level.",
-
   "faqTechnicalQ1": "How do I connect a heart rate monitor?",
   "faqTechnicalA1": "During recording, tap the heart icon at the top. The app will automatically search for nearby Bluetooth heart rate monitors. Select yours to connect.",
   "faqTechnicalQ2": "Which heart rate monitors are compatible?",
@@ -567,26 +692,48 @@
   "faqTechnicalA5": "Go to Settings > Appearance > Theme. You can choose between Light, Dark or Automatic (follows system settings).",
   "faqTechnicalQ6": "How do I delete my account?",
   "faqTechnicalA6": "Go to Settings > Danger Zone > Delete Account. You'll need to confirm with your password. This action is irreversible and will delete all your data.",
-
   "deleteAll": "Delete all",
   "downloadArea": "Download Area",
-  "storageUsed": "Storage used",
   "areasCount": "{count, plural, =1{1 area} other{{count} areas}}",
-  "@areasCount": { "placeholders": { "count": {"type": "int"} } },
+  "@areasCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "noOfflineMaps": "No offline maps",
   "downloadMapsForOffline": "Download maps to use them when you're offline",
   "areaName": "Area name",
   "areaNameHint": "E.g.: Dolomites, Alps...",
   "minZoomLabel": "Min zoom: {value}",
-  "@minZoomLabel": { "placeholders": { "value": {"type": "int"} } },
+  "@minZoomLabel": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
   "maxZoomLabel": "Max zoom: {value}",
-  "@maxZoomLabel": { "placeholders": { "value": {"type": "int"} } },
+  "@maxZoomLabel": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
   "tilesToDownload": "Tiles to download:",
   "estimatedSize": "Estimated size:",
   "downloadAction": "Download",
   "deleteArea": "Delete area",
   "deleteAreaConfirm": "Do you want to delete \"{name}\"?",
-  "@deleteAreaConfirm": { "placeholders": { "name": {"type": "String"} } },
+  "@deleteAreaConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "deleteLabel": "Delete",
   "deleteAllMaps": "Delete all maps",
   "deleteAllMapsConfirm": "Do you want to delete all offline maps? This action cannot be undone.",
@@ -598,9 +745,17 @@
   "downloadCompleted": "✓ Completed!",
   "downloadInProgress": "Downloading...",
   "tileProgress": "{downloaded} / {total} tiles",
-  "@tileProgress": { "placeholders": { "downloaded": {"type": "int"}, "total": {"type": "int"} } },
+  "@tileProgress": {
+    "placeholders": {
+      "downloaded": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "closeAction": "Close",
-
   "privacyLastUpdated": "Last updated: May 2026",
   "privacyIntroTitle": "Introduction",
   "privacyIntroContent": "TrailShare (\"we\", \"our\" or \"app\") respects your privacy. This policy describes what data we collect, how we use it and your rights. The full version is available at trailshare.app/privacy.",
@@ -635,27 +790,47 @@
   "privacyContactTitle": "Contact",
   "privacyContactContent": "For privacy questions, contact us at:\n📧 privacy@trailshare.app",
   "viewWebVersion": "View web version",
-
-  "searchUsers": "Search users",
   "searchByUsername": "Search by username...",
   "noUserFoundFor": "No user found for \"{query}\"",
-  "@noUserFoundFor": { "placeholders": { "query": {"type": "String"} } },
+  "@noUserFoundFor": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
   "tryDifferentUsername": "Try a different username",
   "peopleYouMayKnow": "People you may know",
   "noSuggestionsNow": "No suggestions at the moment",
   "searchUsersAbove": "Search users with the bar above",
   "levelLabel": "Level {level}",
-  "@levelLabel": { "placeholders": { "level": {"type": "int"} } },
-
+  "@levelLabel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
   "followersOf": "{name}'s followers",
-  "@followersOf": { "placeholders": { "name": {"type": "String"} } },
+  "@followersOf": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "followedBy": "Followed by {name}",
-  "@followedBy": { "placeholders": { "name": {"type": "String"} } },
+  "@followedBy": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "noFollowersYet": "No followers yet",
   "notFollowingAnyone": "Not following anyone",
   "shareHikesToGetKnown": "Share your hikes to get noticed!",
   "exploreCommunity": "Explore the community to find interesting people.",
-
   "skipAction": "Skip",
   "startAction": "Let's go!",
   "nextAction": "Next",
@@ -669,7 +844,6 @@
   "onboardingConnectDesc": "Follow friends and hikers, share your routes and climb the weekly leaderboard. Earn XP and unlock badges!",
   "onboardingOfflineTitle": "Works offline too",
   "onboardingOfflineDesc": "Download maps to use without a connection. GPS tracking always works, even in airplane mode.",
-
   "chooseYourUsername": "Choose your username",
   "usernameVisibleToOthers": "This name will be visible to other TrailShare users",
   "usernameLabel": "Username",
@@ -680,7 +854,6 @@
   "usernameMaxChars": "Maximum 20 characters",
   "usernameInvalidChars": "Only letters, numbers, dots and underscores",
   "usernameAlreadyTakenChooseAnother": "Username already taken, choose another one",
-
   "continueWithApple": "Continue with Apple",
   "continueWithGoogle": "Continue with Google",
   "orDivider": "or",
@@ -697,7 +870,6 @@
   "noAccountQuestion": "Don't have an account?",
   "registerAction": "Sign up",
   "loginCancelled": "Login cancelled",
-
   "createAccount": "Create account",
   "joinTrailShare": "Join TrailShare",
   "createAccountToSaveTracks": "Create an account to save your tracks",
@@ -709,27 +881,54 @@
   "passwordsDoNotMatch": "Passwords do not match",
   "accountCreatedSuccess": "✅ Account created successfully!",
   "acceptTermsAndPrivacy": "By creating an account you agree to our Terms of Service and Privacy Policy",
-
-  "passwordTooShort": "Password must be at least 6 characters",
-
   "tracksTabCount": "Tracks ({count})",
-  "@tracksTabCount": { "placeholders": { "count": {"type": "int"} } },
+  "@tracksTabCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "groupsTabCount": "Groups ({count})",
-  "@groupsTabCount": { "placeholders": { "count": {"type": "int"} } },
+  "@groupsTabCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "eventsTabCount": "Events ({count})",
-  "@eventsTabCount": { "placeholders": { "count": {"type": "int"} } },
+  "@eventsTabCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "showList": "Show list",
   "showMap": "Show map",
   "searchTracksOrUsers": "Search tracks or users...",
   "noSharedTracks": "No shared tracks",
   "noResultsForQuery": "No results for \"{query}\"",
-  "@noResultsForQuery": { "placeholders": { "query": {"type": "String"} } },
+  "@noResultsForQuery": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
   "tracksLabel": "tracks",
   "loadMore": "Load more",
   "loadMoreTracks": "Load more tracks",
   "newGroup": "New Group",
   "myFilterCount": "Mine ({count})",
-  "@myFilterCount": { "placeholders": { "count": {"type": "int"} } },
+  "@myFilterCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "discoverFilter": "Discover",
   "codeLabel": "Code",
   "noGroups": "No groups",
@@ -737,19 +936,43 @@
   "noGroupsAvailable": "No groups available",
   "noPublicGroupsCTA": "There are no public groups to join at the moment. Create one yourself!",
   "memberCountPlural": "{count, plural, =1{1 member} other{{count} members}}",
-  "@memberCountPlural": { "placeholders": { "count": {"type": "int"} } },
+  "@memberCountPlural": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "publicLabel": "Public",
   "privateLabel": "Private",
   "secretLabel": "Secret",
   "joinedGroupSnack": "You joined \"{name}\"!",
-  "@joinedGroupSnack": { "placeholders": { "name": {"type": "String"} } },
+  "@joinedGroupSnack": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "joinGroupAction": "Join",
   "requestSentSnack": "Request sent to \"{name}\"!",
-  "@requestSentSnack": { "placeholders": { "name": {"type": "String"} } },
+  "@requestSentSnack": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "requestAction": "Request",
   "publicEventsFilter": "Public",
   "activeChallengesCount": "Active challenges ({count})",
-  "@activeChallengesCount": { "placeholders": { "count": {"type": "int"} } },
+  "@activeChallengesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "noEventsScheduled": "No events scheduled",
   "groupEventsWillAppear": "Events from your groups will appear here",
   "noPublicEvents": "No public events",
@@ -761,7 +984,13 @@
   "unknownError": "Unknown error",
   "joinedGroupGeneric": "You joined the group!",
   "daysShort": "{days}d",
-  "@daysShort": { "placeholders": { "days": {"type": "int"} } },
+  "@daysShort": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "monthShortJan": "JAN",
   "monthShortFeb": "FEB",
   "monthShortMar": "MAR",
@@ -774,12 +1003,22 @@
   "monthShortOct": "OCT",
   "monthShortNov": "NOV",
   "monthShortDec": "DEC",
-
   "leaveGroupConfirm": "Do you want to leave \"{name}\"?",
-  "@leaveGroupConfirm": { "placeholders": { "name": {"type": "String"} } },
-  "exitAction": "Leave",
-  "deleteGroupConfirm": "Do you want to delete \"{name}\"?\n\nThis action is irreversible.",
-  "@deleteGroupConfirm": { "placeholders": { "name": {"type": "String"} } },
+  "@leaveGroupConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "exitAction": "Exit",
+  "@deleteGroupConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "deleteAction": "Delete",
   "membersLabel": "Members",
   "chatTab": "Chat",
@@ -794,10 +1033,22 @@
   "secretVisibilityDesc": "Hidden, invite code only",
   "accessRequests": "Access requests",
   "requestedOnDate": "Requested on {date}",
-  "@requestedOnDate": { "placeholders": { "date": {"type": "String"} } },
+  "@requestedOnDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "pendingStatus": "Pending",
   "userApproved": "{username} approved!",
-  "@userApproved": { "placeholders": { "username": {"type": "String"} } },
+  "@userApproved": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "descriptionLabel": "Description",
   "editAction": "Edit",
   "noDescriptionHint": "No description. Tap edit to add one.",
@@ -815,12 +1066,33 @@
   "regenerateCodeDesc": "The old code will no longer work. Do you want to generate a new invite code?",
   "regenerateAction": "Regenerate",
   "newCodeSnack": "New code: {code}",
-  "@newCodeSnack": { "placeholders": { "code": {"type": "String"} } },
+  "@newCodeSnack": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "codeCopied": "Code copied!",
   "groupNowIs": "Group is now {visibility}",
-  "@groupNowIs": { "placeholders": { "visibility": {"type": "String"} } },
+  "@groupNowIs": {
+    "placeholders": {
+      "visibility": {
+        "type": "String"
+      }
+    }
+  },
   "inviteShareText": "Join the group \"{name}\" on TrailShare!\n\nUse the invite code: {code}\n\nDownload TrailShare and enter the code in the Community > Groups section.",
-  "@inviteShareText": { "placeholders": { "name": {"type": "String"}, "code": {"type": "String"} } },
+  "@inviteShareText": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "inviteShareSubject": "TrailShare group invite",
   "userLabel": "User",
   "leaveGroupTitle": "Leave group",
@@ -837,19 +1109,15 @@
   "monthLowerOtt": "Oct",
   "monthLowerNov": "Nov",
   "monthLowerDic": "Dec",
-
   "groupNameHint": "E.g. Mountain Hikers",
   "enterGroupName": "Enter a name for the group",
-  "descriptionOptional": "Description (optional)",
   "whatDoesYourGroupDo": "What does your group do?",
   "visibilityLabel": "Visibility",
   "publicVisibilityDescFull": "Visible to everyone, anyone can join",
   "privateVisibilityDescFull": "Visible to everyone, admin approval required",
   "secretVisibilityDescFull": "Hidden, accessible only via invite code",
-  "createGroup": "Create Group",
   "groupCreated": "Group created!",
   "groupCreationError": "Error creating the group",
-
   "eventLabel": "Event",
   "deletePost": "Delete post",
   "deletePostConfirm": "Do you want to delete this post?",
@@ -858,9 +1126,24 @@
   "changeCover": "Change cover",
   "addCover": "Add cover",
   "participantsWithMax": "Participants ({count}/{max})",
-  "@participantsWithMax": { "placeholders": { "count": {"type": "String"}, "max": {"type": "String"} } },
+  "@participantsWithMax": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
   "participantsOnly": "Participants ({count})",
-  "@participantsOnly": { "placeholders": { "count": {"type": "String"} } },
+  "@participantsOnly": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "noParticipantsYet": "No participants yet",
   "enrolledWithdraw": "Enrolled — Withdraw",
   "eventFull": "Event is full",
@@ -873,18 +1156,48 @@
   "shareEventPhotos": "Share info, news or photos of the event!",
   "justNow": "Now",
   "minutesAgo": "{count} min ago",
-  "@minutesAgo": { "placeholders": { "count": {"type": "int"} } },
+  "@minutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "hoursAgo": "{count} hours ago",
-  "@hoursAgo": { "placeholders": { "count": {"type": "int"} } },
+  "@hoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "daysAgo": "{count} days ago",
-  "@daysAgo": { "placeholders": { "count": {"type": "int"} } },
+  "@daysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "concluded": "Ended",
   "organizedBy": "Organized by {name}",
-  "@organizedBy": { "placeholders": { "name": {"type": "String"} } },
+  "@organizedBy": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "photoEmoji": "📷 Photo",
   "deleteEventMenu": "Delete event",
   "uploadError": "Upload error: {error}",
-  "@uploadError": { "placeholders": { "error": {"type": "String"} } },
+  "@uploadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "monthFullJan": "January",
   "monthFullFeb": "February",
   "monthFullMar": "March",
@@ -897,12 +1210,22 @@
   "monthFullOct": "October",
   "monthFullNov": "November",
   "monthFullDec": "December",
-
   "sendImageError": "Error sending image: {error}",
-  "@sendImageError": { "placeholders": { "error": {"type": "String"} } },
+  "@sendImageError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "yesterdayAtTime": "Yesterday {time}",
-  "@yesterdayAtTime": { "placeholders": { "time": {"type": "String"} } },
-
+  "@yesterdayAtTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "upcomingFilter": "Upcoming",
   "allFilter": "All",
   "noEventsTitle": "No events",
@@ -910,13 +1233,26 @@
   "pastLabel": "Past",
   "withdraw": "Withdraw",
   "participantsCountWithMax": "{count}/{max} participants",
-  "@participantsCountWithMax": { "placeholders": { "count": {"type": "String"}, "max": {"type": "String"} } },
+  "@participantsCountWithMax": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
   "participantsCountSimple": "{count} participants",
-  "@participantsCountSimple": { "placeholders": { "count": {"type": "String"} } },
-
+  "@participantsCountSimple": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "createFirstGroup": "Create your first group",
   "myGroupsTab": "My Groups",
-
   "newChallenge": "New Challenge",
   "challengeTitleRequired": "Challenge title *",
   "challengeTitleHint": "E.g. Who covers the most km this week?",
@@ -943,10 +1279,15 @@
   "twoWeeks": "2 weeks",
   "oneMonth": "1 month",
   "challengeInfoText": "The challenge starts today and lasts {days} days. Progress is calculated automatically from recorded tracks.",
-  "@challengeInfoText": { "placeholders": { "days": {"type": "int"} } },
+  "@challengeInfoText": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "challengeCreatedShort": "Challenge created!",
   "challengeCreationError": "Error creating the challenge",
-
   "newEvent": "New Event",
   "titleRequired": "Title *",
   "eventTitleHint": "E.g. Hike to Mountain Refuge",
@@ -964,43 +1305,91 @@
   "eventCreatedSnack": "Event created!",
   "distanceHintShort": "Distance",
   "elevationHintShort": "Elevation",
-
   "activeFilter": "Active",
   "allChallengesFilter": "All",
   "noChallenges": "No challenges",
   "launchGroupChallenge": "Launch a challenge to the group!",
   "lastDay": "Last day!",
   "daysLeftCount": "{count} days",
-  "@daysLeftCount": { "placeholders": { "count": {"type": "int"} } },
+  "@daysLeftCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "concludedFemale": "Ended",
   "createdByFemale": "Created by {name}",
-  "@createdByFemale": { "placeholders": { "name": {"type": "String"} } },
+  "@createdByFemale": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "goalColon": "Goal: {value}",
-  "@goalColon": { "placeholders": { "value": {"type": "String"} } },
+  "@goalColon": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "typeAndGoal": "{type} • Goal: {goal}",
-  "@typeAndGoal": { "placeholders": { "type": {"type": "String"}, "goal": {"type": "String"} } },
+  "@typeAndGoal": {
+    "placeholders": {
+      "type": {
+        "type": "String"
+      },
+      "goal": {
+        "type": "String"
+      }
+    }
+  },
   "suffixDaysShort": "d",
-
   "membersWithCount": "Members ({count})",
-  "@membersWithCount": { "placeholders": { "count": {"type": "int"} } },
+  "@membersWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "inviteTooltip": "Invite",
   "removeMember": "Remove member",
   "removeMemberConfirm": "Do you want to remove {name} from the group?",
-  "@removeMemberConfirm": { "placeholders": { "name": {"type": "String"} } },
+  "@removeMemberConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "removeAction": "Remove",
   "youSuffix": " (you)",
   "adminWithCrown": "👑 Administrator",
   "allContactsInGroup": "All your contacts are already in the group",
   "inviteContact": "Invite a contact",
   "addedToGroup": "{name} added to the group!",
-  "@addedToGroup": { "placeholders": { "name": {"type": "String"} } },
+  "@addedToGroup": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "inviteAction": "Invite",
-
   "shareTooltip": "Share",
   "publishToCommunity": "Publish to community",
   "elevationGainLabel": "Elevation +",
-  "photosCount": "Photos ({count})",
-  "@photosCount": { "placeholders": { "count": {"type": "int"} } },
+  "photosCount": "📸 {count} photos",
+  "@photosCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "publishedBadge": "Public",
   "dateLabel": "Date",
   "gpsPoints": "GPS Points",
@@ -1024,7 +1413,13 @@
   "searchHRFromWatch": "Tap to search HR data from your smartwatch",
   "searchingHR": "🔍 Searching heart rate data...",
   "hrSamplesFound": "❤️ {count} HR samples found!",
-  "@hrSamplesFound": { "placeholders": { "count": {"type": "int"} } },
+  "@hrSamplesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "noHRFound": "No HR data found. Make sure your smartwatch has synced with Health Connect.",
   "hrRetrievalError": "Error retrieving HR data",
   "mustBeLoggedIn": "You must be logged in",
@@ -1035,10 +1430,6 @@
   "trackUnpublished": "Track removed from community",
   "deleteTrackTitle": "Delete track",
   "deleteTrackIrreversible": "This action is irreversible. The track will be permanently deleted.",
-  "exportError": "Export error: {error}",
-  "@exportError": { "placeholders": { "error": {"type": "String"} } },
-  "errorWithDetails": "Error: {error}",
-  "@errorWithDetails": { "placeholders": { "error": {"type": "String"} } },
   "downloadTooltip": "Download",
   "quotaLabel": "Elevation",
   "positionLabel": "Position",
@@ -1047,27 +1438,32 @@
   "latitudeLabel": "Latitude",
   "longitudeLabel": "Longitude",
   "photoFrom": "Photo from {name}",
-  "@photoFrom": { "placeholders": { "name": {"type": "String"} } },
+  "@photoFrom": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "downloadError": "Download error",
   "errorLabel": "Error",
-
   "editMenu": "Edit",
   "detailsHeader": "Details",
-  "caloriesLabel": "Calories",
-  "stepsLabel": "Steps",
   "durationStatLabel": "Duration",
-  "byBicycle": "By bicycle",
   "activityChangedTo": "Activity changed to {name}",
-  "@activityChangedTo": { "placeholders": { "name": {"type": "String"} } },
+  "@activityChangedTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "publishDialogContent": "Your track will be visible to all users in the \"Discover\" section.",
-  "publishAction": "Publish",
   "heartRateDataTitle": "Heart rate data",
   "tapToSearchHR": "Tap to search HR data from your smartwatch",
   "noHRData": "No HR data found. Make sure your smartwatch has synced with Health Connect.",
   "unpublishContent": "The track will no longer be visible in the \"Discover\" section. You can republish it at any time.",
   "deleteTrackContent": "This action is irreversible. The track will be permanently deleted.",
-  "errorWithDetails": "Error: {error}",
-  "@errorWithDetails": { "placeholders": { "error": {"type": "String"} } },
   "elevationLossLabel": "Elevation loss",
   "photoInfoTitle": "Photo Info",
   "dateInfoLabel": "Date",
@@ -1077,22 +1473,38 @@
   "quotaMetadata": "Altitude",
   "positionMetadata": "Position",
   "timeMetadata": "Time",
-
   "listTab": "List",
   "planTab": "Plan",
   "loginToSeeTracks": "Log in to see your tracks",
   "loadingErrorWithDetails": "Loading error: {error}",
-  "@loadingErrorWithDetails": { "placeholders": { "error": {"type": "String"} } },
+  "@loadingErrorWithDetails": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "noTracksSaved": "No saved tracks",
   "startRecordingAdventures": "Start recording your adventures!",
   "loginToPlan": "Log in to plan tracks",
   "mapAction": "Map",
   "deleteTrackConfirmName": "Are you sure you want to delete \"{name}\"?",
-  "@deleteTrackConfirmName": { "placeholders": { "name": {"type": "String"} } },
+  "@deleteTrackConfirmName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "plannedBadge": "PLANNED",
   "todayAtTime": "Today {time}",
-  "@todayAtTime": { "placeholders": { "time": {"type": "String"} } },
-
+  "@todayAtTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "cannotReadFile": "Cannot read the file. Make sure it is a valid GPX or FIT file.",
   "cannotReadGpx": "Cannot read the GPX file. Make sure it is a valid file.",
   "importGpxTitle": "Import a GPX file",
@@ -1102,17 +1514,28 @@
   "changeFile": "Change",
   "trackImported": "✅ Track imported successfully!",
   "saveErrorWithDetails": "Save error: {error}",
-  "@saveErrorWithDetails": { "placeholders": { "error": {"type": "String"} } },
+  "@saveErrorWithDetails": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "noGpsData": "No GPS data",
   "elevationGainShort": "Elevation gain",
-
   "cannotCalculateRoute": "Cannot calculate the route. Please retry.",
   "addAtLeast2Points": "Add at least 2 points to the route",
   "loginToSave": "You must log in to save",
   "routeSaved": "Route saved! 🎉",
   "tapMapToStart": "Tap the map to start",
   "waypointCount": "{count} points",
-  "@waypointCount": { "placeholders": { "count": {"type": "int"} } },
+  "@waypointCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "waypointSingle": "1 point",
   "longPressToRemove": "Long press to remove",
   "addPointsToCreate": "Add points to create a route",
@@ -1129,37 +1552,75 @@
   "enterAName": "Enter a name",
   "hikeDefaultName": "Hike",
   "bikeDefaultName": "Bike ride",
-
   "recordLabel": "Record",
   "tracksNavLabel": "Tracks",
-
   "discoverWithCount": "Discover ({count})",
-  "@discoverWithCount": { "placeholders": { "count": {"type": "int"} } },
+  "@discoverWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "loadingTrails": "Loading trails...",
   "trailsUpdating": "{count} trails · Updating...",
-  "@trailsUpdating": { "placeholders": { "count": {"type": "int"} } },
+  "@trailsUpdating": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "trailsZoomForDetails": "{count} trails (zoom for details)",
-  "@trailsZoomForDetails": { "placeholders": { "count": {"type": "int"} } },
+  "@trailsZoomForDetails": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "moveMapToExplore": "Move the map to explore trails",
   "trailsInArea": "{count} trails in this area",
-  "@trailsInArea": { "placeholders": { "count": {"type": "int"} } },
+  "@trailsInArea": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "positionBtn": "📍 Position",
   "noResultsFor": "No results for \"{query}\"",
-  "@noResultsFor": { "placeholders": { "query": {"type": "String"} } },
+  "@noResultsFor": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
   "trailsLabel": "trails",
   "noTrailInArea": "No trail in this area",
   "moveOrZoomMap": "Move or zoom the map to explore other areas",
   "trailFallback": "Trail",
   "circularBadge": "Circular",
-
   "sharedOnDate": "Shared on {date}",
-  "@sharedOnDate": { "placeholders": { "date": {"type": "String"} } },
+  "@sharedOnDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "photosWithCount": "Photos ({count})",
-  "@photosWithCount": { "placeholders": { "count": {"type": "int"} } },
+  "@photosWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "detailsLabel": "Details",
   "sourceLabel": "Source",
   "communitySource": "Community",
-  "elevationLabel": "Elevation",
   "exporting": "Exporting...",
   "downloadGpx": "Download GPX",
   "alreadyPromoted": "Already promoted to Trail ✓",
@@ -1173,13 +1634,16 @@
   "promotionFailed": "Promotion failed",
   "noGpsPointsToExport": "No GPS points to export",
   "gpxTrackName": "GPX Track: {name}",
-  "@gpxTrackName": { "placeholders": { "name": {"type": "String"} } },
+  "@gpxTrackName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "gpxExported": "✅ GPX exported!",
-  "downloadTooltip": "Download",
-  "shareTooltip": "Share",
   "cannotLoadImage": "Cannot load image",
   "hikePhoto": "Hike photo",
-
   "lengthLabel": "Length",
   "informationLabel": "Information",
   "trailNumber": "Trail number",
@@ -1193,16 +1657,39 @@
   "deleteTrailConfirmIntro": "You are about to permanently delete:",
   "deleteTrailIrreversible": "This action is irreversible and will remove the trail from the map for all users.",
   "trailDeletedName": "✅ \"{name}\" deleted",
-  "@trailDeletedName": { "placeholders": { "name": {"type": "String"} } },
+  "@trailDeletedName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "deleteErrorWithDetails": "Delete error: {error}",
-  "@deleteErrorWithDetails": { "placeholders": { "error": {"type": "String"} } },
+  "@deleteErrorWithDetails": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "loadingTrailWait": "Loading track, please wait...",
   "loadingRetryLater": "Loading in progress, try again shortly...",
   "trailGpxName": "Trail GPX: {name}",
-  "@trailGpxName": { "placeholders": { "name": {"type": "String"} } },
+  "@trailGpxName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "cannotOpenNavigation": "Cannot open navigation: {error}",
-  "@cannotOpenNavigation": { "placeholders": { "error": {"type": "String"} } },
-
+  "@cannotOpenNavigation": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "gpsDisabled": "GPS disabled",
   "gpsPermDenied": "GPS permission denied",
   "gpsPermDeniedPermanently": "GPS permission permanently denied",
@@ -1212,80 +1699,156 @@
   "soundAlertEnabled": "🔊 Sound alert enabled",
   "soundAlertDisabled": "🔇 Sound alert disabled",
   "severeOffTrailDistance": "You are {distance}m from the trail!",
-  "@severeOffTrailDistance": { "placeholders": { "distance": {"type": "String"} } },
+  "@severeOffTrailDistance": {
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      }
+    }
+  },
   "offTrailDistance": "Off trail ({distance}m)",
-  "@offTrailDistance": { "placeholders": { "distance": {"type": "String"} } },
+  "@offTrailDistance": {
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      }
+    }
+  },
   "arrivedAtEnd": "You reached the end of the trail! 🎉",
   "seeFullTrail": "See full trail",
   "centerOnMe": "Center on me",
   "percentCompleted": "{percent}% completed",
-  "@percentCompleted": { "placeholders": { "percent": {"type": "String"} } },
+  "@percentCompleted": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "remainingLabel": "Remaining",
   "altitudeLabel": "Altitude",
   "fromTrailLabel": "From trail",
   "activeRecording": "Active recording",
   "recordedPointsInfo": "You recorded {count} points in {duration}.\nWhat do you want to do?",
-  "@recordedPointsInfo": { "placeholders": { "count": {"type": "int"}, "duration": {"type": "String"} } },
+  "@recordedPointsInfo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
   "saveAndExit": "Save and exit",
   "discardAndExit": "Discard and exit",
   "stopNavigation": "Stop navigation?",
   "stopFollowingQuestion": "Do you want to stop following this trail?",
-  "exitAction": "Exit",
   "tooFewPointsToSave": "Too few points to save",
   "mustBeLoggedToSave": "You must be logged in to save",
   "discardRecording": "Discard recording?",
   "recordedPointsDiscard": "You recorded {count} points. Discard them?",
-  "@recordedPointsDiscard": { "placeholders": { "count": {"type": "int"} } },
+  "@recordedPointsDiscard": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "noSave": "No, save",
   "discardAction": "Discard",
   "trackSavedWithCount": "✅ Track \"{name}\" saved! ({count} points)",
-  "@trackSavedWithCount": { "placeholders": { "name": {"type": "String"}, "count": {"type": "int"} } },
+  "@trackSavedWithCount": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "saveTrackTitle": "Save track",
   "pointsLabel": "Points",
-
   "sessionNotFound": "Session not found or expired",
   "inLive": "LIVE",
   "ended": "ENDED",
   "lastSignal": "Last signal: {time}",
-  "@lastSignal": { "placeholders": { "time": {"type": "String"} } },
+  "@lastSignal": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "goBack": "Go back",
-
   "recordingFound": "Recording found",
   "unsavedRecordingFound": "An unsaved recording was found:",
   "wantToRecover": "Do you want to recover it?",
-  "deleteLabel": "Delete",
   "recover": "Recover",
   "gpsPointsCount": "📍 {count} GPS points",
-  "@gpsPointsCount": { "placeholders": { "count": {"type": "int"} } },
-  "photosCount": "📸 {count} photos",
-  "@photosCount": { "placeholders": { "count": {"type": "int"} } },
+  "@gpsPointsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "recoveredGpsPoints": "✅ Recovered {count} GPS points",
-  "@recoveredGpsPoints": { "placeholders": { "count": {"type": "int"} } },
+  "@recoveredGpsPoints": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "lowBatteryWarning": "⚠️ Low battery! Track will be auto-saved at 5%",
   "criticalBatteryWarning": "🔋 Critical battery! Saving track...",
   "autoSaved": "(auto-saved)",
   "trackAutoSaved": "✅ Track auto-saved!",
   "uploadingPhotos": "Uploading {count} photos...",
-  "@uploadingPhotos": { "placeholders": { "count": {"type": "int"} } },
+  "@uploadingPhotos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "restoringRecording": "Restoring recording...",
   "gpsNotAvailable": "GPS not available",
   "photoAdded": "📸 Photo added!",
   "photosAdded": "📸 {count} photos added!",
-  "@photosAdded": { "placeholders": { "count": {"type": "int"} } },
+  "@photosAdded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoDeleted": "Photo deleted",
   "takePhoto": "Take photo",
   "pickFromGallery": "Pick from gallery",
   "cancelRecording": "Cancel recording?",
   "trackDataWillBeLost": "Current track data will be lost.",
   "trackAndPhotosWillBeLost": "Track data and {count} photos will be lost.",
-  "@trackAndPhotosWillBeLost": { "placeholders": { "count": {"type": "int"} } },
+  "@trackAndPhotosWillBeLost": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "noPointsRecorded": "No points recorded",
   "stopRecordingError": "Error stopping the recording",
   "photosNotUploaded": "⚠️ {count} photos not uploaded",
-  "@photosNotUploaded": { "placeholders": { "count": {"type": "int"} } },
-  "recording": "RECORDING",
+  "@photosNotUploaded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "paused": "PAUSED",
-  "timeLabel": "Time",
   "speedLabel": "Speed",
   "avgSpeedLabel": "Avg",
   "paceLabel": "Pace",
@@ -1303,11 +1866,8 @@
   "metersDPlus": "m D+",
   "continueBtn": "Continue",
   "chooseActivity": "Choose activity",
-  "onFoot": "On foot",
   "byCycle": "By bicycle",
-  "winterSports": "Winter sports",
   "photosLabel": "Photos",
-
   "savedTracks": "Saved Tracks",
   "removeFromSaved": "Remove from saved",
   "removeTrackQuestion": "Do you want to remove this track from your list?",
@@ -1319,9 +1879,7 @@
   "noSavedTracks": "No saved tracks",
   "exploreSavedHint": "Explore the \"Discover\" section and save the tracks you like!",
   "goToDiscover": "Go to Discover",
-  "noName": "No name",
   "userFallback": "User",
-
   "gpsAccessError": "Unable to access GPS. Check permissions.",
   "gpsResumeError": "Unable to resume GPS.",
   "locationDisclosureTitle": "Location access",
@@ -1329,7 +1887,6 @@
   "locationDisclosureDecline": "Not now",
   "locationDisclosureAccept": "Got it, continue",
   "searchStartPoint": "Search starting point...",
-
   "toursTab": "Tours",
   "myTours": "My tours",
   "newTour": "New tour",
@@ -1350,12 +1907,23 @@
   "tourTitleRequired": "Enter a title",
   "tourSelectAtLeastOne": "Select at least one track",
   "tourDays": "{count, plural, =1{1 day} other{{count} days}}",
-  "@tourDays": { "placeholders": { "count": {"type": "int"} } },
+  "@tourDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "tourStages": "{count, plural, =1{1 stage} other{{count} stages}}",
-  "@tourStages": { "placeholders": { "count": {"type": "int"} } },
+  "@tourStages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "tourTotals": "Tour totals",
   "tourStagesTitle": "Stages",
-
   "exportLabel": "Export",
   "exportFormatTitle": "Choose format",
   "exportFormatSubtitle": "Export the track to open it in other apps",
@@ -1365,75 +1933,111 @@
   "exportKmlDescription": "Google Earth and Google My Maps",
   "exportDone": "Track exported",
   "exportFailed": "Export failed",
-
   "onboardingSafetyTitle": "Safety on the trail",
   "onboardingSafetyDesc": "Lifeline lets your emergency contacts follow you in real time and receive an automatic alert if you stop moving too long. SOS button always accessible while recording.",
-
   "recTutorialTitle": "Start your first track",
   "recTutorialBody": "Press the REC button to start GPS recording. You can pause, take photos, add POIs and turn on Lifeline any time.",
   "recTutorialGotIt": "Got it",
-
   "sectionMyActivity": "My activity",
   "sectionCommunity": "Community",
   "sectionProgress": "Progress",
   "sectionAdmin": "Administration",
-
   "gotItAction": "Got it",
-
   "discoveryLifelineTitle": "Keep your outings safe",
   "discoveryLifelineDesc": "With Lifeline, your trusted contacts get an automatic alert if you stop moving too long. 30-second setup.",
   "discoveryLifelineCta": "Set up Lifeline",
-
   "discoveryTourTitle": "Group your tracks into a tour",
   "discoveryTourDesc": "You've recorded several outings: build a multi-day tour and publish it to the community with an aggregated map.",
   "discoveryTourCta": "Create tour",
-
   "discoveryShareTitle": "Share via web link",
   "discoveryShareDesc": "Every public track gets a trailshare.app link that opens in a browser — handy for people without the app.",
   "discoveryShareCta": "How it works",
   "discoveryShareInfo": "Open one of your public tracks, tap Share, then pick 'Link'. You'll get a URL you can send via WhatsApp, email, or anywhere — the recipient sees map and stats right in their browser.",
-
   "discoveryFitTitle": "Import into Garmin Connect",
   "discoveryFitDesc": "Export your tracks as FIT to load them into Garmin Connect, Wahoo, and other training apps.",
   "discoveryFitCta": "How to",
   "discoveryFitInfo": "Open a track, tap Share, then Export. Choose FIT: you'll get a file compatible with Garmin Connect (import it from the 'Activities' section). GPX, TCX and KML are also available.",
-
   "discoveryPlannerTitle": "Plan your next route",
   "discoveryPlannerDesc": "Draw your route on the map before you go: you get distance, elevation and voice guidance while recording.",
   "discoveryPlannerCta": "How it works",
   "discoveryPlannerInfo": "Go to Tracks → Plan tab. Tap the map to add points; the router computes the path. Save, then from Discover/Tracks you can follow it with turn-by-turn voice guidance.",
-
   "discoveryCarouselHint": "Swipe for more",
-
   "compassToggleTooltip": "Map orientation",
   "compassNorthUp": "North up",
   "compassHeadingUp": "Heading up",
-
   "weeklyChallengeTitle": "CHALLENGE OF THE WEEK",
   "weeklyChallengeCompleted": "Completed",
   "weeklyChallengeDistanceTitle": "Walk {km} km by Sunday",
-  "@weeklyChallengeDistanceTitle": { "placeholders": { "km": {"type": "String"} } },
+  "@weeklyChallengeDistanceTitle": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyChallengeElevationTitle": "Climb {m} meters of elevation",
-  "@weeklyChallengeElevationTitle": { "placeholders": { "m": {"type": "String"} } },
+  "@weeklyChallengeElevationTitle": {
+    "placeholders": {
+      "m": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyChallengeTracksTitle": "Record {count} tracks",
-  "@weeklyChallengeTracksTitle": { "placeholders": { "count": {"type": "int"} } },
+  "@weeklyChallengeTracksTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "weeklyChallengeDurationTitle": "Move for {hours} hours",
-  "@weeklyChallengeDurationTitle": { "placeholders": { "hours": {"type": "String"} } },
+  "@weeklyChallengeDurationTitle": {
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyChallengeRemaining": "–{value} {unit} to go",
-  "@weeklyChallengeRemaining": { "placeholders": { "value": {"type": "String"}, "unit": {"type": "String"} } },
+  "@weeklyChallengeRemaining": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyChallengeTracksRemaining": "{count, plural, =1{1 track to go} other{{count} tracks to go}}",
-  "@weeklyChallengeTracksRemaining": { "placeholders": { "count": {"type": "int"} } },
-
+  "@weeklyChallengeTracksRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "weeklyChallengeCompletedDialogTitle": "Challenge completed!",
   "weeklyChallengeCompletedDialogBody": "You earned {xp} bonus XP. A new challenge will appear next Monday.",
-  "@weeklyChallengeCompletedDialogBody": { "placeholders": { "xp": {"type": "int"} } },
-
+  "@weeklyChallengeCompletedDialogBody": {
+    "placeholders": {
+      "xp": {
+        "type": "int"
+      }
+    }
+  },
   "discoveryChallengeTitle": "New challenge of the week",
   "discoveryChallengeDesc": "A new personalized challenge is waiting for you. Check the Dashboard.",
   "discoveryChallengeCta": "View challenge",
-
   "commentsTitle": "{count, plural, =0{Comments} =1{Comments · 1} other{Comments · {count}}}",
-  "@commentsTitle": { "placeholders": { "count": {"type": "int"} } },
+  "@commentsTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "commentsEmpty": "No comments yet. Be the first.",
   "commentsInputHint": "Write a comment…",
   "commentsLoginHint": "Sign in to comment",
@@ -1444,12 +2048,29 @@
   "commentsDeleteError": "Unable to delete comment",
   "commentsJustNow": "just now",
   "commentsMinutesAgo": "{m} min ago",
-  "@commentsMinutesAgo": { "placeholders": { "m": {"type": "int"} } },
+  "@commentsMinutesAgo": {
+    "placeholders": {
+      "m": {
+        "type": "int"
+      }
+    }
+  },
   "commentsHoursAgo": "{h} h ago",
-  "@commentsHoursAgo": { "placeholders": { "h": {"type": "int"} } },
+  "@commentsHoursAgo": {
+    "placeholders": {
+      "h": {
+        "type": "int"
+      }
+    }
+  },
   "commentsDaysAgo": "{d} d ago",
-  "@commentsDaysAgo": { "placeholders": { "d": {"type": "int"} } },
-
+  "@commentsDaysAgo": {
+    "placeholders": {
+      "d": {
+        "type": "int"
+      }
+    }
+  },
   "monthlyReportTitle": "My month",
   "monthlyReportPrevious": "Previous month",
   "monthlyReportNext": "Next month",
@@ -1458,27 +2079,43 @@
   "monthlyReportRecords": "RECORDS OF THE MONTH",
   "monthlyReportActivities": "ACTIVITIES",
   "monthlyReportBadges": "{count, plural, =1{1 BADGE UNLOCKED} other{{count} BADGES UNLOCKED}}",
-  "@monthlyReportBadges": { "placeholders": { "count": {"type": "int"} } },
+  "@monthlyReportBadges": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "monthlyReportActiveDays": "{count, plural, =1{1 active day} other{{count} active days}}",
-  "@monthlyReportActiveDays": { "placeholders": { "count": {"type": "int"} } },
+  "@monthlyReportActiveDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "monthlyReportActiveDaysSubtitle": "Days with at least one recorded track",
   "monthlyReportRecordLongest": "Longest track",
   "monthlyReportRecordHighest": "Highest elevation",
   "monthlyReportVsPrevious": "vs last month",
   "monthlyReportNoPrevious": "No data from last month",
   "monthlyReportXpEarned": "+{xp} XP this month",
-  "@monthlyReportXpEarned": { "placeholders": { "xp": {"type": "int"} } },
+  "@monthlyReportXpEarned": {
+    "placeholders": {
+      "xp": {
+        "type": "int"
+      }
+    }
+  },
   "monthlyReportXpSubtitle": "Keep going to level up",
   "monthlyReportEmptyTitle": "No activity",
   "monthlyReportEmptyCurrent": "Record your first track of the month to see your report.",
   "monthlyReportEmptyPast": "No tracks recorded this month.",
   "monthlyReportEntryTitle": "Your month",
   "monthlyReportEntrySubtitle": "See stats, records and progress",
-
   "discoveryMonthlyReportTitle": "Your month is ready",
   "discoveryMonthlyReportDesc": "Stats, records and badges from last month. See how you did.",
   "discoveryMonthlyReportCta": "Open report",
-
   "regionalLeaderboardTitle": "Regional leaderboard",
   "regionalLeaderboardTabAllTime": "All time",
   "regionalLeaderboardTabMonthly": "This month",
@@ -1486,22 +2123,25 @@
   "regionalLeaderboardChangeRegion": "Change region",
   "regionalLeaderboardYouBadge": "YOU",
   "regionalLeaderboardTracksCount": "{count, plural, =0{no tracks} =1{1 track} other{{count} tracks}}",
-  "@regionalLeaderboardTracksCount": { "placeholders": { "count": {"type": "int"} } },
+  "@regionalLeaderboardTracksCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "regionalLeaderboardNoRegionTitle": "No region set",
   "regionalLeaderboardNoRegionBody": "Pick your region to see how you rank among other users in your area.",
   "regionalLeaderboardSetRegionCta": "Set region",
   "regionalLeaderboardEmptyTitle": "Empty leaderboard",
   "regionalLeaderboardEmptyAllTime": "Be the first to record tracks in this region.",
   "regionalLeaderboardEmptyMonthly": "No one has recorded tracks this month yet. You could be the first!",
-
   "regionPickerTitle": "Pick your region",
   "regionPickerSubtitle": "Used for regional leaderboards and public tracks in your area.",
   "regionPickerSaveError": "Error while saving",
-
   "discoveryRegionTitle": "Challenge your region",
   "discoveryRegionDesc": "Set your region and see where you rank among other hikers in your area.",
   "discoveryRegionCta": "Set region",
-
   "preStartReadyToGo": "READY TO GO",
   "preStartDistance": "DISTANCE",
   "preStartElevation": "ELEVATION",
@@ -1511,43 +2151,63 @@
   "preStartLifelineLabel": "Lifeline",
   "preStartLifelineOff": "Tap to enable safe live tracking",
   "preStartLifelineOn": "{count, plural, =1{On · 1 contact} other{On · {count} contacts}}",
-  "@preStartLifelineOn": { "placeholders": { "count": {"type": "int"} } },
+  "@preStartLifelineOn": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "preStartLifelineNoContacts": "Add an emergency contact to use it",
-
   "mfTitle": "Identify peaks",
   "mfCameraNotAvailable": "Camera not available on this device",
   "mfDebugTitle": "DEBUG · 5 NEAREST PEAKS",
   "mfDebugWaitingGps": "Waiting for GPS…",
   "mfNoPeaksInView": "Rotate your phone to find peaks",
   "mfPeaksInView": "{count, plural, =1{1 peak identified} other{{count} peaks identified}}",
-  "@mfPeaksInView": { "placeholders": { "count": {"type": "int"} } },
+  "@mfPeaksInView": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mfDetailElevation": "ELEVATION",
   "mfDetailDistance": "DISTANCE",
   "mfDetailBearing": "BEARING",
   "mfDetailOpenOsm": "Open on OpenStreetMap",
   "mfDetailOpenError": "Unable to open the link. Make sure you have a default browser set.",
   "mfDetailDataSource": "Data from OpenStreetMap (ODbL 1.0)",
-
   "mfCalibrationTitle": "Calibrate Mountain Finder",
   "mfCalibrationHelp": "Point at a known peak and adjust until the pin centers on the real peak.",
   "mfCalibrationHorizontalFov": "Horizontal FOV",
   "mfCalibrationVerticalFov": "Vertical FOV",
   "mfCalibrationReset": "Default",
   "mfCalibrationDone": "Done",
-
   "mfDistanceFilterTitle": "Max distance",
   "mfDistanceFilterHelp": "Limit shown peaks to this distance from your location.",
-
   "mfPhotoProcessing": "Identifying peaks…",
   "mfPhotoNoSensors": "Sensors not ready, wait a few seconds",
   "mfPhotoProUpsell": "Photo Mode is a TrailShare Pro feature",
   "mfPhotoResultTitle": "Identified peaks",
   "mfPhotoIdentifiedCount": "{count, plural, =0{No peaks identified} =1{1 peak identified} other{{count} peaks identified}}",
-  "@mfPhotoIdentifiedCount": { "placeholders": { "count": {"type": "int"} } },
+  "@mfPhotoIdentifiedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mfPhotoShareButton": "Share annotated photo",
   "mfPhotoShareSubject": "Peaks identified with TrailShare",
   "mfPhotoShareText": "{count, plural, =1{I identified 1 peak with TrailShare} other{I identified {count} peaks with TrailShare}}",
-  "@mfPhotoShareText": { "placeholders": { "count": {"type": "int"} } },
+  "@mfPhotoShareText": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mfPhotoShareError": "Unable to share the photo",
   "mfArLock": "Lock pointing",
   "mfArUnlock": "Unlock pointing",
@@ -1558,38 +2218,58 @@
   "mfDetailSaveError": "Operation failed",
   "mfDetailViewOnMap": "View on map",
   "mapStyleTooltip": "Map style",
-
   "savedPeaksTitle": "My peaks",
   "savedPeaksCount": "{count, plural, =1{1 saved peak} other{{count} saved peaks}}",
-  "@savedPeaksCount": { "placeholders": { "count": {"type": "int"} } },
+  "@savedPeaksCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "savedPeaksEmptyTitle": "No saved peaks yet",
   "savedPeaksEmptyBody": "Open Mountain Finder, identify a peak and tap \"Save\" in the details.",
   "savedPeaksOpenFinder": "Open Mountain Finder",
-
   "discoverySavePeakTitle": "Save your first peak",
   "discoverySavePeakDesc": "Open Mountain Finder, point at a peak and save it to find it later in your collection.",
   "discoverySavePeakCta": "Identify peaks",
-
   "discoveryMountainTitle": "Point at the mountains",
   "discoveryMountainDesc": "Open the camera and discover peak names around you. Works anywhere in Italy.",
   "discoveryMountainCta": "Open Mountain Finder",
-
   "autoPauseTriggered": "Auto-pause: idle for more than 5 minutes",
   "autoPauseResumed": "Recording resumed automatically",
-
   "hrZonesTitle": "Heart Rate Zones",
   "hrZonesAvgPeak": "Avg {avg} · Peak {peak}",
-  "@hrZonesAvgPeak": { "placeholders": { "avg": {"type": "int"}, "peak": {"type": "int"} } },
+  "@hrZonesAvgPeak": {
+    "placeholders": {
+      "avg": {
+        "type": "int"
+      },
+      "peak": {
+        "type": "int"
+      }
+    }
+  },
   "hrZonesMaxHR": "Max HR: {bpm}",
-  "@hrZonesMaxHR": { "placeholders": { "bpm": {"type": "int"} } },
+  "@hrZonesMaxHR": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
   "hrZonesEstimated": "ESTIMATED",
   "hrZonesSetCta": "Set",
-
   "settingsNews": "News",
   "settingsHrTraining": "HR Training",
   "genericErrorWith": "Error: {message}",
-  "@genericErrorWith": { "placeholders": { "message": {"type": "String"} } },
-
+  "@genericErrorWith": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
   "stravaSignInRequired": "Sign in to connect Strava",
   "stravaConnect": "Connect Strava",
   "stravaConnectSubtitle": "Upload your activities to Strava at end of session",
@@ -1617,46 +2297,43 @@
   "stravaTrackUploaded": "Uploaded to Strava",
   "stravaTrackImportedSubtitle": "Recorded on another device, synced via Strava",
   "stravaTrackUploadedSubtitle": "Tap to open the activity",
-
   "noContacts": "No contacts",
   "deleteContactQuestion": "Delete contact?",
   "cannotOpenTos": "Cannot open Terms of Service",
-
   "trackTooShortToFollow": "Track too short to be followed",
   "trackTooShortToSplit": "The track is too short to be split.",
   "trackSplitError": "Error splitting the track.",
   "trackSplitOk": "Track split into 2 new tracks",
   "trackMergeNoOther": "No other track to merge.",
   "trackMergeError": "Error merging tracks.",
-
   "lifelineCannotStart": "Cannot start Lifeline: {error}",
-  "@lifelineCannotStart": { "placeholders": { "error": {"type": "String"} } },
+  "@lifelineCannotStart": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "lifelineHowItWorks": "How Lifeline works",
   "callCannotOpen": "Cannot start the call. Dial 112 manually.",
   "noAppAvailable": "No app available",
   "imOkContinue": "I'm OK, continue",
   "imOkSaveStop": "I'm OK, stop and save",
-
   "trackNoPointsForSegment": "Track has no points: cannot create a segment",
   "deleteSegmentQuestion": "Delete segment?",
   "deleteError": "Error during deletion",
-
-  "close": "Close",
   "searchingDevices": "Searching for devices...",
   "noDeviceFound": "No device found",
-
   "noDataAvailable": "No data available",
   "chartElevation": "Elevation",
   "chartSpeed": "Speed",
   "noElevationData": "No elevation data",
   "noSpeedData": "No speed data",
   "noHeartRateData": "No heart rate data",
-
   "createSegment": "Create segment",
   "noSegmentsOnTrack": "No segments on this track.",
   "noSegmentsCreatedTapPlus": "No segments created from this track. Tap \"+\" to create one.",
   "noSegmentsCreated": "No segments created from this track.",
-
   "poiAlongRoute": "POIs along the route",
   "noPoiReported": "No POIs reported yet.",
   "noPoiReportedRoute": "No POIs reported by the community on this route.",
@@ -1664,5 +2341,57 @@
   "addPoiHere": "Add POI here",
   "alsoInArea": "Also in the area",
   "byAuthor": "by: {name}",
-  "@byAuthor": { "placeholders": { "name": {"type": "String"} } }
+  "@byAuthor": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "paywallNoActivePurchase": "No active purchase found for this account.",
+  "paywallAllFutureProFeatures": "All future Pro features",
+  "andThe": " and the ",
+  "paywallAnnotatedPeakPhotosLong": "Panoramic photos with peak names labeled.",
+  "paywallUpgradePending": "Upgrade pending confirmation.",
+  "paywallAnnotatedPeakPhotos": "Photos labeled with peak names.",
+  "paywallUnlimitedSavedPeaks": "Unlimited saved peaks",
+  "contactNoMoreLifelineNotif": "{name} will no longer receive Lifeline notifications.",
+  "@contactNoMoreLifelineNotif": { "placeholders": { "name": {"type": "String"} } },
+  "settingsAddBusinessProfileSub": "Add a new business profile (hut, rental, etc.)",
+  "settingsEnterBusinessId": "Enter business ID to test the profile",
+  "trackFollowAndRecord": "Follow and record",
+  "gpsServiceDisabled": "GPS service is off. Enable it in your phone settings.",
+  "locationPermissionDenied": "Location permission denied. Enable it in Settings to center the map.",
+  "filterOnlyCircular": "Only circular trails",
+  "noReviewsYet": "No reviews yet",
+  "thanksForReview": "Thanks for your review!",
+  "deleteYourReviewQuestion": "Delete your review?",
+  "tapStarsToRate": "Tap stars to rate",
+  "reviewPlaceholder": "What did you like? What could be improved? (optional)",
+  "city": "City",
+  "profileUpdated": "Profile updated",
+  "shortDescriptionForCards": "Short description (for cards)",
+  "streetLocation": "Street / Location",
+  "positionUpdatedSaveToApply": "Position updated. Save to apply.",
+  "notSet": "Not set",
+  "loadingStats": "Loading stats...",
+  "publicTrails": "Public Trails",
+  "registeredUsers": "Registered Users",
+  "recordedTracks": "Recorded Tracks",
+  "cheersPerTrack": "Cheers/Track",
+  "trailElevation": "Trail Elevation",
+  "noPublishedTrack": "No published track",
+  "noRegisteredUser": "No registered user",
+  "updateAlreadyImported": "Update already imported trails",
+  "colorSaveError": "Error saving color",
+  "removeLogoQuestion": "Remove logo?",
+  "removeCoverQuestion": "Remove cover?",
+  "exportMembers": "Export members",
+  "saveErrorGeneric": "Error during save",
+  "loginRequiredToReport": "You must sign in to report",
+  "deleteReportQuestion": "Delete report?",
+  "reportWillBeRemoved": "Your report will be removed.",
+  "reportCondition": "Report a condition",
+  "deletePoiQuestion": "Delete POI?",
+  "deletePhotoQuestion": "Delete photo?"
 }

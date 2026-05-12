@@ -176,7 +176,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         actions: [
           // Membri
           IconButton(
-            icon: const Icon(Icons.people),
+            icon: Icon(Icons.people),
             tooltip: context.l10n.membersLabel,
             onPressed: () {
               Navigator.push(
@@ -256,7 +256,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                 child: Row(
                   children: [
                     const Icon(Icons.exit_to_app, color: AppColors.danger, size: 20),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(context.l10n.leaveGroupTitle),
                   ],
                 ),
@@ -268,7 +268,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     children: [
                       const Icon(Icons.delete, color: AppColors.danger, size: 20),
                       const SizedBox(width: 8),
-                      Text(context.l10n.deleteGroupMenu, style: const TextStyle(color: AppColors.danger)),
+                      Text(context.l10n.deleteGroupMenu, style: TextStyle(color: AppColors.danger)),
                     ],
                   ),
                 ),
@@ -284,11 +284,11 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           // schermo. Le label sono tutte corte (max 8 char) quindi il
           // testo non viene troncato sui device standard.
           tabs: [
-            Tab(icon: const Icon(Icons.chat_bubble_outline), text: context.l10n.chatTab),
-            Tab(icon: const Icon(Icons.event), text: context.l10n.eventsTab),
+            Tab(icon: Icon(Icons.chat_bubble_outline), text: context.l10n.chatTab),
+            Tab(icon: Icon(Icons.event), text: context.l10n.eventsTab),
             const Tab(icon: Icon(Icons.route), text: 'Percorsi'),
-            Tab(icon: const Icon(Icons.emoji_events), text: context.l10n.challengesTab),
-            Tab(icon: const Icon(Icons.info_outline), text: context.l10n.infoTab),
+            Tab(icon: Icon(Icons.emoji_events), text: context.l10n.challengesTab),
+            Tab(icon: Icon(Icons.info_outline), text: context.l10n.infoTab),
           ],
         ),
       ),
@@ -341,7 +341,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           Row(
             children: [
               const Icon(Icons.vpn_key, size: 20, color: AppColors.primary),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 context.l10n.inviteCodeTitle,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -349,7 +349,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               const Spacer(),
               if (_isAdmin)
                 IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
+                  icon: Icon(Icons.refresh, size: 20),
                   color: context.textMuted,
                   tooltip: context.l10n.regenerateCode,
                   onPressed: _regenerateInviteCode,
@@ -397,7 +397,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _copyInviteCode(code),
-                  icon: const Icon(Icons.copy, size: 18),
+                  icon: Icon(Icons.copy, size: 18),
                   label: Text(context.l10n.copy),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
@@ -410,7 +410,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () => _shareInviteCode(code),
-                  icon: const Icon(Icons.share, size: 18),
+                  icon: Icon(Icons.share, size: 18),
                   label: Text(context.l10n.share),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -422,7 +422,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             ],
           ),
           
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             context.l10n.shareInviteCodeDesc,
             style: TextStyle(fontSize: 12, color: context.textMuted),
@@ -440,7 +440,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           context.l10n.groupVisibility,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         _buildVisibilityTile(
           group: group,
           value: 'public',
@@ -449,7 +449,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           subtitle: context.l10n.publicVisibilityDesc,
           color: AppColors.success,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         _buildVisibilityTile(
           group: group,
           value: 'private',
@@ -458,7 +458,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           subtitle: context.l10n.privateVisibilityDesc,
           color: AppColors.primary,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         _buildVisibilityTile(
           group: group,
           value: 'secret',
@@ -478,7 +478,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         Row(
           children: [
             const Icon(Icons.person_add, size: 20, color: Colors.orange),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Text(
               context.l10n.accessRequests,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -513,7 +513,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     )
                   : null,
             ),
-            title: Text(req['username'] ?? context.l10n.userLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(req['username'] ?? context.l10n.userLabel, style: TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(
               req['requestedAt'] != null
                   ? context.l10n.requestedOnDate(_formatDate((req['requestedAt'] as Timestamp).toDate()))
@@ -636,7 +636,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.genericErrorWith(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -800,14 +800,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                       size: 16,
                       color: context.textMuted,
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       group.isPublic ? context.l10n.publicLabel : group.isPrivate ? context.l10n.privateLabel : context.l10n.secretLabel,
                       style: TextStyle(color: context.textMuted),
                     ),
                     const SizedBox(width: 16),
                     Icon(Icons.people, size: 16, color: context.textMuted),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       context.l10n.memberCountPlural(group.memberCount),
                       style: TextStyle(color: context.textMuted),
@@ -818,7 +818,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             ),
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -828,14 +828,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               ),
               if (_isAdmin)
                 IconButton(
-                  icon: const Icon(Icons.edit, size: 20),
+                  icon: Icon(Icons.edit, size: 20),
                   color: AppColors.primary,
                   tooltip: context.l10n.editAction,
                   onPressed: () => _showEditGroupDialog(group),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             (group.description != null && group.description!.isNotEmpty)
                 ? group.description!
@@ -877,19 +877,19 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             const SizedBox(height: 16),
             _buildVisibilitySelector(group),
             const SizedBox(height: 16),
-            const Divider(),
+            Divider(),
           ],
 
           // Info dettagli
           _buildInfoRow(Icons.calendar_today, context.l10n.createdOnLabel, _formatDate(group.createdAt)),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _buildInfoRow(
             Icons.admin_panel_settings,
             context.l10n.yourRole,
             _isAdmin ? context.l10n.administratorRole : context.l10n.memberRole,
           ),
           if (currentUserId == group.createdBy) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             _buildInfoRow(Icons.star, context.l10n.founderLabel, context.l10n.youCreatedThisGroup),
           ],
         ],
@@ -916,7 +916,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               ),
               maxLength: 30,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             TextField(
               controller: descController,
               decoration: InputDecoration(
