@@ -4662,4 +4662,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get imOkSaveStop => 'I\'m OK, stop and save';
+
+  @override
+  String get trackNoPointsForSegment =>
+      'Track has no points: cannot create a segment';
+
+  @override
+  String get deleteSegmentQuestion => 'Delete segment?';
+
+  @override
+  String get deleteError => 'Error during deletion';
+
+  @override
+  String get searchingDevices => 'Searching for devices...';
+
+  @override
+  String get noDeviceFound => 'No device found';
+
+  @override
+  String get noDataAvailable => 'No data available';
+
+  @override
+  String get chartElevation => 'Elevation';
+
+  @override
+  String get chartSpeed => 'Speed';
+
+  @override
+  String get noElevationData => 'No elevation data';
+
+  @override
+  String get noSpeedData => 'No speed data';
+
+  @override
+  String get noHeartRateData => 'No heart rate data';
 }

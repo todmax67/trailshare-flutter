@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/extensions/l10n_extension.dart';
 import '../../core/utils/elevation_processor.dart';
 import '../../data/models/track.dart';
 import '../../core/extensions/theme_colors_extension.dart';
@@ -280,8 +281,8 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
     if (widget.points.isEmpty) {
       return SizedBox(
         height: widget.height,
-        child: const Center(
-          child: Text('Nessun dato disponibile'),
+        child: Center(
+          child: Text(context.l10n.noDataAvailable),
         ),
       );
     }
@@ -321,7 +322,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
           if (_hasElevationData)
             _ChartTypeButton(
               icon: Icons.terrain,
-              label: 'Elevazione',
+              label: context.l10n.chartElevation,
               isSelected: _selectedChart == ChartType.elevation,
               color: AppColors.success,
               onTap: () => setState(() => _selectedChart = ChartType.elevation),
@@ -330,7 +331,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
             const SizedBox(width: 8),
             _ChartTypeButton(
               icon: Icons.speed,
-              label: 'Velocità',
+              label: context.l10n.chartSpeed,
               isSelected: _selectedChart == ChartType.speed,
               color: AppColors.info,
               onTap: () => setState(() => _selectedChart = ChartType.speed),
@@ -390,7 +391,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
     }
 
     if (spots.isEmpty) {
-      return const Center(child: Text('Nessun dato altimetrico'));
+      return Center(child: Text(context.l10n.noElevationData));
     }
 
     return LineChart(
@@ -441,7 +442,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
     }
 
     if (spots.isEmpty) {
-      return const Center(child: Text('Nessun dato velocità'));
+      return Center(child: Text(context.l10n.noSpeedData));
     }
 
     return LineChart(
@@ -492,7 +493,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
     }
 
     if (spots.isEmpty) {
-      return const Center(child: Text('Nessun dato battito cardiaco'));
+      return Center(child: Text(context.l10n.noHeartRateData));
     }
 
     return LineChart(

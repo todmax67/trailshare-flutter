@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/heart_rate_service.dart';
+import '../../core/extensions/l10n_extension.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 
 /// Widget per mostrare il battito cardiaco durante il tracking
@@ -232,7 +233,7 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Chiudi'),
+            child: Text(context.l10n.close),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -422,10 +423,10 @@ class _HeartRateDeviceSelectorState extends State<HeartRateDeviceSelector> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Ricerca dispositivi...'),
-            SizedBox(height: 8),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(context.l10n.searchingDevices),
+            const SizedBox(height: 8),
             Text(
               'Assicurati che la fascia sia accesa\ne il Bluetooth attivo',
               textAlign: TextAlign.center,
@@ -442,11 +443,11 @@ class _HeartRateDeviceSelectorState extends State<HeartRateDeviceSelector> {
         children: [
           Icon(Icons.bluetooth_searching, size: 48, color: Colors.grey[400]),
           const SizedBox(height: 16),
-          const Text('Nessun dispositivo trovato'),
+          Text(context.l10n.noDeviceFound),
           const SizedBox(height: 8),
           ElevatedButton(
             onPressed: _startScan,
-            child: const Text('Riprova'),
+            child: Text(context.l10n.retry),
           ),
         ],
       ),

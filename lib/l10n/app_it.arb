@@ -1635,5 +1635,20 @@
   "callCannotOpen": "Impossibile aprire la chiamata. Compone manualmente 112.",
   "noAppAvailable": "Nessuna app disponibile",
   "imOkContinue": "Sono OK, continuo",
-  "imOkSaveStop": "Sono OK, termina e salva"
+  "imOkSaveStop": "Sono OK, termina e salva",
+
+  "trackNoPointsForSegment": "Traccia senza punti: impossibile creare un segmento",
+  "deleteSegmentQuestion": "Eliminare segmento?",
+  "deleteError": "Errore durante l'eliminazione",
+
+  "close": "Chiudi",
+  "searchingDevices": "Ricerca dispositivi...",
+  "noDeviceFound": "Nessun dispositivo trovato",
+
+  "noDataAvailable": "Nessun dato disponibile",
+  "chartElevation": "Elevazione",
+  "chartSpeed": "Velocità",
+  "noElevationData": "Nessun dato altimetrico",
+  "noSpeedData": "Nessun dato velocità",
+  "noHeartRateData": "Nessun dato battito cardiaco"
 }

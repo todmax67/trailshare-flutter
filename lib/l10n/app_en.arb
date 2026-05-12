@@ -1635,5 +1635,20 @@
   "callCannotOpen": "Cannot start the call. Dial 112 manually.",
   "noAppAvailable": "No app available",
   "imOkContinue": "I'm OK, continue",
-  "imOkSaveStop": "I'm OK, stop and save"
+  "imOkSaveStop": "I'm OK, stop and save",
+
+  "trackNoPointsForSegment": "Track has no points: cannot create a segment",
+  "deleteSegmentQuestion": "Delete segment?",
+  "deleteError": "Error during deletion",
+
+  "close": "Close",
+  "searchingDevices": "Searching for devices...",
+  "noDeviceFound": "No device found",
+
+  "noDataAvailable": "No data available",
+  "chartElevation": "Elevation",
+  "chartSpeed": "Speed",
+  "noElevationData": "No elevation data",
+  "noSpeedData": "No speed data",
+  "noHeartRateData": "No heart rate data"
 }

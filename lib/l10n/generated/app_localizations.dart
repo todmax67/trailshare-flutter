@@ -8437,6 +8437,72 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Sono OK, termina e salva'**
   String get imOkSaveStop;
+
+  /// No description provided for @trackNoPointsForSegment.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia senza punti: impossibile creare un segmento'**
+  String get trackNoPointsForSegment;
+
+  /// No description provided for @deleteSegmentQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare segmento?'**
+  String get deleteSegmentQuestion;
+
+  /// No description provided for @deleteError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore durante l\'eliminazione'**
+  String get deleteError;
+
+  /// No description provided for @searchingDevices.
+  ///
+  /// In it, this message translates to:
+  /// **'Ricerca dispositivi...'**
+  String get searchingDevices;
+
+  /// No description provided for @noDeviceFound.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dispositivo trovato'**
+  String get noDeviceFound;
+
+  /// No description provided for @noDataAvailable.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dato disponibile'**
+  String get noDataAvailable;
+
+  /// No description provided for @chartElevation.
+  ///
+  /// In it, this message translates to:
+  /// **'Elevazione'**
+  String get chartElevation;
+
+  /// No description provided for @chartSpeed.
+  ///
+  /// In it, this message translates to:
+  /// **'Velocità'**
+  String get chartSpeed;
+
+  /// No description provided for @noElevationData.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dato altimetrico'**
+  String get noElevationData;
+
+  /// No description provided for @noSpeedData.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dato velocità'**
+  String get noSpeedData;
+
+  /// No description provided for @noHeartRateData.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dato battito cardiaco'**
+  String get noHeartRateData;
 }
 
 class _AppLocalizationsDelegate
