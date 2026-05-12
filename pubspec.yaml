@@ -23,6 +23,10 @@ dependencies:
   # 6.B2 — Receipt validation server-side
   cloud_functions: ^5.2.0
 
+  # Viewshed: decode PNG terrarium tile (AWS Open Terrain) per algoritmo
+  # "solo cime visibili" (PRO feature)
+  image: ^4.3.0
+
   # Mappe
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
