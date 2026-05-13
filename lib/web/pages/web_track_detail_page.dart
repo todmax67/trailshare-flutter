@@ -7,28 +7,42 @@ import '../../core/services/gpx_service.dart';
 import '../../core/utils/csv_export.dart';
 import '../../core/utils/web_layout.dart';
 import '../../data/models/track.dart';
+import '../widgets/web_track_photos_editor.dart';
 
-/// Detail web di una traccia: versione "consultativa" leggera.
+/// Detail web di una traccia: mappa + stats + **gallery foto** con
+/// editor inline per il proprietario.
 ///
-/// Mostra: mappa con polyline, stats principali, download GPX.
-/// **Non** usa il TrackDetailPage mobile (troppe dipendenze
-/// `dart:io` su upload/share/health-sync che non servono qui e
-/// rischiano runtime errors su web).
-class WebTrackDetailPage extends StatelessWidget {
+/// La detail era StatelessWidget; ora è Stateful perché le foto
+/// possono cambiare durante la sessione (add/delete/caption edit) e
+/// vogliamo ridisegnare i marker sulla mappa senza rifetch.
+class WebTrackDetailPage extends StatefulWidget {
   final Track track;
 
   const WebTrackDetailPage({super.key, required this.track});
 
-  Future<void> _downloadGpx(BuildContext context) async {
+  @override
+  State<WebTrackDetailPage> createState() => _WebTrackDetailPageState();
+}
+
+class _WebTrackDetailPageState extends State<WebTrackDetailPage> {
+  late List<TrackPhotoMetadata> _photos;
+
+  @override
+  void initState() {
+    super.initState();
+    _photos = List.of(widget.track.photos);
+  }
+
+  Future<void> _downloadGpx() async {
     try {
-      final gpx = GpxService().generateGpx(track);
-      final safe = track.name
+      final gpx = GpxService().generateGpx(widget.track);
+      final safe = widget.track.name
           .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')
           .toLowerCase();
       final filename = '${safe.isEmpty ? 'track' : safe}.gpx';
       await downloadString(gpx, filename, 'application/gpx+xml');
     } catch (e) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Errore export: $e')),
       );
@@ -54,12 +68,48 @@ class WebTrackDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final track = widget.track;
     final stats = track.stats;
     final points = track.points
         .map((p) => LatLng(p.latitude, p.longitude))
         .toList();
     final hasPoints = points.isNotEmpty;
     final bounds = hasPoints ? LatLngBounds.fromPoints(points) : null;
+
+    // Marker foto: solo per quelle con lat/lng valide.
+    final photoMarkers = <Marker>[];
+    for (int i = 0; i < _photos.length; i++) {
+      final p = _photos[i];
+      if (p.latitude == null || p.longitude == null) continue;
+      photoMarkers.add(
+        Marker(
+          point: LatLng(p.latitude!, p.longitude!),
+          width: 28,
+          height: 28,
+          child: Tooltip(
+            message: p.caption ?? 'Foto ${i + 1}',
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.camera_alt,
+                size: 14,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -68,7 +118,7 @@ class WebTrackDetailPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.file_download_outlined),
             tooltip: 'Scarica GPX',
-            onPressed: () => _downloadGpx(context),
+            onPressed: _downloadGpx,
           ),
           const SizedBox(width: 4),
         ],
@@ -124,6 +174,7 @@ class WebTrackDetailPage extends StatelessWidget {
                               height: 24,
                               child: _StartEndDot(color: AppColors.danger),
                             ),
+                            ...photoMarkers,
                           ],
                         ),
                       ],
@@ -217,19 +268,28 @@ class WebTrackDetailPage extends StatelessWidget {
                   ),
               ],
             ),
+            const SizedBox(height: 20),
+            // 📸 Editor foto — visibile a tutti i lettori (read-only),
+            // editing per il solo proprietario.
+            WebTrackPhotosEditor(
+              track: track,
+              onPhotosChanged: (updated) {
+                setState(() => _photos = updated);
+              },
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => _downloadGpx(context),
+                onPressed: _downloadGpx,
                 icon: const Icon(Icons.file_download_outlined),
                 label: const Text('Scarica GPX'),
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'Su web la dashboard è consultativa. La registrazione e '
-              'l\'editing delle tracce restano nell\'app mobile.',
+              'Su web la dashboard è consultativa per la registrazione GPS; '
+              'foto e descrizione possono essere editate qui.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,

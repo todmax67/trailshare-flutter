@@ -235,6 +235,63 @@ class TrackPhotosService {
     return UploadResult(uploaded: uploaded, failed: failed);
   }
 
+  /// Upload variante **web-compatible**: accetta i bytes della foto
+  /// invece di un path file (dart:io File non funziona su web).
+  /// Stesso path Storage di [uploadPhoto] + stessi retry. Da usare
+  /// dall'editor foto web e ovunque il source sia in memoria (XFile,
+  /// drag&drop, paste, ecc.).
+  Future<String?> uploadPhotoBytes({
+    required Uint8List bytes,
+    required String trackId,
+    String? photoId,
+    String extension = '.jpg',
+    int retryCount = 0,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      debugPrint('[TrackPhotos] uploadPhotoBytes: utente non autenticato');
+      return null;
+    }
+    try {
+      photoId ??= DateTime.now().millisecondsSinceEpoch.toString();
+      final validExt =
+          ['.jpg', '.jpeg', '.png'].contains(extension.toLowerCase())
+              ? extension.toLowerCase()
+              : '.jpg';
+      final storagePath =
+          'tracks/${user.uid}/$trackId/$photoId$validExt';
+      final ref = _storage.ref().child(storagePath);
+      final metadata = SettableMetadata(
+        contentType: validExt == '.png' ? 'image/png' : 'image/jpeg',
+        customMetadata: {
+          'uploadedAt': DateTime.now().toIso8601String(),
+        },
+      );
+
+      debugPrint(
+          '[TrackPhotos] uploadBytes: $storagePath (tentativo ${retryCount + 1}/$_maxRetries)');
+      await ref.putData(bytes, metadata).whenComplete(() {});
+      final url = await ref.getDownloadURL();
+      debugPrint('[TrackPhotos] uploadBytes ok: $url');
+      return url;
+    } catch (e) {
+      debugPrint(
+          '[TrackPhotos] uploadBytes errore (tentativo ${retryCount + 1}): $e');
+      if (retryCount < _maxRetries - 1) {
+        final delay = _initialRetryDelay * (retryCount + 1);
+        await Future.delayed(delay);
+        return uploadPhotoBytes(
+          bytes: bytes,
+          trackId: trackId,
+          photoId: photoId,
+          extension: extension,
+          retryCount: retryCount + 1,
+        );
+      }
+      return null;
+    }
+  }
+
   /// Elimina foto da Storage
   Future<bool> deletePhoto(String photoUrl) async {
     try {
