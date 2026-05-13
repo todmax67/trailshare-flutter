@@ -9,6 +9,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/discovery_prompt_service.dart';
 import '../../../core/services/strava_service.dart';
 import '../../../core/services/track_export_service.dart';
+import '../../../core/services/track_photos_service.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -41,6 +42,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   late Track _track;
   final TracksRepository _tracksRepository = TracksRepository();
   final CommunityTracksRepository _communityRepository = CommunityTracksRepository();
+  final TrackPhotosService _photosService = TrackPhotosService();
   final GlobalKey _mapKey = GlobalKey();
   bool _isRetryingStrava = false;
 
@@ -218,9 +220,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildMainStats(),
-                  
-                  // ⭐ Galleria foto
-                  if (_track.photos.isNotEmpty) ...[
+
+                  // ⭐ Galleria foto — visibile sempre al proprietario
+                  // (anche se vuota) per permettere add post-import
+                  // (Garmin / Strava / Health / planner).
+                  if (_track.photos.isNotEmpty || _isOwner) ...[
                     const SizedBox(height: 24),
                     _buildPhotoGallery(),
                   ],
@@ -455,49 +459,282 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   // ⭐ GALLERIA FOTO
   // ═══════════════════════════════════════════════════════════════════════════
 
+  bool get _isOwner =>
+      _track.userId != null &&
+      _track.userId == FirebaseAuth.instance.currentUser?.uid;
+
+  bool _addingPhotos = false;
+
   Widget _buildPhotoGallery() {
+    final hasPhotos = _track.photos.isNotEmpty;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Header con bottone aggiungi (solo proprietario)
             Row(
               children: [
-                Icon(Icons.photo_library, size: 20, color: context.textSecondary),
+                Icon(Icons.photo_library,
+                    size: 20, color: context.textSecondary),
                 const SizedBox(width: 8),
-                Text(
-                  context.l10n.photosCount(_track.photos.length),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    context.l10n.photosCount(_track.photos.length),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
+                if (_isOwner)
+                  TextButton.icon(
+                    onPressed: _addingPhotos ? null : _addPhotos,
+                    icon: _addingPhotos
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_a_photo, size: 18),
+                    label: Text(
+                      _addingPhotos ? 'Caricamento…' : 'Aggiungi',
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
-            
-            // Galleria orizzontale scrollabile
-            SizedBox(
-              height: 140,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _track.photos.length,
-                itemBuilder: (context, index) {
-                  final photo = _track.photos[index];
-                  return _PhotoThumbnail(
-                    url: photo.url,
-                    elevation: photo.elevation,
-                    onTap: () => _openPhotoViewer(index),
-                  );
-                },
+
+            if (hasPhotos)
+              SizedBox(
+                height: 140,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _track.photos.length,
+                  itemBuilder: (context, index) {
+                    final photo = _track.photos[index];
+                    return _PhotoThumbnail(
+                      url: photo.url,
+                      elevation: photo.elevation,
+                      onTap: () => _openPhotoViewer(index),
+                      onLongPress: _isOwner
+                          ? () => _showPhotoActions(index)
+                          : null,
+                    );
+                  },
+                ),
+              )
+            else
+              // Empty state per proprietario — guida l'uso post-import
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.image_outlined,
+                        size: 28,
+                        color: context.textSecondary.withValues(alpha: 0.5)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Aggiungi foto del percorso. Utile per tracce '
+                        'importate da Garmin/Strava o pianificate, '
+                        'dove non hai scattato durante la registrazione.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: context.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Aggiunge foto da galleria a una traccia esistente.
+  ///
+  /// Usa il [TrackPhotosService] esistente (pickFromGallery +
+  /// uploadPhoto sequenziali). Le foto vengono **append** alle photos
+  /// esistenti del Track. Niente lat/lng (lo smartphone le ha
+  /// nell'EXIF ma il parsing è rimandato — il proprietario può
+  /// metterle dopo dal web detail con click su mappa, feature
+  /// successiva).
+  Future<void> _addPhotos() async {
+    final trackId = _track.id;
+    if (trackId == null) return;
+
+    final picked = await _photosService.pickFromGallery(maxImages: 10);
+    if (picked.isEmpty) return;
+
+    setState(() => _addingPhotos = true);
+    try {
+      final result =
+          await _photosService.uploadPhotos(photos: picked, trackId: trackId);
+      if (!mounted) return;
+
+      if (result.uploaded.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Upload fallito (${result.failed.length} foto)'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+        return;
+      }
+
+      final newMetadata = result.uploaded.map((u) => TrackPhotoMetadata(
+            url: u.url,
+            latitude: u.latitude,
+            longitude: u.longitude,
+            elevation: u.elevation,
+            timestamp: u.timestamp,
+          ));
+      final merged = [..._track.photos, ...newMetadata];
+
+      await _tracksRepository.updateTrackPhotos(trackId, merged);
+      if (!mounted) return;
+      setState(() {
+        _track = _track.copyWith(photos: merged);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${result.uploaded.length} foto aggiunte'
+            '${result.hasFailures ? " (${result.failed.length} fallite)" : ""}',
+          ),
+          backgroundColor: const Color(0xFF2E7D5B),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _addingPhotos = false);
+    }
+  }
+
+  /// Mostra azioni su una foto esistente: edit caption / delete.
+  void _showPhotoActions(int index) {
+    final photo = _track.photos[index];
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_note),
+              title: const Text('Modifica didascalia'),
+              subtitle: photo.caption != null && photo.caption!.isNotEmpty
+                  ? Text(photo.caption!,
+                      maxLines: 1, overflow: TextOverflow.ellipsis)
+                  : null,
+              onTap: () {
+                Navigator.pop(ctx);
+                _editCaption(index);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: Colors.red.shade700),
+              title: Text('Elimina foto',
+                  style: TextStyle(color: Colors.red.shade700)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _deletePhoto(index);
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _editCaption(int index) async {
+    final trackId = _track.id;
+    if (trackId == null) return;
+    final photo = _track.photos[index];
+    final ctrl = TextEditingController(text: photo.caption ?? '');
+    final newCaption = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Didascalia'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 140,
+          decoration: const InputDecoration(
+            hintText: 'Es. "Bivio per il rifugio"',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+    if (newCaption == null) return;
+    final trimmed = newCaption.trim();
+    final updated = [..._track.photos];
+    updated[index] = TrackPhotoMetadata(
+      url: photo.url,
+      latitude: photo.latitude,
+      longitude: photo.longitude,
+      elevation: photo.elevation,
+      timestamp: photo.timestamp,
+      caption: trimmed.isEmpty ? null : trimmed,
+    );
+    await _tracksRepository.updateTrackPhotos(trackId, updated);
+    if (!mounted) return;
+    setState(() => _track = _track.copyWith(photos: updated));
+  }
+
+  Future<void> _deletePhoto(int index) async {
+    final trackId = _track.id;
+    if (trackId == null) return;
+    final photo = _track.photos[index];
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Elimina foto'),
+        content:
+            const Text('Vuoi eliminare definitivamente questa foto?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton.tonal(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.withValues(alpha: 0.12),
+              foregroundColor: Colors.red,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    // Best-effort delete dello Storage poi update Firestore.
+    await _photosService.deletePhoto(photo.url);
+    final updated = [..._track.photos]..removeAt(index);
+    await _tracksRepository.updateTrackPhotos(trackId, updated);
+    if (!mounted) return;
+    setState(() => _track = _track.copyWith(photos: updated));
   }
 
   void _openPhotoViewer(int initialIndex) {
@@ -1532,17 +1769,20 @@ class _PhotoThumbnail extends StatelessWidget {
   final String url;
   final double? elevation;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const _PhotoThumbnail({
     required this.url,
     this.elevation,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         width: 140,
         margin: const EdgeInsets.only(right: 12),
