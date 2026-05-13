@@ -161,6 +161,10 @@ Lifeline e tutto il core safety/recording restano **sempre gratis**.
 | 6.5.1 | HR — auto-detect FCmax bassa (banner se >50% Z5 per 3+ sessioni → suggerisce calibrazione) | 🟨 | S | Free+Pro | ☐ — UX critica, "evita allarmi falsi" |
 | 6.5.2 | HR — pulsante "Stima FCmax dai miei dati" (max HR ultime 30gg + offset) | 🟨 | S | Free+Pro | ☐ — coppia con 6.5.1 |
 | 6.5.3 | HR — onboarding dialog prima apertura Allenamento HR (età + livello fitness → FCmax suggerita, non solo 220−età) | 🟩 | S | Free+Pro | ☐ |
+| 6.5.4 | **VO2 Max running** stimata da pace+HR (formula Daniels/Riegel) — il numero "magico" Garmin/Strava | 🟧 | S | Pro | ☐ — recap card track detail |
+| 6.5.5 | **Training Load (TRIMP)** + grafico 7/28 giorni (form. Banister 1991) — fondamenta fitness/fatigue | 🟧 | M | Pro | ☐ — recap mensile Pro |
+| 6.5.6 | **Recovery time** stimato (TRIMP ultime 72h → ore consigliate prima del prossimo sforzo intenso) | 🟨 | S | Pro | ☐ — coppia con 6.5.5 |
+| 6.5.7 | **Lactate Threshold detection** (HR deflection from pace, alla Garmin) — usa LT come riferimento alternativo per le zone | 🟩 | L | Pro | ☐ — quando avremo HRV stream da wearable |
 | 6.6 | Trail conditions AI summary (riassunto da commenti recenti) | 🟨 | M | Pro | ✅ |
 | 6.7 | **Pianificatore IA "trova percorso simile a..."** | 🟨 | M | Pro | ☐ — AI differenziator |
 | 6.8 | **Time-lapse video auto della traccia + foto** | 🟩 | M | Pro | ☐ — viral feature |
