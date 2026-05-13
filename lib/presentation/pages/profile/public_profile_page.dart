@@ -84,22 +84,24 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         _username = widget.username ?? 'Utente';
       }
 
-      // Carica stats tracce
-      final tracksSnapshot = await _firestore
+      // Carica stats tracce via SERVER-SIDE aggregation.
+      // CRITICO: lo snapshot .get() su tutta la subcollection
+      // scaricava i doc interi (con GPS points embedded) → 24MB+ →
+      // OOM Android cap 256MB. count() + sum() ritorna solo numeri.
+      final tracksRef = _firestore
           .collection('users')
           .doc(widget.userId)
-          .collection('tracks')
+          .collection('tracks');
+      final agg = await tracksRef
+          .aggregate(
+            count(),
+            sum('distance'),
+            sum('elevationGain'),
+          )
           .get();
-
-      _totalTracks = tracksSnapshot.docs.length;
-      _totalDistance = 0;
-      _totalElevation = 0;
-
-      for (final doc in tracksSnapshot.docs) {
-        final data = doc.data();
-        _totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
-        _totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
-      }
+      _totalTracks = agg.count ?? 0;
+      _totalDistance = agg.getSum('distance') ?? 0;
+      _totalElevation = agg.getSum('elevationGain') ?? 0;
 
       // Verifica se lo seguo
       if (!_isOwnProfile) {

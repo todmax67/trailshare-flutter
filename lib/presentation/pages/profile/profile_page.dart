@@ -106,22 +106,26 @@ class _ProfilePageState extends State<ProfilePage> {
       // Calcola XP per prossimo livello
       _xpForNextLevel = _calculateXpForLevel(_level + 1);
 
-      // Carica stats dalle tracce
-      final tracksSnapshot = await _firestore
+      // Carica stats dalle tracce via SERVER-SIDE aggregation.
+      // CRITICO: usare .get() su tutta la subcollection scaricava
+      // l'intero doc di ogni traccia (inclusi GPS points embedded),
+      // arrivando a 24MB+ e crashando con OutOfMemoryError su Android
+      // (heap cap 256MB). count() + sum() processa lato server e
+      // ritorna solo i numeri.
+      final tracksRef = _firestore
           .collection('users')
           .doc(user.uid)
-          .collection('tracks')
+          .collection('tracks');
+      final agg = await tracksRef
+          .aggregate(
+            count(),
+            sum('distance'),
+            sum('elevationGain'),
+          )
           .get();
-
-      _totalTracks = tracksSnapshot.docs.length;
-      _totalDistance = 0;
-      _totalElevation = 0;
-
-      for (final doc in tracksSnapshot.docs) {
-        final data = doc.data();
-        _totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
-        _totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
-      }
+      _totalTracks = agg.count ?? 0;
+      _totalDistance = agg.getSum('distance') ?? 0;
+      _totalElevation = agg.getSum('elevationGain') ?? 0;
 
       // Fallback username
       _username ??= user.displayName ?? user.email?.split('@').first;

@@ -107,25 +107,35 @@ class PostTrackSaveService {
     // STEP 2: Controlla e sblocca badge
     // ═══════════════════════════════════════════════════════════════
     try {
-      // Calcola totali utente da tutte le tracce
-      final tracksSnapshot = await _firestore
+      // Calcola totali utente via SERVER-SIDE aggregation.
+      // CRITICO: il loop precedente scaricava ogni traccia con i GPS
+      // points embedded (24MB+ su utenti con storico) → OutOfMemory
+      // sul thread Firestore proprio al post-save di una traccia,
+      // crashando l'app nel flow più critico.
+      //
+      // TRADE-OFF: l'aggregation include anche le tracce pianificate
+      // (planner ORS) nei totali badge — Firestore non supporta
+      // 'isPlanned != true OR isNull' in una sola query e split + sum
+      // raddoppia il costo. Il bias è minimo (utenti tipici hanno
+      // pochissime planned tracks) e infinitamente preferibile a un
+      // crash. La precisione si recupera col fix vero (split sub-
+      // collection track_points, già in backlog).
+      final tracksRef = _firestore
           .collection('users')
           .doc(user.uid)
-          .collection('tracks')
+          .collection('tracks');
+      final agg = await tracksRef
+          .aggregate(
+            count(),
+            sum('distance'),
+            sum('elevationGain'),
+          )
           .get();
-
-      double totalDistance = 0;
-      double totalElevation = 0;
-      int totalTracks = 0;
-
-      for (final doc in tracksSnapshot.docs) {
-        final data = doc.data();
-        // Escludi tracce pianificate (Planner ORS) dai totali
-        if (data['isPlanned'] == true) continue;
-        totalTracks += 1;
-        totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
-        totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
-      }
+      final int totalTracks = agg.count ?? 0;
+      final double totalDistance =
+          (agg.getSum('distance') ?? 0).toDouble();
+      final double totalElevation =
+          (agg.getSum('elevationGain') ?? 0).toDouble();
 
       // Ottieni followers
       int followersCount = 0;
