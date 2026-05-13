@@ -158,6 +158,9 @@ Lifeline e tutto il core safety/recording restano **sempre gratis**.
 | 6.3 | **3D fly-through replay delle tracce** | 🟨 | L | Pro | ☐ — viral feature |
 | 6.4 | Mappe topografiche premium (Topo / Hybrid / Inverno via MapTiler) | 🟧 | M | Pro | ✅ |
 | 6.5 | **Allenamento HR personalizzato basato su storico** | 🟨 | M | Pro | ✅ MVP (TrainingHrPage: 4 settimane rolling, zona prevalente, suggerimento next session) |
+| 6.5.1 | HR — auto-detect FCmax bassa (banner se >50% Z5 per 3+ sessioni → suggerisce calibrazione) | 🟨 | S | Free+Pro | ☐ — UX critica, "evita allarmi falsi" |
+| 6.5.2 | HR — pulsante "Stima FCmax dai miei dati" (max HR ultime 30gg + offset) | 🟨 | S | Free+Pro | ☐ — coppia con 6.5.1 |
+| 6.5.3 | HR — onboarding dialog prima apertura Allenamento HR (età + livello fitness → FCmax suggerita, non solo 220−età) | 🟩 | S | Free+Pro | ☐ |
 | 6.6 | Trail conditions AI summary (riassunto da commenti recenti) | 🟨 | M | Pro | ✅ |
 | 6.7 | **Pianificatore IA "trova percorso simile a..."** | 🟨 | M | Pro | ☐ — AI differenziator |
 | 6.8 | **Time-lapse video auto della traccia + foto** | 🟩 | M | Pro | ☐ — viral feature |
