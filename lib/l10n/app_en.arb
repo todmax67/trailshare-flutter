@@ -2397,5 +2397,10 @@
 
   "mfViewshedOnTooltip": "Visibility filter ON — tap to disable",
   "mfViewshedOffTooltip": "Visibility filter OFF — show only non-occluded peaks",
-  "locationTimeout": "Cannot get position (GPS timeout). Try again outdoors."
+  "locationTimeout": "Cannot get position (GPS timeout). Try again outdoors.",
+
+  "stravaSyncNow": "Sync now",
+  "stravaSyncNowSubtitle": "Pull the last 10 Strava activities if the webhook is delayed",
+  "stravaSyncing": "Strava sync in progress…",
+  "stravaSyncDone": "Sync complete."
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/services/hud_prefs_service.dart';
 import '../training/training_hr_page.dart';
@@ -732,10 +733,49 @@ class _SettingsPageState extends State<SettingsPage> {
               value: data['importFromStravaEnabled'] == true,
               onChanged: (v) => stravaService.setImportFromStravaEnabled(v),
             ),
+            // Force-sync manuale: utile quando il webhook Strava è in delay
+            // o non scatta. Pulla ultime 10 attività e importa le nuove.
+            if (data['importFromStravaEnabled'] == true)
+              ListTile(
+                leading: const Icon(Icons.sync, color: Color(0xFFFC4C02)),
+                title: Text(l10n.stravaSyncNow),
+                subtitle: Text(l10n.stravaSyncNowSubtitle),
+                onTap: () => _runStravaImportNow(context),
+              ),
           ],
         );
       },
     );
+  }
+
+  /// Chiama la Cloud Function `stravaImportRecent` per pullare le ultime
+  /// attività Strava e importarle. Bypass del webhook quando in delay.
+  Future<void> _runStravaImportNow(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(content: Text(context.l10n.stravaSyncing)),
+    );
+    try {
+      final fn = FirebaseFunctions.instanceFor(region: 'europe-west3')
+          .httpsCallable('stravaImportRecent');
+      final res = await fn.call({'limit': 10});
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final imported = (data['imported'] as List?)?.length ?? 0;
+      final skipped = (data['skipped'] as List?)?.length ?? 0;
+      final errors = (data['errors'] as List?)?.length ?? 0;
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('${context.l10n.stravaSyncDone} '
+            '✓$imported · ⏭$skipped · ⚠$errors'),
+        duration: const Duration(seconds: 5),
+      ));
+    } catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text(context.l10n.genericErrorWith(e.toString())),
+        backgroundColor: AppColors.danger,
+      ));
+    }
   }
 
   /// 1.D4 — Sezione "Registrazione": toggle auto-hide HUD + scelta

@@ -2397,5 +2397,10 @@
 
   "mfViewshedOnTooltip": "Filtro visibilità ON — tocca per disattivare",
   "mfViewshedOffTooltip": "Filtro visibilità OFF — mostra solo cime non occluse",
-  "locationTimeout": "Impossibile ottenere la posizione (timeout GPS). Riprova all'aperto."
+  "locationTimeout": "Impossibile ottenere la posizione (timeout GPS). Riprova all'aperto.",
+
+  "stravaSyncNow": "Sincronizza ora",
+  "stravaSyncNowSubtitle": "Pulla le ultime 10 attività da Strava se il webhook è in delay",
+  "stravaSyncing": "Sincronizzazione Strava in corso…",
+  "stravaSyncDone": "Sincronizzazione completata."
 }

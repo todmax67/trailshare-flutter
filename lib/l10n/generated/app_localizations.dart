@@ -8857,6 +8857,30 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Impossibile ottenere la posizione (timeout GPS). Riprova all\'aperto.'**
   String get locationTimeout;
+
+  /// No description provided for @stravaSyncNow.
+  ///
+  /// In it, this message translates to:
+  /// **'Sincronizza ora'**
+  String get stravaSyncNow;
+
+  /// No description provided for @stravaSyncNowSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Pulla le ultime 10 attività da Strava se il webhook è in delay'**
+  String get stravaSyncNowSubtitle;
+
+  /// No description provided for @stravaSyncing.
+  ///
+  /// In it, this message translates to:
+  /// **'Sincronizzazione Strava in corso…'**
+  String get stravaSyncing;
+
+  /// No description provided for @stravaSyncDone.
+  ///
+  /// In it, this message translates to:
+  /// **'Sincronizzazione completata.'**
+  String get stravaSyncDone;
 }
 
 class _AppLocalizationsDelegate

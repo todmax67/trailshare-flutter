@@ -4913,4 +4913,17 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get locationTimeout =>
       'Impossibile ottenere la posizione (timeout GPS). Riprova all\'aperto.';
+
+  @override
+  String get stravaSyncNow => 'Sincronizza ora';
+
+  @override
+  String get stravaSyncNowSubtitle =>
+      'Pulla le ultime 10 attività da Strava se il webhook è in delay';
+
+  @override
+  String get stravaSyncing => 'Sincronizzazione Strava in corso…';
+
+  @override
+  String get stravaSyncDone => 'Sincronizzazione completata.';
 }

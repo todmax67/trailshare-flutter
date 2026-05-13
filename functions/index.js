@@ -3417,6 +3417,61 @@ exports.stravaReconcilePending = onSchedule(
   }
 );
 
+// ─────────────────────────────────────────────────────────────────────────
+// Strava manual force-sync (utente clicca "Sincronizza ora" in Settings)
+// Pulla le ultime N attività e importa quelle non ancora presenti.
+// Aggira il webhook quando è rotto o l'utente vuole un sync immediato.
+// ─────────────────────────────────────────────────────────────────────────
+exports.stravaImportRecent = onCall(
+  {
+    region: 'europe-west3',
+    secrets: [stravaClientId, stravaClientSecret],
+    timeoutSeconds: 120,
+  },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error('unauthenticated');
+    const limit = Math.min(Number(request.data?.limit) || 10, 30);
+
+    const integDoc = await db
+      .collection('users').doc(uid)
+      .collection('integrations').doc('strava')
+      .get();
+    if (!integDoc.exists) throw new Error('strava_not_connected');
+    let integration = integDoc.data();
+    if (!integration?.accessToken) throw new Error('strava_not_connected');
+    if (integration.importFromStravaEnabled !== true) {
+      throw new Error('import_disabled');
+    }
+
+    // Refresh token se necessario
+    integration = await refreshStravaToken(uid, integration);
+
+    const resp = await axios.get(
+      `${STRAVA_API_BASE}/athlete/activities?per_page=${limit}`,
+      { headers: { Authorization: `Bearer ${integration.accessToken}` } },
+    );
+    const activities = resp.data || [];
+    logger.info(`[stravaImportRecent] uid=${uid} fetched=${activities.length}`);
+
+    const results = { imported: [], skipped: [], errors: [] };
+    for (const a of activities) {
+      try {
+        const r = await importStravaActivity(uid, a.id, integration);
+        if (r?.skipped) {
+          results.skipped.push({ id: a.id, name: a.name, reason: r.skipped });
+        } else {
+          results.imported.push({ id: a.id, name: a.name });
+        }
+      } catch (e) {
+        results.errors.push({ id: a.id, error: e?.message || String(e) });
+        logger.error(`[stravaImportRecent] activity=${a.id} ${e?.message}`);
+      }
+    }
+    return results;
+  },
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MIGRAZIONE: split public_trails → public_trails (index) + public_trail_geometries
 // ═══════════════════════════════════════════════════════════════════════════
