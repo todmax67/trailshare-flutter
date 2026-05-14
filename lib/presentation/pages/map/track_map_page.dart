@@ -6,8 +6,10 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/models/osm_poi.dart';
 import '../../../data/models/track.dart';
 import '../../../data/models/trail_poi.dart';
+import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/osm_pois_repository.dart';
+import '../business/business_profile_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../widgets/osm_attribution.dart';
@@ -61,6 +63,10 @@ class _TrackMapPageState extends State<TrackMapPage> {
   // dall'OsmPoisRepository in initState (se loadOsmPois=true).
   List<OsmPoi> _osmPois = const [];
 
+  // 🏔️ Spazi Pro lungo il percorso. Caricati una volta in initState,
+  // mostrati come marker sulla mappa. Auto-nascosti se nessuno in zona.
+  List<NearPolylineBusiness> _nearbyBusinesses = const [];
+
   Future<void> _loadOsmPois() async {
     if (!widget.loadOsmPois || _trackPoints.isEmpty) return;
     final repo = OsmPoisRepository();
@@ -71,6 +77,22 @@ class _TrackMapPageState extends State<TrackMapPage> {
       radiusMeters: widget.osmRadiusMeters,
     );
     if (mounted) setState(() => _osmPois = found);
+  }
+
+  Future<void> _loadNearbyBusinesses() async {
+    if (_trackPoints.isEmpty) return;
+    try {
+      final list = await BusinessRepository().getNearPolyline(
+        _trackPoints
+            .map((p) => (lat: p.latitude, lng: p.longitude))
+            .toList(),
+        radiusKm: 2,
+      );
+      if (!mounted) return;
+      setState(() => _nearbyBusinesses = list);
+    } catch (e) {
+      // Niente — la mappa funziona uguale senza spazi business.
+    }
   }
 
   void _onCommunityPoiTap(TrailPoi poi) {
@@ -204,6 +226,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
     super.initState();
     _showGradientColors = widget.showGradientColors;
     _loadOsmPois();
+    _loadNearbyBusinesses();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fitBounds();
     });
@@ -458,6 +481,63 @@ class _TrackMapPageState extends State<TrackMapPage> {
                   pois: widget.communityPois!,
                   onTap: _onCommunityPoiTap,
                   markerSize: 36,
+                ),
+
+              // 🏔️ Spazi Pro lungo il percorso (rifugi, noleggi,
+              // guide). Marker bianco con icona tipo, distintivo dai
+              // POI standard. Tap → BusinessProfilePage.
+              if (_nearbyBusinesses.isNotEmpty)
+                MarkerLayer(
+                  markers: _nearbyBusinesses.map((item) {
+                    final b = item.business;
+                    return Marker(
+                      point: LatLng(b.location.lat, b.location.lng),
+                      width: 38,
+                      height: 38,
+                      child: GestureDetector(
+                        onTap: () {
+                          final id = b.id;
+                          if (id == null) return;
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => BusinessProfilePage(
+                                businessId: id,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Tooltip(
+                          message:
+                              '${b.name} · ${b.type.displayName} · '
+                              '${item.kmFromStart.toStringAsFixed(1)} km',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.primary,
+                                width: 2.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black
+                                      .withValues(alpha: 0.25),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                b.type.icon,
+                                style:
+                                    const TextStyle(fontSize: 18),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
 
               // Markers

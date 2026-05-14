@@ -7,7 +7,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/tour.dart';
+import '../../../data/models/business.dart';
+import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
+import '../business/business_profile_page.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../data/repositories/follow_repository.dart';
@@ -43,12 +46,16 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // ═══════════════════════════════════════════════════════════════════════
   final CommunityTracksRepository _communityRepo = CommunityTracksRepository();
   final GroupsRepository _groupsRepo = GroupsRepository();
+  final BusinessRepository _businessRepo = BusinessRepository();
 
   // ═══════════════════════════════════════════════════════════════════════
   // STATO: TRACCE COMMUNITY
   // ═══════════════════════════════════════════════════════════════════════
   final MapController _mapController = MapController();
   LatLng? _userPosition;
+  // Spazi Pro nelle vicinanze (caricati 1x dopo geolocalizzazione,
+  // poi al pull-to-refresh). Auto-nascosti se vuoti.
+  List<Business> _nearbyBusinesses = const [];
   List<CommunityTrack> _communityTracks = [];
   bool _isLoadingCommunity = true;
   CommunityTrack? _selectedCommunityTrack;
@@ -166,8 +173,30 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       setState(() {
         _userPosition = LatLng(position.latitude, position.longitude);
       });
+      // Carica Spazi Pro intorno alla posizione utente (non bloccante).
+      _loadNearbyBusinesses();
     } catch (e) {
       debugPrint('[CommunityPage] Errore geolocalizzazione: $e');
+    }
+  }
+
+  /// Carica gli Spazi Pro attivi entro 50 km dall'utente.
+  /// Non bloccante: se fallisce, la mappa funziona uguale senza
+  /// marker business. Volumi attesi: decine di spazi per area.
+  Future<void> _loadNearbyBusinesses() async {
+    final pos = _userPosition;
+    if (pos == null) return;
+    try {
+      final list = await _businessRepo.getNearby(
+        lat: pos.latitude,
+        lng: pos.longitude,
+        radiusKm: 50,
+        limit: 100,
+      );
+      if (!mounted) return;
+      setState(() => _nearbyBusinesses = list);
+    } catch (e) {
+      debugPrint('[CommunityPage] Errore Spazi Pro vicini: $e');
     }
   }
 
@@ -810,6 +839,56 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 );
               }).whereType<Marker>().toList(),
             ),
+
+            // 🏔️ Marker Spazi Pro nelle vicinanze
+            if (_nearbyBusinesses.isNotEmpty)
+              MarkerLayer(
+                markers: _nearbyBusinesses.map((b) {
+                  return Marker(
+                    point: LatLng(b.location.lat, b.location.lng),
+                    width: 36,
+                    height: 36,
+                    child: GestureDetector(
+                      onTap: () {
+                        final id = b.id;
+                        if (id == null) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                BusinessProfilePage(businessId: id),
+                          ),
+                        );
+                      },
+                      child: Tooltip(
+                        message: '${b.name} · ${b.type.displayName}',
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.primary,
+                              width: 2.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              b.type.icon,
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
 
             // Marker posizione utente
             if (_userPosition != null)
