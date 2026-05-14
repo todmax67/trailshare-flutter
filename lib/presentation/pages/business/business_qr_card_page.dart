@@ -1,15 +1,14 @@
-import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/csv_export.dart' show downloadBytes;
 import '../../../data/models/business.dart';
 
 /// 7.C9 — Card "Vetrina QR" brandizzata per uno Spazio Pro.
@@ -46,6 +45,14 @@ class _BusinessQrCardPageState extends State<BusinessQrCardPage> {
     return 'trailshare://b/${b.id}';
   }
 
+  /// Genera il PNG dal RepaintBoundary e:
+  /// - Su web: lancia download diretto via Blob+anchor (no dialog,
+  ///   il file finisce nella cartella Download del browser)
+  /// - Su mobile: scrive temp file e apre il share sheet del sistema
+  ///   (l'utente sceglie WhatsApp/Drive/stampa/ecc.)
+  ///
+  /// Cross-platform via `downloadBytes` con conditional import
+  /// (pattern già usato per CSV export).
   Future<void> _shareCard() async {
     if (_sharing) return;
     setState(() => _sharing = true);
@@ -64,18 +71,19 @@ class _BusinessQrCardPageState extends State<BusinessQrCardPage> {
       }
       final Uint8List bytes = byteData.buffer.asUint8List();
 
-      final dir = await getTemporaryDirectory();
-      final file = File(
-          '${dir.path}/trailshare_spaziopro_${widget.business.id}_${DateTime.now().millisecondsSinceEpoch}.png');
-      await file.writeAsBytes(bytes);
+      final slug = widget.business.slug.isNotEmpty
+          ? widget.business.slug
+          : widget.business.id ?? 'spazio-pro';
+      final filename = 'trailshare-$slug-vetrina.png';
 
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          subject: 'Spazio Pro ${widget.business.name} su TrailShare',
-          text:
-              'Scopri ${widget.business.name} su TrailShare. Scansiona il QR per aprire la vetrina.',
-        ),
+      await downloadBytes(
+        bytes,
+        filename,
+        'image/png',
+        shareSubject:
+            'Spazio Pro ${widget.business.name} su TrailShare',
+        shareText:
+            'Scopri ${widget.business.name} su TrailShare. Scansiona il QR per aprire la vetrina.',
       );
     } catch (e) {
       if (!mounted) return;
@@ -85,6 +93,19 @@ class _BusinessQrCardPageState extends State<BusinessQrCardPage> {
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
+  }
+
+  /// Copia l'URL pubblico negli appunti. Universal link via slug,
+  /// fallback su scheme custom (per app non installata + deep link).
+  Future<void> _copyLink() async {
+    await Clipboard.setData(ClipboardData(text: _qrData));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Link copiato negli appunti'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -137,8 +158,26 @@ class _BusinessQrCardPageState extends State<BusinessQrCardPage> {
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _sharing ? null : _shareCard,
-              icon: const Icon(Icons.share),
-              label: const Text('Condividi card PNG'),
+              icon: Icon(kIsWeb ? Icons.download : Icons.share),
+              label: Text(kIsWeb
+                  ? 'Scarica PNG (1080×1920)'
+                  : 'Condividi card PNG'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _copyLink,
+              icon: const Icon(Icons.link),
+              label: const Text('Copia link vetrina'),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _qrData,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[600],
+                fontFamily: 'monospace',
+              ),
             ),
           ],
         ),

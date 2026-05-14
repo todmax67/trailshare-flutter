@@ -8,6 +8,7 @@ import '../../presentation/pages/business/business_analytics_page.dart';
 import '../../presentation/pages/business/business_edit_page.dart';
 import '../../presentation/pages/business/business_post_composer_page.dart';
 import '../../presentation/pages/business/business_profile_page.dart';
+import '../../presentation/pages/business/business_qr_card_page.dart';
 import '../../presentation/pages/business/business_services_manager_page.dart';
 import 'web_home_page.dart';
 
@@ -278,6 +279,13 @@ class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
                   label: 'Anteprima pubblica',
                   onTap: () => _openInDialog(
                     BusinessProfilePage(businessId: b.id!),
+                  ),
+                ),
+                _ActionButton(
+                  icon: Icons.qr_code_2,
+                  label: 'Vetrina QR',
+                  onTap: () => _openInDialog(
+                    BusinessQrCardPage(business: b),
                   ),
                 ),
               ],

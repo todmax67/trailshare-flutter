@@ -7,6 +7,8 @@
 /// piattaforma viene risolta a compile time, evitando che `dart:html`
 /// finisca nel build mobile e che `dart:io` finisca nel build web.
 library;
+import 'dart:typed_data';
+
 import 'csv_export_stub.dart'
     if (dart.library.html) 'csv_export_web.dart'
     if (dart.library.io) 'csv_export_io.dart';
@@ -23,6 +25,19 @@ Future<void> downloadString(
   String mime,
 ) =>
     doDownloadString(content, filename, mime);
+
+/// Download/share generico di bytes binari (PNG, PDF, ZIP, ecc.).
+/// - Su web: Blob + anchor download (immediato, no dialog)
+/// - Su mobile: file temp + share sheet via share_plus
+Future<void> downloadBytes(
+  Uint8List bytes,
+  String filename,
+  String mime, {
+  String? shareSubject,
+  String? shareText,
+}) =>
+    doDownloadBytes(bytes, filename, mime,
+        shareSubject: shareSubject, shareText: shareText);
 
 /// Helper per costruire una riga CSV correttamente quotata.
 ///
