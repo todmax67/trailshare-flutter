@@ -375,14 +375,14 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   ],
 
                   // 🏔️ Spazi Pro lungo il percorso — discovery
-                  // contestuale di rifugi/noleggi/guide. Mostrata
-                  // quando la traccia è "di interesse fruitore":
-                  // illustrative (percorso di gruppo da seguire) o
-                  // aperta da non-owner. Per le proprie tracce
-                  // registrate non ha senso (chi le ha fatte conosce
-                  // già la zona). Auto-hide se nessuno in zona.
-                  if (_track.points.length >= 2 &&
-                      (widget.illustrative || !_isOwner)) ...[
+                  // contestuale di rifugi/noleggi/guide visibile per
+                  // QUALSIASI traccia con polyline, anche le proprie.
+                  // Anche su una propria traccia gia' percorsa e' utile
+                  // sapere che spazi commerciali ci sono in zona (es.
+                  // "c'e' un noleggio bici 2 km dal mio punto di
+                  // partenza prossima volta ci passo"). Auto-hide se
+                  // nessuno in zona.
+                  if (_track.points.length >= 2) ...[
                     const SizedBox(height: 16),
                     NearbyBusinessesSection(
                       polyline: _track.points
