@@ -255,6 +255,20 @@ service cloud.firestore {
       }
     }
 
+    // --- DOC ROOT /users/{uid} ---
+    // Contiene metadati cross-utente: proStatus (scritto da Cloud
+    // Function receipt-validation), FCM token, integrationsSummary
+    // ecc. Owner read+write. Senza questa rule ProGate.syncFromFirestore
+    // andava in 'permission-denied' bloccando il check dello stato Pro.
+    //
+    // NB: il client può scrivere `proStatus` ma non può manipolare
+    // l'expiry — il check di legittimità avviene server-side via
+    // receipt validation (Apple/Play) e il valore corretto sovrascrive
+    // quello locale via admin SDK alla prossima ricezione webhook.
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && isOwner(userId);
+    }
+
     // --- REGOLE TRACCE PRIVATE (incluse pianificate) ---
     // Cross-leggibili da tutti gli autenticati (necessario per feed, gruppi,
     // tour). Continua a funzionare anche con il wildcard più stretto sotto.
