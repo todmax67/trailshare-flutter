@@ -591,6 +591,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
               itemCount: photos.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (_, i) => GestureDetector(
+                onTap: () => _openGalleryLightbox(photos, i),
                 onLongPress: isOwner
                     ? () => _confirmRemoveGalleryPhoto(b, photos[i])
                     : null,
@@ -616,6 +617,16 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  void _openGalleryLightbox(List<String> photos, int initialIndex) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _GalleryLightbox(
+        photos: photos,
+        initialIndex: initialIndex,
       ),
     );
   }
@@ -1131,5 +1142,112 @@ class _PostCard extends StatelessWidget {
     if (diff.inHours < 24) return '${diff.inHours}h fa';
     if (diff.inDays < 7) return '${diff.inDays}g fa';
     return '${dt.day}/${dt.month}/${dt.year}';
+  }
+}
+
+/// Lightbox fullscreen per la galleria dello Spazio Pro.
+///
+/// Dialog con sfondo nero, immagine corrente al centro fit:contain,
+/// frecce ← → per navigare tra le foto, X in alto a destra per
+/// chiudere, contatore '1/N' in alto.
+class _GalleryLightbox extends StatefulWidget {
+  final List<String> photos;
+  final int initialIndex;
+  const _GalleryLightbox({
+    required this.photos,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_GalleryLightbox> createState() => _GalleryLightboxState();
+}
+
+class _GalleryLightboxState extends State<_GalleryLightbox> {
+  late int _index = widget.initialIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = widget.photos[_index];
+    return Dialog(
+      backgroundColor: Colors.black,
+      insetPadding: const EdgeInsets.all(16),
+      child: Stack(
+        children: [
+          Center(
+            child: InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.contain,
+                placeholder: (_, _) => const SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: CircularProgressIndicator(),
+                ),
+                errorWidget: (_, _, _) => const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.white54,
+                  size: 64,
+                ),
+              ),
+            ),
+          ),
+          // Close
+          Positioned(
+            top: 12,
+            right: 12,
+            child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          // Counter
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 16,
+            child: Center(
+              child: Text(
+                '${_index + 1} / ${widget.photos.length}',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          // Prev
+          if (_index > 0)
+            Positioned(
+              left: 12,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: IconButton(
+                  icon: const Icon(Icons.chevron_left,
+                      color: Colors.white, size: 36),
+                  onPressed: () => setState(() => _index--),
+                ),
+              ),
+            ),
+          // Next
+          if (_index < widget.photos.length - 1)
+            Positioned(
+              right: 12,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: IconButton(
+                  icon: const Icon(Icons.chevron_right,
+                      color: Colors.white, size: 36),
+                  onPressed: () => setState(() => _index++),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
