@@ -131,6 +131,72 @@ class BusinessPhotosService {
     }
   }
 
+  /// Variante **web-compatible** di [uploadPhoto]: accetta i bytes
+  /// della foto invece di un path file. dart:io File non funziona su
+  /// web (errore 'Unsupported operation: _Namespace'), quindi tutti
+  /// i caller web (es. WebBusinessDashboardPage upload cover/logo)
+  /// devono passare da qui.
+  Future<String?> uploadPhotoBytes({
+    required Uint8List bytes,
+    required String businessId,
+    required BusinessPhotoKind kind,
+    String? photoId,
+    String extension = '.jpg',
+    int retryCount = 0,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      debugPrint('[BusinessPhotos] uploadBytes: non autenticato');
+      return null;
+    }
+    try {
+      photoId ??= DateTime.now().millisecondsSinceEpoch.toString();
+      final validExt =
+          ['.jpg', '.jpeg', '.png', '.webp'].contains(extension.toLowerCase())
+              ? extension.toLowerCase()
+              : '.jpg';
+      final storagePath =
+          'businesses/$businessId/${kind.pathSegment}/$photoId$validExt';
+      final ref = _storage.ref().child(storagePath);
+
+      final mime = validExt == '.png'
+          ? 'image/png'
+          : validExt == '.webp'
+              ? 'image/webp'
+              : 'image/jpeg';
+      final metadata = SettableMetadata(
+        contentType: mime,
+        customMetadata: {
+          'uploadedAt': DateTime.now().toIso8601String(),
+          'uploadedBy': user.uid,
+          'kind': kind.name,
+        },
+      );
+
+      debugPrint(
+          '[BusinessPhotos] uploadBytes $storagePath (tentativo ${retryCount + 1}/$_maxRetries)');
+      await ref.putData(bytes, metadata).whenComplete(() {});
+      final url = await ref.getDownloadURL();
+      debugPrint('[BusinessPhotos] uploadBytes ok: $url');
+      return url;
+    } catch (e) {
+      debugPrint(
+          '[BusinessPhotos] uploadBytes errore (try ${retryCount + 1}): $e');
+      if (retryCount < _maxRetries - 1) {
+        await Future.delayed(_initialRetry * (retryCount + 1));
+        return uploadPhotoBytes(
+          bytes: bytes,
+          businessId: businessId,
+          kind: kind,
+          photoId: photoId,
+          extension: extension,
+          retryCount: retryCount + 1,
+        );
+      }
+      return null;
+    }
+  }
+
   /// Cancella una foto da Storage dato il suo URL pubblico.
   /// Best-effort: se fallisce non blocchiamo l'UX.
   Future<void> deletePhotoByUrl(String url) async {
@@ -146,12 +212,48 @@ class BusinessPhotosService {
   // ─── HELPERS COMBINATI ───────────────────────────────────────────────
 
   /// Pick gallery + upload in un singolo passo. Ritorna URL o null.
+  ///
+  /// **Web-aware**: su web (`kIsWeb`) salta dart:io File (che dà
+  /// `Unsupported operation: _Namespace`) e usa
+  /// XFile.readAsBytes() + [uploadPhotoBytes]. Su mobile resta il
+  /// vecchio flow basato su path + putFile.
   Future<String?> pickAndUpload({
     required String businessId,
     required BusinessPhotoKind kind,
     bool fromCamera = false,
   }) async {
-    final localPath = fromCamera ? await takePhoto() : await pickFromGallery();
+    if (kIsWeb) {
+      // Su web non esiste 'camera' come abstract image_picker source:
+      // pickImage(camera) apre comunque un selector. Default a gallery.
+      try {
+        final picked = await _picker.pickImage(
+          source: ImageSource.gallery,
+          maxWidth: _maxWidth.toDouble(),
+          maxHeight: _maxHeight.toDouble(),
+          imageQuality: _quality,
+        );
+        if (picked == null) return null;
+        final bytes = await picked.readAsBytes();
+        final name = picked.name.toLowerCase();
+        final ext = name.endsWith('.png')
+            ? '.png'
+            : name.endsWith('.webp')
+                ? '.webp'
+                : '.jpg';
+        return uploadPhotoBytes(
+          bytes: bytes,
+          businessId: businessId,
+          kind: kind,
+          extension: ext,
+        );
+      } catch (e) {
+        debugPrint('[BusinessPhotos] pickAndUpload web errore: $e');
+        return null;
+      }
+    }
+
+    final localPath =
+        fromCamera ? await takePhoto() : await pickFromGallery();
     if (localPath == null) return null;
     return uploadPhoto(
       localPath: localPath,
