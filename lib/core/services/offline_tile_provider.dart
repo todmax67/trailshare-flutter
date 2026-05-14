@@ -5,6 +5,21 @@ import 'package:path_provider/path_provider.dart';
 
 import '../constants/api_keys.dart';
 
+/// User-Agent OSM Tile Usage Policy compliant
+/// (https://operations.osmfoundation.org/policies/tiles/).
+///
+/// Deve identificare l'app + version + contatto. Versioni release
+/// pubblicate sugli store con UA generici (es. 'TrailShareApp/1.0')
+/// vengono ratelimitate/bannate dai server tile.openstreetmap.org —
+/// in debug Flutter cade su UA Dart di default che OSM tollera, in
+/// release passa il nostro UA esplicito che senza version+contatto
+/// scatena il ban → tile bianche/grigie sull'app.
+///
+/// Aggiorna la version qui ad ogni release (o leggi da pubspec a
+/// runtime via package_info_plus se vuoi automazione).
+const String _osmUserAgent =
+    'TrailShare/2.4.3 (+https://trailshare.app; info@trailshare.app)';
+
 /// TileProvider che cerca prima offline, poi in rete
 class OfflineFallbackTileProvider extends TileProvider {
   static String? _cachedBasePath;
@@ -14,6 +29,18 @@ class OfflineFallbackTileProvider extends TileProvider {
     final dir = await getApplicationDocumentsDirectory();
     _cachedBasePath = '${dir.path}/offline_tiles';
     debugPrint('[OfflineTile] Inizializzato: $_cachedBasePath');
+  }
+
+  /// User-Agent corretto in base al provider. MapTiler ha una
+  /// restrizione lato dashboard che richiede UA contenente
+  /// [ApiKeys.mapTilerUserAgent] ('TrailShareApp'). Per tutto il
+  /// resto (OSM, OpenTopoMap, ArcGIS, CartoDB) usiamo l'UA
+  /// OSM-policy compliant con version + contatto.
+  String _uaFor(String url) {
+    if (url.contains('maptiler.com')) {
+      return '${ApiKeys.mapTilerUserAgent}/2.4.3';
+    }
+    return _osmUserAgent;
   }
 
   ImageProvider _resolve(TileCoordinates coordinates, TileLayer options) {
@@ -29,13 +56,15 @@ class OfflineFallbackTileProvider extends TileProvider {
         .replaceAll('{x}', '${coordinates.x}')
         .replaceAll('{y}', '${coordinates.y}')
         .replaceAll('{s}', 'a');
-    // Il prefisso UA deve contenere [ApiKeys.mapTilerUserAgent] perchè
-    // la chiave MapTiler è restretta lato dashboard a quel substring.
-    // I provider free (OSM, OpenTopoMap, ArcGIS, CartoDB) accettano
-    // qualsiasi UA, quindi non li impatta.
     return NetworkImage(
       url,
-      headers: {'User-Agent': '${ApiKeys.mapTilerUserAgent}/1.0'},
+      headers: {
+        'User-Agent': _uaFor(url),
+        // OSM Tile Usage Policy raccomanda anche Referer per
+        // identificare la sorgente. Non strettamente obbligatorio ma
+        // riduce il rischio di throttling.
+        'Referer': 'https://trailshare.app',
+      },
     );
   }
 
