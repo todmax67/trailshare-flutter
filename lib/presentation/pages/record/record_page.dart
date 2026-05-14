@@ -1769,13 +1769,21 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           // 1.D4 — stats header con auto-hide. Quando _hudVisible è false
           // fade-out (250ms) + IgnorePointer; un chip mini in alto a
           // sinistra resta cliccabile per riportarlo on.
+          //
+          // IMPORTANTE: il Positioned deve essere il figlio DIRETTO dello
+          // Stack; AnimatedOpacity/IgnorePointer intermedi rompono il
+          // parentData (StackParentData) e crashano in release con
+          // 'ParentData is not a subtype of StackParentData'.
           if (!state.isIdle)
-            AnimatedOpacity(
-              opacity: _hudVisible ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 250),
-              child: IgnorePointer(
-                ignoring: !_hudVisible,
-                child: _buildStatsHeader(state),
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: AnimatedOpacity(
+                opacity: _hudVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 250),
+                child: IgnorePointer(
+                  ignoring: !_hudVisible,
+                  child: _buildStatsHeader(state),
+                ),
               ),
             ),
           if (!state.isIdle && !_hudVisible) _buildHudReshowChip(state),
@@ -2252,34 +2260,33 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     final bg = state.isRecording
         ? AppColors.trackRecording.withValues(alpha: 0.95)
         : AppColors.warning.withValues(alpha: 0.95);
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _statsExpanded = !_statsExpanded);
-          _bumpHudActivity();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top + 6,
-            bottom: _statsExpanded ? 14 : 8,
-            left: 12,
-            right: 12,
-          ),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(18),
-              bottomRight: Radius.circular(18),
-            ),
-          ),
-          child: _statsExpanded
-              ? _buildStatsExpanded(state)
-              : _buildStatsCompact(state),
+    // NB: il Positioned (top/left/right) è applicato dal chiamante
+    // (vedi `build`) — qui ritorniamo solo il contenuto, così questo
+    // widget può essere wrappato in AnimatedOpacity/IgnorePointer
+    // senza rompere StackParentData.
+    return GestureDetector(
+      onTap: () {
+        setState(() => _statsExpanded = !_statsExpanded);
+        _bumpHudActivity();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: EdgeInsets.only(
+          top: MediaQuery.of(context).padding.top + 6,
+          bottom: _statsExpanded ? 14 : 8,
+          left: 12,
+          right: 12,
         ),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+          ),
+        ),
+        child: _statsExpanded
+            ? _buildStatsExpanded(state)
+            : _buildStatsCompact(state),
       ),
     );
   }
