@@ -37,6 +37,29 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ─── GRUPPI (Business + consumer): logo / cover / brand assets ────
+    // Path tipici: /groups/{groupId}/logo.jpg, /groups/{groupId}/cover.jpg
+    // e qualunque altro asset di personalizzazione brand.
+    //
+    // Read pubblico: cover/logo possono apparire in card invito
+    // condivise fuori dall'app, anchor SEO, OG image della landing
+    // /b/{slug} pubblica, ecc.
+    //
+    // Write: qualsiasi utente autenticato (gating admin lato UI —
+    // cross-Firestore call dalle Storage rules dà 403 nel nostro
+    // progetto, vedi memoria feedback_storage_rules). Limiti: 5MB,
+    // solo immagini.
+    //
+    // Pattern wildcard finale {filename=**} per gestire anche
+    // sotto-cartelle (es. /groups/{gid}/posts/{postId}.jpg).
+    match /groups/{groupId}/{filename=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
     // Default deny per path non riconosciuti
     match /{path=**} {
       allow read, write: if false;
