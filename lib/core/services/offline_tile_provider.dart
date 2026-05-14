@@ -18,7 +18,7 @@ import '../constants/api_keys.dart';
 /// Aggiorna la version qui ad ogni release (o leggi da pubspec a
 /// runtime via package_info_plus se vuoi automazione).
 const String _osmUserAgent =
-    'TrailShare/2.4.3 (+https://trailshare.app; info@trailshare.app)';
+    'TrailShare/2.4.4 (+https://trailshare.app; info@trailshare.app)';
 
 /// TileProvider che cerca prima offline, poi in rete
 class OfflineFallbackTileProvider extends TileProvider {
@@ -38,7 +38,7 @@ class OfflineFallbackTileProvider extends TileProvider {
   /// OSM-policy compliant con version + contatto.
   String _uaFor(String url) {
     if (url.contains('maptiler.com')) {
-      return '${ApiKeys.mapTilerUserAgent}/2.4.3';
+      return '${ApiKeys.mapTilerUserAgent}/2.4.4';
     }
     return _osmUserAgent;
   }
