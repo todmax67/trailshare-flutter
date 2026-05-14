@@ -51,14 +51,22 @@ class _GroupTracksTabState extends State<GroupTracksTab> {
   }
 
   void _openTrack(Track track) {
-    // Apre sempre TrackDetailPage. Le azioni admin (publish, delete) sono
-    // bloccate lato Firestore rules per i non-proprietari, quindi anche
-    // se un membro vede l'opzione nel menu non puo' eseguirla.
-    // TODO 6.C: mostrare una UI dedicata read-only piu' adatta ai membri
-    // del gruppo (es. solo "Inizia REC seguendo questo percorso").
+    // Apre TrackDetailPage in modalità ILLUSTRATIVA: la traccia è
+    // documentazione del percorso, non diario personale dell'autore.
+    // Effetti: niente battito cardiaco, niente Personal Records, ma
+    // pulsante "Segui questa traccia" sempre visibile per chiunque
+    // (membri del gruppo che vogliono percorrerla) — anche per il
+    // founder/owner della traccia stessa, perché quando entra dal
+    // tab Percorsi vuole vedere come la vedranno i membri.
+    //
+    // Le azioni admin (publish, delete) sono comunque bloccate lato
+    // Firestore rules per i non-proprietari.
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => TrackDetailPage(track: track),
+        builder: (_) => TrackDetailPage(
+          track: track,
+          illustrative: true,
+        ),
       ),
     );
   }

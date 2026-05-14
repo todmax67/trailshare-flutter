@@ -35,7 +35,25 @@ import '../../../core/extensions/theme_colors_extension.dart';
 class TrackDetailPage extends StatefulWidget {
   final Track track;
 
-  const TrackDetailPage({super.key, required this.track});
+  /// Modalità "percorso illustrativo / da seguire": la traccia viene
+  /// presentata come documentazione di un sentiero, non come diario
+  /// personale dell'autore.
+  ///
+  /// Quando true (es. aperta dal tab Percorsi di un gruppo Business)
+  /// si nascondono:
+  /// - Heart rate (chart battito, zone cardio, refresh HR button)
+  /// - Personal Records confronto
+  ///
+  /// E si forza la visibilità del pulsante "Segui questa traccia".
+  /// Le sezioni utili al fruitore (mappa, lap splits con dislivelli
+  /// per km, foto, segmenti, POI, commenti) restano visibili.
+  final bool illustrative;
+
+  const TrackDetailPage({
+    super.key,
+    required this.track,
+    this.illustrative = false,
+  });
 
   @override
   State<TrackDetailPage> createState() => _TrackDetailPageState();
@@ -234,12 +252,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   
                   // ⭐ Pulsante "Segui questa traccia" — visibile per
                   // tracce pianificate (anche del proprietario, è il
-                  // loro scopo) o per tracce di altri condivise in un
-                  // gruppo (utente non-owner). Apre RecordPage in
-                  // modalità guidata con polyline di riferimento +
-                  // alert off-trail.
+                  // loro scopo), per tracce di altri condivise in un
+                  // gruppo (utente non-owner), e per qualsiasi traccia
+                  // aperta come percorso illustrativo del gruppo.
                   if (_track.points.length >= 2 &&
-                      (_track.isPlanned || !_isOwner)) ...[
+                      (_track.isPlanned ||
+                          !_isOwner ||
+                          widget.illustrative)) ...[
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
@@ -258,14 +277,19 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   ],
 
                   // ⭐ Grafici (elevazione, velocità, battito).
-                  // PRIVACY: il battito è dato personale → passato al
-                  // chart solo se l'utente loggato è il proprietario.
+                  // PRIVACY: il battito è personale → passato al chart
+                  // solo se l'utente è il proprietario AND la pagina
+                  // non è in modalità illustrativa (percorso di
+                  // gruppo: anche al proprietario non interessa
+                  // mostrare il proprio HR in un contesto di
+                  // documentazione del trail).
                   if (_track.points.length > 1) ...[
                     const SizedBox(height: 24),
                     TrackChartsWidget(
                       points: _track.points,
-                      heartRateData:
-                          _isOwner ? _track.heartRateData : null,
+                      heartRateData: (_isOwner && !widget.illustrative)
+                          ? _track.heartRateData
+                          : null,
                       height: 180,
                       totalDuration: _track.stats.duration,
                       onPointTap: (index, distance) {
@@ -275,8 +299,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     ),
                   ],
 
-                  // ❤️ Zone Cardio (solo proprietario, dato personale)
+                  // ❤️ Zone Cardio (solo proprietario, non illustrative)
                   if (_isOwner &&
+                      !widget.illustrative &&
                       _track.heartRateData != null &&
                       _track.heartRateData!.isNotEmpty) ...[
                     const SizedBox(height: 16),
@@ -285,8 +310,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     ),
                   ],
 
-                  // ❤️ Pulsante aggiorna HR (solo proprietario)
+                  // ❤️ Pulsante aggiorna HR (solo proprietario, non
+                  // illustrative — in vista percorso non si gestisce
+                  // il dato personale)
                   if (_isOwner &&
+                      !widget.illustrative &&
                       (_track.heartRateData == null ||
                           _track.heartRateData!.isEmpty) &&
                       _track.id != null) ...[
@@ -309,11 +337,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
                   // Epic 4.7 — Confronto con Personal Records (stesso
                   // activityType). Mostrata solo se l'utente è owner
-                  // della traccia (per confronti cross-user non ha
-                  // senso). La card si auto-nasconde se non ci sono
-                  // altre tracce con cui confrontare.
-                  if (_track.userId != null &&
-                      _track.userId == FirebaseAuth.instance.currentUser?.uid) ...[
+                  // della traccia AND non in modalità illustrativa
+                  // (un percorso "da seguire" non è un risultato
+                  // personale da confrontare con PR — è
+                  // documentazione del trail).
+                  if (_isOwner && !widget.illustrative) ...[
                     const SizedBox(height: 16),
                     PersonalRecordsCard(current: _track),
                     // 5.5 — Editor tag personalizzati (solo owner)
