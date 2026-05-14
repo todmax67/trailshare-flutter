@@ -37,6 +37,20 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ─── CHAT GRUPPI: immagini allegate ai messaggi ────────────────────
+    // Path: /group_images/{groupId}/{filename}.jpg
+    // Pattern storico separato da /groups/ (path coniato prima del
+    // refactor brand assets). Read pubblico (i membri vedono le foto
+    // nella chat), write da auth user, limiti 10MB + content-type image.
+    // Gating membership effettivo lato UI/Firestore rules sui messaggi.
+    match /group_images/{groupId}/{filename=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
     // ─── GRUPPI (Business + consumer): logo / cover / brand assets ────
     // Path tipici: /groups/{groupId}/logo.jpg, /groups/{groupId}/cover.jpg
     // e qualunque altro asset di personalizzazione brand.

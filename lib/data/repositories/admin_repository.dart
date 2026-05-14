@@ -77,21 +77,38 @@ class AdminRepository {
     // Se l'UID è lo stesso, usa la cache
     if (_cachedUid == uid && _cachedIsAdmin != null) return _cachedIsAdmin!;
 
+    // Provo prima Source.server (più aggiornata). Se va in timeout
+    // o fallisce, fallback alla cache locale Firestore: meglio mostrare
+    // un valore eventually-stale piuttosto che far sparire il pannello
+    // admin all'utente legittimo per uno stutter di rete.
     try {
-      // Source.server: la cache locale può essere satura dopo grossi
-      // import / migrazioni e questa get() rimane appesa silenziosamente,
-      // facendo sparire il pannello admin.
       final doc = await FirebaseFirestore.instance
           .collection('user_profiles')
           .doc(uid)
           .get(const GetOptions(source: Source.server))
           .timeout(const Duration(seconds: 8));
-      final data = doc.data();
-      _cachedIsAdmin = data?['admin'] == true;
+      _cachedIsAdmin = doc.data()?['admin'] == true;
       _cachedUid = uid;
       return _cachedIsAdmin!;
     } catch (e) {
-      debugPrint('[Admin] Errore verifica ruolo: $e');
+      debugPrint('[Admin] Source.server fallito: $e — fallback cache');
+    }
+    // Fallback: leggi dalla cache Firestore (locale, può essere stale
+    // ma normalmente è popolata da una sessione precedente).
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(uid)
+          .get(const GetOptions(source: Source.cache))
+          .timeout(const Duration(seconds: 4));
+      final isAdmin = doc.data()?['admin'] == true;
+      _cachedIsAdmin = isAdmin;
+      _cachedUid = uid;
+      return isAdmin;
+    } catch (e) {
+      debugPrint('[Admin] Cache fallback fallito: $e');
+      // Ultimo resort: lascia false ma NON cachare — al prossimo
+      // tentativo riproveremo Source.server.
       return false;
     }
   }

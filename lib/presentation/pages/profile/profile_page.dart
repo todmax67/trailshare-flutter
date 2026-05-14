@@ -16,6 +16,7 @@ import '../badges/badges_page.dart';
 import '../challenges/challenges_page.dart';
 import '../groups/groups_list_page.dart';
 import '../../../data/repositories/admin_repository.dart';
+import '../../../data/repositories/tracks_repository.dart';
 import '../admin/admin_panel_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 
@@ -106,26 +107,28 @@ class _ProfilePageState extends State<ProfilePage> {
       // Calcola XP per prossimo livello
       _xpForNextLevel = _calculateXpForLevel(_level + 1);
 
-      // Carica stats dalle tracce via SERVER-SIDE aggregation.
-      // CRITICO: usare .get() su tutta la subcollection scaricava
-      // l'intero doc di ogni traccia (inclusi GPS points embedded),
-      // arrivando a 24MB+ e crashando con OutOfMemoryError su Android
-      // (heap cap 256MB). count() + sum() processa lato server e
-      // ritorna solo i numeri.
-      final tracksRef = _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('tracks');
-      final agg = await tracksRef
-          .aggregate(
-            count(),
-            sum('distance'),
-            sum('elevationGain'),
-          )
-          .get();
-      _totalTracks = agg.count ?? 0;
-      _totalDistance = agg.getSum('distance') ?? 0;
-      _totalElevation = agg.getSum('elevationGain') ?? 0;
+      // Carica stats dalle tracce.
+      //
+      // CRITICO: in passato si faceva .get() su tutta la subcollection
+      // e si iterava — ma scaricava l'intero doc di ogni traccia coi
+      // GPS points embedded (24MB+, OOM su Android cap 256MB).
+      //
+      // Tentativo intermedio con aggregate(count,sum,sum) server-side:
+      // azzerava OOM ma getSum() ritornava null silenziosamente per
+      // alcuni utenti (tracce vecchie senza il campo, edge case
+      // Firestore sum). Tracce/Distanza/D+ apparivano = 0.
+      //
+      // Soluzione attuale: TracksRepository.getMyTracksLightweight
+      // toglie 'points' prima del parse → niente OOM E loop client
+      // affidabile.
+      final tracks = await TracksRepository().getMyTracksLightweight();
+      _totalTracks = tracks.length;
+      _totalDistance = 0;
+      _totalElevation = 0;
+      for (final t in tracks) {
+        _totalDistance += t.stats.distance;
+        _totalElevation += t.stats.elevationGain;
+      }
 
       // Fallback username
       _username ??= user.displayName ?? user.email?.split('@').first;

@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
+import '../../../data/repositories/tracks_repository.dart';
 import '../follow/follow_list_page.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -84,24 +85,19 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         _username = widget.username ?? 'Utente';
       }
 
-      // Carica stats tracce via SERVER-SIDE aggregation.
-      // CRITICO: lo snapshot .get() su tutta la subcollection
-      // scaricava i doc interi (con GPS points embedded) → 24MB+ →
-      // OOM Android cap 256MB. count() + sum() ritorna solo numeri.
-      final tracksRef = _firestore
-          .collection('users')
-          .doc(widget.userId)
-          .collection('tracks');
-      final agg = await tracksRef
-          .aggregate(
-            count(),
-            sum('distance'),
-            sum('elevationGain'),
-          )
-          .get();
-      _totalTracks = agg.count ?? 0;
-      _totalDistance = agg.getSum('distance') ?? 0;
-      _totalElevation = agg.getSum('elevationGain') ?? 0;
+      // Carica stats tracce via TracksRepository.getUserTracksLightweight
+      // — query con limit alto e SKIP del campo `points` prima del parse,
+      // così niente OOM (era 24MB+ con GPS embedded) e niente null
+      // silenziosi della aggregate.sum (vedi profile_page).
+      final tracks = await TracksRepository()
+          .getUserTracksLightweight(widget.userId);
+      _totalTracks = tracks.length;
+      _totalDistance = 0;
+      _totalElevation = 0;
+      for (final t in tracks) {
+        _totalDistance += t.stats.distance;
+        _totalElevation += t.stats.elevationGain;
+      }
 
       // Verifica se lo seguo
       if (!_isOwnProfile) {

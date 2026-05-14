@@ -127,6 +127,30 @@ class TracksRepository {
     return getUserTracks(userId);
   }
 
+  /// Variante di [getMyTracksLightweight] che accetta un userId
+  /// arbitrario (es. profilo pubblico di un altro utente). Stessa
+  /// strategia: skip `points`, limit alto.
+  Future<List<Track>> getUserTracksLightweight(
+    String userId, {
+    int limit = 1000,
+  }) async {
+    try {
+      final snapshot = await _tracksCollection(userId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      return snapshot.docs.map((doc) {
+        final data = Map<String, dynamic>.from(doc.data());
+        data.remove('points');
+        return _trackFromFirestore(doc.id, data);
+      }).toList();
+    } catch (e) {
+      debugPrint(
+          '[TracksRepository] Errore getUserTracksLightweight($userId): $e');
+      return [];
+    }
+  }
+
   /// Versione **lightweight**: tutte le tracce dell'utente corrente
   /// senza i punti GPS, pensata per dashboard/lista/profilo web dove
   /// servono solo stats, nome, date e activity type.
