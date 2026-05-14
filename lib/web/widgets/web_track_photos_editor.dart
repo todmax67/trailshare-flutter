@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/services/pro_gate_service.dart';
 import '../../core/services/track_photos_service.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/tracks_repository.dart';
@@ -60,30 +61,50 @@ class _WebTrackPhotosEditorState extends State<WebTrackPhotosEditor> {
     _photos = List.of(widget.track.photos);
   }
 
+  /// Limite foto per traccia per utenti free. Pro: illimitato.
+  static const int _freePhotosPerTrack = 3;
+
   Future<void> _addPhotos() async {
     final trackId = widget.track.id;
     if (trackId == null) {
       _snack('Salva la traccia prima di aggiungere foto', error: true);
       return;
     }
-    final picked = await _picker.pickMultiImage(
-      maxWidth: 1600,
-      maxHeight: 1600,
-      imageQuality: 80,
-      limit: 10,
-    );
+
+    final isPro = ProGateService().isPro;
+    if (!isPro && _photos.length >= _freePhotosPerTrack) {
+      _showLimitDialog();
+      return;
+    }
+
+    // pickMultiImage SENZA imageQuality/maxWidth per preservare i tag
+    // EXIF (su web il browser non li strippa, su desktop neppure).
+    final picked = await _picker.pickMultiImage(limit: 10);
     if (picked.isEmpty) return;
+
+    // Tronca alle prime N consentite dal cap free.
+    List<XFile> toUpload = picked;
+    if (!isPro) {
+      final remaining = _freePhotosPerTrack - _photos.length;
+      if (picked.length > remaining) {
+        toUpload = picked.take(remaining).toList();
+        _snack(
+          'Limite gratuito: caricate le prime $remaining. Passa a Pro per illimitate.',
+          error: true,
+        );
+      }
+    }
 
     setState(() {
       _uploading = true;
       _uploadCurrent = 0;
-      _uploadTotal = picked.length;
+      _uploadTotal = toUpload.length;
     });
 
     final newPhotos = <TrackPhotoMetadata>[];
-    for (int i = 0; i < picked.length; i++) {
+    for (int i = 0; i < toUpload.length; i++) {
       setState(() => _uploadCurrent = i + 1);
-      final xfile = picked[i];
+      final xfile = toUpload[i];
       final bytes = await xfile.readAsBytes();
       // Estensione dal nome se possibile, altrimenti .jpg
       final name = xfile.name.toLowerCase();
@@ -92,6 +113,12 @@ class _WebTrackPhotosEditorState extends State<WebTrackPhotosEditor> {
           : name.endsWith('.jpeg')
               ? '.jpeg'
               : '.jpg';
+
+      // EXIF: legge lat/lng/altitude/timestamp dai bytes UNA VOLTA,
+      // poi gli stessi bytes vanno all'upload (nessun re-read).
+      final geo =
+          await TrackPhotosService.readExifGeoFromBytes(bytes);
+
       final url = await _photosService.uploadPhotoBytes(
         bytes: bytes,
         trackId: trackId,
@@ -100,7 +127,10 @@ class _WebTrackPhotosEditorState extends State<WebTrackPhotosEditor> {
       if (url != null) {
         newPhotos.add(TrackPhotoMetadata(
           url: url,
-          timestamp: DateTime.now(),
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          elevation: geo.elevation,
+          timestamp: geo.takenAt ?? DateTime.now(),
         ));
       }
     }
@@ -113,15 +143,39 @@ class _WebTrackPhotosEditorState extends State<WebTrackPhotosEditor> {
       _uploadCurrent = 0;
       _uploadTotal = 0;
     });
-    if (newPhotos.length == picked.length) {
-      _snack('${newPhotos.length} foto aggiunte');
+    if (newPhotos.length == toUpload.length) {
+      final geoCount =
+          newPhotos.where((p) => p.latitude != null).length;
+      _snack(geoCount > 0
+          ? '${newPhotos.length} foto aggiunte ($geoCount geo-taggate)'
+          : '${newPhotos.length} foto aggiunte');
     } else {
       _snack(
-        '${newPhotos.length} di ${picked.length} caricate '
-        '(${picked.length - newPhotos.length} fallite)',
+        '${newPhotos.length} di ${toUpload.length} caricate '
+        '(${toUpload.length - newPhotos.length} fallite)',
         error: true,
       );
     }
+  }
+
+  void _showLimitDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Limite foto raggiunto'),
+        content: Text(
+          'Le tracce gratuite supportano fino a $_freePhotosPerTrack '
+          'foto. Passa a TrailShare Pro per foto illimitate per '
+          'traccia.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Capito'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _deletePhoto(int index) async {

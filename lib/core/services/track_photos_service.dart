@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:exif/exif.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
@@ -235,6 +236,136 @@ class TrackPhotosService {
     return UploadResult(uploaded: uploaded, failed: failed);
   }
 
+  /// Estrae lat/lng/elevation/timestamp dai metadati EXIF di una
+  /// foto. Ritorna null nei campi mancanti — sicuro da passare anche
+  /// a foto senza GPS tag.
+  ///
+  /// Funziona su mobile e web: il package `exif` legge dai bytes,
+  /// non dipende da dart:io.
+  static Future<ExifGeoData> readExifGeoFromBytes(
+      Uint8List bytes) async {
+    try {
+      final tags = await readExifFromBytes(bytes);
+      if (tags.isEmpty) return const ExifGeoData();
+
+      double? toDecimal(String key, {String? refKey}) {
+        final tag = tags[key];
+        if (tag == null) return null;
+        final values = tag.values.toList();
+        if (values.length < 3) return null;
+        // Le coordinate GPS sono triple di Ratio (deg, min, sec).
+        double rat(dynamic r) {
+          if (r is Ratio) {
+            return r.denominator == 0 ? 0 : r.toDouble();
+          }
+          return double.tryParse(r.toString()) ?? 0;
+        }
+
+        final deg = rat(values[0]);
+        final min = rat(values[1]);
+        final sec = rat(values[2]);
+        double decimal = deg + min / 60 + sec / 3600;
+        if (refKey != null) {
+          final ref = tags[refKey]?.printable.trim().toUpperCase();
+          if (ref == 'S' || ref == 'W') decimal = -decimal;
+        }
+        return decimal;
+      }
+
+      final lat = toDecimal('GPS GPSLatitude', refKey: 'GPS GPSLatitudeRef');
+      final lng =
+          toDecimal('GPS GPSLongitude', refKey: 'GPS GPSLongitudeRef');
+
+      double? altitude;
+      final altTag = tags['GPS GPSAltitude'];
+      if (altTag != null) {
+        final values = altTag.values.toList();
+        if (values.isNotEmpty && values.first is Ratio) {
+          final r = values.first as Ratio;
+          if (r.denominator != 0) {
+            altitude = r.toDouble();
+            // ref 1 = below sea level
+            final refTag = tags['GPS GPSAltitudeRef'];
+            if (refTag != null && refTag.values.firstAsInt() == 1) {
+              altitude = -altitude;
+            }
+          }
+        }
+      }
+
+      // DateTimeOriginal: 'YYYY:MM:DD HH:MM:SS'
+      DateTime? when;
+      final dtTag = tags['EXIF DateTimeOriginal'] ?? tags['Image DateTime'];
+      if (dtTag != null) {
+        final s = dtTag.printable.trim();
+        if (s.length >= 19) {
+          final iso = s
+              .replaceFirst(':', '-')
+              .replaceFirst(':', '-')
+              .replaceFirst(' ', 'T');
+          when = DateTime.tryParse(iso);
+        }
+      }
+
+      return ExifGeoData(
+        latitude: lat,
+        longitude: lng,
+        elevation: altitude,
+        takenAt: when,
+      );
+    } catch (e) {
+      debugPrint('[TrackPhotos] EXIF parse error: $e');
+      return const ExifGeoData();
+    }
+  }
+
+  /// Variante di [pickFromGallery] che preserva l'EXIF.
+  ///
+  /// **Differenza chiave:** non passa `imageQuality` né `maxWidth`/
+  /// `maxHeight` a image_picker — il re-encode strippa i tag GPS.
+  /// Il resize per ridurre dimensione/banda dovrà essere fatto a
+  /// monte di un upload se serve (per ora le storage rules ammettono
+  /// 10MB, sufficiente per foto smartphone tipiche).
+  ///
+  /// Per ogni foto selezionata legge i bytes UNA SOLA VOLTA, ne
+  /// estrae EXIF (lat/lng/altitude/timestamp) e li popola in
+  /// [TrackPhoto]. I bytes vengono poi scartati: l'upload successivo
+  /// li rilegge dal path.
+  Future<List<TrackPhoto>> pickFromGalleryWithExif({
+    int maxImages = 10,
+  }) async {
+    try {
+      final images = await _picker.pickMultiImage(
+        limit: maxImages,
+      );
+      if (images.isEmpty) return [];
+
+      final photos = <TrackPhoto>[];
+      for (final img in images) {
+        final file = File(img.path);
+        if (!await file.exists()) continue;
+        // Read bytes per EXIF parsing (no double-read in seguito:
+        // l'upload rilegge dal path che è già su disco).
+        final bytes = await img.readAsBytes();
+        final geo = await readExifGeoFromBytes(bytes);
+        photos.add(TrackPhoto(
+          localPath: img.path,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          elevation: geo.elevation,
+          timestamp: geo.takenAt ?? DateTime.now(),
+        ));
+      }
+      debugPrint(
+          '[TrackPhotos] pickWithExif: ${photos.length} foto, '
+          '${photos.where((p) => p.latitude != null).length} geo-taggate');
+      return photos;
+    } catch (e) {
+      debugPrint('[TrackPhotos] pickFromGalleryWithExif errore: $e');
+      return [];
+    }
+  }
+
   /// Upload variante **web-compatible**: accetta i bytes della foto
   /// invece di un path file (dart:io File non funziona su web).
   /// Stesso path Storage di [uploadPhoto] + stessi retry. Da usare
@@ -399,5 +530,24 @@ class UploadResult {
   bool get hasFailures => failed.isNotEmpty;
   bool get allSuccess => failed.isEmpty;
   int get totalCount => uploaded.length + failed.length;
+}
+
+/// Metadati GPS estratti dall'EXIF di una foto.
+/// Tutti i campi sono nullable: una foto può avere solo timestamp,
+/// solo GPS senza altitude, ecc.
+class ExifGeoData {
+  final double? latitude;
+  final double? longitude;
+  final double? elevation;
+  final DateTime? takenAt;
+
+  const ExifGeoData({
+    this.latitude,
+    this.longitude,
+    this.elevation,
+    this.takenAt,
+  });
+
+  bool get hasLocation => latitude != null && longitude != null;
 }
 

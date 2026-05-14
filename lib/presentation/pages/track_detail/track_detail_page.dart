@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/discovery_prompt_service.dart';
+import '../../../core/services/pro_gate_service.dart';
 import '../../../core/services/strava_service.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../../core/services/track_photos_service.dart';
@@ -557,25 +558,60 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     );
   }
 
+  /// Limite foto per traccia per utenti **free** (non-Pro).
+  /// Pro: illimitato.
+  static const int _freePhotosPerTrack = 3;
+
   /// Aggiunge foto da galleria a una traccia esistente.
   ///
-  /// Usa il [TrackPhotosService] esistente (pickFromGallery +
-  /// uploadPhoto sequenziali). Le foto vengono **append** alle photos
-  /// esistenti del Track. Niente lat/lng (lo smartphone le ha
-  /// nell'EXIF ma il parsing è rimandato — il proprietario può
-  /// metterle dopo dal web detail con click su mappa, feature
-  /// successiva).
+  /// Usa `pickFromGalleryWithExif`: legge i tag EXIF di ogni foto
+  /// (GPS lat/lng/altitude + DateTimeOriginal) così le foto si
+  /// posizionano automaticamente al punto giusto sulla mappa, senza
+  /// che l'utente debba taggarle a mano.
+  ///
+  /// **Gating Pro:** utenti free hanno cap a [_freePhotosPerTrack].
+  /// Se superato → dialog upgrade.
   Future<void> _addPhotos() async {
     final trackId = _track.id;
     if (trackId == null) return;
 
-    final picked = await _photosService.pickFromGallery(maxImages: 10);
+    final isPro = ProGateService().isPro;
+    final current = _track.photos.length;
+    if (!isPro && current >= _freePhotosPerTrack) {
+      _showPhotoLimitDialog();
+      return;
+    }
+
+    final picked = await _photosService.pickFromGalleryWithExif(
+      maxImages: 10,
+    );
     if (picked.isEmpty) return;
+
+    // Gating: tronca alle prime N che entrano nel cap free.
+    List<TrackPhoto> toUpload = picked;
+    if (!isPro) {
+      final remaining = _freePhotosPerTrack - current;
+      if (picked.length > remaining) {
+        toUpload = picked.take(remaining).toList();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Limite gratuito: solo le prime $remaining foto verranno '
+              'caricate. Passa a Pro per illimitate.',
+            ),
+            backgroundColor: Colors.orange.shade700,
+          ),
+        );
+      }
+    }
 
     setState(() => _addingPhotos = true);
     try {
-      final result =
-          await _photosService.uploadPhotos(photos: picked, trackId: trackId);
+      final result = await _photosService.uploadPhotos(
+        photos: toUpload,
+        trackId: trackId,
+      );
       if (!mounted) return;
 
       if (result.uploaded.isEmpty) {
@@ -735,6 +771,41 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     await _tracksRepository.updateTrackPhotos(trackId, updated);
     if (!mounted) return;
     setState(() => _track = _track.copyWith(photos: updated));
+  }
+
+  /// Dialog mostrato quando un utente free raggiunge il cap foto.
+  /// Spiega il limite e linka all'upgrade Pro. Niente push diretto al
+  /// paywall qui per non interrompere il flow — l'utente può aprirlo
+  /// dal tab Pro nelle Impostazioni.
+  void _showPhotoLimitDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Limite foto raggiunto'),
+        content: Text(
+          'Le tracce gratuite supportano fino a $_freePhotosPerTrack '
+          'foto. Passa a TrailShare Pro per foto illimitate per '
+          'traccia e altre feature avanzate.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Capito'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              // Navigazione al paywall: la rotta '/pro' è registrata
+              // dal main mobile. Se non esiste cade nel default
+              // unknown route handler.
+              Navigator.of(context).pushNamed('/pro');
+            },
+            icon: const Icon(Icons.workspace_premium, size: 18),
+            label: const Text('Scopri Pro'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _openPhotoViewer(int initialIndex) {
