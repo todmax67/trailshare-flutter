@@ -3484,7 +3484,17 @@ exports.stravaImportRecent = onCall(
 // Idempotente: skippa trail già migrati (presenza di `simplifiedPoints` o
 // assenza di `geometry.coordinatesJson`). Chiamabile più volte.
 
-const ADMIN_EMAILS = ['admin@trailshare.app', 'todde.massimiliano@gmail.com', 'info@bluspose.it'];
+// Admin emails per i Cloud Functions privilegiati (es. moderazione,
+// stats, manutenzione). Manteniamo 'info@bluspose.it' come legacy
+// finché il founder non migra l'auth Firebase al nuovo dominio:
+// rimuoverlo prima della migrazione lo escluderebbe dalle azioni
+// admin server-side.
+const ADMIN_EMAILS = [
+  'admin@trailshare.app',
+  'info@trailshare.app',
+  'todde.massimiliano@gmail.com',
+  'info@bluspose.it', // legacy — rimuovere dopo migrazione auth founder
+];
 
 function _sampleEvenly(coords, maxPoints) {
   // Output: lista di {lng, lat} — Firestore non accetta array di array.

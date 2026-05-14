@@ -515,7 +515,7 @@ E poi ci aggiungi:
 ## 📞 Contatti progetto
 
 - Sito: `trailshare.app`
-- Email contatto sviluppatore: `info@bluspose.it`
+- Email contatto: `info@trailshare.app`
 - Repository: github.com/todmax67/trailshare-flutter
 - Versione corrente in produzione: 1.7.0
 - In test: 1.9.0
