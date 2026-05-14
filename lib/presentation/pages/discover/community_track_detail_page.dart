@@ -13,6 +13,7 @@ import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../../presentation/widgets/lap_splits_widget.dart';
 import '../../../presentation/widgets/track_segments_section.dart';
 import '../../widgets/trail_pois_section.dart';
+import '../../widgets/nearby_businesses_section.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/services/trails_cache_service.dart';
@@ -253,6 +254,16 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                   ),
 
                   const SizedBox(height: 16),
+
+                  // Spazi Pro lungo il percorso (rifugi, noleggi,
+                  // guide). Auto-nascosto se nessuno in zona.
+                  if (track.points.length >= 2)
+                    NearbyBusinessesSection(
+                      polyline: track.points
+                          .map(
+                              (p) => LatLng(p.latitude, p.longitude))
+                          .toList(),
+                    ),
 
                   // Dettagli
                   _buildDetails(),

@@ -204,6 +204,99 @@ class BusinessRepository {
     return filtered.take(limit).toList();
   }
 
+  /// Spazi Pro vicini a una polyline (percorso di una traccia).
+  ///
+  /// Usato per la sezione "Spazi lungo il percorso" sulle detail
+  /// tracce: permette al fruitore di un trail di scoprire rifugi /
+  /// bivacchi / Spazi Pro che si trovano lungo il tragitto.
+  ///
+  /// Implementazione: campiona la polyline ogni [sampleEveryKm] km
+  /// (default 5 km), per ogni punto fa getNearby() con
+  /// radius = [radiusKm], aggrega i risultati deduplicando per id.
+  /// Il risultato è ordinato per "posizione lungo il percorso" (km
+  /// progressivi dal primo vertice).
+  ///
+  /// Trade-off: con polyline di 30 km e sample ogni 5 km parte 6+
+  /// query geohash (max 9 ranges l'una). Per polyline corte
+  /// (< 5 km) prende solo i due estremi.
+  Future<List<NearPolylineBusiness>> getNearPolyline(
+    List<({double lat, double lng})> polyline, {
+    double radiusKm = 2,
+    double sampleEveryKm = 5,
+    int limitPerSample = 50,
+  }) async {
+    if (polyline.length < 2) return const [];
+
+    // Calcola distanza cumulativa e campiona ogni sampleEveryKm.
+    final cumulative = <double>[0];
+    for (int i = 1; i < polyline.length; i++) {
+      final d = _haversineKm(
+        polyline[i - 1].lat,
+        polyline[i - 1].lng,
+        polyline[i].lat,
+        polyline[i].lng,
+      );
+      cumulative.add(cumulative.last + d);
+    }
+    final total = cumulative.last;
+
+    // Sample indices: sempre primo + ultimo + N intermedi.
+    final sampleIdx = <int>{0, polyline.length - 1};
+    if (total > sampleEveryKm) {
+      double target = sampleEveryKm;
+      int j = 0;
+      while (target < total) {
+        while (j < cumulative.length - 1 && cumulative[j] < target) {
+          j++;
+        }
+        sampleIdx.add(j);
+        target += sampleEveryKm;
+      }
+    }
+
+    final results = <String, _PendingBusiness>{};
+    for (final i in sampleIdx) {
+      final p = polyline[i];
+      final near = await getNearby(
+        lat: p.lat,
+        lng: p.lng,
+        radiusKm: radiusKm,
+        limit: limitPerSample,
+      );
+      for (final b in near) {
+        // Salva il km del sample più vicino a questo business
+        final kmFromStart = cumulative[i];
+        final existing = results[b.id];
+        if (existing == null || kmFromStart < existing.kmFromStart) {
+          // Distanza precisa punto-business (non sample center)
+          final distM = _haversineKm(
+                p.lat,
+                p.lng,
+                b.location.lat,
+                b.location.lng,
+              ) *
+              1000;
+          results[b.id!] = _PendingBusiness(
+            business: b,
+            kmFromStart: kmFromStart,
+            distanceFromPathMeters: distM,
+          );
+        }
+      }
+    }
+
+    final list = results.values
+        .map((p) => NearPolylineBusiness(
+              business: p.business,
+              kmFromStart: p.kmFromStart,
+              distanceFromPathMeters: p.distanceFromPathMeters,
+            ))
+        .toList()
+      ..sort((a, b) => a.kmFromStart.compareTo(b.kmFromStart));
+
+    return list;
+  }
+
   /// Lista businesses dove l'utente corrente è owner.
   Future<List<Business>> getMyBusinesses() async {
     final uid = _auth.currentUser?.uid;
@@ -754,4 +847,36 @@ class BusinessRepository {
   }
 
   double _deg2rad(double deg) => deg * (math.pi / 180);
+}
+
+/// Risultato di [BusinessRepository.getNearPolyline]: ogni Business
+/// con info di posizione lungo il percorso.
+class NearPolylineBusiness {
+  final Business business;
+
+  /// Distanza progressiva dall'inizio della polyline al punto del
+  /// percorso più vicino allo spazio (km).
+  final double kmFromStart;
+
+  /// Distanza puntuale tra il business e il percorso (metri).
+  final double distanceFromPathMeters;
+
+  const NearPolylineBusiness({
+    required this.business,
+    required this.kmFromStart,
+    required this.distanceFromPathMeters,
+  });
+}
+
+/// Helper interno per scegliere il sample più vicino in caso di
+/// match multipli del business.
+class _PendingBusiness {
+  final Business business;
+  final double kmFromStart;
+  final double distanceFromPathMeters;
+  const _PendingBusiness({
+    required this.business,
+    required this.kmFromStart,
+    required this.distanceFromPathMeters,
+  });
 }

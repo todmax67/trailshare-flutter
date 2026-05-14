@@ -22,6 +22,7 @@ import '../../widgets/track_charts_widget.dart';
 import '../../widgets/lap_splits_widget.dart';
 import '../../widgets/personal_records_card.dart';
 import '../../widgets/track_tags_editor.dart';
+import '../../widgets/nearby_businesses_section.dart';
 import '../../widgets/track_segments_section.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -370,6 +371,24 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       trackPoints: _track.points,
                       trackOwnerId: _track.userId,
                       activityType: _track.activityType.name,
+                    ),
+                  ],
+
+                  // 🏔️ Spazi Pro lungo il percorso — discovery
+                  // contestuale di rifugi/noleggi/guide. Mostrata
+                  // quando la traccia è "di interesse fruitore":
+                  // illustrative (percorso di gruppo da seguire) o
+                  // aperta da non-owner. Per le proprie tracce
+                  // registrate non ha senso (chi le ha fatte conosce
+                  // già la zona). Auto-hide se nessuno in zona.
+                  if (_track.points.length >= 2 &&
+                      (widget.illustrative || !_isOwner)) ...[
+                    const SizedBox(height: 16),
+                    NearbyBusinessesSection(
+                      polyline: _track.points
+                          .map((p) =>
+                              LatLng(p.latitude, p.longitude))
+                          .toList(),
                     ),
                   ],
 
