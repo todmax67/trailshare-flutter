@@ -369,7 +369,7 @@ class _TrialBanner extends StatelessWidget {
             onPressed: () async {
               final mailto = Uri(
                 scheme: 'mailto',
-                path: 'info@bluspose.it',
+                path: 'info@trailshare.app',
                 queryParameters: {
                   'subject':
                       'Attivazione piano TrailShare Business — ${group.name}',
