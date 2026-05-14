@@ -9,6 +9,8 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/discovery_prompt_service.dart';
 import '../../../core/services/pro_gate_service.dart';
 import '../../../core/services/strava_service.dart';
+import '../../../data/models/recording_reference.dart';
+import '../record/record_page.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../../core/services/track_photos_service.dart';
 import '../../widgets/export_format_sheet.dart';
@@ -230,12 +232,40 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     _buildPhotoGallery(),
                   ],
                   
-                  // ⭐ Grafici (elevazione, velocità, battito)
+                  // ⭐ Pulsante "Segui questa traccia" — visibile per
+                  // tracce pianificate (anche del proprietario, è il
+                  // loro scopo) o per tracce di altri condivise in un
+                  // gruppo (utente non-owner). Apre RecordPage in
+                  // modalità guidata con polyline di riferimento +
+                  // alert off-trail.
+                  if (_track.points.length >= 2 &&
+                      (_track.isPlanned || !_isOwner)) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _followTrack,
+                        icon: const Icon(Icons.navigation),
+                        label: const Text('Segui questa traccia'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.info,
+                          foregroundColor: Colors.white,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  // ⭐ Grafici (elevazione, velocità, battito).
+                  // PRIVACY: il battito è dato personale → passato al
+                  // chart solo se l'utente loggato è il proprietario.
                   if (_track.points.length > 1) ...[
                     const SizedBox(height: 24),
                     TrackChartsWidget(
                       points: _track.points,
-                      heartRateData: _track.heartRateData,
+                      heartRateData:
+                          _isOwner ? _track.heartRateData : null,
                       height: 180,
                       totalDuration: _track.stats.duration,
                       onPointTap: (index, distance) {
@@ -245,16 +275,20 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     ),
                   ],
 
-                  // ❤️ Zone Cardio
-                  if (_track.heartRateData != null && _track.heartRateData!.isNotEmpty) ...[
+                  // ❤️ Zone Cardio (solo proprietario, dato personale)
+                  if (_isOwner &&
+                      _track.heartRateData != null &&
+                      _track.heartRateData!.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     HeartRateZonesWidget(
                       heartRateData: _track.heartRateData!,
                     ),
                   ],
 
-                  // ❤️ Pulsante aggiorna HR (se non ci sono dati HR)
-                  if ((_track.heartRateData == null || _track.heartRateData!.isEmpty) &&
+                  // ❤️ Pulsante aggiorna HR (solo proprietario)
+                  if (_isOwner &&
+                      (_track.heartRateData == null ||
+                          _track.heartRateData!.isEmpty) &&
                       _track.id != null) ...[
                     const SizedBox(height: 16),
                     _buildRefreshHRButton(),
@@ -771,6 +805,38 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     await _tracksRepository.updateTrackPhotos(trackId, updated);
     if (!mounted) return;
     setState(() => _track = _track.copyWith(photos: updated));
+  }
+
+  /// Apre RecordPage in modalità guidata con la traccia corrente
+  /// come riferimento (polyline + alert off-trail + voce TTS svolte).
+  ///
+  /// Disponibile per tracce pianificate (anche dell'utente: il loro
+  /// scopo è essere seguite) e per tracce condivise da altri utenti
+  /// in un gruppo (l'utente non è owner ma vuole percorrerle).
+  void _followTrack() {
+    final points = _track.points;
+    if (points.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Traccia troppo corta da seguire')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecordPage(
+          reference: RecordingReference.fromTrail(
+            trailPoints: points
+                .map((p) => LatLng(p.latitude, p.longitude))
+                .toList(),
+            trailName: _track.name,
+            totalDistance: _track.stats.distance,
+            totalElevationGain: _track.stats.elevationGain,
+          ),
+          initialActivityType: _track.activityType,
+        ),
+      ),
+    );
   }
 
   /// Dialog mostrato quando un utente free raggiunge il cap foto.
