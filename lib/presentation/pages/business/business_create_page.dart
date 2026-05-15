@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/geohash_util.dart';
 import '../../../data/models/business.dart';
+import '../../../data/repositories/admin_repository.dart';
 import 'business_profile_page.dart';
 import '../../../core/extensions/l10n_extension.dart';
 
@@ -35,6 +36,39 @@ class _BusinessCreatePageState extends State<BusinessCreatePage> {
   BusinessType _type = BusinessType.rifugio;
   BusinessTier _tier = BusinessTier.verified;
   bool _saving = false;
+  // Tri-state: null = sto verificando, true = admin, false = bloccato.
+  // Default null forza un loader iniziale invece di mostrare il form
+  // prima del check (fail-closed UX).
+  bool? _isAdminCheck;
+
+  @override
+  void initState() {
+    super.initState();
+    _verifyAdmin();
+  }
+
+  Future<void> _verifyAdmin() async {
+    final ok = await AdminRepository.isCurrentUserAdmin();
+    if (!mounted) return;
+    setState(() => _isAdminCheck = ok);
+    if (!ok) {
+      // Pop con snackbar invece di lasciare un guscio vuoto: l'utente
+      // ha provato a entrare in un'area che non gli compete, lo
+      // riportiamo subito indietro con feedback chiaro.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Accesso riservato agli amministratori TrailShare.',
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      // Delay minimo perché lo snackbar sia visibile prima del pop.
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) Navigator.of(context).maybePop();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -145,6 +179,48 @@ class _BusinessCreatePageState extends State<BusinessCreatePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Gate: finché non sappiamo se l'utente è admin, loader. Se NON
+    // è admin mostriamo il messaggio bloccante (intanto _verifyAdmin
+    // ha schedulato il pop). Solo se confermato admin → form completo.
+    if (_isAdminCheck == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_isAdminCheck == false) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Accesso negato')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline,
+                    size: 56, color: AppColors.danger),
+                SizedBox(height: 16),
+                Text(
+                  'Pagina riservata agli amministratori',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Solo gli amministratori TrailShare possono creare '
+                  'nuovi Spazi Pro. Contatta info@trailshare.app per '
+                  'attivare la tua vetrina.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final myUid = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       appBar: AppBar(title: const Text('Crea Spazio Pro')),

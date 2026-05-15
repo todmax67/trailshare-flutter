@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../data/models/business.dart';
+import '../../data/repositories/admin_repository.dart';
 import '../../data/repositories/business_repository.dart';
 import '../../presentation/pages/business/business_create_page.dart';
 import 'web_business_dashboard_page.dart';
@@ -20,6 +21,22 @@ class WebBusinessPickerPage extends StatefulWidget {
 
 class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
   final _repo = BusinessRepository();
+  // L'utente loggato è admin? Caricato async al mount. Default false
+  // mantiene il bottone "Crea Spazio Pro" NASCOSTO finché non sappiamo
+  // (fail-closed): meglio che il bottone appaia tardi piuttosto che
+  // mostrarlo a chiunque per uno stutter di Firestore.
+  bool _isAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdmin();
+  }
+
+  Future<void> _loadAdmin() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted) setState(() => _isAdmin = isAdmin);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,30 +71,40 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
                     fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Non sei ancora owner di uno Spazio Pro. Contatta '
-                'l\'amministratore per attivarlo, oppure se sei admin '
-                'puoi crearne uno qui.',
+              Text(
+                _isAdmin
+                    ? 'Non sei ancora owner di uno Spazio Pro. Puoi '
+                        'crearne uno tu stesso, oppure assegnarne uno '
+                        'esistente a un cliente.'
+                    : 'Non sei ancora owner di uno Spazio Pro. '
+                        'Contatta info@trailshare.app per attivare '
+                        'la tua vetrina.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const BusinessCreatePage(),
+              // Bottone "Crea Spazio Pro" visibile SOLO agli admin.
+              // Le Firestore rules bloccano comunque la create da non-
+              // admin, ma mostrare il bottone a tutti era UX falsa
+              // promessa (l'utente compilava il form e poi scopriva
+              // permission-denied al submit).
+              if (_isAdmin)
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const BusinessCreatePage(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_business),
+                  label: const Text('Crea Spazio Pro'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 14),
                   ),
                 ),
-                icon: const Icon(Icons.add_business),
-                label: const Text('Crea Spazio Pro (admin)'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 14),
-                ),
-              ),
             ],
           ),
         ),
