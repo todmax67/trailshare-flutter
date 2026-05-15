@@ -321,11 +321,18 @@ class TrackPhotosService {
 
   /// Variante di [pickFromGallery] che preserva l'EXIF.
   ///
-  /// **Differenza chiave:** non passa `imageQuality` né `maxWidth`/
-  /// `maxHeight` a image_picker — il re-encode strippa i tag GPS.
-  /// Il resize per ridurre dimensione/banda dovrà essere fatto a
-  /// monte di un upload se serve (per ora le storage rules ammettono
-  /// 10MB, sufficiente per foto smartphone tipiche).
+  /// **Differenza chiave vs pickFromGallery**: NON passa
+  /// `imageQuality` a image_picker — è il re-encode JPEG con qualità
+  /// che strippa i tag GPS.
+  ///
+  /// `maxWidth`/`maxHeight` invece sono passati (resize geometrico,
+  /// NON re-encode lossy) e su iOS/Android image_picker preserva i
+  /// metadati EXIF anche dopo il resize. Senza queste due i file
+  /// smartphone moderni (12+ MP, 5-10 MB raw) sforavano il cap
+  /// Storage rules a 10 MB → upload fallito 'Permission denied'.
+  ///
+  /// 2400×2400 è un buon compromesso: ~2 MB per foto JPEG,
+  /// abbastanza per zoom in lightbox, GPS preservato.
   ///
   /// Per ogni foto selezionata legge i bytes UNA SOLA VOLTA, ne
   /// estrae EXIF (lat/lng/altitude/timestamp) e li popola in
@@ -336,7 +343,10 @@ class TrackPhotosService {
   }) async {
     try {
       final images = await _picker.pickMultiImage(
+        maxWidth: 2400,
+        maxHeight: 2400,
         limit: maxImages,
+        // NB: NIENTE imageQuality! Sarebbe lui a strippare EXIF.
       );
       if (images.isEmpty) return [];
 

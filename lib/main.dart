@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'app.dart';
 import 'core/services/theme_service.dart';
@@ -54,7 +55,19 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
+
+  // 2.4.5 — Firestore cache cap a 40MB (default 100MB) per evitare
+  // crash SQLitePersistence su Android con heap 256MB. Crash tipico:
+  //   E/AndroidRuntime SQLitePersistence.runTransaction
+  //   preceduto da 'Alloc concurrent mark compact GC freed 149MB'
+  // = OOM corrompe il db SQLite locale. Con cap 40MB Firestore prune
+  // proattivamente e non superiamo mai una soglia critica anche su
+  // utenti con storico massiccio.
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: 40 * 1024 * 1024,
+  );
+
   // Inizializza tema
   await ThemeService().initialize();
   
