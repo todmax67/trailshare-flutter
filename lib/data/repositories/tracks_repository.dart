@@ -142,7 +142,10 @@ class TracksRepository {
       return snapshot.docs.map((doc) {
         final data = Map<String, dynamic>.from(doc.data());
         data.remove('points');
-        return _trackFromFirestore(doc.id, data);
+        final t = _trackFromFirestore(doc.id, data);
+        // Fallback userId dal path (per tracce con campo top-level
+        // mancante) — qui usiamo userId della firma, non currentUser.
+        return t.userId == null ? t.copyWith(userId: userId) : t;
       }).toList();
     } catch (e) {
       debugPrint(
@@ -183,7 +186,10 @@ class TracksRepository {
         // Copia mutabile + rimozione points prima del parse
         final data = Map<String, dynamic>.from(doc.data());
         data.remove('points');
-        return _trackFromFirestore(doc.id, data);
+        final t = _trackFromFirestore(doc.id, data);
+        // Fallback userId dal path (tracce vecchie senza campo
+        // top-level userId — vedi getTrackById per dettagli).
+        return t.userId == null ? t.copyWith(userId: userId) : t;
       }).toList();
     } catch (e) {
       debugPrint('[TracksRepository] Errore getMyTracksLightweight: $e');
@@ -287,7 +293,15 @@ class TracksRepository {
     try {
       final doc = await _tracksCollection(userId).doc(trackId).get();
       if (!doc.exists || doc.data() == null) return null;
-      return _trackFromFirestore(doc.id, doc.data()!);
+      final track = _trackFromFirestore(doc.id, doc.data()!);
+      // Fallback: tracce vecchie possono non avere il campo userId
+      // salvato top-level (lo si conosce comunque dal path). Senza
+      // questo, ownership check (es. _canEdit in WebTrackPhotosEditor)
+      // ritorna false e il bottone 'Aggiungi foto' resta nascosto
+      // anche sulle proprie tracce.
+      return track.userId == null
+          ? track.copyWith(userId: userId)
+          : track;
     } catch (e) {
       debugPrint('[TracksRepository] Errore getTrackById: $e');
       return null;
