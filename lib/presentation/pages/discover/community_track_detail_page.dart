@@ -14,6 +14,7 @@ import '../../../presentation/widgets/lap_splits_widget.dart';
 import '../../../presentation/widgets/track_segments_section.dart';
 import '../../widgets/trail_pois_section.dart';
 import '../../widgets/nearby_businesses_section.dart';
+import '../../widgets/follow_button.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/services/trails_cache_service.dart';
@@ -338,9 +339,33 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    track.ownerUsername,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          track.ownerUsername,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Pulsante "Segui" inline accanto al nome.
+                      // Pattern Komoot/Strava: trasforma una scheda
+                      // informativa in un punto di engagement
+                      // community. Nascosto se l'autore sono io
+                      // (segui te stesso non ha senso) o se non
+                      // loggato.
+                      if (track.ownerId.isNotEmpty &&
+                          FirebaseAuth.instance.currentUser != null &&
+                          FirebaseAuth.instance.currentUser!.uid !=
+                              track.ownerId) ...[
+                        const SizedBox(width: 8),
+                        FollowButton(
+                          targetUserId: track.ownerId,
+                          compact: true,
+                        ),
+                      ],
+                    ],
                   ),
                   if (track.sharedAt != null) ...[
                     SizedBox(height: 4),
