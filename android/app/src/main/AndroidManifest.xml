@@ -64,7 +64,14 @@
     <application
         android:label="trailshare_flutter"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:largeHeap="true"><!-- 2.4.6 — OOM ricorrente su platform channel
+             Firestore (serializza doc tracks con GPS points embedded in
+             ByteArrayOutputStream, esplode a 19MB+). largeHeap raddoppia
+             approssimativamente la heap disponibile a ~512MB su device
+             moderni → buffer riesce a finire la serializzazione. È un
+             workaround, fix sistemico = sub-collection geometry su
+             published_tracks (in backlog Epic 5). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

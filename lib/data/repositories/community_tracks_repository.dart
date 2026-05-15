@@ -421,7 +421,11 @@ class CommunityTracksRepository {
 
   /// Tracce recenti con paginazione
   Future<PaginatedCommunityTracks> getRecentTracksPaginated({
-    int limit = 20,
+    // 2.4.6 — Default abbassato 20 → 8 per evitare OOM su platform
+    // channel Firestore Android (serializza doc completi con GPS
+    // points embedded in ByteArrayOutputStream, esplode a 19MB+).
+    // L'utente può scrollare per caricare pagine successive.
+    int limit = 8,
     QueryDocumentSnapshot? startAfterDoc,
   }) async {
     try {
@@ -459,7 +463,8 @@ class CommunityTracksRepository {
   /// Risultati uniti e riordinati client-side per `sharedAt` desc.
   Future<List<CommunityTrack>> getFollowingActivityFeed(
     List<String> followingIds, {
-    int limit = 30,
+    // 2.4.6 — limit ridotto 30 → 12 per OOM platform channel.
+    int limit = 12,
   }) async {
     if (followingIds.isEmpty) return [];
     try {
@@ -492,7 +497,7 @@ class CommunityTracksRepository {
   }
 
   /// Ottieni tracce più apprezzate
-  Future<List<CommunityTrack>> getPopularTracks({int limit = 30}) async {
+  Future<List<CommunityTrack>> getPopularTracks({int limit = 10}) async {
     try {
       final snapshot = await _tracksCollection
           .orderBy('cheerCount', descending: true)
@@ -513,9 +518,13 @@ class CommunityTracksRepository {
   /// Cerca tracce per nome
   Future<List<CommunityTrack>> searchTracks(String query, {int limit = 20}) async {
     try {
+      // 2.4.6 — limit drastico 100 → 30. Era ridicolo caricare 100
+      // tracce con GPS points solo per filtrare client-side: search
+      // text full su Firestore richiederebbe indici dedicati (TODO),
+      // per ora 30 doc bastano + meno OOM su platform channel.
       final snapshot = await _tracksCollection
           .orderBy('sharedAt', descending: true)
-          .limit(100)
+          .limit(30)
           .get();
 
       final queryLower = query.toLowerCase();
