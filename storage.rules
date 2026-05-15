@@ -37,6 +37,20 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ─── FOTO SENTIERI PUBBLICI ────────────────────────────────────────
+    // Path: /trail_photos/{trailId}/{photoId}.jpg
+    // Foto associate a sentieri community (public_trails). Read
+    // pubblico (le foto appaiono nella detail page del sentiero
+    // visibile a tutti). Write da auth user, limiti 10MB + image/*.
+    // Gating ownership lato UI (TrailPhotosRepository check + admin).
+    match /trail_photos/{trailId}/{filename=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
     // ─── CHAT GRUPPI: immagini allegate ai messaggi ────────────────────
     // Path: /group_images/{groupId}/{filename}.jpg
     // Pattern storico separato da /groups/ (path coniato prima del
