@@ -43,7 +43,11 @@ class DiscoveryPromptService {
   Future<UserActivitySnapshot> snapshot() async {
     final prefs = await SharedPreferences.getInstance();
     final results = await Future.wait([
-      _tracksRepo.getMyTracks(),
+      // Lightweight: questo flow non guarda i GPS points, solo
+      // count/stats. getMyTracks() scaricherebbe i points di ogni
+      // traccia (decine di MB su utenti con storico) e su Android
+      // satura l'heap → OOM in protobuf parsing.
+      _tracksRepo.getMyTracksLightweight(),
       _toursRepo.getMyTours(),
       _contactsRepo.getContacts(),
       _peaksRepo.getAll(limit: 1), // ci basta sapere se ce ne sono

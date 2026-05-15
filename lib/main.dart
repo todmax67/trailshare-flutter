@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'app.dart';
 import 'core/services/theme_service.dart';
@@ -56,17 +57,32 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // 2.4.5 — Firestore cache cap a 40MB (default 100MB) per evitare
-  // crash SQLitePersistence su Android con heap 256MB. Crash tipico:
-  //   E/AndroidRuntime SQLitePersistence.runTransaction
-  //   preceduto da 'Alloc concurrent mark compact GC freed 149MB'
-  // = OOM corrompe il db SQLite locale. Con cap 40MB Firestore prune
-  // proattivamente e non superiamo mai una soglia critica anche su
-  // utenti con storico massiccio.
+  // 2.4.6 — Firestore cache cap a 20MB (era 40 in 2.4.5, default 100).
+  //
+  // Root cause OOM Android: i doc tracks hanno i GPS `points` embedded
+  // (anche 5+ MB cad.). Quando Firestore decodifica i protobuf
+  // (SQLiteRemoteDocumentCache.decodeMaybeDocument →
+  //  MessageSchema.parseMapField), il peak memory per il PARSING è
+  // molto > della size on-disk. Con cache da 40MB su disco abbiamo
+  // visto comunque OOM 'Failed to allocate 32 byte allocation' dopo
+  // un po' di uso = parsing+heap pressure cumulato.
+  //
+  // 20MB è aggressivo (LRU eviction frequente, qualche query in
+  // più al server) ma blocca l'esplosione di memory.
+  //
+  // Fix sistemico vero: split tracks in sub-collection track_points
+  // (in backlog 1-2 settimane). Quando arriverà, alzeremo di nuovo
+  // il cap.
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
-    cacheSizeBytes: 40 * 1024 * 1024,
+    cacheSizeBytes: 20 * 1024 * 1024,
   );
+
+  // Recovery automatico post-OOM: se all'avvio precedente abbiamo
+  // visto un crash, la cache SQLite può essere corrotta. Chiamiamo
+  // clearPersistence al boot successivo per ripartire pulito (la
+  // perdita è solo l'offline cache, niente dati utente).
+  await _maybeRecoverFromCrash();
 
   // Inizializza tema
   await ThemeService().initialize();
@@ -120,4 +136,51 @@ void main() async {
   });
 
   runApp(const TrailShareApp());
+
+  // Marca boot-success dopo che l'app è running. Se l'app crasha
+  // prima di arrivare qui, il flag '_boot_in_progress' resta true e
+  // il prossimo avvio scatena clearPersistence (vedi
+  // _maybeRecoverFromCrash). Delay 8s per essere sicuri che siamo
+  // davvero stabili (la home + i primi snapshot listener sono
+  // partiti).
+  Future.delayed(const Duration(seconds: 8), () async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('_boot_in_progress', false);
+    } catch (_) {
+      // silent
+    }
+  });
+}
+
+/// Se il boot precedente non è arrivato a completarsi (probabile
+/// crash, es. OOM su parse Firestore), il flag '_boot_in_progress'
+/// è rimasto true → pulisco la cache locale Firestore prima di
+/// iniziare il nuovo boot. È una recovery pragmatica per i casi in
+/// cui la SQLite cache è satura/corrotta da un crash precedente.
+///
+/// La perdita è solo della cache offline: tutti i dati utente sono
+/// su Firestore server, vengono rifecchati al primo accesso.
+Future<void> _maybeRecoverFromCrash() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final wasBooting = prefs.getBool('_boot_in_progress') ?? false;
+    if (wasBooting) {
+      debugPrint(
+          '[Boot] Recovery: il boot precedente non è arrivato a fine, '
+          'pulizia cache Firestore in corso...');
+      try {
+        await FirebaseFirestore.instance.terminate();
+        await FirebaseFirestore.instance.clearPersistence();
+        debugPrint('[Boot] Cache Firestore ripulita');
+      } catch (e) {
+        debugPrint('[Boot] clearPersistence fallito: $e');
+      }
+    }
+    // Sempre: marca questo boot come "in progresso". Verrà flippato
+    // a false 8 secondi dopo runApp se tutto va liscio.
+    await prefs.setBool('_boot_in_progress', true);
+  } catch (e) {
+    debugPrint('[Boot] _maybeRecoverFromCrash error: $e');
+  }
 }
