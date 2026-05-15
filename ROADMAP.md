@@ -1,6 +1,6 @@
 # TrailShare — Roadmap di sviluppo
 
-Ultimo aggiornamento: 2026-05-12  ·  Versione corrente: `v2.4.1+68` (Round 3 TestFlight + Play closed) · Highlights v2.4.1: split public_trails/geometry, import sentieri 4500+ trails, i18n core EN, **Viewshed Peak Filter (6.9) live**
+Ultimo aggiornamento: 2026-05-14  ·  Versione corrente: `v2.4.5+72` (build artifact pronto per upload Apple+Play; serie hotfix da 2.4.3 per profilo OOM, mappa Positioned, OSM UA, foto post-import EXIF, Spazi Pro discovery, modalità illustrativa percorsi gruppo, vetrina QR web, gating admin "Crea Spazio Pro", ProGate web-safe) · **Epic 12 Home Smart Sections** aggiunto post-confronto con Komoot 2026-05-14
 
 Documento vivo. Le voci sono ordinate per priorità all'interno di ogni categoria. Stima sforzo indicativa in giornate uomo.
 
@@ -559,6 +559,77 @@ Approccio: ML sui PESI degli edge OSM (NON neural routing).
 | 11.D4 | Re-rank routing: ORS top-3 → riordina con pesi appresi | 🟨 | M | Free | ☐ |
 | 11.D5 | Shadow mode: misura discrepanza vs ORS prima di public rollout | 🟨 | M | Free | ☐ |
 | 11.D6 | Public rollout per regione quando ML batte ORS in test A/B | 🟨 | continua | Free | ☐ |
+
+---
+
+## Epic 12 — Home & Discovery Smart Sections (target v2.6.0 → v2.8.0) 🔵 esplorativo
+
+**Razionale** (2026-05-14, dopo confronto con Komoot): Komoot ha un feed home misto efficace, ma diventa rumoroso e l'utente si perde. La home TrailShare oggi è frammentata (community / scopri / tour separati) e mostra poco al new user (cold start problem).
+
+Obiettivo: **una home a 5-6 sezioni intent-based** che si auto-adattano al contesto utente, mantenendo focus outdoor e mettendo in vetrina i nostri differenziatori (AI Trail Conditions, Spazi Pro, POI italiani 20.4k).
+
+**Principi guida**:
+- **Niente feed unico algoritmico** — distrae, perde identità outdoor, richiede ranking ML che non abbiamo dati per addestrare
+- **Sezioni con intent chiaro** — l'utente capisce subito cosa sta guardando
+- **Geo-rilevanza first** — ogni elemento deve avere senso nella zona dell'utente
+- **Mix dei creator** — 40% affermati, 30% rising, 20% chi seguo, 10% staff-picks (no monopolio top 1%)
+- **Differenziatori in vetrina** — AI Summary, Spazi Pro, POI curati come citizen di prima classe
+
+### 12.A — MVP sezioni curate (target v2.6.0, dopo Sprint F)
+
+Niente algoritmi: composizioni deterministiche basate su geohash + signal semplici (recency, popolarità, follow).
+
+| # | Feature | Priorità | Effort | Tier | Status |
+|---|---|---|---|---|---|
+| 12.A1 | **Per te oggi** (top section contestuale): se hai registrato ieri → "Continua nelle tue zone", se inattivo 7gg → "Riprendi facile", se weekend → "Suggerimenti weekend" | 🟧 | M | Free | ☐ |
+| 12.A2 | **Trend nella tua zona** (riusa heatmap weekly aggregator 3.4 ma rendendolo card-grid in home invece di toggle Discover) | 🟧 | S | Free | ☐ |
+| 12.A3 | **Tour della settimana** (1 tour staff-pick visibile sopra il feed, gestito da admin) | 🟧 | S | Free | ☐ |
+| 12.A4 | **Persone da scoprire** (top 5 creator attivi geo-filtered + activity-filtered) | 🟨 | M | Free | ☐ |
+| 12.A5 | **Spazi Pro vicino a te** (card grid dai marker mappa community: 3 spazi più vicini, sinergia 7.D) | 🟧 | S | Free | ☐ |
+| 12.A6 | **Dai tuoi contatti** (feed Following già esistente, riorganizzato come card-grid coerente) | 🟨 | S | Free | ☐ |
+| 12.A7 | Refactor HomePage mobile: tab Home diventa "Smart Home", tab Discover resta per ricerca esplicita | 🟧 | M | Free | ☐ |
+
+### 12.B — Telemetria & A/B test (target v2.7.0)
+
+Non aggiungere altre sezioni finché non sappiamo quali funzionano davvero.
+
+| # | Feature | Priorità | Effort | Tier | Status |
+|---|---|---|---|---|---|
+| 12.B1 | Firebase Analytics events per ogni sezione: `home_section_impression`, `home_section_tap`, `home_section_dwell` | 🟧 | S | — | ☐ |
+| 12.B2 | Funnel dashboard custom: impression → tap → conversion (es. follow utente, visita spazio, salva tour) | 🟨 | M | — | ☐ |
+| 12.B3 | A/B test rotazione sezioni (ordering) via Firebase Remote Config | 🟨 | S | — | ☐ |
+| 12.B4 | Heatmap di scroll sulla home (proxy engagement) | 🟩 | M | — | ☐ |
+
+### 12.C — Algoritmico (target v2.8.0+, dipende da ≥1000 utenti attivi)
+
+Solo quando avremo dati di engagement reale per fare ranking informed.
+
+| # | Feature | Priorità | Effort | Tier | Status |
+|---|---|---|---|---|---|
+| 12.C1 | Ranking personalizzato dentro ogni sezione (es. "Trend nella tua zona" ordina per recency × geo-vicinanza × popolarità weighted dal profilo attività utente) | 🟨 | L | Free | ☐ |
+| 12.C2 | Mix algoritmico creator (40/30/20/10) con anti-monopolio top 1% | 🟨 | L | Free | ☐ |
+| 12.C3 | Suggerimenti "Trail simili a quelli che hai amato" basato su similarity activityType + dislivello + distance | 🟩 | L | Free | ☐ |
+
+### 12.D — Differenziatori in vetrina (cross-Epic, target v2.6.0 → v2.7.0)
+
+Spinge sui nostri 3 USP unici vs Komoot.
+
+| # | Feature | Priorità | Effort | Tier | Status |
+|---|---|---|---|---|---|
+| 12.D1 | Card "AI Trail Conditions" sulla home: se hai 1+ tracce salvate, mostra summary AI delle condizioni recenti di un trail vicino (sinergia 6.6 + Epic 6.A4) | 🟧 | M | Pro | ☐ |
+| 12.D2 | Sezione "Italian Hidden Gems" — POI italiani curati (riusa 20.4k POI bundled) con foto staff/community | 🟨 | M | Free | ☐ |
+| 12.D3 | Card promo Spazi Pro contestuale: se passi vicino ripetutamente a uno spazio non ancora seguito, suggerisci di seguirlo | 🟨 | S | Free+Business | ☐ |
+
+**Bloccanti / dipendenze**:
+- 12.A1-A5: dipende da Sprint A-B-C (consolidamento Spazi Pro + Tour) — non prima di v2.6.0
+- 12.B: utile solo dopo 12.A live + traffico minimo
+- 12.C: pessimo investimento sotto 1.000 utenti attivi giornalieri (rischio overfitting)
+- 12.D1: dipende da 6.6 (Trail Conditions AI già live)
+
+**Non-goal (non lo facciamo)**:
+- ❌ Feed unico stile Instagram/Komoot con scroll infinito misto — perde identità outdoor
+- ❌ "Stories" effimere — non hanno senso fuori dal social
+- ❌ Ranking ML pesante early stage — overengineering senza dati
 
 ---
 
