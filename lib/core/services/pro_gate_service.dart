@@ -61,6 +61,12 @@ class ProGateService extends ChangeNotifier {
   /// In debug, su Android, rispettiamo `_unlocked` così i developer
   /// possono comunque testare il funzionamento delle feature Pro.
   bool get isPro {
+    // Su web NON usiamo dart:io Platform (crasha 'Unsupported
+    // operation: Platform.operatingSystem'). Restituiamo direttamente
+    // _unlocked che è il cache locale (sincronizzato con Firestore
+    // via syncFromFirestore). Su Stripe Web vero quel sync lo
+    // popolerà correttamente; per ora segue il flag locale.
+    if (kIsWeb) return _unlocked;
     if (Platform.isAndroid &&
         !MonetizationConfig.androidMonetizationEnabled) {
       return kDebugMode ? _unlocked : false;
@@ -72,6 +78,10 @@ class ProGateService extends ChangeNotifier {
   /// piattaforma (cioè può esistere un acquisto reale). Usato dalla UI
   /// per decidere se mostrare il paywall o un messaggio "Pro gratis".
   bool get isMonetizationActive {
+    // Web: la monetizzazione consumer non è ancora attiva (arriva con
+    // Stripe Web). Per ora false → la UI evita di proporre paywall
+    // sul browser e propone solo il flow Contattaci.
+    if (kIsWeb) return false;
     if (Platform.isAndroid) {
       return MonetizationConfig.androidMonetizationEnabled;
     }
