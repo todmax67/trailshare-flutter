@@ -1,6 +1,6 @@
 # TrailShare — Roadmap di sviluppo
 
-Ultimo aggiornamento: 2026-05-14  ·  Versione corrente: `v2.4.5+72` (build artifact pronto per upload Apple+Play; serie hotfix da 2.4.3 per profilo OOM, mappa Positioned, OSM UA, foto post-import EXIF, Spazi Pro discovery, modalità illustrativa percorsi gruppo, vetrina QR web, gating admin "Crea Spazio Pro", ProGate web-safe) · **Epic 12 Home Smart Sections** aggiunto post-confronto con Komoot 2026-05-14
+Ultimo aggiornamento: 2026-05-16  ·  Versione corrente: `v2.4.5+72` (build artifact pronto per upload Apple+Play; serie hotfix da 2.4.3 per profilo OOM, mappa Positioned, OSM UA, foto post-import EXIF, Spazi Pro discovery, modalità illustrativa percorsi gruppo, vetrina QR web, gating admin "Crea Spazio Pro", ProGate web-safe) · **Epic 12 Home Smart Sections** aggiunto post-confronto con Komoot 2026-05-14
 
 Documento vivo. Le voci sono ordinate per priorità all'interno di ogni categoria. Stima sforzo indicativa in giornate uomo.
 
@@ -559,6 +559,79 @@ Approccio: ML sui PESI degli edge OSM (NON neural routing).
 | 11.D4 | Re-rank routing: ORS top-3 → riordina con pesi appresi | 🟨 | M | Free | ☐ |
 | 11.D5 | Shadow mode: misura discrepanza vs ORS prima di public rollout | 🟨 | M | Free | ☐ |
 | 11.D6 | Public rollout per regione quando ML batte ORS in test A/B | 🟨 | continua | Free | ☐ |
+
+---
+
+## Epic 13 — Trail Connectivity Graph (target v2.7.0 → v2.8.0) 🔵 esplorativo
+
+**Razionale** (ispirato 2026-05-16 dal sito CAI BG): un rifugio
+non è una scheda statica ma un **nodo della rete sentieristica**.
+Dalla Rifugio Curò partono il CAI 305, 309, 311a, ecc. Stesso
+schema per ogni bivacco, passo, parcheggio, cima.
+
+Aggregare questa connettività **automaticamente** dai doc esistenti
+trasforma:
+- gli **escursionisti** in decisori real-time ("arrivato, dove
+  proseguo?")
+- gli **Spazi Pro** in nodi di selling point ("da noi parti per 5
+  sentieri")
+- la **piattaforma** in un grafo di valore esponenziale: ogni
+  trail aggiunto arricchisce N nodi automaticamente, niente staff
+  curation
+
+**Materiale già disponibile** (niente schema migration richiesta):
+- `public_trails.startPoint` (GeoPoint)
+- `public_trails.simplifiedPoints` (max 30 pt, da refactor f063df3)
+- `public_trails.geoHash` (precision 7 ≈ 153m)
+- `public_trails.ref` (numero CAI letto da OSM import)
+- Coordinate POI / Business / OSM features
+
+### 13.A — Query engine (target v2.7.0)
+
+| # | Feature | Priorità | Effort | Tier | Status |
+|---|---|---|---|---|---|
+| 13.A1 | `PublicTrailsRepository.getTrailsConnectedTo(lat, lng, radiusMeters=500)` — bbox geohash + filter haversine su startPoint OR endPoint OR simplifiedPoints intermedi | 🟧 | M | Free | ☐ |
+| 13.A2 | Dedupe + ordinamento per direzione dal nodo (azimuth: N/NE/E/...) + distanza progressiva | 🟨 | S | Free | ☐ |
+| 13.A3 | Cache LRU client-side: 1 query per nodo per sessione (i nodi sono stabili, no invalidation) | 🟨 | S | Free | ☐ |
+| 13.A4 | Indicatore "tipo connessione" sul risultato: STARTS_HERE / ENDS_HERE / PASSES_THROUGH (utile per UI "sentieri che PARTONO da qui" vs "che ATTRAVERSANO") | 🟨 | S | Free | ☐ |
+
+### 13.B — UX su Spazi Pro / Business detail (target v2.7.0)
+
+| # | Feature | Priorità | Effort | Tier | Status |
+|---|---|---|---|---|---|
+| 13.B1 | Sezione "Sentieri da qui" sul detail page di un Business (mobile + web) con card orizzontali scrollabili: ref CAI + nome + distanza + dislivello + difficoltà | 🟧 | M | Free | ☐ |
+| 13.B2 | Filtro per difficoltà / lunghezza nella sezione (chip group) | 🟨 | S | Free | ☐ |
+| 13.B3 | Auto-hide se nessun sentiero in 500m (consistency con NearbyBusinessesSection) | 🟧 | XS | Free | ☐ |
+
+### 13.C — UX su POI mappa (target v2.7.0)
+
+| # | Feature | Priorità | Effort | Tier | Status |
+|---|---|---|---|---|---|
+| 13.C1 | Bottom sheet su tap di un POI (alpine_hut, peak, ...) con elenco sentieri collegati + bottone "Naviga al POI" | 🟧 | M | Free | ☐ |
+| 13.C2 | Visual su mappa: highlight di tutti i sentieri connessi quando il POI è selezionato (polyline arancioni leggere) | 🟨 | M | Free | ☐ |
+
+### 13.D — Multi-tappa & itinerari ad anello (target v2.8.0)
+
+Sinergia con Epic 11.C (Multi-day Tour Planner). Quando l'utente
+fa pianificare un'escursione punto A → B, la sezione "Sentieri
+collegati a B" può suggerire automaticamente il ritorno via un
+sentiero ad anello.
+
+| # | Feature | Priorità | Effort | Tier | Status |
+|---|---|---|---|---|---|
+| 13.D1 | Detect anello automatico: se da B parte un sentiero che torna a meno di N km da A, suggerisci come "ritorno ad anello" | 🟨 | L | Pro | ☐ |
+| 13.D2 | "Trail suggestions" auto-curate per multi-giorno: A→rifugio1→rifugio2→A | 🟩 | XL | Pro | ☐ |
+
+**Dipendenze**:
+- 13.A: nessuna, data già presente
+- 13.B-C: dipendono da 13.A
+- 13.D: dipende da Epic 11.C (Multi-day Tour Planner)
+
+**Non-goal**:
+- ❌ Linking manuale staff-curated → defeats lo scopo (deve essere
+  automatico dal grafo OSM)
+- ❌ Aggregator continuativo: i nodi sono stabili, niente Cloud
+  Function periodica. Cache client + on-demand basta.
 
 ---
 
