@@ -20,11 +20,22 @@ service cloud.firestore {
              get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.admin == true;
     }
 
+    // ⚠️ ATTENZIONE: questa lista deve restare sincronizzata con
+    // ADMIN_EMAILS in functions/index.js. Single source of truth
+    // assente per limite Firestore rules (no access a Firestore docs
+    // a runtime senza costosi get() cross-collection).
+    //
+    // Quando aggiungi/rimuovi un admin, aggiorna ENTRAMBI i posti
+    // contemporaneamente:
+    //   1. firestore.rules → function isAdminByEmail (sotto)
+    //   2. functions/index.js → const ADMIN_EMAILS
     function isAdminByEmail() {
       return isSignedIn() &&
              request.auth.token.email in [
                'admin@trailshare.app',
-               'todde.massimiliano@gmail.com'
+               'info@trailshare.app',
+               'todde.massimiliano@gmail.com',
+               'info@bluspose.it'
              ];
     }
 
