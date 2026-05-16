@@ -314,6 +314,63 @@ Pricing confermato 2026-05-02:
 | 7.F5 | Cosmo Bike Show Verona (settembre, demo 30 stand in 3 giorni) | 🟨 | L | ☐ se budget |
 | 7.F6 | Reddit/Forum outdoor IT (case study come post organico) | 🟩 | XS | ☐ |
 
+### 7.H — Pre-seeding & Claim flow 🟥 (decisione GTM 2026-05-16)
+
+**Razionale**: invece di aspettare che i rifugisti contattino noi,
+pre-popoliamo Spazi Pro `unclaimed` dai dati pubblici (OSM, CAI,
+registro imprese) per ~3.100 rifugi italiani + noleggi/guide/shop
+outdoor. Le pagine pubbliche `/b/{slug}` sono LIVE dal day-one,
+indicizzabili SEO. Gli outreach diventano "qui sei già tu, vuoi
+prendere il controllo?" invece di vendita a freddo.
+
+Pattern: Google My Business, Tripadvisor, AllTrails (sentieri OSM).
+Timeline realistica: semina 2026, raccolta 2027.
+
+**Tier nuovo `unclaimed`** affianca i 3 esistenti:
+- `unclaimed`: scheda pubblica, info SOLO da fonti verificabili, NO
+  foto/orari/prezzi/descrizioni custom. Banner permanente "Sei tu il
+  gestore? Claim".
+- `verified` / `pro` / `enterprise`: come oggi, claimed.
+
+**GDPR**: pre-seed solo su dati pubblici aziendali (interesse
+legittimo art. 6.1.f). Disclaimer obbligatorio + opt-out 1-click.
+
+| # | Feature | Priorità | Effort | Status |
+|---|---|---|---|---|
+| 7.H1 | Schema: aggiungi tier `unclaimed` + campi `sourceUrl`, `claimedAt`, `claimedByUid`, `disclaimerVisible: true`. Migration OK con sourceMap (no breaking) | 🟥 | S | ☐ |
+| 7.H2 | Cloud Function `importOsmBusinesses(region)` one-shot per regione: pesca da OSM via Overpass (tag `tourism=alpine_hut`, `amenity=mountain_rescue`, `shop=outdoor`, `rental=bicycle`), crea doc `businesses` con tier=`unclaimed` e `sourceUrl=https://www.openstreetmap.org/{type}/{id}` | 🟥 | M | ☐ |
+| 7.H3 | Cloud Function scheduled `refreshOsmBusinesses` (mensile): re-fetch dei doc unclaimed da OSM per aggiornare nome/coordinate/orari pubblici. Idempotente. | 🟧 | M | ☐ |
+| 7.H4 | Landing pubblica `/b/{slug}` mostra banner BIG "Scheda generata da fonti pubbliche. Sei il gestore? Claima qui →" + bottone secondario "Segnala errore / Rimuovi" | 🟥 | S | ☐ |
+| 7.H5 | Claim flow self-service: form richiesta con nome, ruolo, P.IVA/Codice Fiscale, email PEC, link sito ufficiale. Verifica owner via codice email/SMS al numero pubblico OSM | 🟥 | L | ☐ |
+| 7.H6 | Admin tool web review claims: lista richieste pending con dati richiedente vs dati OSM, bottoni Approve / Reject con motivazione | 🟥 | M | ☐ |
+| 7.H7 | Dashboard "Analytics pre-claim": dopo claim, owner vede subito grafici visite ultimi 30/90gg → discovery driver per pagamento Pro | 🟧 | M | ☐ |
+| 7.H8 | Differenziatori visivi `unclaimed` vs `claimed`: badge "✓ Gestito dal rifugio", lock sezioni Foto/Listino/Aggiornamenti su unclaimed, copy "Info aggiornate dal gestore" su claimed | 🟧 | S | ☐ |
+| 7.H9 | Opt-out flow GDPR: email `info@trailshare.app?subject=Rimuovi%20{slug}` precompilato + admin tool per processare in 48h | 🟥 | S | ☐ |
+| 7.H10 | Outreach kit: PDF generato auto con stats della scheda (visite, sentieri collegati, posizione vs concorrenti zona) — strumento di vendita per visite fisiche | 🟧 | M | ☐ |
+| 7.H11 | Quality flag community: bottone "Info errata" su scheda unclaimed → flag su Firestore + admin review | 🟨 | S | ☐ |
+| 7.H12 | Tracking conversion: telemetria su `unclaimed_view`, `claim_started`, `claim_completed`, `claim_to_paid` per ottimizzare il funnel | 🟧 | S | ☐ |
+
+**Dipendenze**:
+- 7.H1: nessuna, schema additive
+- 7.H2: 7.H1 + accesso Overpass API (free)
+- 7.H5-6: 7.H1 + SendGrid/Postmark per email verifica
+- 7.H7: 7.H6 + Analytics events già tracciati
+
+**Non-goal**:
+- ❌ Scraping siti rifugi privati (Booking, social) → solo OSM + CAI + registro imprese
+- ❌ Foto pre-popolate non open license → vuoto fino a claim
+- ❌ Email/telefono cellulari personali → solo contatti aziendali pubblici
+- ❌ Aggressive auto-publish: ogni doc `unclaimed` ha sempre il banner disclaimer
+
+**Target rollout**:
+- Fase 1: schema + import OSM Lombardia (~300 doc) — settimana 1
+- Fase 2: landing public + banner claim + admin tool — settimana 2
+- Fase 3: claim flow self-service - settimana 3
+- Fase 4: scale a tutte le regioni (~3.100 rifugi) + outreach con kit — mesi 1-3
+- Fase 5: refinement basato su metric conversion — continuo
+
+---
+
 ### 7.G — Migrazione gruppi business legacy (deprecato dopo v2.5.0)
 
 Percorso di transizione dai gruppi business L1 della v2.2.0 al nuovo modello Spazi Pro.
