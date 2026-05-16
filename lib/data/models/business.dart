@@ -280,8 +280,23 @@ class Business {
   });
 
   bool get isOwnedBy => false; // placeholder, l'owner check è nel repo
-  bool isOwnerOrAdmin(String? uid) =>
-      uid != null && (uid == ownerId || adminUserIds.contains(uid));
+
+  /// Vero se [uid] può gestire questo Business.
+  ///
+  /// Tre vie:
+  /// 1. **owner** del business (`ownerId == uid`)
+  /// 2. **co-admin** del business (rientra in `adminUserIds`)
+  /// 3. **platform admin TrailShare** ([isPlatformAdmin] = true).
+  ///    Il team interno gestisce schede di rifugi/noleggi non
+  ///    tech-savvy che hanno delegato (vedi Epic 7.H pre-seeding
+  ///    & support).
+  bool isOwnerOrAdmin(String? uid, {bool isPlatformAdmin = false}) {
+    if (uid == null) return false;
+    if (uid == ownerId) return true;
+    if (adminUserIds.contains(uid)) return true;
+    if (isPlatformAdmin) return true;
+    return false;
+  }
 
   Map<String, dynamic> toMap() {
     final hoursMap = <String, dynamic>{};

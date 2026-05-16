@@ -3618,3 +3618,115 @@ exports.migratePublicTrailsSplit = onCall(
     };
   }
 );
+
+// ============================================================
+// ADMIN CUSTOM CLAIMS (single source of truth platform admin)
+// ============================================================
+//
+// Sostituisce il pattern hardcoded `ADMIN_EMAILS` + lista
+// duplicata `isAdminByEmail` in firestore.rules.
+//
+// Pattern:
+// 1. setAdminClaim(targetUid, isAdmin) — callable solo da admin
+//    già esistenti. Setta il claim `admin: true|false` sull'utente
+//    Auth target.
+// 2. Le firestore.rules controllano `request.auth.token.admin == true`
+//    via funzione `isAdminByClaim()`. Niente più liste duplicate.
+// 3. Il client deve fare `await user.getIdToken(true)` dopo che gli
+//    viene assegnato il claim (force refresh), altrimenti aspetta
+//    fino a 1 ora.
+//
+// Bootstrap: la prima volta usa `bootstrapAdminClaims` che setta
+// il claim sui 4 admin storici basandosi sulla loro email. Solo il
+// super-admin (uid hardcoded) puo' chiamare questa funzione, e
+// solo una volta — poi setAdminClaim per i futuri admin.
+
+const SUPER_ADMIN_UID = 'g4uPvD3VQcMiYb4dDTWs7kJgm4u1';
+
+/// Verifica se il caller corrente e' admin platform.
+/// Compatibile con la transizione: accetta sia custom claim
+/// (preferito) sia email in ADMIN_EMAILS (legacy fallback).
+async function _isCallerAdmin(auth) {
+  if (!auth) return false;
+  if (auth.token.admin === true) return true;
+  if (auth.token.email && ADMIN_EMAILS.includes(auth.token.email)) return true;
+  return false;
+}
+
+exports.setAdminClaim = onCall(async (request) => {
+  const callerAuth = request.auth;
+  if (!(await _isCallerAdmin(callerAuth))) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Solo admin esistenti possono assegnare il ruolo admin.'
+    );
+  }
+
+  const targetUid = request.data.uid;
+  const isAdmin = request.data.isAdmin === true;
+  if (!targetUid || typeof targetUid !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'uid mancante');
+  }
+
+  // Setta il claim. Preserva eventuali altri custom claims.
+  const userRecord = await admin.auth().getUser(targetUid);
+  const existingClaims = userRecord.customClaims || {};
+  const newClaims = { ...existingClaims, admin: isAdmin };
+  await admin.auth().setCustomUserClaims(targetUid, newClaims);
+
+  // Mirror su user_profiles.admin per compatibilita' con il check
+  // legacy lato app (AdminRepository.isCurrentUserAdmin che legge
+  // user_profiles/{uid}.admin). Cosi' anche senza force-refresh
+  // del token il flag e' visibile subito.
+  await admin.firestore().collection('user_profiles').doc(targetUid).set(
+    { admin: isAdmin },
+    { merge: true },
+  );
+
+  logger.info(
+    `[setAdminClaim] callerUid=${callerAuth.uid} targetUid=${targetUid} isAdmin=${isAdmin}`
+  );
+
+  return {
+    success: true,
+    uid: targetUid,
+    isAdmin,
+    note: 'Il client target deve chiamare user.getIdToken(true) per refresh immediato del claim. Altrimenti il claim si propaga entro 1 ora.',
+  };
+});
+
+/// Bootstrap one-shot: setta `admin: true` come custom claim ai 4
+/// admin storici (definiti in ADMIN_EMAILS). Idempotente — eseguibile
+/// piu' volte senza danni.
+///
+/// Chiamabile SOLO dal super-admin (uid hardcoded). Usato una volta
+/// al deploy iniziale del sistema claims, poi non piu' necessario.
+exports.bootstrapAdminClaims = onCall(async (request) => {
+  if (!request.auth || request.auth.uid !== SUPER_ADMIN_UID) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Solo il super-admin puo eseguire bootstrap.'
+    );
+  }
+
+  const results = [];
+  for (const email of ADMIN_EMAILS) {
+    try {
+      const userRecord = await admin.auth().getUserByEmail(email);
+      const existingClaims = userRecord.customClaims || {};
+      const newClaims = { ...existingClaims, admin: true };
+      await admin.auth().setCustomUserClaims(userRecord.uid, newClaims);
+      await admin.firestore().collection('user_profiles').doc(userRecord.uid).set(
+        { admin: true },
+        { merge: true },
+      );
+      results.push({ email, uid: userRecord.uid, ok: true });
+      logger.info(`[bootstrapAdminClaims] ok: ${email} -> ${userRecord.uid}`);
+    } catch (e) {
+      results.push({ email, ok: false, error: e.message });
+      logger.warn(`[bootstrapAdminClaims] skip ${email}: ${e.message}`);
+    }
+  }
+
+  return { results, totalProcessed: results.length };
+});

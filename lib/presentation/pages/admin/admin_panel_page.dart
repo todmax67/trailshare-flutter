@@ -1,3 +1,5 @@
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/admin_repository.dart';
@@ -108,6 +110,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _buildAdminClaimsSection(),
+            const SizedBox(height: 24),
             _buildStatsSection(),
             const SizedBox(height: 24),
             _buildUsersSection(),
@@ -115,6 +119,201 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             _buildBusinessGroupsSection(),
           ],
         ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADMIN CUSTOM CLAIMS (single source of truth platform admin)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Super-admin UID hardcoded (allineato a functions/index.js +
+  // firestore.rules → isSuperAdmin). Solo questo uid può fare
+  // bootstrap iniziale dei claim degli altri admin.
+  static const String _superAdminUid = 'g4uPvD3VQcMiYb4dDTWs7kJgm4u1';
+
+  bool _bootstrapBusy = false;
+  bool _promoteBusy = false;
+  final TextEditingController _promoteUidCtrl = TextEditingController();
+
+  Widget _buildAdminClaimsSection() {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final isSuperAdmin = currentUid == _superAdminUid;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.verified_user, color: AppColors.primary),
+                SizedBox(width: 8),
+                Text(
+                  'Gestione admin (Custom Claims)',
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sistema admin basato su custom claims JWT — '
+              'single source of truth, niente più liste hardcoded '
+              'duplicate tra rules e Cloud Functions.',
+              style: TextStyle(
+                  fontSize: 12, color: context.textSecondary, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+
+            // Bootstrap (visibile solo super-admin)
+            if (isSuperAdmin) ...[
+              const Text(
+                'Bootstrap iniziale',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Setta admin: true come custom claim agli admin storici '
+                '(definiti in ADMIN_EMAILS). Idempotente, eseguibile '
+                'più volte senza danni.',
+                style: TextStyle(
+                    fontSize: 11, color: context.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: _bootstrapBusy ? null : _runBootstrap,
+                icon: _bootstrapBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.rocket_launch, size: 18),
+                label: Text(_bootstrapBusy
+                    ? 'In corso…'
+                    : 'Esegui bootstrap admin'),
+              ),
+              const Divider(height: 32),
+            ],
+
+            // Promote per UID (visibile tutti gli admin)
+            const Text(
+              'Promuovi admin via UID',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Incolla l\'UID Firebase Auth di un utente (da Firebase '
+              'Console → Authentication) e premi Promuovi. L\'utente '
+              'target deve fare logout/login (oppure attendere 1h) per '
+              'avere i privilegi attivi.',
+              style:
+                  TextStyle(fontSize: 11, color: context.textSecondary),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _promoteUidCtrl,
+              decoration: const InputDecoration(
+                labelText: 'UID Firebase Auth',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: _promoteBusy
+                      ? null
+                      : () => _setClaim(true),
+                  icon: const Icon(Icons.add_moderator, size: 18),
+                  label: const Text('Promuovi admin'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: _promoteBusy
+                      ? null
+                      : () => _setClaim(false),
+                  icon: const Icon(Icons.remove_moderator, size: 18),
+                  label: const Text('Rimuovi'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _runBootstrap() async {
+    setState(() => _bootstrapBusy = true);
+    try {
+      final result = await FirebaseFunctions.instance
+          .httpsCallable('bootstrapAdminClaims')
+          .call();
+      final data = result.data as Map;
+      _showResultDialog('Bootstrap completato',
+          'Processati: ${data['totalProcessed']}\n\n${data['results']}');
+    } catch (e) {
+      _snack('Errore bootstrap: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _bootstrapBusy = false);
+    }
+  }
+
+  Future<void> _setClaim(bool isAdmin) async {
+    final uid = _promoteUidCtrl.text.trim();
+    if (uid.isEmpty) {
+      _snack('UID mancante', error: true);
+      return;
+    }
+    setState(() => _promoteBusy = true);
+    try {
+      await FirebaseFunctions.instance
+          .httpsCallable('setAdminClaim')
+          .call({'uid': uid, 'isAdmin': isAdmin});
+      _snack(
+        isAdmin
+            ? 'Promosso ad admin. L\'utente deve fare logout/login per '
+                'vedere i privilegi.'
+            : 'Privilegi admin rimossi.',
+        error: false,
+      );
+      _promoteUidCtrl.clear();
+    } catch (e) {
+      _snack('Errore setClaim: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _promoteBusy = false);
+    }
+  }
+
+  void _snack(String msg, {required bool error}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? AppColors.danger : AppColors.success,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  void _showResultDialog(String title, String body) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(
+          child: Text(body, style: const TextStyle(fontSize: 12)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }

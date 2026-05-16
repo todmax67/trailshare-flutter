@@ -20,15 +20,30 @@ service cloud.firestore {
              get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.admin == true;
     }
 
-    // ⚠️ ATTENZIONE: questa lista deve restare sincronizzata con
-    // ADMIN_EMAILS in functions/index.js. Single source of truth
-    // assente per limite Firestore rules (no access a Firestore docs
-    // a runtime senza costosi get() cross-collection).
+    // ✅ Single source of truth: il claim 'admin' nel JWT token
+    // dell'utente. Settato server-side dalla Cloud Function
+    // `setAdminClaim` (vedi functions/index.js).
     //
-    // Quando aggiungi/rimuovi un admin, aggiorna ENTRAMBI i posti
-    // contemporaneamente:
-    //   1. firestore.rules → function isAdminByEmail (sotto)
-    //   2. functions/index.js → const ADMIN_EMAILS
+    // Vantaggi vs il vecchio hardcoded list `isAdminByEmail`:
+    //   - Niente piu' liste duplicate tra rules e functions
+    //   - Aggiungere/rimuovere un admin = 1 chiamata function
+    //   - Le rules si propagano immediate al prossimo refresh token
+    //
+    // Il client deve chiamare `user.getIdToken(true)` per refresh
+    // immediato dopo che gli viene assegnato il claim; altrimenti
+    // il claim si propaga entro 1 ora.
+    function isAdminByClaim() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // 🔄 LEGACY: hardcoded list mantenuta come fallback durante
+    // la transizione al sistema custom claims. Rimuovere dopo che
+    // bootstrapAdminClaims e' stato eseguito e tutti gli admin
+    // storici hanno il claim attivo.
+    //
+    // ⚠️ Se aggiungi qualcosa qui, aggiungilo ANCHE in
+    // functions/index.js → const ADMIN_EMAILS (idem dietro). Ma
+    // preferibilmente non aggiungerne piu' qui: usa setAdminClaim.
     function isAdminByEmail() {
       return isSignedIn() &&
              request.auth.token.email in [
@@ -37,6 +52,12 @@ service cloud.firestore {
                'todde.massimiliano@gmail.com',
                'info@bluspose.it'
              ];
+    }
+
+    // ✨ Helper unificato: ammette claim O email (transizione safe).
+    // Tutte le rules da ora in poi dovrebbero usare questa.
+    function isPlatformAdmin() {
+      return isAdminByClaim() || isAdminByEmail();
     }
 
     function isSuperAdmin() {
@@ -174,16 +195,34 @@ service cloud.firestore {
         && request.resource.data.postsCount == 0
         && request.resource.data.reviewCount == 0;
 
-      // Update: owner o admin. I counter (followerCount, postsCount,
-      // reviewCount) NON sono modificabili dal client — gestiti via
-      // transaction su sotto-collection (con FieldValue.increment).
+      // Update: owner del business, co-admin del business, OPPURE
+      // platform admin TrailShare (team interno che gestisce schede
+      // per conto di rifugi/noleggi non tech-savvy — vedi Epic 7.H
+      // pre-seeding & support).
+      //
+      // I counter (followerCount, postsCount, reviewCount) NON sono
+      // modificabili dal client — gestiti via transaction su
+      // sotto-collection (con FieldValue.increment). Anche
+      // ownerId/createdAt/tier/status sono campi system-only:
+      // platform admin puo' aggiornarli via altra rule sotto.
       allow update: if isSignedIn()
         && (resource.data.ownerId == request.auth.uid
             || (resource.data.adminUserIds is list
-                && request.auth.uid in resource.data.adminUserIds))
+                && request.auth.uid in resource.data.adminUserIds)
+            || isPlatformAdmin())
         && !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['followerCount', 'postsCount', 'reviewCount', 'rating',
                      'ownerId', 'createdAt', 'tier', 'status']);
+
+      // Update riservato platform admin: campi system-only
+      // (ownerId, tier, status). Es. claim flow: admin trasferisce
+      // ownership a un nuovo gestore; o cambio tier dopo
+      // attivazione pagamento.
+      allow update: if isSignedIn() && isPlatformAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['ownerId', 'tier', 'status', 'adminUserIds',
+                      'updatedAt', 'claimedAt', 'claimedByUid',
+                      'disclaimerVisible']);
 
       // Update dei contatori: SOLO via transaction che modifica anche
       // la sub-collection (Firestore non lo verifica direttamente, ma
@@ -193,9 +232,12 @@ service cloud.firestore {
             .hasOnly(['followerCount', 'postsCount', 'reviewCount',
                       'rating', 'updatedAt']);
 
-      // Delete: solo owner o super admin
+      // Delete: owner, super admin, OPPURE platform admin
+      // (es. rimozione GDPR opt-out di scheda unclaimed).
       allow delete: if isSignedIn()
-        && (resource.data.ownerId == request.auth.uid || isSuperAdmin());
+        && (resource.data.ownerId == request.auth.uid
+            || isSuperAdmin()
+            || isPlatformAdmin());
 
       // ─── Followers (signed-in only, identità protetta) ─────────
       match /followers/{userId} {
@@ -213,9 +255,12 @@ service cloud.firestore {
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() < 5000;
         allow update: if isSignedIn()
-          && resource.data.authorId == request.auth.uid;
+          && (resource.data.authorId == request.auth.uid
+              || isPlatformAdmin());
         allow delete: if isSignedIn()
-          && (resource.data.authorId == request.auth.uid || isSuperAdmin());
+          && (resource.data.authorId == request.auth.uid
+              || isSuperAdmin()
+              || isPlatformAdmin());
       }
 
       // ─── Services (listino) — public read per SEO ───────────────

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/business_photos_service.dart';
+import '../../../data/repositories/admin_repository.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../widgets/star_rating.dart';
@@ -41,10 +42,15 @@ class BusinessProfilePage extends StatefulWidget {
 class _BusinessProfilePageState extends State<BusinessProfilePage> {
   final BusinessRepository _repo = BusinessRepository();
   bool _viewTracked = false;
+  // Platform admin TrailShare (team interno che gestisce per conto
+  // di rifugi/noleggi non tech-savvy). Caricato async; default
+  // fail-closed: niente bottoni admin finché non confermato.
+  bool _isPlatformAdmin = false;
 
   @override
   void initState() {
     super.initState();
+    _loadPlatformAdminFlag();
     // Tracking visita profilo (one-shot per apertura).
     // Skip se l'utente è owner o non autenticato.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -60,6 +66,11 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
         _repo.recordProfileView(widget.businessId);
       }).catchError((_) {});
     });
+  }
+
+  Future<void> _loadPlatformAdminFlag() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted) setState(() => _isPlatformAdmin = isAdmin);
   }
 
   @override
@@ -86,7 +97,10 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
 
   Widget _buildContent(Business b) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    final isOwner = b.isOwnerOrAdmin(uid);
+    // isOwner qui include anche il platform admin TrailShare:
+    // l'admin del team puo' editare schede di clienti non
+    // tech-savvy (Epic 7.H pre-seeding & support).
+    final isOwner = b.isOwnerOrAdmin(uid, isPlatformAdmin: _isPlatformAdmin);
 
     return Scaffold(
       body: CustomScrollView(

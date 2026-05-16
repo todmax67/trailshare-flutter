@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/business.dart';
+import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_recommended_tracks_picker_page.dart';
 import 'recommended_track_navigator.dart';
@@ -30,11 +31,27 @@ class BusinessRecommendedTracksManagerPage extends StatefulWidget {
 class _BusinessRecommendedTracksManagerPageState
     extends State<BusinessRecommendedTracksManagerPage> {
   final _repo = BusinessRepository();
+  bool _isPlatformAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlatformAdminFlag();
+  }
+
+  Future<void> _loadPlatformAdminFlag() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted) setState(() => _isPlatformAdmin = isAdmin);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isOwner = FirebaseAuth.instance.currentUser?.uid ==
-        widget.business.ownerId;
+    // isOwner include il platform admin TrailShare per il flow
+    // 'team gestisce per conto del cliente non tech-savvy'.
+    final isOwner = widget.business.isOwnerOrAdmin(
+      FirebaseAuth.instance.currentUser?.uid,
+      isPlatformAdmin: _isPlatformAdmin,
+    );
 
     return Scaffold(
       appBar: AppBar(
