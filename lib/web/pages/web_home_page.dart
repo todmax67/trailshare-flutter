@@ -4,7 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../data/repositories/admin_repository.dart';
 import '../../data/repositories/groups_repository.dart';
+import '../../presentation/pages/admin/admin_panel_page.dart';
+import '../../presentation/pages/discover/discover_page.dart';
 import '../business_web_app.dart';
 import 'web_business_picker_page.dart';
 import 'web_dashboard_page.dart';
@@ -37,11 +40,18 @@ class _WebHomePageState extends State<WebHomePage> {
   late int _selectedIndex = widget.initialTab;
   bool _hasBusinessGroups = false;
   bool _checkingBusiness = true;
+  bool _isPlatformAdmin = false;
 
   @override
   void initState() {
     super.initState();
     _checkBusinessAccess();
+    _loadAdminFlag();
+  }
+
+  Future<void> _loadAdminFlag() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted) setState(() => _isPlatformAdmin = isAdmin);
   }
 
   /// Aggiorna stato + URL del browser senza navigation push (no rebuild
@@ -107,6 +117,7 @@ class _WebHomePageState extends State<WebHomePage> {
             _Sidebar(
               selectedIndex: _selectedIndex,
               hasBusiness: _hasBusinessGroups,
+              isAdmin: _isPlatformAdmin,
               userEmail: user?.email,
               onSelect: _selectTab,
               onSignOut: _signOut,
@@ -123,7 +134,8 @@ class _WebHomePageState extends State<WebHomePage> {
 
   Widget _buildContent() {
     // 0 Dashboard | 1 Tracce | 2 Pianificatore | 3 Profilo
-    // 4 Spazi Pro (nuovo entry B2B) | 5 Gruppi Business (legacy)
+    // 4 Spazi Pro | 5 Gruppi Business (legacy)
+    // 6 Discover | 7 Admin Panel (solo admin)
     switch (_selectedIndex) {
       case 0:
         return const WebDashboardPage();
@@ -137,6 +149,12 @@ class _WebHomePageState extends State<WebHomePage> {
         return const WebBusinessPickerPage();
       case 5:
         return const WebGroupsPickerPage();
+      case 6:
+        return const DiscoverPage();
+      case 7:
+        return _isPlatformAdmin
+            ? const AdminPanelPage()
+            : const Center(child: Text('Accesso riservato'));
       default:
         return const SizedBox.shrink();
     }
@@ -146,6 +164,7 @@ class _WebHomePageState extends State<WebHomePage> {
 class _Sidebar extends StatelessWidget {
   final int selectedIndex;
   final bool hasBusiness;
+  final bool isAdmin;
   final String? userEmail;
   final ValueChanged<int> onSelect;
   final VoidCallback onSignOut;
@@ -154,6 +173,7 @@ class _Sidebar extends StatelessWidget {
   const _Sidebar({
     required this.selectedIndex,
     required this.hasBusiness,
+    required this.isAdmin,
     required this.userEmail,
     required this.onSelect,
     required this.onSignOut,
@@ -210,6 +230,12 @@ class _Sidebar extends StatelessWidget {
             index: 0,
           ),
           _navItem(
+            icon: Icons.explore_outlined,
+            iconActive: Icons.explore,
+            label: 'Esplora',
+            index: 6,
+          ),
+          _navItem(
             icon: Icons.route_outlined,
             iconActive: Icons.route,
             label: 'Le mie tracce',
@@ -240,6 +266,15 @@ class _Sidebar extends StatelessWidget {
               label: 'Gruppi Business',
               index: 5,
             ),
+          if (isAdmin) ...[
+            const Divider(height: 24, indent: 16, endIndent: 16),
+            _navItem(
+              icon: Icons.admin_panel_settings_outlined,
+              iconActive: Icons.admin_panel_settings,
+              label: 'Admin',
+              index: 7,
+            ),
+          ],
           const Spacer(),
           if (userEmail != null)
             Padding(

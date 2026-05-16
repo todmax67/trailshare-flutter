@@ -99,6 +99,15 @@ class SubscriptionManager extends ChangeNotifier {
     if (_initialized) return;
     debugPrint('[SubscriptionManager] init()');
 
+    // Su web non esiste in_app_purchase: marchiamo come iniziato senza
+    // store così la UI gira (paywall mostrerà "non disponibile su web").
+    if (kIsWeb) {
+      _available = false;
+      _initialized = true;
+      notifyListeners();
+      return;
+    }
+
     // Skip Android se monetizzazione non attiva (manca P.IVA / merchant
     // Google Play). Marchiamo come inizializzato così la UI non resta
     // in loading state aspettando uno store che non interrogheremo mai.

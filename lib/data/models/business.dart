@@ -254,6 +254,26 @@ class Business {
   final DateTime? updatedAt;
   final DateTime? claimedAt;
 
+  /// Epic 7.H1 — self-claim flow.
+  ///
+  /// `pendingSelfManagement` = true quando il team TrailShare ha
+  /// inserito la scheda **per conto** del gestore reale (rifugista,
+  /// noleggiatore...) che non è ancora autonomo. La scheda è già
+  /// `verified` e gestita dal team, ma il vero gestore può subentrare
+  /// in qualunque momento cliccando il link self-claim ricevuto via
+  /// WhatsApp/email.
+  ///
+  /// Il token NON è salvato qui (sarebbe esposto dalla read pubblica
+  /// del doc): vive in `business_self_claims/{token}`, collection con
+  /// rule `allow read: false` accessibile solo dalle Cloud Function
+  /// `generateSelfClaimToken` / `acceptSelfClaim`.
+  ///
+  /// Diverso da Epic 7.H4-7.H5 (claim *pubblico* via OSM pre-seed):
+  /// qui non c'è verifica P.IVA, perché hai già verificato la persona
+  /// di persona prima di inviare il link. Il token è il secret
+  /// condiviso uno-a-uno.
+  final bool pendingSelfManagement;
+
   const Business({
     this.id,
     required this.name,
@@ -277,6 +297,7 @@ class Business {
     required this.createdAt,
     this.updatedAt,
     this.claimedAt,
+    this.pendingSelfManagement = false,
   });
 
   bool get isOwnedBy => false; // placeholder, l'owner check è nel repo
@@ -325,6 +346,10 @@ class Business {
       'createdAt': Timestamp.fromDate(createdAt),
       if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
       if (claimedAt != null) 'claimedAt': Timestamp.fromDate(claimedAt!),
+      // 7.H1 — self-claim. Default false → non serializzato per i doc
+      // legacy senza il campo (resta assente). Il token vive in
+      // collection separata `business_self_claims/{token}`.
+      if (pendingSelfManagement) 'pendingSelfManagement': true,
     };
   }
 
@@ -384,6 +409,7 @@ class Business {
       createdAt: ts(m['createdAt']),
       updatedAt: m['updatedAt'] != null ? ts(m['updatedAt']) : null,
       claimedAt: m['claimedAt'] != null ? ts(m['claimedAt']) : null,
+      pendingSelfManagement: m['pendingSelfManagement'] == true,
     );
   }
 
@@ -408,6 +434,7 @@ class Business {
     int? reviewCount,
     DateTime? updatedAt,
     DateTime? claimedAt,
+    bool? pendingSelfManagement,
   }) {
     return Business(
       id: id,
@@ -432,6 +459,8 @@ class Business {
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       claimedAt: claimedAt ?? this.claimedAt,
+      pendingSelfManagement:
+          pendingSelfManagement ?? this.pendingSelfManagement,
     );
   }
 }

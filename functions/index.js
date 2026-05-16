@@ -3730,3 +3730,197 @@ exports.bootstrapAdminClaims = onCall(async (request) => {
 
   return { results, totalProcessed: results.length };
 });
+
+// ===================================================================
+// SELF-CLAIM FLOW (Epic 7.H1)
+// ===================================================================
+// Quando il team TrailShare inserisce uno Spazio Pro per conto di un
+// rifugista/noleggiatore che non e' ancora autonomo, la scheda nasce
+// con `pendingSelfManagement: true` e ownerId = uid del team. Il
+// gestore reale ricevera' via WhatsApp un link `claim-self/{id}?t={token}`
+// che gli permette di subentrare come owner.
+//
+// Sicurezza:
+// - `generateSelfClaimToken`: callable, solo admin platform. Genera
+//   token random 32 char (crypto.randomBytes hex). Invalida i token
+//   precedenti per lo stesso business. TTL 30 giorni.
+// - `acceptSelfClaim`: callable, qualunque utente loggato. Valida
+//   token + scadenza + match businessId. Trasferisce ownership
+//   atomicamente in una transaction Firestore. Token consumato.
+// - Token vivono in `business_self_claims/{token}` con rule
+//   `allow read,write: if false;` → niente accesso client.
+
+const crypto = require('crypto');
+
+const SELF_CLAIM_TTL_DAYS = 30;
+
+exports.generateSelfClaimToken = onCall(async (request) => {
+  if (!(await _isCallerAdmin(request.auth))) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Solo admin platform puo generare token self-claim.'
+    );
+  }
+  const businessId = request.data && request.data.businessId;
+  if (!businessId || typeof businessId !== 'string') {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'businessId mancante.'
+    );
+  }
+
+  // Verifica che il business esista
+  const businessRef = db.collection('businesses').doc(businessId);
+  const businessSnap = await businessRef.get();
+  if (!businessSnap.exists) {
+    throw new functions.https.HttpsError(
+      'not-found',
+      `Business ${businessId} non trovato.`
+    );
+  }
+
+  // Invalida i token precedenti per lo stesso business (puo' essere
+  // che l'admin rigeneri il link perche' il rifugista l'ha perso).
+  const oldTokens = await db.collection('business_self_claims')
+    .where('businessId', '==', businessId)
+    .get();
+  const batch = db.batch();
+  oldTokens.forEach((doc) => batch.delete(doc.ref));
+
+  // Nuovo token
+  const token = crypto.randomBytes(16).toString('hex'); // 32 char
+  const expiresAt = admin.firestore.Timestamp.fromMillis(
+    Date.now() + SELF_CLAIM_TTL_DAYS * 24 * 60 * 60 * 1000
+  );
+  const tokenRef = db.collection('business_self_claims').doc(token);
+  batch.set(tokenRef, {
+    businessId,
+    expiresAt,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdByUid: request.auth.uid,
+  });
+
+  // Setta pendingSelfManagement=true sul business doc (idempotente)
+  batch.update(businessRef, {
+    pendingSelfManagement: true,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await batch.commit();
+
+  // Costruisci URL completo (host hard-coded — se cambia il dominio,
+  // aggiorna anche qui).
+  const url = `https://app.trailshare.app/claim-self/${businessId}?t=${token}`;
+
+  logger.info(
+    `[generateSelfClaimToken] businessId=${businessId} by=${request.auth.uid}`
+  );
+
+  return {
+    success: true,
+    token,
+    url,
+    expiresAt: expiresAt.toDate().toISOString(),
+    expiresInDays: SELF_CLAIM_TTL_DAYS,
+  };
+});
+
+exports.acceptSelfClaim = onCall(async (request) => {
+  if (!request.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Devi essere loggato per rivendicare la scheda.'
+    );
+  }
+  const { businessId, token } = request.data || {};
+  if (!businessId || !token || typeof businessId !== 'string' || typeof token !== 'string') {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'businessId e token sono obbligatori.'
+    );
+  }
+
+  const newOwnerUid = request.auth.uid;
+
+  // Transaction: leggi token + business, valida tutto, applica
+  // ownership transfer atomicamente. Se fallisce qualunque check,
+  // niente viene modificato.
+  const result = await db.runTransaction(async (tx) => {
+    const tokenRef = db.collection('business_self_claims').doc(token);
+    const tokenSnap = await tx.get(tokenRef);
+    if (!tokenSnap.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Token non valido o gia consumato.'
+      );
+    }
+    const tokenData = tokenSnap.data();
+    if (tokenData.businessId !== businessId) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Token non corrisponde a questa scheda.'
+      );
+    }
+    const expiresAt = tokenData.expiresAt;
+    if (expiresAt && expiresAt.toMillis() < Date.now()) {
+      throw new functions.https.HttpsError(
+        'deadline-exceeded',
+        'Token scaduto. Chiedi al team TrailShare un nuovo link.'
+      );
+    }
+
+    const businessRef = db.collection('businesses').doc(businessId);
+    const businessSnap = await tx.get(businessRef);
+    if (!businessSnap.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Scheda non trovata.'
+      );
+    }
+    const business = businessSnap.data();
+    const oldOwnerUid = business.ownerId;
+    const oldAdmins = Array.isArray(business.adminUserIds)
+      ? business.adminUserIds
+      : [];
+
+    // Se l'utente loggato e' GIA' l'owner, niente da fare (idempotente).
+    if (oldOwnerUid === newOwnerUid) {
+      tx.delete(tokenRef);
+      tx.update(businessRef, {
+        pendingSelfManagement: false,
+        claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { alreadyOwner: true, businessName: business.name };
+    }
+
+    // Transferisci ownership: vecchio owner va in adminUserIds (cosi'
+    // il team mantiene accesso per supporto se serve). Nuovo owner =
+    // utente che ha cliccato il link.
+    const newAdmins = Array.from(new Set([
+      ...oldAdmins.filter((id) => id !== newOwnerUid),
+      oldOwnerUid,
+    ].filter(Boolean)));
+
+    tx.update(businessRef, {
+      ownerId: newOwnerUid,
+      adminUserIds: newAdmins,
+      pendingSelfManagement: false,
+      claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    tx.delete(tokenRef);
+
+    return {
+      alreadyOwner: false,
+      businessName: business.name,
+      previousOwnerUid: oldOwnerUid,
+    };
+  });
+
+  logger.info(
+    `[acceptSelfClaim] businessId=${businessId} newOwnerUid=${newOwnerUid} alreadyOwner=${result.alreadyOwner}`
+  );
+
+  return { success: true, ...result };
+});

@@ -33,8 +33,11 @@ class HealthService {
   // CONFIGURAZIONE E PERMESSI
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Configura il plugin Health (chiamare una volta all'avvio)
+  /// Configura il plugin Health (chiamare una volta all'avvio).
+  /// Su web è no-op: il plugin `health` non ha implementazione web e
+  /// internamente fa Platform._operatingSystem (dart:io) che crasha.
   Future<void> configure() async {
+    if (kIsWeb) return;
     if (_isConfigured) return;
     try {
       await _health.configure();
@@ -93,6 +96,7 @@ class HealthService {
 
   /// Verifica se Health Connect è disponibile (solo Android)
   Future<bool> isHealthConnectAvailable() async {
+    if (kIsWeb) return false; // niente Health sul web
     if (!Platform.isAndroid) return true; // iOS ha sempre HealthKit
     try {
       await configure();

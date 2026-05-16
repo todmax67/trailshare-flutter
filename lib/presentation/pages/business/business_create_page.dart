@@ -36,6 +36,14 @@ class _BusinessCreatePageState extends State<BusinessCreatePage> {
   BusinessType _type = BusinessType.rifugio;
   BusinessTier _tier = BusinessTier.verified;
   bool _saving = false;
+
+  /// 7.H1 — Self-claim flow.
+  /// Default true perché lo use case principale di chi crea da admin
+  /// è proprio inserire una scheda PER CONTO di un rifugista non
+  /// ancora autonomo. Se il rifugista è già pronto a gestirla in
+  /// autonomia (ha account TrailShare), basta togliere la spunta e
+  /// l'UID owner inserito sarà quello finale.
+  bool _pendingSelfManagement = true;
   // Tri-state: null = sto verificando, true = admin, false = bloccato.
   // Default null forza un loader iniziale invece di mostrare il form
   // prima del check (fail-closed UX).
@@ -150,6 +158,7 @@ class _BusinessCreatePageState extends State<BusinessCreatePage> {
         'postsCount': 0,
         'reviewCount': 0,
         'createdAt': Timestamp.fromDate(DateTime.now()),
+        if (_pendingSelfManagement) 'pendingSelfManagement': true,
       };
       final ref = await db.collection('businesses').add(doc);
 
@@ -378,6 +387,55 @@ class _BusinessCreatePageState extends State<BusinessCreatePage> {
               decoration: const InputDecoration(
                 labelText: 'Indirizzo',
                 border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // 7.H1 — Self-claim toggle. Default ON perché lo use case
+            // tipico è "inserisco per conto del rifugista che mi ha
+            // detto di sì a voce". Spegni solo se la persona è già
+            // autonoma ed ha account TrailShare (UID owner = il suo).
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _pendingSelfManagement,
+                        onChanged: (v) => setState(
+                            () => _pendingSelfManagement = v ?? false),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'Sto inserendo per conto del proprietario',
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      _pendingSelfManagement
+                          ? 'Dopo la creazione vai su Pannello Admin → '
+                              '"Schede in attesa di self-claim" per '
+                              'generare il link da mandare al proprietario.'
+                          : 'Il proprietario gestirà da subito '
+                              'autonomamente (UID owner sopra deve essere il suo).',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 24),

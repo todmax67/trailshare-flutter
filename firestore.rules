@@ -218,11 +218,15 @@ service cloud.firestore {
       // (ownerId, tier, status). Es. claim flow: admin trasferisce
       // ownership a un nuovo gestore; o cambio tier dopo
       // attivazione pagamento.
+      // 7.H1 — `pendingSelfManagement` rientra qui: lo settano admin
+      // (creazione scheda per conto di rifugio) o le Cloud Function
+      // di self-claim. Il token vive in `business_self_claims/{token}`
+      // — collection separata non leggibile dal client (sotto).
       allow update: if isSignedIn() && isPlatformAdmin()
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['ownerId', 'tier', 'status', 'adminUserIds',
                       'updatedAt', 'claimedAt', 'claimedByUid',
-                      'disclaimerVisible']);
+                      'disclaimerVisible', 'pendingSelfManagement']);
 
       // Update dei contatori: SOLO via transaction che modifica anche
       // la sub-collection (Firestore non lo verifica direttamente, ma
@@ -309,6 +313,16 @@ service cloud.firestore {
         allow delete: if isSignedIn()
           && (resource.data.userId == request.auth.uid || isSuperAdmin());
       }
+    }
+
+    // --- SELF-CLAIM TOKEN STORE (Epic 7.H1) ---
+    // I doc qui sono `{ businessId, expiresAt, createdAt, createdByUid }`
+    // con doc ID = token random 32 char. Sono SECRET: chiunque possa
+    // leggere un doc può rivendicare la scheda corrispondente. Quindi
+    // niente accesso dal client — generateSelfClaimToken e
+    // acceptSelfClaim girano via Admin SDK che bypassa le rules.
+    match /business_self_claims/{token} {
+      allow read, write: if false;
     }
 
     // --- DOC ROOT /users/{uid} ---

@@ -11,6 +11,7 @@ import 'pages/web_business_dashboard_page.dart';
 import 'pages/web_business_public_page.dart';
 import 'pages/web_home_page.dart';
 import 'pages/web_login_page.dart';
+import 'pages/web_self_claim_page.dart';
 import 'pages/web_track_detail_page.dart';
 
 /// Mappa tab WebHomePage → path URL e viceversa.
@@ -24,6 +25,8 @@ class WebRoutes {
   static const String profile = '/profile';
   static const String business = '/business';
   static const String groups = '/groups';
+  static const String discover = '/discover';
+  static const String admin = '/admin';
 
   static int tabFromPath(String path) {
     if (path == dashboard || path == '/') return 0;
@@ -32,6 +35,8 @@ class WebRoutes {
     if (path == profile) return 3;
     if (path == business || path.startsWith('$business/')) return 4;
     if (path == groups) return 5;
+    if (path == discover) return 6;
+    if (path == admin) return 7;
     return 0;
   }
 
@@ -47,6 +52,10 @@ class WebRoutes {
         return business;
       case 5:
         return groups;
+      case 6:
+        return discover;
+      case 7:
+        return admin;
       case 0:
       default:
         return dashboard;
@@ -124,6 +133,24 @@ class BusinessWebApp extends StatelessWidget {
       );
     }
 
+    // 7.H1 — Self-claim flow: `/claim-self/{businessId}?t={token}`.
+    // L'AuthGate fa il suo lavoro: se l'utente non e' loggato vede la
+    // login, dopo login Firebase rinfresca lo stream e la pagina
+    // appare. La pagina legge il token dal query param e chiama
+    // acceptSelfClaim() Cloud Function.
+    if (segments.length == 2 && segments[0] == 'claim-self') {
+      final token = uri.queryParameters['t'] ?? '';
+      return MaterialPageRoute<dynamic>(
+        settings: settings,
+        builder: (_) => _AuthGate(
+          child: WebSelfClaimPage(
+            businessId: segments[1],
+            token: token,
+          ),
+        ),
+      );
+    }
+
     Widget child;
 
     if (segments.isEmpty) {
@@ -150,6 +177,10 @@ class BusinessWebApp extends StatelessWidget {
       }
     } else if (segments[0] == 'groups') {
       child = const WebHomePage(initialTab: 5);
+    } else if (segments[0] == 'discover') {
+      child = const WebHomePage(initialTab: 6);
+    } else if (segments[0] == 'admin') {
+      child = const WebHomePage(initialTab: 7);
     } else {
       // Unknown path → fallback a dashboard
       child = const WebHomePage(initialTab: 0);

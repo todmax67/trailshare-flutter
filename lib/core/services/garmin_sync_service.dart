@@ -18,6 +18,7 @@ class GarminSyncService {
   Stream<GarminSyncEvent> get syncEvents => _syncController.stream;
 
   Future<void> initialize() async {
+    if (kIsWeb) return; // MethodChannel nativo non disponibile su web
     try {
       await _methodChannel.invokeMethod('initialize');
       debugPrint('[GarminSync] Inizializzato');

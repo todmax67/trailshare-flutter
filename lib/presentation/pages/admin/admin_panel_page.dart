@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
@@ -111,6 +113,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           padding: const EdgeInsets.all(16),
           children: [
             _buildAdminClaimsSection(),
+            const SizedBox(height: 24),
+            _buildPendingSelfClaimSection(),
             const SizedBox(height: 24),
             _buildStatsSection(),
             const SizedBox(height: 24),
@@ -251,7 +255,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   Future<void> _runBootstrap() async {
     setState(() => _bootstrapBusy = true);
     try {
-      final result = await FirebaseFunctions.instance
+      final result = await FirebaseFunctions.instanceFor(region: 'europe-west3')
           .httpsCallable('bootstrapAdminClaims')
           .call();
       final data = result.data as Map;
@@ -272,7 +276,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     }
     setState(() => _promoteBusy = true);
     try {
-      await FirebaseFunctions.instance
+      await FirebaseFunctions.instanceFor(region: 'europe-west3')
           .httpsCallable('setAdminClaim')
           .call({'uid': uid, 'isAdmin': isAdmin});
       _snack(
@@ -312,6 +316,167 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SELF-CLAIM PENDING (Epic 7.H1)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Lista live degli Spazi Pro inseriti dal team per conto di terzi
+  // (pendingSelfManagement=true). Per ciascuno l'admin può generare
+  // un link self-claim da inviare al rifugista via WhatsApp. Il link
+  // ha TTL 30gg, rigenerarlo invalida quello precedente.
+
+  Widget _buildPendingSelfClaimSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.send_to_mobile,
+                    color: Colors.amber.shade700, size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Schede in attesa di self-claim',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Spazi Pro inseriti dal team per conto del gestore. Genera un '
+              'link da inviare via WhatsApp/email: chi lo apre diventa owner.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('businesses')
+                  .where('pendingSelfManagement', isEqualTo: true)
+                  .limit(50)
+                  .snapshots(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snap.hasError) {
+                  return Text('Errore: ${snap.error}',
+                      style: const TextStyle(color: AppColors.danger));
+                }
+                final docs = snap.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'Nessuna scheda in attesa. Le schede inserite con la '
+                      'spunta "per conto del proprietario" appariranno qui.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textMuted),
+                    ),
+                  );
+                }
+                return Column(
+                  children: docs
+                      .map((d) => _PendingClaimTile(
+                            businessId: d.id,
+                            data: d.data(),
+                            onGenerate: () => _generateSelfClaimLink(d.id),
+                          ))
+                      .toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _generateSelfClaimLink(String businessId) async {
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable('generateSelfClaimToken')
+              .call({'businessId': businessId});
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final url = data['url']?.toString() ?? '';
+      final expiresInDays = data['expiresInDays'] ?? 30;
+      if (!mounted) return;
+      _showSelfClaimLinkDialog(url, expiresInDays);
+    } catch (e) {
+      _snack('Errore generazione link: $e', error: true);
+    }
+  }
+
+  void _showSelfClaimLinkDialog(String url, dynamic expiresInDays) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Link self-claim'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Scade tra $expiresInDays giorni. Rigenerare invalida il link '
+              'attuale.',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: SelectableText(
+                url,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Mandalo via WhatsApp al gestore. Quando lo apre, fa login e '
+              'diventa owner della scheda. Tu rimani nei co-admin.',
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Chiudi'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              final nav = Navigator.of(ctx);
+              await Clipboard.setData(ClipboardData(text: url));
+              if (!mounted) return;
+              nav.pop();
+              _snack('Link copiato negli appunti', error: false);
+            },
+            icon: const Icon(Icons.copy, size: 16),
+            label: const Text('Copia'),
           ),
         ],
       ),
@@ -1024,4 +1189,62 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
     return '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+}
+
+/// Riga di una scheda Spazio Pro con `pendingSelfManagement=true`
+/// nella sezione admin "Schede in attesa di self-claim".
+class _PendingClaimTile extends StatelessWidget {
+  final String businessId;
+  final Map<String, dynamic> data;
+  final VoidCallback onGenerate;
+
+  const _PendingClaimTile({
+    required this.businessId,
+    required this.data,
+    required this.onGenerate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = data['name']?.toString() ?? '—';
+    final city = (data['location'] is Map)
+        ? (data['location']['city']?.toString() ?? '')
+        : '';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  city.isEmpty ? businessId : '$city  ·  $businessId',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton.icon(
+            onPressed: onGenerate,
+            icon: const Icon(Icons.link, size: 16),
+            label: const Text('Genera link'),
+          ),
+        ],
+      ),
+    );
+  }
 }

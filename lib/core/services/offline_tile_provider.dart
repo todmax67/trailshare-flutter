@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:path_provider/path_provider.dart';
@@ -26,6 +27,11 @@ class OfflineFallbackTileProvider extends TileProvider {
 
   static Future<void> initialize() async {
     if (_cachedBasePath != null) return;
+    // Su web non esiste filesystem persistente accessibile: niente
+    // cache offline tile. Saltiamo l'init, _resolve cadrà direttamente
+    // su NetworkImage (il branch File.existsSync è gated dal null
+    // check di _cachedBasePath).
+    if (kIsWeb) return;
     final dir = await getApplicationDocumentsDirectory();
     _cachedBasePath = '${dir.path}/offline_tiles';
     debugPrint('[OfflineTile] Inizializzato: $_cachedBasePath');

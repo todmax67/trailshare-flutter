@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'app.dart';
+import 'web/business_web_app.dart';
 import 'core/services/theme_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/lifeline_alert_service.dart';
@@ -92,16 +93,23 @@ void main() async {
     debugPrint('[Push] Init fallita, riproverà dopo: $e');
   });
 
-  // Inizializza sincronizzazione Garmin
-  GarminSyncService().initialize();
-  
-  // Configura Health Connect/HealthKit (registra permission launcher)
-  HealthService().configure().catchError((e) {
-    debugPrint('[Health] Init fallita: $e');
-  });
+  // Servizi mobile-only: Garmin (MethodChannel nativo) e Health
+  // (Apple Health / Health Connect, internamente usa dart:io Platform).
+  // Su web sollevano MissingPluginException / Platform._operatingSystem
+  // e bloccano l'avvio — saltali completamente.
+  if (!kIsWeb) {
+    GarminSyncService().initialize();
+    HealthService().configure().catchError((e) {
+      debugPrint('[Health] Init fallita: $e');
+    });
+  }
 
-  // Inizializza tile offline
-  await OfflineFallbackTileProvider.initialize();
+  // Inizializza tile offline (no-op su web, niente filesystem)
+  try {
+    await OfflineFallbackTileProvider.initialize();
+  } catch (e) {
+    debugPrint('[OfflineTile] Init fallita: $e');
+  }
 
   // Inizializza alert notifica Lifeline (canale max priority + permessi)
   LifelineAlertService().initialize().catchError((e) {
@@ -135,7 +143,12 @@ void main() async {
     debugPrint('[DeepLink] Init fallita: $e');
   });
 
-  runApp(const TrailShareApp());
+  // Su web montiamo una shell dedicata (web-only): login + profilo,
+  // pannello admin, gestione Spazi Pro, discover, view pubblica di
+  // tracce/gruppi. Niente record GPS, paywall, health/strava sync —
+  // tutto ciò è mobile-only. La shell mobile (TrailShareApp) resta
+  // intatta per iOS/Android.
+  runApp(kIsWeb ? const BusinessWebApp() : const TrailShareApp());
 
   // Marca boot-success dopo che l'app è running. Se l'app crasha
   // prima di arrivare qui, il flag '_boot_in_progress' resta true e
