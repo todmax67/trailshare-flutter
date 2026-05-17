@@ -160,16 +160,50 @@ class BusinessRepository {
     int limit = 100,
   }) async {
     final precision = GeoHashUtil.precisionForRadius(radiusKm);
-    // Bounding box approssimato dal raggio (1° lat ≈ 111km).
-    final dLat = radiusKm / 111.0;
-    final dLng = radiusKm / (111.0 * math.cos(_deg2rad(lat)).abs() + 0.0001);
-    final ranges = GeoHashUtil.getQueryRanges(
-      minLat: lat - dLat,
-      maxLat: lat + dLat,
-      minLng: lng - dLng,
-      maxLng: lng + dLng,
-      precision: precision,
-    );
+
+    // Costruisce il set di geohash da coprire a partire dal CENTRO +
+    // neighbors. È più affidabile dell'iterazione bbox di GeoHashUtil
+    // (che ha uno step lat/lng errato e a volte salta proprio la cella
+    // del centro per radius medio-piccoli).
+    //
+    // 1-ring (9 cells): copre ~3×3 cell width attorno al centro.
+    // 2-ring (25 cells): per radius più grandi della metà cella,
+    // espande così la search box è ~5×5 cells.
+    final centerHash = GeoHashUtil.encode(lat, lng, precision: precision);
+    final hashes = <String>{centerHash};
+    hashes.addAll(GeoHashUtil.getNeighbors(centerHash));
+    // Cell width approssimata per scelta del ring. Geohash precision
+    // 5 ≈ 5km, precision 6 ≈ 1.2km, ecc. Stima conservativa: ogni
+    // precision aggiunge fattore ~5x.
+    const cellWidthByPrecision = {
+      1: 5000.0, 2: 1250.0, 3: 156.0, 4: 39.0,
+      5: 4.9, 6: 1.22, 7: 0.153, 8: 0.0382, 9: 0.00477,
+    };
+    final cellWidthKm = cellWidthByPrecision[precision] ?? 5.0;
+    if (radiusKm > cellWidthKm * 0.7) {
+      // Espandi a 2-ring: vicini dei vicini.
+      final twoRing = <String>{};
+      for (final h in List.of(hashes)) {
+        twoRing.addAll(GeoHashUtil.getNeighbors(h));
+      }
+      hashes.addAll(twoRing);
+    }
+
+    // Raggruppa per prefix(precision-1) per minimizzare query.
+    final prefixMap = <String, List<String>>{};
+    for (final h in hashes) {
+      final p = h.substring(0, math.min(precision - 1, h.length));
+      prefixMap.putIfAbsent(p, () => []).add(h);
+    }
+    final ranges = prefixMap.entries.map((e) {
+      final sorted = e.value..sort();
+      return (start: sorted.first, end: '${sorted.last}~');
+    }).toList();
+
+    debugPrint('[getNearby] center=($lat,$lng) radius=${radiusKm}km '
+        'precision=$precision centerHash=$centerHash '
+        'hashes=${hashes.length} ranges=${ranges.length} '
+        'rangesList=${ranges.map((r) => "${r.start}-${r.end}").toList()}');
 
     // Esegue tante query quante sono le ranges (max 9), aggrega.
     final all = <String, Business>{};
@@ -184,10 +218,13 @@ class BusinessRepository {
         q = q.where('type', isEqualTo: type.name);
       }
       final snap = await q.get();
+      debugPrint('[getNearby] range ${range.start}-${range.end}: '
+          '${snap.docs.length} docs');
       for (final d in snap.docs) {
         all[d.id] = Business.fromMap(d.id, d.data());
       }
     }
+    debugPrint('[getNearby] total raw before haversine filter: ${all.length}');
 
     // Filtro radius preciso lato client (Haversine)
     final filtered = all.values.where((b) {

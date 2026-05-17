@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -154,9 +156,9 @@ class _BusinessClaimBannerState extends State<BusinessClaimBanner> {
               ),
               const SizedBox(width: 8),
               IconButton(
-                onPressed: () => _openReportMailto(context),
-                icon: const Icon(Icons.report_problem_outlined),
-                tooltip: 'Segnala errore / chiedi rimozione',
+                onPressed: () => _openReportDialog(context),
+                icon: const Icon(Icons.flag_outlined),
+                tooltip: 'Segnala info errata',
                 color: AppColors.textSecondary,
               ),
             ],
@@ -166,10 +168,133 @@ class _BusinessClaimBannerState extends State<BusinessClaimBanner> {
     );
   }
 
-  /// 7.H9 — Opt-out GDPR: mailto precompilato a info@trailshare.app.
-  /// La gestione manuale entro 48h è descritta in
-  /// docs/gtm/PRESEEDING_PRIVACY_UPDATE.md.
-  Future<void> _openReportMailto(BuildContext context) async {
+  /// 7.H11 — Community quality flag. Apre dialog con categorie pre-definite
+  /// (chiusa, info sbagliata, duplicato, altro) + free text opzionale.
+  /// Submit scrive su `business_quality_flags/{auto}` per review admin.
+  ///
+  /// Per il caso "richiesta rimozione del gestore stesso" (GDPR opt-out
+  /// 7.H9) c'è una categoria dedicata "Sono il gestore — chiedo rimozione"
+  /// che apre il mailto.
+  Future<void> _openReportDialog(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Devi essere loggato per segnalare. Effettua il login e riprova.'),
+        ),
+      );
+      return;
+    }
+    String? category;
+    final messageCtrl = TextEditingController();
+
+    final categories = const <String, String>{
+      'closed': 'Struttura chiusa / inattiva',
+      'wrong_location': 'Posizione sulla mappa sbagliata',
+      'wrong_name': 'Nome o dati sbagliati',
+      'duplicate': 'Duplicato di un\'altra scheda',
+      'owner_opt_out': 'Sono il gestore — chiedo rimozione',
+      'other': 'Altro',
+    };
+
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          title: const Text('Segnala info errata'),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Aiutaci a tenere TrailShare pulito. Le segnalazioni '
+                  'vengono revisionate dal team entro pochi giorni.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                ...categories.entries.map((e) => RadioListTile<String>(
+                      value: e.key,
+                      groupValue: category,
+                      onChanged: (v) => setSt(() => category = v),
+                      title: Text(e.value,
+                          style: const TextStyle(fontSize: 13)),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    )),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: messageCtrl,
+                  maxLines: 2,
+                  maxLength: 500,
+                  decoration: const InputDecoration(
+                    labelText: 'Dettaglio (opzionale)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: category == null
+                  ? null
+                  : () => Navigator.pop(ctx, true),
+              child: const Text('Invia'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (submitted != true || category == null) return;
+
+    // Caso speciale "Sono il gestore": apri direttamente il mailto
+    // GDPR (7.H9) — è una richiesta diversa dalla community flag, e
+    // di solito chi è il gestore vuole rispondere via email aziendale,
+    // non da un account TrailShare anonimo.
+    if (category == 'owner_opt_out') {
+      await _openOwnerOptOutMailto(context);
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('business_quality_flags')
+          .add({
+        'businessId': widget.business.id,
+        'businessName': widget.business.name,
+        'reporterUid': user.uid,
+        'category': category,
+        if (messageCtrl.text.trim().isNotEmpty)
+          'message': messageCtrl.text.trim(),
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Grazie per la segnalazione. Il team la revisionerà.'),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore invio: $e')),
+      );
+    }
+  }
+
+  /// 7.H9 — Opt-out GDPR per il gestore stesso. Mailto precompilato
+  /// con email aziendale così la richiesta è verificabile.
+  Future<void> _openOwnerOptOutMailto(BuildContext context) async {
     final subject = Uri.encodeComponent(
       'Segnalazione/Rimozione scheda: ${widget.business.name}',
     );

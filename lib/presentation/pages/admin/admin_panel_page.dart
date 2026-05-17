@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
+import '../../../web/pages/web_outreach_pdf_page.dart';
 import '../groups/group_detail_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -120,6 +122,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             const SizedBox(height: 24),
             _buildOsmImportSection(),
             const SizedBox(height: 24),
+            _buildOutreachKitSection(),
+            const SizedBox(height: 24),
+            _buildQualityFlagsSection(),
+            const SizedBox(height: 24),
             _buildStatsSection(),
             const SizedBox(height: 24),
             _buildUsersSection(),
@@ -149,6 +155,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   String _osmBusinessType = 'rifugio';
   bool _osmBusy = false;
   Map<String, dynamic>? _osmLastResult;
+
+  // 7.H10 — Outreach kit state
+  final TextEditingController _outreachIdCtrl = TextEditingController();
 
   Widget _buildAdminClaimsSection() {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -410,6 +419,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                             businessId: d.id,
                             data: d.data(),
                             onGenerate: () => _generateSelfClaimLink(d.id),
+                            onOpenOutreach: () => _openOutreachFor(d.id),
                           ))
                       .toList(),
                 );
@@ -963,6 +973,207 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       _snack('Errore import OSM: $e', error: true);
     } finally {
       if (mounted) setState(() => _osmBusy = false);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // OUTREACH KIT (Epic 7.H10)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // L'admin inserisce ID o slug della scheda → apre nuova tab con la
+  // pagina printable. Da lì Cmd+P / Ctrl+P salva PDF.
+
+  Widget _buildOutreachKitSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.picture_as_pdf_outlined,
+                    color: Colors.indigo.shade400, size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Outreach Kit (PDF stampabile)',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Genera un kit PDF da consegnare al gestore di una scheda: '
+              'stats funnel, mappa zona, competitor. Apri la pagina, premi '
+              '⌘P / Ctrl+P e salva PDF.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _outreachIdCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Business ID',
+                hintText: 'es. ABC123xyz...',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _openOutreachPdf,
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Apri Outreach PDF'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Suggerimento: copia l\'ID dalla sezione "Schede in attesa di '
+              'self-claim" sopra, oppure dalla pagina pubblica della scheda.',
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openOutreachPdf() {
+    final id = _outreachIdCtrl.text.trim();
+    if (id.isEmpty) {
+      _snack('Inserisci un Business ID', error: true);
+      return;
+    }
+    _openOutreachFor(id);
+  }
+
+  /// Apre la pagina outreach PDF. Su web usa la route nominata (così
+  /// l'URL aggiorna e l'utente può fare ⌘P sul browser). Su mobile
+  /// la TrailShareApp non registra `/admin/outreach/...`, quindi
+  /// facciamo un push diretto con MaterialPageRoute. Sul cellulare
+  /// vedi l'anteprima ma per stampare/condividere PDF passa al web.
+  void _openOutreachFor(String businessId) {
+    if (kIsWeb) {
+      Navigator.of(context).pushNamed('/admin/outreach/$businessId');
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => WebOutreachPdfPage(businessId: businessId),
+        ),
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // QUALITY FLAGS (Epic 7.H11)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Segnalazioni community su schede unclaimed con info errate
+  // (chiusa, posizione sbagliata, duplicato, ecc). Admin marca come
+  // risolto o ignorato.
+
+  Widget _buildQualityFlagsSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.flag_outlined,
+                    color: Colors.red.shade400, size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Flag qualità da revisionare',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Segnalazioni utenti su info errate, schede duplicate, '
+              'chiusure. Verifica e marca risolto o ignora.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('business_quality_flags')
+                  .where('status', isEqualTo: 'pending')
+                  .orderBy('createdAt', descending: true)
+                  .limit(50)
+                  .snapshots(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snap.hasError) {
+                  return Text('Errore: ${snap.error}',
+                      style: const TextStyle(color: AppColors.danger));
+                }
+                final docs = snap.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'Nessun flag pendente.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textMuted),
+                    ),
+                  );
+                }
+                return Column(
+                  children: docs
+                      .map((d) => _QualityFlagTile(
+                            flagId: d.id,
+                            data: d.data(),
+                            onResolve: () => _resolveQualityFlag(
+                                d.id, 'resolved'),
+                            onIgnore: () => _resolveQualityFlag(
+                                d.id, 'ignored'),
+                          ))
+                      .toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _resolveQualityFlag(String flagId, String status) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('business_quality_flags')
+          .doc(flagId)
+          .update({
+        'status': status,
+        'processedAt': FieldValue.serverTimestamp(),
+        'processedByUid': FirebaseAuth.instance.currentUser?.uid,
+      });
+      _snack(
+        status == 'resolved'
+            ? 'Flag marcato come risolto'
+            : 'Flag ignorato',
+        error: false,
+      );
+    } catch (e) {
+      _snack('Errore: $e', error: true);
     }
   }
 
@@ -1680,11 +1891,13 @@ class _PendingClaimTile extends StatelessWidget {
   final String businessId;
   final Map<String, dynamic> data;
   final VoidCallback onGenerate;
+  final VoidCallback onOpenOutreach;
 
   const _PendingClaimTile({
     required this.businessId,
     required this.data,
     required this.onGenerate,
+    required this.onOpenOutreach,
   });
 
   @override
@@ -1721,10 +1934,21 @@ class _PendingClaimTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          TextButton.icon(
-            onPressed: onGenerate,
-            icon: const Icon(Icons.link, size: 16),
-            label: const Text('Genera link'),
+          Wrap(
+            spacing: 4,
+            children: [
+              IconButton(
+                onPressed: onOpenOutreach,
+                tooltip: 'Apri Outreach PDF',
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                visualDensity: VisualDensity.compact,
+              ),
+              TextButton.icon(
+                onPressed: onGenerate,
+                icon: const Icon(Icons.link, size: 16),
+                label: const Text('Genera link'),
+              ),
+            ],
           ),
         ],
       ),
@@ -1829,6 +2053,126 @@ class _ClaimRequestTile extends StatelessWidget {
             TextSpan(text: v),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Riga di un flag qualità pendente. Mostra businessName + category +
+/// message + reporter + bottoni Risolto / Ignora.
+class _QualityFlagTile extends StatelessWidget {
+  final String flagId;
+  final Map<String, dynamic> data;
+  final VoidCallback onResolve;
+  final VoidCallback onIgnore;
+
+  const _QualityFlagTile({
+    required this.flagId,
+    required this.data,
+    required this.onResolve,
+    required this.onIgnore,
+  });
+
+  static const _categoryLabels = <String, String>{
+    'closed': 'Chiusa / inattiva',
+    'wrong_location': 'Posizione sbagliata',
+    'wrong_name': 'Nome o dati sbagliati',
+    'duplicate': 'Duplicato',
+    'owner_opt_out': 'Richiesta rimozione gestore',
+    'other': 'Altro',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final businessName = data['businessName']?.toString() ?? '—';
+    final businessId = data['businessId']?.toString() ?? '';
+    final categoryKey = data['category']?.toString() ?? 'other';
+    final categoryLabel = _categoryLabels[categoryKey] ?? categoryKey;
+    final message = data['message']?.toString() ?? '';
+    final reporter = data['reporterUid']?.toString() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  businessName,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  categoryLabel,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.danger,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (message.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              message,
+              style: const TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: AppColors.textPrimary,
+              ),
+              maxLines: 3,
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            'businessId: $businessId  ·  reporter: $reporter  ·  flagId: $flagId',
+            style: const TextStyle(
+                fontSize: 10, color: AppColors.textMuted),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onIgnore,
+                  icon: const Icon(Icons.close, size: 16),
+                  label: const Text('Ignora'),
+                ),
+                FilledButton.icon(
+                  onPressed: onResolve,
+                  icon: const Icon(Icons.check, size: 16),
+                  label: const Text('Risolto'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

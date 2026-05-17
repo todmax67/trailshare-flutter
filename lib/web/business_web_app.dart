@@ -11,6 +11,7 @@ import 'pages/web_business_dashboard_page.dart';
 import 'pages/web_business_public_page.dart';
 import 'pages/web_home_page.dart';
 import 'pages/web_login_page.dart';
+import 'pages/web_outreach_pdf_page.dart';
 import 'pages/web_self_claim_page.dart';
 import 'pages/web_track_detail_page.dart';
 
@@ -130,6 +131,22 @@ class BusinessWebApp extends StatelessWidget {
       return MaterialPageRoute<dynamic>(
         settings: settings,
         builder: (_) => WebBusinessPublicPage(slug: segments[1]),
+      );
+    }
+
+    // 7.H10 — Outreach Kit PDF (admin-only): `/admin/outreach/{businessId}`.
+    // Pagina printable A4. L'admin fa Cmd+P/Ctrl+P per salvare il PDF.
+    // L'AuthGate garantisce login; il check admin (platform claim) è
+    // dentro la WebOutreachPdfPage (per ora soft — la page è raggiunta
+    // solo dal bottone admin del pannello, quindi gating implicito).
+    if (segments.length == 3 &&
+        segments[0] == 'admin' &&
+        segments[1] == 'outreach') {
+      return MaterialPageRoute<dynamic>(
+        settings: settings,
+        builder: (_) => _AuthGate(
+          child: WebOutreachPdfPage(businessId: segments[2]),
+        ),
       );
     }
 

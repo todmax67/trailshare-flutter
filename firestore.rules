@@ -346,6 +346,30 @@ service cloud.firestore {
         && request.resource.data.requesterEmail.size() < 320;
     }
 
+    // --- QUALITY FLAGS (Epic 7.H11) ---
+    //
+    // Community-driven: chiunque vede una scheda unclaimed con info
+    // sbagliate può segnalare. Doc = { businessId, reporterUid,
+    // category, message, status: 'pending', createdAt }.
+    // Admin panel li revisiona e corregge la scheda o marca come
+    // risolto.
+    match /business_quality_flags/{flagId} {
+      allow read: if isSignedIn() && isPlatformAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.businessId is string
+        && request.resource.data.businessId.size() > 0
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.category is string
+        && request.resource.data.category.size() > 0
+        && (!('message' in request.resource.data)
+            || (request.resource.data.message is string
+                && request.resource.data.message.size() < 500));
+      // Update solo admin (per cambiare status pending → resolved/ignored).
+      allow update: if isSignedIn() && isPlatformAdmin();
+      allow delete: if false;
+    }
+
     // --- FUNNEL TELEMETRY (Epic 7.H12) ---
     //
     // Eventi del flow claim (view → start → complete → approve).
