@@ -21,11 +21,21 @@ class WebBusinessPickerPage extends StatefulWidget {
 
 class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
   final _repo = BusinessRepository();
+  final _searchCtrl = TextEditingController();
+
   // L'utente loggato è admin? Caricato async al mount. Default false
   // mantiene il bottone "Crea Spazio Pro" NASCOSTO finché non sappiamo
   // (fail-closed): meglio che il bottone appaia tardi piuttosto che
   // mostrarlo a chiunque per uno stutter di Firestore.
   bool _isAdmin = false;
+  String _searchQuery = '';
+  BusinessTier? _filterTier;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -40,8 +50,14 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Admin platform vede TUTTE le schede pro (per gestire schede
+    // per conto di clienti, intervenire su scheda altrui per support,
+    // ecc). Owner normale vede solo le proprie.
+    final stream = _isAdmin
+        ? _repo.watchAllBusinesses()
+        : _repo.watchMyBusinesses();
     return StreamBuilder<List<Business>>(
-      stream: _repo.watchMyBusinesses(),
+      stream: stream,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -113,34 +129,120 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
   }
 
   Widget _buildList(List<Business> businesses) {
+    // Filtri applicati in-memory: search query (nome + città) + tier.
+    Iterable<Business> filtered = businesses;
+    if (_filterTier != null) {
+      filtered = filtered.where((b) => b.tier == _filterTier);
+    }
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      filtered = filtered.where((b) =>
+          b.name.toLowerCase().contains(q) ||
+          (b.location.city?.toLowerCase().contains(q) ?? false));
+    }
+    final list = filtered.toList();
+
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('I tuoi Spazi Pro',
-              style: TextStyle(
-                  fontSize: 24, fontWeight: FontWeight.bold)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _isAdmin ? 'Tutti gli Spazi Pro' : 'I tuoi Spazi Pro',
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+              ),
+              Text(
+                '${list.length} / ${businesses.length}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+          // Controlli ricerca + filtro visibili solo a admin (per owner
+          // singolo non servono — di solito ha 1-3 schede).
+          if (_isAdmin) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Cerca per nome o città…',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchCtrl.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            ),
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onChanged: (v) =>
+                        setState(() => _searchQuery = v.trim()),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                DropdownButton<BusinessTier?>(
+                  value: _filterTier,
+                  hint: const Text('Tutti i tier'),
+                  items: [
+                    const DropdownMenuItem<BusinessTier?>(
+                      value: null,
+                      child: Text('Tutti i tier'),
+                    ),
+                    ...BusinessTier.values.map(
+                      (t) => DropdownMenuItem<BusinessTier?>(
+                        value: t,
+                        child: Text(t.displayName),
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _filterTier = v),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
           Expanded(
-            child: GridView.count(
-              crossAxisCount: 3,
-              childAspectRatio: 1.4,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              children: businesses
-                  .map((b) => _BusinessTile(
-                        business: b,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                WebBusinessDashboardPage(businessId: b.id!),
-                          ),
-                        ),
-                      ))
-                  .toList(),
-            ),
+            child: list.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Nessun risultato per i filtri attivi',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  )
+                : GridView.count(
+                    crossAxisCount: 3,
+                    childAspectRatio: 1.4,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    children: list
+                        .map((b) => _BusinessTile(
+                              business: b,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => WebBusinessDashboardPage(
+                                      businessId: b.id!),
+                                ),
+                              ),
+                            ))
+                        .toList(),
+                  ),
           ),
         ],
       ),

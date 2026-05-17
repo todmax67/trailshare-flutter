@@ -403,6 +403,27 @@ class BusinessRepository {
     });
   }
 
+  /// Stream di TUTTI gli Spazi Pro (solo per platform admin).
+  /// Le rules Firestore permettono read pubblico delle schede business,
+  /// quindi questa query passa anche da utenti non admin — il filtro
+  /// "vede solo se è admin" deve essere applicato lato chiamante via
+  /// `AdminRepository.isCurrentUserAdmin()`. La query lato server è
+  /// solo `whereStatusActive` ordinata client-side per
+  /// `createdAt desc`. Limit alto (3000) per coprire tutto il volume
+  /// nazionale dopo gli import OSM.
+  Stream<List<Business>> watchAllBusinesses({int limit = 3000}) {
+    return _businesses
+        .where('status', isEqualTo: 'active')
+        .limit(limit)
+        .snapshots()
+        .map((s) {
+      final list =
+          s.docs.map((d) => Business.fromMap(d.id, d.data())).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // FOLLOW
   // ═══════════════════════════════════════════════════════════════════════════
