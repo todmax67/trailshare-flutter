@@ -157,36 +157,55 @@ class BusinessRepository {
     required double lng,
     double radiusKm = 50,
     BusinessType? type,
-    int limit = 100,
+    int limit = 1000,
   }) async {
     final precision = GeoHashUtil.precisionForRadius(radiusKm);
 
     // Costruisce il set di geohash da coprire a partire dal CENTRO +
-    // neighbors. È più affidabile dell'iterazione bbox di GeoHashUtil
-    // (che ha uno step lat/lng errato e a volte salta proprio la cella
-    // del centro per radius medio-piccoli).
+    // neighbors. Importante: NON uso GeoHashUtil.getNeighbors perché
+    // il suo `delta` è circa metà-cella (180 / 2^(p*2.5)) → spesso
+    // ritorna lo stesso hash del centro o un solo vicino. Bug
+    // diagnosticato in produzione: getNearby(50km) restituiva solo
+    // 47 schede invece di tutte quelle in raggio.
     //
-    // 1-ring (9 cells): copre ~3×3 cell width attorno al centro.
-    // 2-ring (25 cells): per radius più grandi della metà cella,
-    // espande così la search box è ~5×5 cells.
-    final centerHash = GeoHashUtil.encode(lat, lng, precision: precision);
-    final hashes = <String>{centerHash};
-    hashes.addAll(GeoHashUtil.getNeighbors(centerHash));
+    // Soluzione: uso `decodeBounds` per estrarre il bbox della cella
+    // del centro e sposto di una CELLA INTERA per ogni vicino.
+    //
     // Cell width approssimata per scelta del ring. Geohash precision
-    // 5 ≈ 5km, precision 6 ≈ 1.2km, ecc. Stima conservativa: ogni
-    // precision aggiunge fattore ~5x.
+    // 5 ≈ 5km, precision 6 ≈ 1.2km, ecc.
     const cellWidthByPrecision = {
       1: 5000.0, 2: 1250.0, 3: 156.0, 4: 39.0,
       5: 4.9, 6: 1.22, 7: 0.153, 8: 0.0382, 9: 0.00477,
     };
     final cellWidthKm = cellWidthByPrecision[precision] ?? 5.0;
-    if (radiusKm > cellWidthKm * 0.7) {
-      // Espandi a 2-ring: vicini dei vicini.
-      final twoRing = <String>{};
-      for (final h in List.of(hashes)) {
-        twoRing.addAll(GeoHashUtil.getNeighbors(h));
+
+    // Quanti ring servono per coprire 'radiusKm'. 1-ring → ~1.5×cell,
+    // 2-ring → ~2.5×cell. Margine 30%.
+    final ringCount = (radiusKm / cellWidthKm * 1.3).ceil().clamp(1, 4);
+
+    final centerHash = GeoHashUtil.encode(lat, lng, precision: precision);
+    final centerBounds = GeoHashUtil.decodeBounds(centerHash);
+    final cellLatSize = centerBounds.maxLat - centerBounds.minLat;
+    final cellLngSize = centerBounds.maxLng - centerBounds.minLng;
+
+    final hashes = <String>{};
+    for (int dy = -ringCount; dy <= ringCount; dy++) {
+      for (int dx = -ringCount; dx <= ringCount; dx++) {
+        final neighborLat = centerBounds.latitude + dy * cellLatSize;
+        final neighborLng = centerBounds.longitude + dx * cellLngSize;
+        // Skip se fuori dal range valido di coordinate.
+        if (neighborLat < -90 || neighborLat > 90) continue;
+        // Wrap longitudine
+        var wrappedLng = neighborLng;
+        while (wrappedLng > 180) {
+          wrappedLng -= 360;
+        }
+        while (wrappedLng < -180) {
+          wrappedLng += 360;
+        }
+        hashes.add(GeoHashUtil.encode(
+            neighborLat, wrappedLng, precision: precision));
       }
-      hashes.addAll(twoRing);
     }
 
     // Raggruppa per prefix(precision-1) per minimizzare query.
@@ -332,6 +351,28 @@ class BusinessRepository {
       ..sort((a, b) => a.kmFromStart.compareTo(b.kmFromStart));
 
     return list;
+  }
+
+  /// Tutti gli Spazi Pro attivi (nazionale). Usato dalla discovery
+  /// page quando l'utente passa al modo "Tutta Italia" per planning
+  /// viaggio. Niente filtro geohash, solo status=active + optional type.
+  ///
+  /// [limit] default 2000: copre tutti i rifugi italiani da OSM
+  /// (~2200 alpine_hut + noleggi/guide ~500 = ~2700). Sopra il limit
+  /// la mappa nationwide è incompleta. Quando supereremo 3000 doc,
+  /// paginiamo o spostiamo lato Cloud Function (aggregato precomputato).
+  Future<List<Business>> getAllNationwide({
+    BusinessType? type,
+    int limit = 2000,
+  }) async {
+    Query<Map<String, dynamic>> q = _businesses
+        .where('status', isEqualTo: 'active')
+        .limit(limit);
+    if (type != null) {
+      q = q.where('type', isEqualTo: type.name);
+    }
+    final snap = await q.get();
+    return snap.docs.map((d) => Business.fromMap(d.id, d.data())).toList();
   }
 
   /// Lista businesses dove l'utente corrente è owner.

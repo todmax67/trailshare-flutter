@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/italian_regions.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_profile_page.dart';
@@ -22,21 +25,38 @@ class BusinessDiscoveryPage extends StatefulWidget {
   State<BusinessDiscoveryPage> createState() => _BusinessDiscoveryPageState();
 }
 
+/// Modo di discovery: "vicino a me" (default, UX consumer in zona) o
+/// "tutta Italia" (planning viaggio).
+enum _DiscoveryMode { nearby, nationwide }
+
 class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
   final _repo = BusinessRepository();
+  final _searchCtrl = TextEditingController();
 
+  _DiscoveryMode _mode = _DiscoveryMode.nearby;
   bool _showMap = false;
   bool _loading = true;
   String? _error;
   List<Business> _businesses = [];
   LatLng? _userPos;
   BusinessType? _filterType;
+  String? _filterRegionCode; // solo in modo nationwide
+  String _searchQuery = '';
   double _radiusKm = 50;
+
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -45,7 +65,8 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
       _error = null;
     });
     try {
-      // Posizione utente
+      // Posizione utente (anche in modo nationwide la calcoliamo,
+      // così possiamo mostrare la distanza nelle card lista).
       final perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
         await Geolocator.requestPermission();
@@ -68,19 +89,26 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
         _userPos = LatLng(pos.latitude, pos.longitude);
       }
 
-      final list = await _repo.getNearby(
-        lat: _userPos!.latitude,
-        lng: _userPos!.longitude,
-        radiusKm: _radiusKm,
-        type: _filterType,
-      );
-      debugPrint('[BusinessDiscovery] userPos=${_userPos!.latitude},'
-          '${_userPos!.longitude} radius=$_radiusKm type=${_filterType?.name} '
-          'found=${list.length}');
-      for (final b in list) {
-        debugPrint('  → ${b.name} @ ${b.location.lat},${b.location.lng} '
-            '(${_haversineKm(_userPos!.latitude, _userPos!.longitude, b.location.lat, b.location.lng).toStringAsFixed(1)}km)');
+      List<Business> list;
+      if (_mode == _DiscoveryMode.nationwide) {
+        // Fetch nazionale (max 500). Filtri regione/search applicati
+        // in-memory dal getter _filteredBusinesses.
+        list = await _repo.getAllNationwide(
+          type: _filterType,
+          limit: 2000,
+        );
+      } else {
+        list = await _repo.getNearby(
+          lat: _userPos!.latitude,
+          lng: _userPos!.longitude,
+          radiusKm: _radiusKm,
+          type: _filterType,
+        );
       }
+      debugPrint('[BusinessDiscovery] mode=${_mode.name} '
+          'userPos=${_userPos!.latitude},${_userPos!.longitude} '
+          'radius=$_radiusKm type=${_filterType?.name} '
+          'found=${list.length}');
       if (!mounted) return;
       setState(() {
         _businesses = list;
@@ -93,6 +121,57 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
         _loading = false;
       });
     }
+  }
+
+  /// Lista filtrata in base a: search query, filtro regione (solo
+  /// nationwide). Filtri applicati in memoria sul set fetched.
+  List<Business> get _filteredBusinesses {
+    Iterable<Business> result = _businesses;
+    if (_mode == _DiscoveryMode.nationwide && _filterRegionCode != null) {
+      final region = ItalianRegions.all.firstWhere(
+        (r) => r.code == _filterRegionCode,
+        orElse: () => const ItalianRegion(
+            code: '', nameIt: '', nameEn: '', flag: ''),
+      );
+      if (region.code.isNotEmpty) {
+        result = result.where((b) =>
+            region.contains(b.location.lat, b.location.lng));
+      }
+    }
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((b) =>
+          b.name.toLowerCase().contains(q) ||
+          (b.location.city?.toLowerCase().contains(q) ?? false));
+    }
+    final list = result.toList();
+    // Ordering: nearby per distanza (già fatto dal repo), nationwide
+    // per nome alfabetico (planning friendly).
+    if (_mode == _DiscoveryMode.nationwide) {
+      list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    }
+    return list;
+  }
+
+  void _toggleMode() {
+    setState(() {
+      _mode = _mode == _DiscoveryMode.nearby
+          ? _DiscoveryMode.nationwide
+          : _DiscoveryMode.nearby;
+      // Reset filtri specifici al mode.
+      if (_mode == _DiscoveryMode.nearby) {
+        _filterRegionCode = null;
+      }
+    });
+    _load();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      setState(() => _searchQuery = value.trim());
+    });
   }
 
   double _distance(Business b) {
@@ -204,10 +283,19 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isNationwide = _mode == _DiscoveryMode.nationwide;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Spazi Pro'),
         actions: [
+          // Toggle modo: vicino/nazionale. Icona contestuale.
+          IconButton(
+            icon: Icon(isNationwide
+                ? Icons.my_location
+                : Icons.public_outlined),
+            tooltip: isNationwide ? 'Vicino a me' : 'Tutta Italia',
+            onPressed: _toggleMode,
+          ),
           IconButton(
             icon: Icon(_showMap ? Icons.list : Icons.map),
             tooltip: _showMap ? 'Lista' : 'Mappa',
@@ -221,9 +309,106 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
       ),
       body: Column(
         children: [
+          _buildModeIndicator(),
+          _buildSearchBar(),
           _buildFilters(),
+          if (isNationwide) _buildRegionFilter(),
           Expanded(child: _buildBody()),
         ],
+      ),
+    );
+  }
+
+  /// Banner sottile che chiarisce in che modo siamo. Importante perché
+  /// "Vicino a me" vs "Tutta Italia" cambia radicalmente il risultato
+  /// e l'utente deve capirlo subito.
+  Widget _buildModeIndicator() {
+    final isNationwide = _mode == _DiscoveryMode.nationwide;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: isNationwide
+          ? AppColors.info.withValues(alpha: 0.1)
+          : AppColors.primary.withValues(alpha: 0.06),
+      child: Row(
+        children: [
+          Icon(
+            isNationwide ? Icons.public : Icons.near_me,
+            size: 14,
+            color: isNationwide ? AppColors.info : AppColors.primary,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              isNationwide
+                  ? 'Tutta Italia · sfoglia per pianificare un viaggio'
+                  : 'Vicino a te (${_radiusKm.round()} km)',
+              style: TextStyle(
+                fontSize: 12,
+                color: isNationwide ? AppColors.info : AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: TextField(
+        controller: _searchCtrl,
+        decoration: InputDecoration(
+          hintText: 'Cerca per nome o città…',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: _searchCtrl.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () {
+                    _searchCtrl.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                ),
+          isDense: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+        onChanged: _onSearchChanged,
+      ),
+    );
+  }
+
+  Widget _buildRegionFilter() {
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        children: [
+          _regionChip(null, 'Tutte le regioni'),
+          ...ItalianRegions.all
+              .where((r) => r.code != 'international')
+              .map((r) => _regionChip(r.code, '${r.flag} ${r.nameIt}')),
+        ],
+      ),
+    );
+  }
+
+  Widget _regionChip(String? code, String label) {
+    final selected = _filterRegionCode == code;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        selected: selected,
+        onSelected: (_) {
+          setState(() => _filterRegionCode = code);
+        },
       ),
     );
   }
@@ -278,7 +463,9 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
         ),
       );
     }
-    if (_businesses.isEmpty) {
+    final filtered = _filteredBusinesses;
+    if (filtered.isEmpty) {
+      final isNationwide = _mode == _DiscoveryMode.nationwide;
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -286,37 +473,46 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
             const Icon(Icons.location_searching,
                 size: 48, color: AppColors.textMuted),
             const SizedBox(height: 12),
-            Text(_filterType == null
-                ? 'Nessuno Spazio Pro entro ${_radiusKm.round()} km'
-                : 'Nessun ${_filterType!.displayName.toLowerCase()} nelle vicinanze'),
+            Text(
+              isNationwide
+                  ? _searchQuery.isNotEmpty || _filterRegionCode != null
+                      ? 'Nessun risultato per i filtri attivi'
+                      : 'Nessuno Spazio Pro in Italia'
+                  : _filterType == null
+                      ? 'Nessuno Spazio Pro entro ${_radiusKm.round()} km'
+                      : 'Nessun ${_filterType!.displayName.toLowerCase()} nelle vicinanze',
+            ),
             const SizedBox(height: 4),
-            const Text(
-              'Espandi il raggio o cambia filtro',
-              style:
-                  TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            Text(
+              isNationwide
+                  ? 'Prova a cambiare regione o cercare per nome'
+                  : 'Espandi il raggio o cambia filtro',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary),
             ),
           ],
         ),
       );
     }
-    return _showMap ? _buildMap() : _buildList();
+    return _showMap ? _buildMap(filtered) : _buildList(filtered);
   }
 
-  Widget _buildList() {
+  Widget _buildList(List<Business> items) {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
-        itemCount: _businesses.length,
+        itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) => _BusinessCard(
-          business: _businesses[i],
-          distanceKm: _distance(_businesses[i]),
+          business: items[i],
+          distanceKm: _distance(items[i]),
+          showDistance: _mode == _DiscoveryMode.nearby,
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) =>
-                  BusinessProfilePage(businessId: _businesses[i].id!),
+                  BusinessProfilePage(businessId: items[i].id!),
             ),
           ),
         ),
@@ -324,65 +520,133 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
     );
   }
 
-  Widget _buildMap() {
+  Widget _buildMap(List<Business> items) {
     if (_userPos == null) return const SizedBox.shrink();
-    return FlutterMap(
-      options: MapOptions(
+    final isNationwide = _mode == _DiscoveryMode.nationwide;
+
+    // In modo nationwide, fit bounds su tutti i marker (zoom out su
+    // Italia o regione filtrata). In modo nearby, center sull'utente
+    // a zoom 11.
+    MapOptions options;
+    if (isNationwide && items.isNotEmpty) {
+      final points = items
+          .map((b) => LatLng(b.location.lat, b.location.lng))
+          .toList();
+      options = MapOptions(
+        initialCameraFit: CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(points),
+          padding: const EdgeInsets.all(40),
+        ),
+      );
+    } else {
+      options = MapOptions(
         initialCenter: _userPos!,
         initialZoom: 11,
-      ),
+      );
+    }
+
+    // Costruiamo prima i marker dei business (riutilizzati sia da
+    // MarkerLayer nearby che da MarkerClusterLayerWidget nationwide).
+    final businessMarkers = items
+        .map((b) => Marker(
+              point: LatLng(b.location.lat, b.location.lng),
+              width: isNationwide ? 36 : 44,
+              height: isNationwide ? 36 : 44,
+              alignment: Alignment.center,
+              child: GestureDetector(
+                onTap: () => _showMarkerSheet(b),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      b.type.icon,
+                      style: TextStyle(
+                          fontSize: isNationwide ? 18 : 22),
+                    ),
+                  ),
+                ),
+              ),
+            ))
+        .toList();
+
+    return FlutterMap(
+      options: options,
       children: [
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.trailshare.app',
         ),
-        MarkerLayer(
-          markers: [
-            // User position
-            Marker(
-              point: _userPos!,
-              width: 24,
-              height: 24,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.info,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 3),
-                ),
-              ),
-            ),
-            // Businesses
-            ..._businesses.map(
-              (b) => Marker(
-                point: LatLng(b.location.lat, b.location.lng),
-                width: 44,
-                height: 44,
-                child: GestureDetector(
-                  onTap: () => _showMarkerSheet(b),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        b.type.icon,
-                        style: const TextStyle(fontSize: 22),
-                      ),
-                    ),
+        // User position — solo in modo nearby (in nazionale è
+        // visivamente confondente, sarebbe sempre in un angolo).
+        if (!isNationwide)
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: _userPos!,
+                width: 24,
+                height: 24,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.info,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3),
                   ),
                 ),
               ),
+            ],
+          ),
+        // Business markers. In nationwide usiamo il cluster widget:
+        // raggruppa marker vicini in una bolla numerata. Click sulla
+        // bolla → zoom-in. In nearby (≤50km, max ~50 marker) niente
+        // cluster — già leggibili a quel livello di zoom.
+        if (isNationwide)
+          MarkerClusterLayerWidget(
+            options: MarkerClusterLayerOptions(
+              maxClusterRadius: 60,
+              size: const Size(48, 48),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.all(50),
+              maxZoom: 14,
+              markers: businessMarkers,
+              builder: (context, markers) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${markers.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
+          )
+        else
+          MarkerLayer(markers: businessMarkers),
       ],
     );
   }
@@ -391,12 +655,14 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
 class _BusinessCard extends StatelessWidget {
   final Business business;
   final double distanceKm;
+  final bool showDistance;
   final VoidCallback onTap;
 
   const _BusinessCard({
     required this.business,
     required this.distanceKm,
     required this.onTap,
+    this.showDistance = true,
   });
 
   @override
@@ -464,11 +730,18 @@ class _BusinessCard extends StatelessWidget {
                                 color: AppColors.textMuted)),
                         const Icon(Icons.location_on,
                             size: 12, color: AppColors.textSecondary),
-                        Text(
-                          '${distanceKm.toStringAsFixed(1)} km',
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary),
+                        Flexible(
+                          child: Text(
+                            showDistance
+                                ? '${distanceKm.toStringAsFixed(1)} km'
+                                : (b.location.city ??
+                                    'lat ${b.location.lat.toStringAsFixed(2)}'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary),
+                          ),
                         ),
                       ],
                     ),
