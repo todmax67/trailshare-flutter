@@ -1,7 +1,7 @@
 // Web-only file (compilato solo per lib/main_web.dart). Usiamo
 // dart:html per il download CSV via Blob+anchor; va bene qui.
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html' as html;
+import '../utils/csv_downloader.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -244,15 +244,9 @@ class _WebGroupMembersPageState extends State<WebGroupMembersPage> {
     required String filename,
     required String mime,
   }) {
-    final blob = html.Blob([content], mime);
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final anchor = html.AnchorElement(href: url)
-      ..download = filename
-      ..style.display = 'none';
-    html.document.body?.append(anchor);
-    anchor.click();
-    anchor.remove();
-    html.Url.revokeObjectUrl(url);
+    // Helper con conditional import — funziona su web, no-op su
+    // mobile (il chiamante è UI esclusiva della shell web).
+    downloadCsv(filename, content, mime: mime);
   }
 
   // ────────────────────────────────────────────────────────────

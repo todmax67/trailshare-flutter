@@ -116,6 +116,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             const SizedBox(height: 24),
             _buildPendingSelfClaimSection(),
             const SizedBox(height: 24),
+            _buildPublicClaimRequestsSection(),
+            const SizedBox(height: 24),
+            _buildOsmImportSection(),
+            const SizedBox(height: 24),
             _buildStatsSection(),
             const SizedBox(height: 24),
             _buildUsersSection(),
@@ -139,6 +143,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   bool _bootstrapBusy = false;
   bool _promoteBusy = false;
   final TextEditingController _promoteUidCtrl = TextEditingController();
+
+  // 7.H2 — Import OSM state
+  String _osmRegion = 'lombardia';
+  String _osmBusinessType = 'rifugio';
+  bool _osmBusy = false;
+  Map<String, dynamic>? _osmLastResult;
 
   Widget _buildAdminClaimsSection() {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -227,7 +237,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               ),
             ),
             const SizedBox(height: 10),
-            Row(
+            // Wrap su mobile: i due bottoni vanno a capo se non
+            // c'entrano su una riga (icona+label "Promuovi admin"
+            // + icona+label "Rimuovi" sforano su schermi < ~360px).
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 FilledButton.icon(
                   onPressed: _promoteBusy
@@ -236,7 +251,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   icon: const Icon(Icons.add_moderator, size: 18),
                   label: const Text('Promuovi admin'),
                 ),
-                const SizedBox(width: 8),
                 OutlinedButton.icon(
                   onPressed: _promoteBusy
                       ? null
@@ -481,6 +495,475 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         ],
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CLAIM REQUESTS PUBBLICHE (Epic 7.H6 — review claims)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Stream live di `business_claim_requests` where status==pending.
+  // Per ognuna: card con dati richiedente + bottoni Approva / Rifiuta.
+  // Approva chiama Cloud Function approveClaimRequest (ownership transfer
+  // + email all'utente). Rifiuta chiede motivazione + chiama rejectClaimRequest.
+
+  Widget _buildPublicClaimRequestsSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.assignment_ind_outlined,
+                    color: Colors.deepPurple.shade400, size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Claim requests in attesa',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Richieste di rivendicazione inviate dal pubblico dalla landing '
+              'di una scheda unclaimed. Verifica i dati e approva o rifiuta.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('business_claim_requests')
+                  .where('status', isEqualTo: 'pending')
+                  .orderBy('createdAt', descending: true)
+                  .limit(50)
+                  .snapshots(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snap.hasError) {
+                  return Text('Errore: ${snap.error}',
+                      style: const TextStyle(color: AppColors.danger));
+                }
+                final docs = snap.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'Nessuna claim request pendente.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textMuted),
+                    ),
+                  );
+                }
+                return Column(
+                  children: docs
+                      .map((d) => _ClaimRequestTile(
+                            requestId: d.id,
+                            data: d.data(),
+                            onApprove: () => _approveClaim(d.id),
+                            onReject: () => _promptRejectClaim(d.id),
+                          ))
+                      .toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _approveClaim(String requestId) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Approvare la richiesta?'),
+        content: const Text(
+          'Confermando, il richiedente diventerà subito owner della scheda. '
+          'Il vecchio owner (team) resterà nei co-admin per supporto.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Approva'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable('approveClaimRequest')
+              .call({'requestId': requestId});
+      final data = Map<String, dynamic>.from(result.data as Map);
+      _snack('Approvata: ${data['businessName']}', error: false);
+    } catch (e) {
+      _snack('Errore approve: $e', error: true);
+    }
+  }
+
+  Future<void> _promptRejectClaim(String requestId) async {
+    final reasonCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rifiutare la richiesta'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Motivo del rifiuto (verrà inviato via email al richiedente).',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Es. P.IVA non corrisponde, email non aziendale...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Rifiuta'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await FirebaseFunctions.instanceFor(region: 'europe-west3')
+          .httpsCallable('rejectClaimRequest')
+          .call({
+        'requestId': requestId,
+        'reason': reasonCtrl.text.trim(),
+      });
+      _snack('Richiesta rifiutata', error: false);
+    } catch (e) {
+      _snack('Errore reject: $e', error: true);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // OSM IMPORT (Epic 7.H2)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Form per pre-popolare schede unclaimed da OpenStreetMap.
+  // Selettore regione + tipo + bottone dryRun (preview) + bottone
+  // Importa. Mostra l'esito (created, skipped, errors, samples).
+
+  static const _osmRegions = <String, String>{
+    'lombardia': 'Lombardia',
+    'piemonte': 'Piemonte',
+    'veneto': 'Veneto',
+    'trentino': 'Trentino',
+    'altoadige': 'Alto Adige',
+    'valleaosta': 'Valle d\'Aosta',
+    'liguria': 'Liguria',
+    'emiliaromagna': 'Emilia-Romagna',
+    'toscana': 'Toscana',
+    'marche': 'Marche',
+    'umbria': 'Umbria',
+    'lazio': 'Lazio',
+    'abruzzo': 'Abruzzo',
+    'molise': 'Molise',
+    'campania': 'Campania',
+    'puglia': 'Puglia',
+    'basilicata': 'Basilicata',
+    'calabria': 'Calabria',
+    'sicilia': 'Sicilia',
+    'sardegna': 'Sardegna',
+    'italia': 'Tutta Italia (lenta!)',
+  };
+
+  static const _osmTypes = <String, String>{
+    'rifugio': 'Rifugi (alpine_hut)',
+    'noleggio': 'Noleggio bici/sci',
+    'guidaAlpina': 'Guide alpine / arrampicata',
+    'shop': 'Negozi outdoor',
+  };
+
+  Widget _buildOsmImportSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.cloud_download_outlined,
+                    color: Colors.teal.shade400, size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Import OSM → schede unclaimed',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Pre-popola Spazi Pro da OpenStreetMap per una regione. '
+              'Le schede nascono con tier=unclaimed, banner claim attivo. '
+              'Dedup automatico via sourceUrl: rilanciare è idempotente.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            // Layout responsive: su mobile (largo < 500) stack verticale,
+            // su desktop affiancati. Evita overflow horizontale sui
+            // dropdown lunghi tipo "Emilia-Romagna" e "Guide alpine /
+            // arrampicata".
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 500;
+                final regionField = DropdownButtonFormField<String>(
+                  initialValue: _osmRegion,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Regione',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: _osmRegions.entries
+                      .map((e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(e.value,
+                                overflow: TextOverflow.ellipsis),
+                          ))
+                      .toList(),
+                  onChanged: _osmBusy
+                      ? null
+                      : (v) => setState(() => _osmRegion = v ?? 'lombardia'),
+                );
+                final typeField = DropdownButtonFormField<String>(
+                  initialValue: _osmBusinessType,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: _osmTypes.entries
+                      .map((e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(e.value,
+                                overflow: TextOverflow.ellipsis),
+                          ))
+                      .toList(),
+                  onChanged: _osmBusy
+                      ? null
+                      : (v) =>
+                          setState(() => _osmBusinessType = v ?? 'rifugio'),
+                );
+                if (wide) {
+                  return Row(
+                    children: [
+                      Expanded(child: regionField),
+                      const SizedBox(width: 12),
+                      Expanded(child: typeField),
+                    ],
+                  );
+                }
+                return Column(
+                  children: [
+                    regionField,
+                    const SizedBox(height: 12),
+                    typeField,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            // Wrap su mobile: i bottoni vanno a capo se lo spazio
+            // non basta (es. quando "Preview (dry-run)" è il primo
+            // e "Importa" non sta).
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _osmBusy ? null : () => _runOsmImport(dryRun: true),
+                  icon: const Icon(Icons.visibility, size: 18),
+                  label: const Text('Preview (dry-run)'),
+                ),
+                FilledButton.icon(
+                  onPressed: _osmBusy ? null : () => _confirmOsmImport(),
+                  icon: _osmBusy
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.cloud_download, size: 18),
+                  label: Text(_osmBusy ? 'In corso...' : 'Importa'),
+                ),
+              ],
+            ),
+            if (_osmLastResult != null) ...[
+              const SizedBox(height: 16),
+              _buildOsmResultBlock(_osmLastResult!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOsmResultBlock(Map<String, dynamic> r) {
+    final dryRun = r['dryRun'] == true;
+    final fetched = r['fetched'] ?? 0;
+    final created = r['created'] ?? 0;
+    final skipped = r['skipped'] ?? 0;
+    final errors = (r['errors'] as List?) ?? const [];
+    final samples = (r['samples'] as List?) ?? const [];
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            dryRun ? 'Risultato preview' : 'Import completato',
+            style: const TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Fetched da OSM: $fetched  ·  '
+            '${dryRun ? "Da creare" : "Creati"}: $created  ·  '
+            'Skippati (già esistenti): $skipped'
+            '${errors.isNotEmpty ? "  ·  Errori: ${errors.length}" : ""}',
+            style: const TextStyle(fontSize: 12),
+          ),
+          if (dryRun && samples.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Primi 5 sample:',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textMuted),
+            ),
+            ...samples.map((s) {
+              final m = Map<String, dynamic>.from(s as Map);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(
+                  '• ${m['name']} '
+                  '${m['city'] != null ? "(${m['city']})" : ""}',
+                  style: const TextStyle(fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }),
+          ],
+          if (errors.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Errori (primi 3): ${errors.take(3).join("; ")}',
+              style: const TextStyle(
+                  fontSize: 11, color: AppColors.danger),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmOsmImport() async {
+    final regionLabel = _osmRegions[_osmRegion] ?? _osmRegion;
+    final typeLabel = _osmTypes[_osmBusinessType] ?? _osmBusinessType;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confermi import?'),
+        content: Text(
+          'Sto per creare schede `unclaimed` per $typeLabel in $regionLabel.\n\n'
+          'Suggerimento: lancia prima Preview per stimare il volume.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Importa'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    _runOsmImport(dryRun: false);
+  }
+
+  Future<void> _runOsmImport({required bool dryRun}) async {
+    setState(() {
+      _osmBusy = true;
+      _osmLastResult = null;
+    });
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable(
+                'importOsmBusinesses',
+                options: HttpsCallableOptions(
+                    timeout: const Duration(seconds: 120)),
+              )
+              .call({
+        'region': _osmRegion,
+        'businessType': _osmBusinessType,
+        'dryRun': dryRun,
+      });
+      if (!mounted) return;
+      setState(() {
+        _osmLastResult = Map<String, dynamic>.from(result.data as Map);
+      });
+      _snack(
+        dryRun
+            ? 'Preview pronta. Controlla risultato sotto.'
+            : 'Import completato.',
+        error: false,
+      );
+    } catch (e) {
+      _snack('Errore import OSM: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _osmBusy = false);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1244,6 +1727,108 @@ class _PendingClaimTile extends StatelessWidget {
             label: const Text('Genera link'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Riga di una claim request pendente nella sezione admin
+/// "Claim requests in attesa". Mostra preview dati + 2 bottoni
+/// (Approva / Rifiuta) che chiamano le Cloud Function.
+class _ClaimRequestTile extends StatelessWidget {
+  final String requestId;
+  final Map<String, dynamic> data;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  const _ClaimRequestTile({
+    required this.requestId,
+    required this.data,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final businessName = data['businessName']?.toString() ?? '—';
+    final name = data['requesterName']?.toString() ?? '—';
+    final role = data['requesterRole']?.toString() ?? '';
+    final email = data['requesterEmail']?.toString() ?? '';
+    final phone = data['requesterPhone']?.toString() ?? '';
+    final vat = data['requesterVat']?.toString() ?? '';
+    final website = data['requesterWebsite']?.toString() ?? '';
+    final notes = data['notes']?.toString() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            businessName,
+            style: const TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          _kv('Richiedente', '$name${role.isNotEmpty ? ' · $role' : ''}'),
+          _kv('Email', email),
+          if (phone.isNotEmpty) _kv('Telefono', phone),
+          if (vat.isNotEmpty) _kv('P.IVA/CF', vat),
+          if (website.isNotEmpty) _kv('Sito', website),
+          if (notes.isNotEmpty) _kv('Note', notes, maxLines: 4),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onReject,
+                  icon: const Icon(Icons.close, size: 16),
+                  label: const Text('Rifiuta'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: onApprove,
+                  icon: const Icon(Icons.check, size: 16),
+                  label: const Text('Approva'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kv(String k, String v, {int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: RichText(
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        text: TextSpan(
+          style: const TextStyle(
+              fontSize: 12, color: AppColors.textPrimary),
+          children: [
+            TextSpan(
+              text: '$k: ',
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600, color: AppColors.textMuted),
+            ),
+            TextSpan(text: v),
+          ],
+        ),
       ),
     );
   }

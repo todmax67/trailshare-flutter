@@ -1,6 +1,6 @@
 // Web-only file (compilato solo per lib/main_web.dart).
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html' as html;
+import '../utils/csv_downloader.dart';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
@@ -236,15 +236,11 @@ class _WebGroupStatsPageState extends State<WebGroupStatsPage> {
   }
 
   void _download(String content, String filename) {
-    final blob = html.Blob([content], 'text/csv;charset=utf-8');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final anchor = html.AnchorElement(href: url)
-      ..download = filename
-      ..style.display = 'none';
-    html.document.body?.append(anchor);
-    anchor.click();
-    anchor.remove();
-    html.Url.revokeObjectUrl(url);
+    // Helper con conditional import: su web fa il vero download via
+    // dart:html, su mobile è no-op (la UI che lo chiama esiste solo
+    // dentro la shell web, ma il grafo di import include sempre
+    // questo file).
+    downloadCsv(filename, content);
   }
 
   // ────────────────────────────────────────────────────────────

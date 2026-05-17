@@ -3825,6 +3825,226 @@ exports.generateSelfClaimToken = onCall(async (request) => {
   };
 });
 
+// ===================================================================
+// CLAIM REQUESTS PUBBLICHE (Epic 7.H5)
+// ===================================================================
+// Flow public: visitatore di scheda unclaimed compila form, scrive
+// su `business_claim_requests/{auto}` con status='pending'.
+// Questo trigger invia email al team admin (via Trigger Email
+// Extension che ascolta `mail/`). L'admin review da web admin e
+// chiama approveClaimRequest/rejectClaimRequest che fa ownership
+// transfer + email all'utente.
+
+const ADMIN_NOTIFY_EMAIL = 'info@trailshare.app';
+
+exports.onClaimRequestCreated = onDocumentCreated(
+  'business_claim_requests/{requestId}',
+  async (event) => {
+    const data = event.data && event.data.data();
+    if (!data) return;
+    const requestId = event.params.requestId;
+
+    const subject = `[Claim] Richiesta per "${data.businessName}"`;
+    const html = `
+      <h2>Nuova richiesta di claim Spazio Pro</h2>
+      <p><strong>Scheda:</strong> ${data.businessName} (ID: ${data.businessId})</p>
+      <p><strong>Slug:</strong> ${data.businessSlug || '-'}</p>
+      <hr/>
+      <h3>Dati richiedente</h3>
+      <ul>
+        <li><strong>Nome:</strong> ${data.requesterName || '-'}</li>
+        <li><strong>Ruolo:</strong> ${data.requesterRole || '-'}</li>
+        <li><strong>P.IVA / CF:</strong> ${data.requesterVat || '-'}</li>
+        <li><strong>Email:</strong> ${data.requesterEmail || '-'}</li>
+        <li><strong>Telefono:</strong> ${data.requesterPhone || '-'}</li>
+        <li><strong>Sito:</strong> ${data.requesterWebsite || '-'}</li>
+        <li><strong>UID Firebase:</strong> ${data.requesterUid}</li>
+      </ul>
+      ${data.notes ? `<p><strong>Note:</strong> ${data.notes}</p>` : ''}
+      <hr/>
+      <p><a href="https://app.trailshare.app/admin">Apri Admin Panel</a> per
+      approvare o rifiutare la richiesta (ID: ${requestId}).</p>
+    `.trim();
+
+    try {
+      await db.collection('mail').add({
+        to: [ADMIN_NOTIFY_EMAIL],
+        message: {
+          subject,
+          html,
+          text: `Nuova claim request per "${data.businessName}". Apri /admin per approvare. ID: ${requestId}`,
+        },
+      });
+      logger.info(`[onClaimRequestCreated] email queued for ${requestId}`);
+    } catch (e) {
+      logger.error(`[onClaimRequestCreated] mail write failed: ${e.message}`);
+    }
+  }
+);
+
+exports.approveClaimRequest = onCall(async (request) => {
+  if (!(await _isCallerAdmin(request.auth))) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Solo admin platform puo approvare claim.'
+    );
+  }
+  const requestId = request.data && request.data.requestId;
+  if (!requestId || typeof requestId !== 'string') {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'requestId mancante.'
+    );
+  }
+
+  const requestRef = db.collection('business_claim_requests').doc(requestId);
+  const result = await db.runTransaction(async (tx) => {
+    const reqSnap = await tx.get(requestRef);
+    if (!reqSnap.exists) {
+      throw new functions.https.HttpsError(
+        'not-found', `Request ${requestId} non trovata.`
+      );
+    }
+    const req = reqSnap.data();
+    if (req.status !== 'pending') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        `Request gia processata (status=${req.status}).`
+      );
+    }
+    const businessRef = db.collection('businesses').doc(req.businessId);
+    const bizSnap = await tx.get(businessRef);
+    if (!bizSnap.exists) {
+      throw new functions.https.HttpsError(
+        'not-found', `Business ${req.businessId} non trovato.`
+      );
+    }
+    const biz = bizSnap.data();
+    const oldOwnerUid = biz.ownerId;
+    const oldAdmins = Array.isArray(biz.adminUserIds) ? biz.adminUserIds : [];
+    const newOwnerUid = req.requesterUid;
+    const newAdmins = Array.from(new Set([
+      ...oldAdmins.filter((id) => id !== newOwnerUid),
+      oldOwnerUid,
+    ].filter(Boolean)));
+
+    tx.update(businessRef, {
+      ownerId: newOwnerUid,
+      adminUserIds: newAdmins,
+      // 7.H1 — passa da unclaimed a verified (entry-level pagato in
+      // futuro, oggi free per i seed clients). Se il business era
+      // gia verified (claim manuale post-fatto), lascia il tier.
+      tier: biz.tier === 'unclaimed' ? 'verified' : biz.tier,
+      disclaimerVisible: false,
+      pendingSelfManagement: false,
+      claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      // 7.H12 funnel
+      'funnelCounters.claim_approved': admin.firestore.FieldValue.increment(1),
+    });
+    tx.update(requestRef, {
+      status: 'approved',
+      processedAt: admin.firestore.FieldValue.serverTimestamp(),
+      processedByUid: request.auth.uid,
+    });
+    return { businessName: biz.name, requesterEmail: req.requesterEmail };
+  });
+
+  // Email di conferma al richiedente (best-effort, fuori transazione).
+  try {
+    await db.collection('mail').add({
+      to: [result.requesterEmail],
+      message: {
+        subject: `Hai ottenuto la gestione di "${result.businessName}"`,
+        html: `
+          <h2>Richiesta approvata</h2>
+          <p>Ciao,</p>
+          <p>La tua richiesta di gestione per <strong>${result.businessName}</strong>
+          è stata approvata dal team TrailShare.</p>
+          <p>Ora puoi accedere alla scheda da app o da
+          <a href="https://app.trailshare.app">app.trailshare.app</a> e
+          aggiornare foto, orari, listino, percorsi consigliati.</p>
+          <p>Per qualsiasi necessità rispondi a questa email.</p>
+          <p>— Team TrailShare</p>
+        `.trim(),
+      },
+    });
+  } catch (e) {
+    logger.warn(`[approveClaimRequest] mail to requester failed: ${e.message}`);
+  }
+
+  logger.info(`[approveClaimRequest] ${requestId} → ${result.businessName}`);
+  return { success: true, ...result };
+});
+
+exports.rejectClaimRequest = onCall(async (request) => {
+  if (!(await _isCallerAdmin(request.auth))) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Solo admin platform puo rifiutare claim.'
+    );
+  }
+  const { requestId, reason } = request.data || {};
+  if (!requestId || typeof requestId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'requestId mancante.');
+  }
+  const reasonText = (typeof reason === 'string' && reason.trim().length > 0)
+    ? reason.trim()
+    : 'Dati forniti non sufficienti per verificare la richiesta.';
+
+  const requestRef = db.collection('business_claim_requests').doc(requestId);
+  const reqSnap = await requestRef.get();
+  if (!reqSnap.exists) {
+    throw new functions.https.HttpsError('not-found', `Request ${requestId} non trovata.`);
+  }
+  const req = reqSnap.data();
+  if (req.status !== 'pending') {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      `Request gia processata (status=${req.status}).`
+    );
+  }
+
+  await requestRef.update({
+    status: 'rejected',
+    rejectionReason: reasonText,
+    processedAt: admin.firestore.FieldValue.serverTimestamp(),
+    processedByUid: request.auth.uid,
+  });
+  // 7.H12 funnel counter (best-effort, fuori dal flow critico)
+  try {
+    await db.collection('businesses').doc(req.businessId).update({
+      'funnelCounters.claim_rejected': admin.firestore.FieldValue.increment(1),
+    });
+  } catch (_) { /* swallow */ }
+
+  try {
+    await db.collection('mail').add({
+      to: [req.requesterEmail],
+      message: {
+        subject: `Aggiornamento richiesta gestione "${req.businessName}"`,
+        html: `
+          <h2>Richiesta non approvata</h2>
+          <p>Ciao,</p>
+          <p>Abbiamo valutato la tua richiesta di gestione per
+          <strong>${req.businessName}</strong> e per ora non possiamo
+          approvarla.</p>
+          <p><strong>Motivo:</strong> ${reasonText}</p>
+          <p>Se ritieni ci sia un errore, rispondi a questa email allegando
+          ulteriore documentazione (visura camerale, fattura intestata,
+          ecc.) e riapriremo la valutazione.</p>
+          <p>— Team TrailShare</p>
+        `.trim(),
+      },
+    });
+  } catch (e) {
+    logger.warn(`[rejectClaimRequest] mail to requester failed: ${e.message}`);
+  }
+
+  logger.info(`[rejectClaimRequest] ${requestId} rejected: ${reasonText}`);
+  return { success: true, requestId, reason: reasonText };
+});
+
 exports.acceptSelfClaim = onCall(async (request) => {
   if (!request.auth) {
     throw new functions.https.HttpsError(
@@ -3923,4 +4143,493 @@ exports.acceptSelfClaim = onCall(async (request) => {
   );
 
   return { success: true, ...result };
+});
+
+// ===================================================================
+// OSM IMPORT (Epic 7.H2 + 7.H3)
+// ===================================================================
+//
+// Pre-popola schede Spazio Pro `unclaimed` a partire da OpenStreetMap
+// via Overpass API. GDPR: dati pubblici aziendali, base legale
+// art. 6.1.f (interesse legittimo) + banner disclaimer + opt-out
+// 1-click (vedi docs/gtm/PRESEEDING_PRIVACY_UPDATE.md).
+//
+// Architettura:
+// - `importOsmBusinesses({region, osmTag, dryRun})` callable admin-only,
+//   one-shot per regione. Idempotente: dedup su sourceUrl.
+// - `refreshOsmBusinessesMonthly` scheduled. Re-fetch dati pubblici
+//   dei doc unclaimed e aggiorna nome/coordinate/orari (sempre solo
+//   per le schede ANCORA unclaimed; non tocca quelle claimate).
+
+const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_TIMEOUT_MS = 60_000;
+const OSM_USER_AGENT = 'TrailShare/2.4.6 (+https://trailshare.app; info@trailshare.app)';
+
+// Confini amministrativi reali delle regioni italiane via ISO 3166-2.
+// La query Overpass usa `area["ISO3166-2"="IT-XX"]->.r;` per
+// restringere i POI ai confini ufficiali, NIENTE spillover su
+// regioni vicine o oltreconfine. Più pulito di bbox approssimati.
+//
+// Per Trentino-Alto Adige usiamo le province autonome (IT-TN, IT-BZ)
+// separate, perché Trentino e Alto Adige in TrailShare hanno valore
+// e cultura outdoor differenti.
+//
+// "italia" usa il country code ISO 3166-1 (IT) — pesante, evitare.
+const ITALY_REGION_ISO = {
+  lombardia:     'IT-25',
+  piemonte:      'IT-21',
+  veneto:        'IT-34',
+  trentino:      'IT-TN', // provincia autonoma di Trento
+  altoadige:     'IT-BZ', // provincia autonoma di Bolzano
+  valleaosta:    'IT-23',
+  liguria:       'IT-42',
+  emiliaromagna: 'IT-45',
+  toscana:       'IT-52',
+  marche:        'IT-57',
+  umbria:        'IT-55',
+  lazio:         'IT-62',
+  abruzzo:       'IT-65',
+  molise:        'IT-67',
+  campania:      'IT-72',
+  puglia:        'IT-75',
+  basilicata:    'IT-77',
+  calabria:      'IT-78',
+  sicilia:       'IT-82',
+  sardegna:      'IT-88',
+  italia:        'IT',     // country, query pesante
+};
+
+// Mappa tipo TrailShare ↔ tag OSM. Una entry può combinare più
+// (tag, value) per esprimere "OR".
+//
+// `rifugio` = SOLO alpine_hut (rifugio gestito tradizionale). I bivacchi
+// (wilderness_hut) sono ~50% del volume OSM ma poco utili come Spazio
+// Pro: non hanno gestore. Per ora skip; se servono in futuro li
+// promuoviamo in un tipo "bivacco" separato.
+const OSM_TAG_PRESETS = {
+  rifugio: [
+    { k: 'tourism', v: 'alpine_hut' },
+  ],
+  noleggio: [
+    { k: 'rental', v: 'bicycle' },
+    { k: 'rental', v: 'ski' },
+    { k: 'shop', v: 'bicycle' }, // shop=bicycle spesso ha anche rental
+  ],
+  guidaAlpina: [
+    { k: 'sport', v: 'climbing' },
+    { k: 'leisure', v: 'climbing' },
+  ],
+  shop: [
+    { k: 'shop', v: 'outdoor' },
+    { k: 'shop', v: 'sports' },
+  ],
+};
+
+/// Slugify (allineato a lib/presentation/pages/business/business_create_page.dart)
+function slugify(input) {
+  return (input || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[àáâãä]/g, 'a')
+    .replace(/[èéêë]/g, 'e')
+    .replace(/[ìíîï]/g, 'i')
+    .replace(/[òóôõö]/g, 'o')
+    .replace(/[ùúûü]/g, 'u')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'spazio';
+}
+
+async function uniqueSlug(base) {
+  let candidate = base;
+  let n = 1;
+  while (true) {
+    const snap = await db.collection('businesses')
+      .where('slug', '==', candidate)
+      .limit(1).get();
+    if (snap.empty) return candidate;
+    n++;
+    candidate = `${base}-${n}`;
+    if (n > 100) return `${base}-${Date.now()}`;
+  }
+}
+
+/// Costruisce query Overpass QL ristretta ai confini amministrativi
+/// ufficiali (ISO 3166-2). Cerca sia node sia way (alcuni rifugi
+/// sono mappati come polygon).
+function buildOverpassQuery(isoCode, tagPairs) {
+  // `area[...]->.r` definisce l'area di ricerca. Per ISO 3166-2 (es.
+  // IT-25) cerchiamo la regione; per country code (IT) ISO 3166-1.
+  const areaTag = isoCode.includes('-') ? 'ISO3166-2' : 'ISO3166-1';
+  const nodeParts = tagPairs.map(({ k, v }) => `node["${k}"="${v}"](area.r);`).join('');
+  const wayParts = tagPairs.map(({ k, v }) => `way["${k}"="${v}"](area.r);`).join('');
+  return `[out:json][timeout:60];
+area["${areaTag}"="${isoCode}"]->.r;
+(${nodeParts}${wayParts});
+out center tags;`;
+}
+
+/// Normalizza un POI OSM nel formato Business doc.
+function osmToBusinessDoc(poi, businessType, ownerId) {
+  // Coordinate: node ha lat/lon direttamente; way ha center.{lat,lon}
+  const lat = poi.lat != null ? poi.lat : (poi.center && poi.center.lat);
+  const lng = poi.lon != null ? poi.lon : (poi.center && poi.center.lon);
+  if (lat == null || lng == null) return null;
+
+  const tags = poi.tags || {};
+  const name = (tags.name || tags['name:it'] || '').trim();
+  if (!name) return null; // niente nome → non importabile
+
+  const description = (tags.description || tags['description:it'] || '').trim() || null;
+  const phone = (tags.phone || tags['contact:phone'] || '').trim() || null;
+  const email = (tags.email || tags['contact:email'] || '').trim() || null;
+  const website = (tags.website || tags['contact:website'] || tags.url || '').trim() || null;
+  const city = (tags['addr:city'] || tags['addr:locality'] || '').trim() || null;
+  const street = (tags['addr:street'] || '').trim();
+  const housenumber = (tags['addr:housenumber'] || '').trim();
+  const address = [street, housenumber].filter(Boolean).join(' ').trim() || null;
+  const elevation = tags.ele ? Number(tags.ele) : null;
+
+  const geohash = encodeGeohash(lat, lng, 7);
+  const osmType = poi.type; // 'node' | 'way'
+  const osmId = poi.id;
+  const sourceUrl = `https://www.openstreetmap.org/${osmType}/${osmId}`;
+
+  return {
+    name,
+    type: businessType,
+    tier: 'unclaimed',
+    status: 'active',
+    description,
+    location: {
+      lat, lng, geohash,
+      ...(city ? { city } : {}),
+      ...(address ? { address } : {}),
+      ...(elevation != null && !isNaN(elevation) ? { elevation } : {}),
+    },
+    ...(phone || email || website ? {
+      contacts: {
+        ...(phone ? { phone } : {}),
+        ...(email ? { email } : {}),
+        ...(website ? { website } : {}),
+      },
+    } : {}),
+    ownerId, // team admin che ha lanciato l'import
+    followerCount: 0,
+    postsCount: 0,
+    reviewCount: 0,
+    sourceUrl,
+    disclaimerVisible: true,
+    pendingSelfManagement: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+exports.importOsmBusinesses = onCall(
+  { timeoutSeconds: 300, memory: '512MiB' },
+  async (request) => {
+    if (!(await _isCallerAdmin(request.auth))) {
+      throw new functions.https.HttpsError(
+        'permission-denied', 'Solo admin platform puo importare da OSM.'
+      );
+    }
+    const { region, businessType, dryRun } = request.data || {};
+    if (!region || !ITALY_REGION_ISO[region]) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        `region invalida. Disponibili: ${Object.keys(ITALY_REGION_ISO).join(', ')}`
+      );
+    }
+    if (!businessType || !OSM_TAG_PRESETS[businessType]) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        `businessType invalido. Disponibili: ${Object.keys(OSM_TAG_PRESETS).join(', ')}`
+      );
+    }
+
+    const isoCode = ITALY_REGION_ISO[region];
+    const tagPairs = OSM_TAG_PRESETS[businessType];
+    const query = buildOverpassQuery(isoCode, tagPairs);
+
+    logger.info(`[importOsmBusinesses] region=${region} type=${businessType} dryRun=${!!dryRun}`);
+
+    let overpassData;
+    try {
+      const resp = await axios.post(
+        OVERPASS_API,
+        `data=${encodeURIComponent(query)}`,
+        {
+          timeout: OVERPASS_TIMEOUT_MS,
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': OSM_USER_AGENT,
+          },
+        }
+      );
+      overpassData = resp.data;
+    } catch (e) {
+      throw new functions.https.HttpsError(
+        'unavailable',
+        `Overpass API fallita: ${e.message}. Riprova fra qualche minuto (rate limit OSM).`
+      );
+    }
+
+    const elements = Array.isArray(overpassData && overpassData.elements)
+      ? overpassData.elements : [];
+    logger.info(`[importOsmBusinesses] Overpass ha restituito ${elements.length} elementi`);
+
+    // Dedup su sourceUrl. Una query batch get sui sourceUrl trovati.
+    const candidates = [];
+    for (const poi of elements) {
+      const doc = osmToBusinessDoc(poi, businessType, request.auth.uid);
+      if (doc) candidates.push(doc);
+    }
+    if (candidates.length === 0) {
+      return {
+        success: true,
+        region, businessType, dryRun: !!dryRun,
+        fetched: elements.length, created: 0, skipped: 0,
+        message: 'Nessun POI valido nei dati Overpass (mancano coordinate o nome).',
+      };
+    }
+
+    // Carica tutti i sourceUrl esistenti per dedup. Chunk da 10 perche'
+    // `where(in)` di Firestore accetta max 10 valori per query.
+    const existingUrls = new Set();
+    const urls = candidates.map((c) => c.sourceUrl);
+    for (let i = 0; i < urls.length; i += 10) {
+      const chunk = urls.slice(i, i + 10);
+      const snap = await db.collection('businesses')
+        .where('sourceUrl', 'in', chunk)
+        .get();
+      snap.forEach((d) => {
+        const u = d.data().sourceUrl;
+        if (u) existingUrls.add(u);
+      });
+    }
+
+    let created = 0, skipped = 0;
+    const errors = [];
+    const samples = []; // per dryRun mostra primi 5 doc
+
+    for (const doc of candidates) {
+      if (existingUrls.has(doc.sourceUrl)) {
+        skipped++;
+        continue;
+      }
+      if (dryRun) {
+        if (samples.length < 5) {
+          samples.push({
+            name: doc.name,
+            sourceUrl: doc.sourceUrl,
+            city: doc.location.city || null,
+            lat: doc.location.lat,
+            lng: doc.location.lng,
+          });
+        }
+        created++;
+        continue;
+      }
+      try {
+        // Slug unique al momento del write per evitare collisioni.
+        const slug = await uniqueSlug(slugify(doc.name));
+        await db.collection('businesses').add({ ...doc, slug });
+        created++;
+      } catch (e) {
+        errors.push({ name: doc.name, error: e.message });
+      }
+    }
+
+    logger.info(
+      `[importOsmBusinesses] region=${region} fetched=${elements.length} ` +
+      `created=${created} skipped=${skipped} errors=${errors.length} dryRun=${!!dryRun}`
+    );
+
+    return {
+      success: true,
+      region, businessType, dryRun: !!dryRun,
+      fetched: elements.length,
+      created, skipped, errors,
+      samples: dryRun ? samples : undefined,
+    };
+  }
+);
+
+/// 7.H3 — Refresh mensile. Per ogni doc tier=unclaimed con sourceUrl
+/// OSM, re-fetch via Overpass `node/id` o `way/id` e aggiorna i campi
+/// pubblici (nome, coordinate, contatti, orari). Non tocca i doc
+/// claimati: rispettiamo l'autonomia del gestore.
+///
+/// Approccio: invece di N richieste, raggruppiamo in batch da 200 e
+/// usiamo query Overpass `node(id:1,2,3,..);way(id:..);out;`.
+exports.refreshOsmBusinessesMonthly = onSchedule(
+  { schedule: '0 4 1 * *', timeZone: 'Europe/Rome', timeoutSeconds: 540, memory: '512MiB' },
+  async (event) => {
+    logger.info('[refreshOsmBusinessesMonthly] start');
+
+    const snap = await db.collection('businesses')
+      .where('tier', '==', 'unclaimed')
+      .where('disclaimerVisible', '==', true)
+      .get();
+    if (snap.empty) {
+      logger.info('[refreshOsmBusinessesMonthly] no unclaimed docs');
+      return;
+    }
+
+    // Mappa: osmType:id → docRef. Estraiamo da sourceUrl.
+    const byOsmKey = new Map();
+    snap.forEach((d) => {
+      const data = d.data();
+      const url = data.sourceUrl || '';
+      const m = url.match(/openstreetmap\.org\/(node|way)\/(\d+)/);
+      if (!m) return;
+      const key = `${m[1]}:${m[2]}`;
+      byOsmKey.set(key, d.ref);
+    });
+
+    if (byOsmKey.size === 0) {
+      logger.info('[refreshOsmBusinessesMonthly] no osm-sourced docs');
+      return;
+    }
+
+    // Batch query Overpass: max ~200 id per batch per evitare URL troppo
+    // lunghi e timeout.
+    const keys = Array.from(byOsmKey.keys());
+    let refreshed = 0;
+    for (let i = 0; i < keys.length; i += 200) {
+      const batchKeys = keys.slice(i, i + 200);
+      const nodeIds = batchKeys.filter((k) => k.startsWith('node:'))
+        .map((k) => k.split(':')[1]).join(',');
+      const wayIds = batchKeys.filter((k) => k.startsWith('way:'))
+        .map((k) => k.split(':')[1]).join(',');
+      const queryParts = [];
+      if (nodeIds) queryParts.push(`node(id:${nodeIds});`);
+      if (wayIds) queryParts.push(`way(id:${wayIds});`);
+      if (queryParts.length === 0) continue;
+
+      const query = `[out:json][timeout:50];(${queryParts.join('')});out center tags;`;
+      let elements = [];
+      try {
+        const resp = await axios.post(
+          OVERPASS_API,
+          `data=${encodeURIComponent(query)}`,
+          {
+            timeout: OVERPASS_TIMEOUT_MS,
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': OSM_USER_AGENT,
+            },
+          }
+        );
+        elements = (resp.data && resp.data.elements) || [];
+      } catch (e) {
+        logger.error(`[refreshOsmBusinessesMonthly] Overpass batch ${i} failed: ${e.message}`);
+        continue;
+      }
+
+      for (const poi of elements) {
+        const key = `${poi.type}:${poi.id}`;
+        const ref = byOsmKey.get(key);
+        if (!ref) continue;
+
+        // Reuse il normalizer (ownerId placeholder, lo ignoriamo nel patch).
+        const fresh = osmToBusinessDoc(poi, '', '');
+        if (!fresh) continue;
+
+        // Patch parziale: solo i campi pubblici che possono cambiare.
+        // Niente tier/ownerId/createdAt/sourceUrl/disclaimer.
+        const patch = {
+          name: fresh.name,
+          'location.lat': fresh.location.lat,
+          'location.lng': fresh.location.lng,
+          'location.geohash': fresh.location.geohash,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        if (fresh.location.city) patch['location.city'] = fresh.location.city;
+        if (fresh.location.address) patch['location.address'] = fresh.location.address;
+        if (fresh.location.elevation != null) patch['location.elevation'] = fresh.location.elevation;
+        if (fresh.description) patch.description = fresh.description;
+        if (fresh.contacts && fresh.contacts.phone) patch['contacts.phone'] = fresh.contacts.phone;
+        if (fresh.contacts && fresh.contacts.email) patch['contacts.email'] = fresh.contacts.email;
+        if (fresh.contacts && fresh.contacts.website) patch['contacts.website'] = fresh.contacts.website;
+
+        try {
+          await ref.update(patch);
+          refreshed++;
+        } catch (e) {
+          logger.warn(`[refreshOsmBusinessesMonthly] update ${ref.id} failed: ${e.message}`);
+        }
+      }
+    }
+
+    logger.info(`[refreshOsmBusinessesMonthly] done refreshed=${refreshed} total=${byOsmKey.size}`);
+  }
+);
+
+// ===================================================================
+// FUNNEL TELEMETRY (Epic 7.H12)
+// ===================================================================
+//
+// Eventi per misurare la conversione del claim flow:
+// - unclaimed_view: scheda unclaimed visualizzata
+// - claim_started: utente clicca "Rivendica"
+// - claim_completed: form submittato
+// - claim_approved: admin approva (incrementato da approveClaimRequest)
+// - claim_rejected: admin rifiuta
+//
+// Doc per evento in `business_funnel_events/{auto}`. Aggregati
+// (counter per businessId) calcolabili con query. MVP semplice:
+// niente sampling, niente bot detection — quando il volume cresce
+// aggiungeremo bot filter via UA.
+
+exports.trackFunnelEvent = onCall(async (request) => {
+  // No isCallerAdmin check: chiunque (anche anon) può tracciare visite
+  // a una scheda pubblica. Richiediamo solo che il payload sia valido.
+  const { businessId, event } = request.data || {};
+  if (!businessId || typeof businessId !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'businessId mancante');
+  }
+  const allowedEvents = ['unclaimed_view', 'claim_started', 'claim_completed'];
+  if (!event || !allowedEvents.includes(event)) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      `event invalido. Ammessi: ${allowedEvents.join(', ')}`
+    );
+  }
+
+  // Batch: scrivi evento + increment counter aggregato sul business
+  // doc (campo `funnelCounters.{event}`). L'owner della scheda lo
+  // legge dalla read pubblica del doc, senza bisogno di Cloud Function
+  // dedicata per gli aggregati.
+  const batch = db.batch();
+  const eventRef = db.collection('business_funnel_events').doc();
+  batch.set(eventRef, {
+    businessId,
+    event,
+    userId: request.auth ? request.auth.uid : null,
+    ts: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  const businessRef = db.collection('businesses').doc(businessId);
+  batch.update(businessRef, {
+    [`funnelCounters.${event}`]: admin.firestore.FieldValue.increment(1),
+  });
+  try {
+    await batch.commit();
+  } catch (e) {
+    // Se l'increment fallisce (es. doc non esiste) almeno scriviamo
+    // l'evento singolarmente — meglio dato granular perso aggregato
+    // che evento perso.
+    logger.warn(`[trackFunnelEvent] batch failed: ${e.message} — fallback evento solo`);
+    try {
+      await eventRef.set({
+        businessId, event,
+        userId: request.auth ? request.auth.uid : null,
+        ts: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (_) { /* swallow */ }
+  }
+
+  return { success: true };
 });

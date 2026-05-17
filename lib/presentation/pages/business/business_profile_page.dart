@@ -10,7 +10,9 @@ import '../../../core/services/business_photos_service.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
+import '../../widgets/business_claim_banner.dart';
 import '../../widgets/star_rating.dart';
+import 'business_claim_request_page.dart';
 import 'business_analytics_page.dart';
 import 'business_community_sheet.dart';
 import 'business_qr_card_page.dart';
@@ -109,6 +111,19 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
           SliverList(
             delegate: SliverChildListDelegate([
               _buildHeader(b),
+              // 7.H4 — Banner claim per schede unclaimed.
+              if (BusinessClaimBanner.shouldShow(b))
+                BusinessClaimBanner(
+                  business: b,
+                  onClaimPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            BusinessClaimRequestPage(business: b),
+                      ),
+                    );
+                  },
+                ),
               const Divider(height: 1),
               _buildActions(b),
               const Divider(height: 1),
@@ -122,6 +137,12 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                 ),
               _buildLocation(b),
               if (isOwner) _buildOwnerActions(b),
+              // 7.H7 — Analytics pre-claim (solo owner): mostra il
+              // funnel di visualizzazioni/rivendicazioni accumulato
+              // quando la scheda era unclaimed. Subito dopo il claim
+              // dà al rifugista la "prova" che la scheda aveva già
+              // un audience → driver per pagare il Pro.
+              if (isOwner) _buildClaimFunnelStats(b),
               _buildGallery(b, isOwner),
               _buildRecommendedTracks(b, isOwner),
               _buildServicesPreview(b, isOwner),
@@ -231,7 +252,11 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                   runSpacing: 4,
                   children: [
                     _Chip(b.type.displayName, color: AppColors.primary),
-                    if (b.tier != BusinessTier.verified)
+                    // Chip "premium" solo per pro/enterprise: verified è
+                    // l'entry-level (silenzioso), unclaimed mostra il
+                    // banner big sotto e non duplica info qui.
+                    if (b.tier == BusinessTier.pro ||
+                        b.tier == BusinessTier.enterprise)
                       _Chip('★ ${b.tier.displayName}',
                           color: AppColors.warning),
                     if (b.followerCount > 0)
@@ -419,6 +444,94 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
   }
 
   // ─── OWNER ACTIONS (modifica, aggiungi post, gestisci listino) ───────────
+  // 7.H7 — Analytics pre-claim. Mostra all'owner i contatori funnel
+  // accumulati quando la scheda era unclaimed. Se zero → niente card
+  // (evita di rumoreggiare il profilo con "0 visite").
+  Widget _buildClaimFunnelStats(Business b) {
+    final counters = b.funnelCounters;
+    final views = counters['unclaimed_view'] ?? 0;
+    final started = counters['claim_started'] ?? 0;
+    final completed = counters['claim_completed'] ?? 0;
+    final approved = counters['claim_approved'] ?? 0;
+    final rejected = counters['claim_rejected'] ?? 0;
+    final total = views + started + completed + approved + rejected;
+    if (total == 0) return const SizedBox.shrink();
+
+    final conversion = views > 0
+        ? '${((completed / views) * 100).toStringAsFixed(1)}%'
+        : '—';
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.analytics_outlined,
+                  color: AppColors.info, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Funnel claim',
+                  style: TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Da quando la scheda è online (tutti i tempi).',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              _miniStat('Visualizzazioni', views),
+              _miniStat('Click "Rivendica"', started),
+              _miniStat('Form completati', completed),
+              if (approved > 0) _miniStat('Approvate', approved),
+              if (rejected > 0) _miniStat('Rifiutate', rejected),
+              _miniStat('Conversion view→completed', conversion),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStat(String label, Object value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10, color: AppColors.textMuted)),
+          Text('$value',
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOwnerActions(Business b) {
     return Container(
       margin: const EdgeInsets.all(16),

@@ -315,6 +315,52 @@ service cloud.firestore {
       }
     }
 
+    // --- CLAIM REQUESTS (Epic 7.H5 — claim pubblico) ---
+    //
+    // Quando un utente arriva su una scheda `unclaimed` e clicca
+    // "Rivendica la scheda", compila il form e submitta una request
+    // che finisce qui. Il team admin la review da admin panel web e
+    // Approve/Reject via Cloud Function.
+    //
+    // - Create: signed-in only. Validazione base sui campi (no PII
+    //   inventata, businessId obbligatorio, status iniziale = pending).
+    // - Read/update/delete: NO client. Lo fa solo l'admin via Cloud
+    //   Function (approveClaimRequest / rejectClaimRequest che
+    //   girano in Admin SDK).
+    match /business_claim_requests/{requestId} {
+      // Read: solo platform admin (admin panel review).
+      allow read: if isSignedIn() && isPlatformAdmin();
+      // Update / delete: NO client (admin processa via Cloud Function
+      // approveClaimRequest / rejectClaimRequest che gira in Admin SDK).
+      allow update, delete: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.businessId is string
+        && request.resource.data.businessId.size() > 0
+        && request.resource.data.requesterUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requesterName is string
+        && request.resource.data.requesterName.size() > 0
+        && request.resource.data.requesterName.size() < 200
+        && request.resource.data.requesterEmail is string
+        && request.resource.data.requesterEmail.size() > 0
+        && request.resource.data.requesterEmail.size() < 320;
+    }
+
+    // --- FUNNEL TELEMETRY (Epic 7.H12) ---
+    //
+    // Eventi del flow claim (view → start → complete → approve).
+    // Scritti SOLO dalla Cloud Function `trackFunnelEvent` (callable
+    // che gira in Admin SDK). Niente write client diretto: evita
+    // event injection da finti utenti che inflano i counter.
+    //
+    // Read: platform admin per audit + admin panel funnel dashboard.
+    // (L'analytics owner-side legge invece aggregati su businesses/{id}/funnel_totals
+    // — collection figlia con rule più aperta sotto.)
+    match /business_funnel_events/{eventId} {
+      allow read: if isSignedIn() && isPlatformAdmin();
+      allow create, update, delete: if false;
+    }
+
     // --- SELF-CLAIM TOKEN STORE (Epic 7.H1) ---
     // I doc qui sono `{ businessId, expiresAt, createdAt, createdByUid }`
     // con doc ID = token random 32 char. Sono SECRET: chiunque possa

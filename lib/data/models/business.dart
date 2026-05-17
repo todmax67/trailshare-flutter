@@ -55,15 +55,26 @@ enum BusinessType {
   }
 }
 
-/// Tier di abbonamento. Mappato 1:1 sui pricing definiti
-/// (Verified €19.99/€199, Pro €49.99/€499, Enterprise custom).
+/// Tier di abbonamento + stato di "ownership" della scheda.
+///
+/// I tre tier pagati sono: verified, pro, enterprise (vedi pricing).
+///
+/// 7.H1 — `unclaimed` non è un piano pagato: indica una scheda
+/// pre-popolata da TrailShare (da OSM, registro pubblico, scoperta
+/// manuale) che non è ancora stata rivendicata dal vero gestore.
+/// Visivamente porta banner "Sei il gestore? Rivendica" e ha alcune
+/// sezioni in read-only (no aggiornamenti, no listino) finché non
+/// viene reclamata, momento in cui passa a `verified`.
 enum BusinessTier {
+  unclaimed,
   verified,
   pro,
   enterprise;
 
   String get displayName {
     switch (this) {
+      case BusinessTier.unclaimed:
+        return 'Non rivendicata';
       case BusinessTier.verified:
         return 'Verificato';
       case BusinessTier.pro:
@@ -72,6 +83,10 @@ enum BusinessTier {
         return 'Enterprise';
     }
   }
+
+  /// True se la scheda è stata pre-popolata ma non ancora rivendicata
+  /// dal gestore reale. Driver del banner pubblico claim.
+  bool get isUnclaimed => this == BusinessTier.unclaimed;
 }
 
 enum BusinessStatus {
@@ -274,6 +289,28 @@ class Business {
   /// condiviso uno-a-uno.
   final bool pendingSelfManagement;
 
+  /// 7.H1 — Sorgente dei dati di una scheda `unclaimed` pre-popolata
+  /// da TrailShare. Esempi: `https://www.openstreetmap.org/node/123`,
+  /// `https://www.cai.it/rifugio/123`. Per le schede inserite a mano
+  /// dal team o dal vero gestore può restare null.
+  final String? sourceUrl;
+
+  /// 7.H4 — Se true, mostriamo banner big "Scheda generata da fonti
+  /// pubbliche, sei il gestore?" + CTA Rivendica/Segnala. Default true
+  /// per i doc creati con tier=unclaimed; va su false al claim
+  /// approvato. Tenuto separato da `tier` per casi edge (es. scheda
+  /// claimed che vuole comunque mostrare il disclaimer perché in
+  /// transizione, o test A/B sul copy del banner).
+  final bool disclaimerVisible;
+
+  /// 7.H12 — Contatori funnel mantenuti server-side dalla Cloud
+  /// Function `trackFunnelEvent`. Chiavi note:
+  /// `unclaimed_view`, `claim_started`, `claim_completed`,
+  /// `claim_approved`, `claim_rejected`. Aggiornati con
+  /// FieldValue.increment(1). Lettura pubblica (read businesses è
+  /// pubblica) → ok mostrare anche all'owner.
+  final Map<String, int> funnelCounters;
+
   const Business({
     this.id,
     required this.name,
@@ -298,6 +335,9 @@ class Business {
     this.updatedAt,
     this.claimedAt,
     this.pendingSelfManagement = false,
+    this.sourceUrl,
+    this.disclaimerVisible = false,
+    this.funnelCounters = const {},
   });
 
   bool get isOwnedBy => false; // placeholder, l'owner check è nel repo
@@ -350,6 +390,8 @@ class Business {
       // legacy senza il campo (resta assente). Il token vive in
       // collection separata `business_self_claims/{token}`.
       if (pendingSelfManagement) 'pendingSelfManagement': true,
+      if (sourceUrl != null) 'sourceUrl': sourceUrl,
+      if (disclaimerVisible) 'disclaimerVisible': true,
     };
   }
 
@@ -410,6 +452,12 @@ class Business {
       updatedAt: m['updatedAt'] != null ? ts(m['updatedAt']) : null,
       claimedAt: m['claimedAt'] != null ? ts(m['claimedAt']) : null,
       pendingSelfManagement: m['pendingSelfManagement'] == true,
+      sourceUrl: m['sourceUrl']?.toString(),
+      disclaimerVisible: m['disclaimerVisible'] == true,
+      funnelCounters: (m['funnelCounters'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), (v as num?)?.toInt() ?? 0),
+          ) ??
+          const {},
     );
   }
 
@@ -435,6 +483,8 @@ class Business {
     DateTime? updatedAt,
     DateTime? claimedAt,
     bool? pendingSelfManagement,
+    String? sourceUrl,
+    bool? disclaimerVisible,
   }) {
     return Business(
       id: id,
@@ -461,6 +511,8 @@ class Business {
       claimedAt: claimedAt ?? this.claimedAt,
       pendingSelfManagement:
           pendingSelfManagement ?? this.pendingSelfManagement,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      disclaimerVisible: disclaimerVisible ?? this.disclaimerVisible,
     );
   }
 }

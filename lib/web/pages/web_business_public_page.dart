@@ -10,6 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/business.dart';
 import '../../data/repositories/business_repository.dart';
+import '../../presentation/widgets/business_claim_banner.dart';
+import 'web_claim_request_page.dart';
 
 /// Epic 7.D1 — Landing pubblica `/b/{slug}` di uno Spazio Pro.
 ///
@@ -228,6 +230,24 @@ class _WebBusinessPublicPageState extends State<WebBusinessPublicPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // 7.H4 — Banner claim per schede unclaimed,
+                      // sopra a tutto il body così è la prima cosa
+                      // che vede chi visita una scheda pre-popolata.
+                      if (BusinessClaimBanner.shouldShow(business)) ...[
+                        BusinessClaimBanner(
+                          business: business,
+                          onClaimPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => WebClaimRequestPage(
+                                  business: business,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       _buildTypeBadge(business, accent),
                       const SizedBox(height: 16),
                       if (business.description?.isNotEmpty == true) ...[
