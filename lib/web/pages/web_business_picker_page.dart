@@ -31,6 +31,13 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
   String _searchQuery = '';
   BusinessTier? _filterTier;
 
+  // Stream Firestore memoizzato: senza questa cache, build() veniva
+  // chiamato ad ogni keystroke della search bar (setState) e ricreava
+  // un NUOVO oggetto Stream → StreamBuilder ri-subscribeva → re-fetch
+  // Firestore + perdita focus textfield. Memoizziamo dopo il check
+  // admin.
+  Stream<List<Business>>? _businessesStream;
+
   @override
   void dispose() {
     _searchCtrl.dispose();
@@ -45,17 +52,25 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
 
   Future<void> _loadAdmin() async {
     final isAdmin = await AdminRepository.isCurrentUserAdmin();
-    if (mounted) setState(() => _isAdmin = isAdmin);
+    if (!mounted) return;
+    setState(() {
+      _isAdmin = isAdmin;
+      // Memoizza lo stream UNA VOLTA in base al ruolo. I successivi
+      // rebuild (search bar, filtri) riusano lo stesso oggetto Stream.
+      _businessesStream = isAdmin
+          ? _repo.watchAllBusinesses()
+          : _repo.watchMyBusinesses();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Admin platform vede TUTTE le schede pro (per gestire schede
-    // per conto di clienti, intervenire su scheda altrui per support,
-    // ecc). Owner normale vede solo le proprie.
-    final stream = _isAdmin
-        ? _repo.watchAllBusinesses()
-        : _repo.watchMyBusinesses();
+    // Aspetta che _loadAdmin abbia inizializzato _businessesStream
+    // (Admin platform → watchAllBusinesses, owner → watchMyBusinesses).
+    final stream = _businessesStream;
+    if (stream == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return StreamBuilder<List<Business>>(
       stream: stream,
       builder: (context, snap) {
