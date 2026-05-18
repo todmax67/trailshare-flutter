@@ -1,8 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../data/models/business.dart';
+import '../../data/repositories/admin_repository.dart';
 import '../../data/repositories/business_repository.dart';
 import '../../presentation/pages/business/business_analytics_page.dart';
 import '../../presentation/pages/business/business_edit_page.dart';
@@ -27,6 +29,18 @@ class WebBusinessDashboardPage extends StatefulWidget {
 
 class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
   final _repo = BusinessRepository();
+  bool _isPlatformAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdminFlag();
+  }
+
+  Future<void> _loadAdminFlag() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted) setState(() => _isPlatformAdmin = isAdmin);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +109,10 @@ class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
               _buildQuickActions(b),
               const SizedBox(height: 24),
               _buildIdentitySection(b),
+              if (_isPlatformAdmin) ...[
+                const SizedBox(height: 24),
+                _buildAdminToolsSection(b),
+              ],
             ],
           ),
         ),
@@ -326,6 +344,215 @@ class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
             _row('Tier', b.tier.displayName),
           ],
         ),
+      ),
+    );
+  }
+
+  // ─── ADMIN TOOLS (solo platform admin) ──────────────────────────────
+  Widget _buildAdminToolsSection(Business b) {
+    return Card(
+      color: AppColors.warning.withValues(alpha: 0.06),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: AppColors.warning.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.shield_outlined,
+                    color: Colors.amber.shade800, size: 22),
+                const SizedBox(width: 8),
+                const Text('Admin tools',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Operazioni privilegiate sul doc business. Disponibili '
+              'solo per platform admin TrailShare.',
+              style:
+                  TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 14),
+            // Owner attuale (utile per sapere chi sostituisci)
+            _row('Business ID', b.id ?? '—', copyable: true),
+            _row('Owner UID (attuale)', b.ownerId, copyable: true),
+            if (b.adminUserIds.isNotEmpty)
+              _row('Co-admin', b.adminUserIds.join(', ')),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => _showTransferOwnershipDialog(b),
+                  icon: const Icon(Icons.swap_horiz, size: 18),
+                  label: const Text('Trasferisci ownership'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.warning,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _showAddCoAdminDialog(b),
+                  icon: const Icon(Icons.group_add, size: 18),
+                  label: const Text('Aggiungi co-admin'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showTransferOwnershipDialog(Business b) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Trasferisci ownership'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Il vecchio owner (${b.ownerId}) verrà spostato in '
+              'co-admin per non perdere accesso. Il nuovo owner '
+              'diventa autonomo nella gestione.',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'UID nuovo owner',
+                hintText: 'Es. abc123xyz... (Firebase Auth UID)',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Lo trovi su Firebase Console → Authentication → '
+              'cerca per email → copia UID.',
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.warning),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Trasferisci'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final newOwner = ctrl.text.trim();
+    if (newOwner.isEmpty) return;
+    if (newOwner == b.ownerId) {
+      _snack('Il nuovo owner è uguale a quello attuale. Niente da fare.',
+          error: true);
+      return;
+    }
+    try {
+      final newAdmins = {
+        ...b.adminUserIds.where((id) => id != newOwner),
+        b.ownerId,
+      }.toList();
+      await FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(b.id)
+          .update({
+        'ownerId': newOwner,
+        'adminUserIds': newAdmins,
+        'claimedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'pendingSelfManagement': false,
+      });
+      _snack('Ownership trasferita a $newOwner', error: false);
+    } catch (e) {
+      _snack('Errore: $e', error: true);
+    }
+  }
+
+  Future<void> _showAddCoAdminDialog(Business b) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Aggiungi co-admin'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Un co-admin può editare la scheda come l\'owner ma non '
+              'può rimuoverlo o trasferire ownership.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'UID co-admin',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Aggiungi'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final newAdmin = ctrl.text.trim();
+    if (newAdmin.isEmpty) return;
+    if (newAdmin == b.ownerId || b.adminUserIds.contains(newAdmin)) {
+      _snack('Già owner o co-admin.', error: true);
+      return;
+    }
+    try {
+      await FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(b.id)
+          .update({
+        'adminUserIds': FieldValue.arrayUnion([newAdmin]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      _snack('Co-admin aggiunto.', error: false);
+    } catch (e) {
+      _snack('Errore: $e', error: true);
+    }
+  }
+
+  void _snack(String msg, {required bool error}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? AppColors.danger : AppColors.success,
       ),
     );
   }
