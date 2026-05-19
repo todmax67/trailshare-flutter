@@ -44,7 +44,13 @@ class ToursRepository {
     required String title,
     String? description,
     String? coverPhotoUrl,
+    List<String> galleryUrls = const [],
+    String? bestPeriod,
+    String? difficultyGrade,
+    String? equipment,
+    String? naturalNotes,
     required List<String> trackIds,
+    Map<String, String> stageAccommodations = const {},
     bool isPublic = false,
   }) async {
     final uid = _requireUid;
@@ -66,7 +72,13 @@ class ToursRepository {
       title: title,
       description: description,
       coverPhotoUrl: coverPhotoUrl,
+      galleryUrls: galleryUrls,
+      bestPeriod: bestPeriod,
+      difficultyGrade: difficultyGrade,
+      equipment: equipment,
+      naturalNotes: naturalNotes,
       trackIds: trackIds,
+      stageAccommodations: stageAccommodations,
       totalDistance: agg.totalDistance,
       totalElevationGain: agg.totalElevationGain,
       totalDuration: agg.totalDuration,
@@ -78,7 +90,8 @@ class ToursRepository {
 
     await docRef.set(tour.toFirestore());
     if (isPublic) {
-      final stages = await _buildStageSummaries(tracks, uid);
+      final stages =
+          await _buildStageSummaries(tracks, uid, stageAccommodations);
       await _communityTours.doc(docRef.id).set(tour.toCommunityFirestore(stages));
     }
 
@@ -107,23 +120,57 @@ class ToursRepository {
   /// Costruisce le stage summary denormalizzate + mapping pubblico.
   Future<List<TourStageSummary>> _buildStageSummaries(
     List<Track> tracks,
-    String ownerId,
-  ) async {
+    String ownerId, [
+    Map<String, String> stageAccommodations = const {},
+  ]) async {
     final publicMap = await _resolvePublicTrackMap(tracks, ownerId);
+
+    // Fetch denormalizzato dei business accommodation: 1 read per
+    // ogni businessId distinto referenziato. Risultato cachato per
+    // questa build call (i tour pluri-giorno tipici hanno 3-7
+    // accommodation distinti).
+    final accommodationById = <String, ({String name, String slug})>{};
+    final distinctBusinessIds = stageAccommodations.values.toSet();
+    if (distinctBusinessIds.isNotEmpty) {
+      for (final bizId in distinctBusinessIds) {
+        try {
+          final snap = await _firestore
+              .collection('businesses')
+              .doc(bizId)
+              .get();
+          if (snap.exists) {
+            final data = snap.data();
+            accommodationById[bizId] = (
+              name: data?['name']?.toString() ?? 'Spazio Pro',
+              slug: data?['slug']?.toString() ?? '',
+            );
+          }
+        } catch (_) {
+          // Best-effort: se il business è cancellato, skippa silenziosamente
+        }
+      }
+    }
 
     return [
       for (final t in tracks)
-        TourStageSummary(
-          trackId: t.id ?? '',
-          name: t.name,
-          activityType: t.activityType.name,
-          distance: t.stats.distance,
-          elevationGain: t.stats.elevationGain,
-          duration: t.stats.duration,
-          points: _downsamplePolyline(t.points),
-          isTrackPublic: t.id != null && publicMap.containsKey(t.id),
-          communityTrackId: t.id != null ? publicMap[t.id] : null,
-        ),
+        () {
+          final bizId = stageAccommodations[t.id ?? ''];
+          final acc = bizId != null ? accommodationById[bizId] : null;
+          return TourStageSummary(
+            trackId: t.id ?? '',
+            name: t.name,
+            activityType: t.activityType.name,
+            distance: t.stats.distance,
+            elevationGain: t.stats.elevationGain,
+            duration: t.stats.duration,
+            points: _downsamplePolyline(t.points),
+            isTrackPublic: t.id != null && publicMap.containsKey(t.id),
+            communityTrackId: t.id != null ? publicMap[t.id] : null,
+            accommodationBusinessId: bizId,
+            accommodationName: acc?.name,
+            accommodationSlug: acc?.slug,
+          );
+        }(),
     ];
   }
 
@@ -291,7 +338,13 @@ class ToursRepository {
     String? title,
     String? description,
     String? coverPhotoUrl,
+    List<String>? galleryUrls,
+    String? bestPeriod,
+    String? difficultyGrade,
+    String? equipment,
+    String? naturalNotes,
     List<String>? trackIds,
+    Map<String, String>? stageAccommodations,
     bool? isPublic,
   }) async {
     final uid = _requireUid;
@@ -306,6 +359,12 @@ class ToursRepository {
       title: title,
       description: description,
       coverPhotoUrl: coverPhotoUrl,
+      galleryUrls: galleryUrls,
+      bestPeriod: bestPeriod,
+      difficultyGrade: difficultyGrade,
+      equipment: equipment,
+      naturalNotes: naturalNotes,
+      stageAccommodations: stageAccommodations,
       isPublic: isPublic,
       updatedAt: DateTime.now(),
     );
@@ -328,15 +387,21 @@ class ToursRepository {
       );
     }
 
+    final accommodationsChanged = stageAccommodations != null &&
+        !_mapEquals(stageAccommodations, current.stageAccommodations);
+
     await docRef.set(updated.toFirestore());
 
     if (updated.isPublic) {
       // Rigenera le stage summary quando: va pubblico per la prima volta,
-      // oppure è già pubblico ma le tappe sono cambiate.
-      final needsRebuild = !current.isPublic || tracksChanged;
+      // tappe cambiate, oppure cambia l'assegnazione accommodation
+      // (le accommodation sono denormalizzate dentro le stages).
+      final needsRebuild =
+          !current.isPublic || tracksChanged || accommodationsChanged;
       if (needsRebuild) {
         final tracks = await _loadTracksInOrder(updated.trackIds);
-        final stages = await _buildStageSummaries(tracks, uid);
+        final stages = await _buildStageSummaries(
+            tracks, uid, updated.stageAccommodations);
         await _communityTours.doc(tourId).set(updated.toCommunityFirestore(stages));
       } else {
         // Solo metadati cambiati: merge per preservare le stage esistenti.
@@ -348,6 +413,14 @@ class ToursRepository {
     } else if (current.isPublic) {
       await _communityTours.doc(tourId).delete();
     }
+  }
+
+  bool _mapEquals(Map<String, String> a, Map<String, String> b) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
   }
 
   // ─── Eliminazione ──────────────────────────────────────────────────────────

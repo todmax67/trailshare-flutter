@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -11,6 +12,7 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../discover/community_track_detail_page.dart';
+import 'widgets/tour_rich_sections.dart';
 
 /// Vista community (read-only) di un tour pubblico.
 ///
@@ -150,7 +152,16 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
       ),
       body: ListView(
         children: [
-          SizedBox(height: 280, child: _buildMap(tour, stages)),
+          if (tour.coverPhotoUrl != null)
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: CachedNetworkImage(
+                imageUrl: tour.coverPhotoUrl!,
+                fit: BoxFit.cover,
+                placeholder: (c, _) => Container(color: AppColors.surface),
+              ),
+            ),
+          SizedBox(height: 360, child: _buildMap(tour, stages)),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -194,17 +205,34 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
                     if (tour.totalDuration.inMinutes > 0) _stat(Icons.schedule, durStr),
                   ],
                 ),
+                const SizedBox(height: 20),
+                // Epic 11 — sezioni ricche: chip difficoltà/periodo,
+                // gallery, equipaggiamento, note storiche.
+                TourRichHeaderSections(tour: tour),
                 if (stages.isNotEmpty) ...[
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8),
                   Text(context.l10n.tourStagesTitle, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                   const SizedBox(height: 8),
-                  for (var i = 0; i < stages.length; i++)
+                  for (var i = 0; i < stages.length; i++) ...[
                     _StageTile(
                       index: i + 1,
                       stage: stages[i],
                       color: _stageColors[i % _stageColors.length],
                       onTap: _isStageTappable(stages[i]) ? () => _openStage(stages[i]) : null,
                     ),
+                    if (stages[i].accommodationBusinessId != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(60, 0, 0, 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: StageAccommodationBadge(
+                            businessId:
+                                stages[i].accommodationBusinessId!,
+                            businessName: stages[i].accommodationName,
+                          ),
+                        ),
+                      ),
+                  ],
                 ],
               ],
             ),

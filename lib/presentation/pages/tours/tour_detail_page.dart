@@ -1,3 +1,5 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -9,6 +11,8 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tours_repository.dart';
+import 'widgets/multi_stage_elevation_chart.dart';
+import 'widgets/tour_rich_sections.dart';
 import '../track_detail/track_detail_page.dart';
 import 'tour_edit_page.dart';
 
@@ -139,7 +143,16 @@ class _TourDetailPageState extends State<TourDetailPage> {
       ),
       body: ListView(
         children: [
-          SizedBox(height: 280, child: _buildMap(tour)),
+          if (tour.coverPhotoUrl != null)
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: CachedNetworkImage(
+                imageUrl: tour.coverPhotoUrl!,
+                fit: BoxFit.cover,
+                placeholder: (c, _) => Container(color: AppColors.surface),
+              ),
+            ),
+          SizedBox(height: 360, child: _buildMap(tour)),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -172,10 +185,20 @@ class _TourDetailPageState extends State<TourDetailPage> {
                     if (tour.totalDuration.inMinutes > 0) _stat(Icons.schedule, durStr),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+                // Epic 11 — chart altimetria multistage (solo owner
+                // detail: ha accesso alle tracce private con TrackPoint
+                // elevation).
+                if (_tracks.isNotEmpty) ...[
+                  MultiStageElevationChart.fromTracks(_tracks),
+                  const SizedBox(height: 20),
+                ],
+                // Epic 11 — sezioni ricche: chip difficoltà/periodo,
+                // gallery, equipaggiamento, note storiche.
+                TourRichHeaderSections(tour: tour),
                 Text(context.l10n.tourStagesTitle, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                 const SizedBox(height: 8),
-                for (var i = 0; i < _tracks.length; i++)
+                for (var i = 0; i < _tracks.length; i++) ...[
                   _StageTile(
                     index: i + 1,
                     track: _tracks[i],
@@ -185,6 +208,18 @@ class _TourDetailPageState extends State<TourDetailPage> {
                       MaterialPageRoute(builder: (_) => TrackDetailPage(track: _tracks[i])),
                     ),
                   ),
+                  if (tour.stageAccommodations[_tracks[i].id] != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(60, 0, 0, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _AccommodationBadgeLoader(
+                          businessId:
+                              tour.stageAccommodations[_tracks[i].id]!,
+                        ),
+                      ),
+                    ),
+                ],
               ],
             ),
           ),
@@ -269,6 +304,49 @@ class _TourDetailPageState extends State<TourDetailPage> {
         const SizedBox(width: 6),
         Text(value, style: TextStyle(color: color ?? context.textPrimary, fontWeight: FontWeight.w500)),
       ],
+    );
+  }
+}
+
+/// Carica async name+slug del business accommodation e mostra il
+/// badge cliccabile. Cache repository minima — per ora 1 fetch
+/// per render. Il community_tours mirror denormalizza già il name
+/// nelle stages, quindi solo la detail owner ha bisogno di questo
+/// loader.
+class _AccommodationBadgeLoader extends StatefulWidget {
+  final String businessId;
+  const _AccommodationBadgeLoader({required this.businessId});
+
+  @override
+  State<_AccommodationBadgeLoader> createState() =>
+      _AccommodationBadgeLoaderState();
+}
+
+class _AccommodationBadgeLoaderState extends State<_AccommodationBadgeLoader> {
+  String? _name;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(widget.businessId)
+          .get();
+      if (!mounted) return;
+      setState(() => _name = doc.data()?['name']?.toString());
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StageAccommodationBadge(
+      businessId: widget.businessId,
+      businessName: _name,
     );
   }
 }

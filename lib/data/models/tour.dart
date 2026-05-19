@@ -26,6 +26,14 @@ class TourStageSummary {
   /// dalla vecchia app JS con uno schema di id diverso.
   final String? communityTrackId;
 
+  /// Epic 11 — rifugio/B&B/locale dove si pernotta a FINE tappa.
+  /// Link a uno Spazio Pro (collection `businesses`). Denormalizzato
+  /// name+slug per permettere al community_tours mirror di mostrare
+  /// la card pernottamento senza fetch extra (1 sola read).
+  final String? accommodationBusinessId;
+  final String? accommodationName;
+  final String? accommodationSlug;
+
   const TourStageSummary({
     required this.trackId,
     required this.name,
@@ -36,6 +44,9 @@ class TourStageSummary {
     required this.points,
     required this.isTrackPublic,
     this.communityTrackId,
+    this.accommodationBusinessId,
+    this.accommodationName,
+    this.accommodationSlug,
   });
 
   double get distanceKm => distance / 1000;
@@ -52,6 +63,10 @@ class TourStageSummary {
             .toList(),
         'isTrackPublic': isTrackPublic,
         if (communityTrackId != null) 'communityTrackId': communityTrackId,
+        if (accommodationBusinessId != null)
+          'accommodationBusinessId': accommodationBusinessId,
+        if (accommodationName != null) 'accommodationName': accommodationName,
+        if (accommodationSlug != null) 'accommodationSlug': accommodationSlug,
       };
 
   static TourStageSummary fromMap(Map<String, dynamic> map) {
@@ -74,6 +89,9 @@ class TourStageSummary {
       points: points,
       isTrackPublic: map['isTrackPublic'] == true,
       communityTrackId: map['communityTrackId']?.toString(),
+      accommodationBusinessId: map['accommodationBusinessId']?.toString(),
+      accommodationName: map['accommodationName']?.toString(),
+      accommodationSlug: map['accommodationSlug']?.toString(),
     );
   }
 }
@@ -125,8 +143,26 @@ class Tour {
   final String? description;
   final String? coverPhotoUrl;
 
+  /// Epic 11 — Gallery foto extra (oltre la cover). 5-10 foto per
+  /// raccontare il tour. Memorizzate come URL Firebase Storage
+  /// (caricate via BusinessPhotosService o helper analogo).
+  final List<String> galleryUrls;
+
+  /// Epic 11 — Sezioni descrizione strutturate. Tutti opzionali; il
+  /// detail page renderizza solo quelle popolate.
+  final String? bestPeriod; // es. "Giugno - Settembre"
+  final String? difficultyGrade; // T/E/EE/EEA o "Facile/Medio/Difficile"
+  final String? equipment; // testo libero "scarponi, picozza, ramponi..."
+  final String? naturalNotes; // cenni storici / naturalistici / culturali
+
   /// trackIds ordinati = sequenza delle tappe.
   final List<String> trackIds;
+
+  /// Epic 11 — accommodations per tappa: chiave = trackId, valore =
+  /// businessId Spazio Pro (rifugio/B&B dove pernottare a fine tappa).
+  /// Optional: una tappa può non avere accommodation (return-to-base,
+  /// bivacco free, etc).
+  final Map<String, String> stageAccommodations;
 
   final double totalDistance; // metri
   final double totalElevationGain; // metri
@@ -151,7 +187,13 @@ class Tour {
     required this.title,
     this.description,
     this.coverPhotoUrl,
+    this.galleryUrls = const [],
+    this.bestPeriod,
+    this.difficultyGrade,
+    this.equipment,
+    this.naturalNotes,
     required this.trackIds,
+    this.stageAccommodations = const {},
     required this.totalDistance,
     required this.totalElevationGain,
     required this.totalDuration,
@@ -169,7 +211,13 @@ class Tour {
     String? title,
     String? description,
     String? coverPhotoUrl,
+    List<String>? galleryUrls,
+    String? bestPeriod,
+    String? difficultyGrade,
+    String? equipment,
+    String? naturalNotes,
     List<String>? trackIds,
+    Map<String, String>? stageAccommodations,
     double? totalDistance,
     double? totalElevationGain,
     Duration? totalDuration,
@@ -186,7 +234,13 @@ class Tour {
       title: title ?? this.title,
       description: description ?? this.description,
       coverPhotoUrl: coverPhotoUrl ?? this.coverPhotoUrl,
+      galleryUrls: galleryUrls ?? this.galleryUrls,
+      bestPeriod: bestPeriod ?? this.bestPeriod,
+      difficultyGrade: difficultyGrade ?? this.difficultyGrade,
+      equipment: equipment ?? this.equipment,
+      naturalNotes: naturalNotes ?? this.naturalNotes,
       trackIds: trackIds ?? this.trackIds,
+      stageAccommodations: stageAccommodations ?? this.stageAccommodations,
       totalDistance: totalDistance ?? this.totalDistance,
       totalElevationGain: totalElevationGain ?? this.totalElevationGain,
       totalDuration: totalDuration ?? this.totalDuration,
@@ -208,7 +262,14 @@ class Tour {
       'title': title,
       if (description != null) 'description': description,
       if (coverPhotoUrl != null) 'coverPhotoUrl': coverPhotoUrl,
+      if (galleryUrls.isNotEmpty) 'galleryUrls': galleryUrls,
+      if (bestPeriod != null) 'bestPeriod': bestPeriod,
+      if (difficultyGrade != null) 'difficultyGrade': difficultyGrade,
+      if (equipment != null) 'equipment': equipment,
+      if (naturalNotes != null) 'naturalNotes': naturalNotes,
       'trackIds': trackIds,
+      if (stageAccommodations.isNotEmpty)
+        'stageAccommodations': stageAccommodations,
       'totalDistance': totalDistance,
       'totalElevationGain': totalElevationGain,
       'totalDurationSeconds': totalDuration.inSeconds,
@@ -247,7 +308,19 @@ class Tour {
       title: data['title']?.toString() ?? '',
       description: data['description']?.toString(),
       coverPhotoUrl: data['coverPhotoUrl']?.toString(),
+      galleryUrls: (data['galleryUrls'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      bestPeriod: data['bestPeriod']?.toString(),
+      difficultyGrade: data['difficultyGrade']?.toString(),
+      equipment: data['equipment']?.toString(),
+      naturalNotes: data['naturalNotes']?.toString(),
       trackIds: (data['trackIds'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      stageAccommodations: (data['stageAccommodations'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), v.toString()),
+          ) ??
+          const {},
       totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0,
       totalElevationGain: (data['totalElevationGain'] as num?)?.toDouble() ?? 0,
       totalDuration: Duration(seconds: (data['totalDurationSeconds'] as num?)?.toInt() ?? 0),

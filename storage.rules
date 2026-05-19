@@ -16,6 +16,19 @@ service firebase.storage {
       allow delete: if request.auth != null;
     }
 
+    // ─── TOUR (foto cover + gallery di un tour pluri-giorno) ─────────
+    // Epic 11 — Read pubblico (i tour pubblici hanno gallery visibile
+    // dalla community detail). Write da utente autenticato (owner
+    // check via UI gating: il bottone "Aggiungi foto" è disponibile
+    // solo all'owner nella TourEditPage).
+    match /tours/{tourId}/{kind}/{filename} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
     // ─── TRACCE (foto su tracce esistenti) ────────────────────────────
     // Pattern esistente preservato. Adatta se le tue rules prod sono diverse.
     match /tracks/{userId}/{trackId}/{filename} {
