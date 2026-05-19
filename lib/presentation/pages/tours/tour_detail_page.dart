@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -11,7 +10,9 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tours_repository.dart';
+import 'widgets/expandable_description.dart';
 import 'widgets/multi_stage_elevation_chart.dart';
+import 'widgets/tour_hero.dart';
 import 'widgets/tour_rich_sections.dart';
 import '../track_detail/track_detail_page.dart';
 import 'tour_edit_page.dart';
@@ -143,23 +144,25 @@ class _TourDetailPageState extends State<TourDetailPage> {
       ),
       body: ListView(
         children: [
-          if (tour.coverPhotoUrl != null)
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: CachedNetworkImage(
-                imageUrl: tour.coverPhotoUrl!,
-                fit: BoxFit.cover,
-                placeholder: (c, _) => Container(color: AppColors.surface),
-              ),
-            ),
-          SizedBox(height: 360, child: _buildMap(tour)),
+          TourHero(
+            coverPhotoUrl: tour.coverPhotoUrl,
+            title: tour.title,
+            subtitle: '${tour.daysCount} giorni · '
+                '${tour.totalDistanceKm.toStringAsFixed(1)} km · '
+                '+${tour.totalElevationGain.toStringAsFixed(0)} m',
+            map: _buildMap(tour),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (tour.description != null && tour.description!.isNotEmpty) ...[
-                  Text(tour.description!, style: TextStyle(color: context.textSecondary)),
+                  ExpandableDescription(
+                    text: tour.description!,
+                    style: TextStyle(
+                        color: context.textSecondary, height: 1.45),
+                  ),
                   const SizedBox(height: 12),
                 ],
                 Row(

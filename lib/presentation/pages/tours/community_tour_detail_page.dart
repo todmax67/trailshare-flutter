@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -12,6 +11,8 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../discover/community_track_detail_page.dart';
+import 'widgets/expandable_description.dart';
+import 'widgets/tour_hero.dart';
 import 'widgets/tour_rich_sections.dart';
 
 /// Vista community (read-only) di un tour pubblico.
@@ -152,18 +153,16 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
       ),
       body: ListView(
         children: [
-          if (tour.coverPhotoUrl != null)
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: CachedNetworkImage(
-                imageUrl: tour.coverPhotoUrl!,
-                fit: BoxFit.cover,
-                placeholder: (c, _) => Container(color: AppColors.surface),
-              ),
-            ),
-          SizedBox(height: 360, child: _buildMap(tour, stages)),
+          TourHero(
+            coverPhotoUrl: tour.coverPhotoUrl,
+            title: tour.title,
+            subtitle: '${tour.daysCount} giorni · '
+                '${tour.totalDistanceKm.toStringAsFixed(1)} km · '
+                '+${tour.totalElevationGain.toStringAsFixed(0)} m',
+            map: _buildMap(tour, stages),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -189,7 +188,11 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
                 ),
                 const SizedBox(height: 16),
                 if (tour.description != null && tour.description!.isNotEmpty) ...[
-                  Text(tour.description!, style: TextStyle(color: context.textSecondary)),
+                  ExpandableDescription(
+                    text: tour.description!,
+                    style: TextStyle(
+                        color: context.textSecondary, height: 1.45),
+                  ),
                   const SizedBox(height: 16),
                 ],
                 Text(context.l10n.tourTotals, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
