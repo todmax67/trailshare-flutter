@@ -3,12 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../data/models/business.dart';
 import '../../data/repositories/business_repository.dart';
+import '../utils/outreach_pdf_generator.dart';
 
 /// Epic 7.H10 — Outreach kit PDF (Fase 3a: pagina printable, admin
 /// fa Cmd+P / Ctrl+P → "Salva come PDF" dal browser).
@@ -40,6 +42,7 @@ class _WebOutreachPdfPageState extends State<WebOutreachPdfPage> {
   bool _loading = true;
   String? _error;
   String? _nearbyDebugInfo;
+  bool _generatingPdf = false;
 
   @override
   void initState() {
@@ -92,6 +95,29 @@ class _WebOutreachPdfPageState extends State<WebOutreachPdfPage> {
     }
   }
 
+  Future<void> _downloadPdf() async {
+    final b = _business;
+    if (b == null) return;
+    setState(() => _generatingPdf = true);
+    try {
+      final bytes = await OutreachPdfGenerator.generate(
+        business: b,
+        nearby: _nearby,
+      );
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'TrailShare-${b.slug}.pdf',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore generazione PDF: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _generatingPdf = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -101,17 +127,29 @@ class _WebOutreachPdfPageState extends State<WebOutreachPdfPage> {
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
         actions: [
-          // Hint stampa: il bottone non chiama window.print direttamente
-          // (richiederebbe dart:html, gestito altrove via conditional
-          // import). L'utente usa la scorciatoia da tastiera.
+          // Bottone "Scarica PDF" che genera PDF nativo via package
+          // `pdf` + apre dialog save via `printing`. Niente più Cmd+P
+          // del browser (con Flutter CanvasKit produceva PDF mal
+          // impaginati e tagliati).
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: Center(
-              child: Text(
-                'Premi ⌘P / Ctrl+P per salvare PDF',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textMuted,
+              child: FilledButton.icon(
+                onPressed: (_loading || _generatingPdf || _business == null)
+                    ? null
+                    : _downloadPdf,
+                icon: _generatingPdf
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.picture_as_pdf, size: 18),
+                label: Text(
+                    _generatingPdf ? 'Generazione...' : 'Scarica PDF'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
                 ),
               ),
             ),
@@ -125,13 +163,16 @@ class _WebOutreachPdfPageState extends State<WebOutreachPdfPage> {
               : SingleChildScrollView(
                   child: Center(
                     child: ConstrainedBox(
-                      // A4 portrait a 96 DPI ≈ 794x1123 px. Lasciamo un
-                      // po' di margine ai lati per leggibilità a schermo.
-                      constraints: const BoxConstraints(maxWidth: 794),
+                      // A4 portrait a 96 DPI = 794×1123 px, ma il
+                      // browser print applica margini default di ~12mm
+                      // per lato → spazio utilizzabile ~700px. Usiamo
+                      // 720 con padding 16 = content reale 688, dentro
+                      // i margini Chrome/Safari default.
+                      constraints: const BoxConstraints(maxWidth: 720),
                       child: Container(
                         color: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 40, vertical: 32),
+                            horizontal: 16, vertical: 20),
                         child: _buildPdfContent(_business!),
                       ),
                     ),
@@ -145,16 +186,16 @@ class _WebOutreachPdfPageState extends State<WebOutreachPdfPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(b),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         _buildIntro(b),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _buildFunnelStats(b),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _buildMap(b),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         _buildCompetitorSection(b, _nearby),
         if (kDebugMode && _nearbyDebugInfo != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -168,7 +209,7 @@ class _WebOutreachPdfPageState extends State<WebOutreachPdfPage> {
             ),
           ),
         ],
-        const SizedBox(height: 24),
+        const SizedBox(height: 14),
         _buildFooter(b),
       ],
     );
@@ -444,7 +485,7 @@ class _WebOutreachPdfPageState extends State<WebOutreachPdfPage> {
         ),
         const SizedBox(height: 8),
         Container(
-          height: 260,
+          height: 200,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.border),

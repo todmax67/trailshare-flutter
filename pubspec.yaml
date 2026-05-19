@@ -79,6 +79,12 @@ dependencies:
   url_launcher: ^6.3.2
   package_info_plus: ^9.0.0
 
+  # PDF generation client-side per Outreach Kit (7.H10). pdf produce
+  # un PDF nativo (no print browser), printing apre il save dialog
+  # cross-platform.
+  pdf: ^3.11.3
+  printing: ^5.13.4
+
   #supporto BLE
   flutter_blue_plus: ^1.16.0
 
