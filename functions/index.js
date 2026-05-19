@@ -4689,6 +4689,34 @@ function _isLikelyBusinessEmail(email) {
   return !_PERSONAL_EMAIL_DOMAINS.has(m[1]);
 }
 
+/// Estrae il dominio dall'email. "info@foo.it" → "foo.it".
+function _extractDomain(email) {
+  const m = email.toLowerCase().trim().match(/@([^@\s]+)$/);
+  return m ? m[1] : null;
+}
+
+/// DNS check: il dominio esiste e ha MX record (server email)?
+/// Cache in-memory per session: stessa Cloud Function instance riusa
+/// il risultato. Ritorna true se dominio valido + ha MX, false
+/// altrimenti (DNS fail, no MX, ENOTFOUND).
+const _dns = require('dns').promises;
+const _domainMxCache = new Map();
+
+async function _domainHasMx(domain) {
+  if (!domain) return false;
+  if (_domainMxCache.has(domain)) return _domainMxCache.get(domain);
+  try {
+    const records = await _dns.resolveMx(domain);
+    const valid = Array.isArray(records) && records.length > 0;
+    _domainMxCache.set(domain, valid);
+    return valid;
+  } catch (e) {
+    // ENOTFOUND, ENODATA, ESERVFAIL → dominio non esiste o niente MX
+    _domainMxCache.set(domain, false);
+    return false;
+  }
+}
+
 // Bbox approssimati per regioni italiane (lat_min, lat_max, lng_min,
 // lng_max). Allineati a ITALY_REGION_BBOX usato per OSM import.
 // `null` = no filtro regione (tutte).
@@ -4803,30 +4831,27 @@ function _buildOutreachEmailHtml(business, claimUrl) {
 /// Query base: schede unclaimed con email business pubblica e
 /// outreach mai inviato. Filtra opzionalmente per regione (bbox) e
 /// tipo. Ritorna lista di doc snapshot.
-async function _findOutreachCandidates(region, businessType, limit) {
+async function _findOutreachCandidates(region, businessType, limit, options = {}) {
+  const { dnsCheck = true } = options;
   // Lato Firestore filtriamo tier + outreachEmailSentAt null. Il
-  // resto (email valida, bbox regione) in-memory perché Firestore
-  // non supporta range + multiple inequality.
+  // resto (email valida, bbox regione, DNS check) in-memory perché
+  // Firestore non supporta range + multiple inequality.
   let query = db.collection('businesses')
     .where('tier', '==', 'unclaimed')
     .where('status', '==', 'active');
   if (businessType) {
     query = query.where('type', '==', businessType);
   }
-  // Senza orderBy esplicito Firestore usa __name__; non garantiamo
-  // ordine specifico oltre quello.
   const snap = await query.limit(3000).get();
 
   const bbox = region ? _OUTREACH_REGION_BBOX[region] : null;
-  const candidates = [];
+  // Pre-filter veloce (senza DNS)
+  const preFiltered = [];
   for (const doc of snap.docs) {
     const data = doc.data();
-    // Skip se outreach gia' inviato
     if (data.outreachEmailSentAt) continue;
-    // Skip se email mancante / non aziendale / personale
     const email = data.contacts && data.contacts.email;
     if (!_isLikelyBusinessEmail(email)) continue;
-    // Skip se fuori dalla regione bbox
     if (bbox) {
       const lat = data.location && data.location.lat;
       const lng = data.location && data.location.lng;
@@ -4835,42 +4860,89 @@ async function _findOutreachCandidates(region, businessType, limit) {
         continue;
       }
     }
-    candidates.push({ id: doc.id, ref: doc.ref, data });
-    if (candidates.length >= limit) break;
+    preFiltered.push({ id: doc.id, ref: doc.ref, data });
+  }
+
+  if (!dnsCheck) {
+    return preFiltered.slice(0, limit);
+  }
+
+  // DNS check parallelo (max 20 concurrent per non saturare il
+  // resolver). Skippa i domini che non hanno MX record →
+  // riduce drasticamente i bounce.
+  const candidates = [];
+  const skippedNoMx = [];
+  const concurrency = 20;
+  let cursor = 0;
+  async function worker() {
+    while (cursor < preFiltered.length && candidates.length < limit) {
+      const idx = cursor++;
+      if (idx >= preFiltered.length) break;
+      const c = preFiltered[idx];
+      const email = c.data.contacts.email;
+      const domain = _extractDomain(email);
+      const hasMx = await _domainHasMx(domain);
+      if (hasMx) {
+        if (candidates.length < limit) candidates.push(c);
+      } else {
+        skippedNoMx.push({ id: c.id, name: c.data.name, email });
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  if (skippedNoMx.length > 0) {
+    logger.info(
+      `[outreach] DNS pre-check: skipped ${skippedNoMx.length} domini senza MX. ` +
+      `Primi 3: ${skippedNoMx.slice(0, 3).map((s) => s.email).join(", ")}`
+    );
   }
   return candidates;
 }
 
-exports.previewOutreachBatch = onCall(async (request) => {
-  if (!(await _isCallerAdmin(request.auth))) {
-    throw new functions.https.HttpsError(
-      'permission-denied', 'Solo admin platform puo eseguire outreach.'
-    );
-  }
-  const { region, businessType } = request.data || {};
-  if (region && !_OUTREACH_REGION_BBOX[region]) {
-    throw new functions.https.HttpsError(
-      'invalid-argument',
-      `region invalida. Disponibili: ${Object.keys(_OUTREACH_REGION_BBOX).join(', ')}, oppure null.`
-    );
-  }
+exports.previewOutreachBatch = onCall(
+  { timeoutSeconds: 180, memory: '512MiB' },
+  async (request) => {
+    if (!(await _isCallerAdmin(request.auth))) {
+      throw new functions.https.HttpsError(
+        'permission-denied', 'Solo admin platform puo eseguire outreach.'
+      );
+    }
+    const { region, businessType } = request.data || {};
+    if (region && !_OUTREACH_REGION_BBOX[region]) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        `region invalida. Disponibili: ${Object.keys(_OUTREACH_REGION_BBOX).join(', ')}, oppure null.`
+      );
+    }
 
-  const candidates = await _findOutreachCandidates(region, businessType, 500);
-  const samples = candidates.slice(0, 5).map((c) => ({
-    id: c.id,
-    name: c.data.name,
-    city: c.data.location && c.data.location.city,
-    email: c.data.contacts && c.data.contacts.email,
-  }));
+    // Conta SENZA DNS check (veloce, mostra il volume "grezzo" che
+    // verrebbe scartato senza filtri di qualità)
+    const rawCandidates = await _findOutreachCandidates(
+      region, businessType, 500, { dnsCheck: false }
+    );
+    // Conta CON DNS check (il volume reale che verrà inviato)
+    const candidates = await _findOutreachCandidates(
+      region, businessType, 500, { dnsCheck: true }
+    );
+    const samples = candidates.slice(0, 5).map((c) => ({
+      id: c.id,
+      name: c.data.name,
+      city: c.data.location && c.data.location.city,
+      email: c.data.contacts && c.data.contacts.email,
+    }));
 
-  return {
-    success: true,
-    region: region || 'all',
-    businessType: businessType || 'all',
-    found: candidates.length,
-    samples,
-  };
-});
+    return {
+      success: true,
+      region: region || 'all',
+      businessType: businessType || 'all',
+      found: candidates.length,
+      foundBeforeDns: rawCandidates.length,
+      skippedNoMx: rawCandidates.length - candidates.length,
+      samples,
+    };
+  }
+);
 
 exports.sendOutreachBatch = onCall(
   { timeoutSeconds: 300, memory: '512MiB' },

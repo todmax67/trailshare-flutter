@@ -1238,6 +1238,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
   Widget _buildCampaignPreviewBlock(Map<String, dynamic> r) {
     final found = r['found'] ?? 0;
+    final foundBeforeDns = r['foundBeforeDns'] ?? found;
+    final skipped = r['skippedNoMx'] ?? 0;
     final samples = (r['samples'] as List?) ?? const [];
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1255,10 +1257,22 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Filtro: tier=unclaimed, email business pubblica, mai contattate.',
-            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          Text(
+            'Filtro: tier=unclaimed, email business pubblica, mai contattate, '
+            'dominio con MX record valido. '
+            '${skipped > 0 ? "$skipped scartati per DNS fail (dominio inesistente)." : ""}',
+            style: const TextStyle(
+                fontSize: 11, color: AppColors.textMuted),
           ),
+          if (foundBeforeDns != found) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Pre-DNS: $foundBeforeDns · Post-DNS: $found '
+              '(${((skipped / foundBeforeDns) * 100).toStringAsFixed(0)}% scartati)',
+              style: const TextStyle(
+                  fontSize: 10, color: AppColors.textMuted),
+            ),
+          ],
           if (samples.isNotEmpty) ...[
             const SizedBox(height: 8),
             const Text(
