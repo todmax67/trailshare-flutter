@@ -356,11 +356,19 @@ class TourAggregates {
   });
 
   /// [tracks] deve essere nell'ordine delle tappe.
+  ///
+  /// `daysCount` convenzione escursionistica: **1 tappa = 1 giorno**.
+  /// Storicamente lo calcolavamo dalle date di registrazione delle
+  /// tracce, ma generava un bug semantico: se l'autore aveva
+  /// registrato 8 tappe in 2 weekend distinti il count diventava 2,
+  /// non riflettendo il "tour è fattibile in 8 giorni di cammino".
+  /// L'autore può comunque override il valore dal form Edit
+  /// (utile per tour che si fanno in più giorni di una singola tappa
+  /// es. avvicinamento + vetta in 2 giorni, o accorpare tappe corte).
   static TourAggregates fromTracks(List<Track> tracks) {
     double dist = 0;
     double elev = 0;
     Duration dur = Duration.zero;
-    final days = <String>{};
 
     double? n, s, e, w;
 
@@ -368,9 +376,6 @@ class TourAggregates {
       dist += t.stats.distance;
       elev += t.stats.elevationGain;
       dur += t.stats.duration;
-
-      final refDate = t.recordedAt ?? t.createdAt;
-      days.add('${refDate.year}-${refDate.month}-${refDate.day}');
 
       for (final p in t.points) {
         n = (n == null || p.latitude > n) ? p.latitude : n;
@@ -388,7 +393,7 @@ class TourAggregates {
       totalDistance: dist,
       totalElevationGain: elev,
       totalDuration: dur,
-      daysCount: days.length,
+      daysCount: tracks.length, // default: 1 tappa = 1 giorno
       bounds: bounds,
     );
   }

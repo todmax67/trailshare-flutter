@@ -51,6 +51,7 @@ class ToursRepository {
     String? naturalNotes,
     required List<String> trackIds,
     Map<String, String> stageAccommodations = const {},
+    int? daysCount, // override manuale; default = trackIds.length
     bool isPublic = false,
   }) async {
     final uid = _requireUid;
@@ -82,7 +83,7 @@ class ToursRepository {
       totalDistance: agg.totalDistance,
       totalElevationGain: agg.totalElevationGain,
       totalDuration: agg.totalDuration,
-      daysCount: agg.daysCount,
+      daysCount: daysCount ?? agg.daysCount,
       bounds: agg.bounds,
       isPublic: isPublic,
       createdAt: DateTime.now(),
@@ -345,6 +346,7 @@ class ToursRepository {
     String? naturalNotes,
     List<String>? trackIds,
     Map<String, String>? stageAccommodations,
+    int? daysCount, // override manuale dell'auto-calcolo da numero tappe
     bool? isPublic,
   }) async {
     final uid = _requireUid;
@@ -382,9 +384,14 @@ class ToursRepository {
         totalDistance: agg.totalDistance,
         totalElevationGain: agg.totalElevationGain,
         totalDuration: agg.totalDuration,
-        daysCount: agg.daysCount,
+        // Quando l'utente passa daysCount esplicito ha priorità,
+        // altrimenti ricalcoliamo dal numero tappe (auto-default).
+        daysCount: daysCount ?? agg.daysCount,
         bounds: agg.bounds,
       );
+    } else if (daysCount != null && daysCount != current.daysCount) {
+      // Solo daysCount modificato (no riassetto tappe).
+      updated = updated.copyWith(daysCount: daysCount);
     }
 
     final accommodationsChanged = stageAccommodations != null &&

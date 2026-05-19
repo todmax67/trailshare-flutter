@@ -35,6 +35,7 @@ class _TourEditPageState extends State<TourEditPage> {
   final _descCtrl = TextEditingController();
   final _equipmentCtrl = TextEditingController();
   final _naturalNotesCtrl = TextEditingController();
+  final _daysCtrl = TextEditingController();
   final TracksRepository _tracksRepo = TracksRepository();
   final ToursRepository _toursRepo = ToursRepository();
   final TourPhotosService _photosSvc = TourPhotosService();
@@ -96,6 +97,7 @@ class _TourEditPageState extends State<TourEditPage> {
       _bestPeriod = e.bestPeriod;
       _difficultyGrade = e.difficultyGrade;
       _stageAccommodations = Map.of(e.stageAccommodations);
+      _daysCtrl.text = e.daysCount.toString();
     }
     _loadTracks();
   }
@@ -106,6 +108,7 @@ class _TourEditPageState extends State<TourEditPage> {
     _descCtrl.dispose();
     _equipmentCtrl.dispose();
     _naturalNotesCtrl.dispose();
+    _daysCtrl.dispose();
     super.dispose();
   }
 
@@ -160,6 +163,12 @@ class _TourEditPageState extends State<TourEditPage> {
         if (_selectedIds.contains(entry.key)) entry.key: entry.value,
     };
 
+    // daysCount override: solo se l'utente ha digitato un valore.
+    // Vuoto = default auto-calcolato dal repo (numero tappe).
+    final daysInput = _daysCtrl.text.trim();
+    final daysCountOverride =
+        daysInput.isEmpty ? null : int.tryParse(daysInput);
+
     setState(() => _saving = true);
     try {
       if (widget.existing == null) {
@@ -180,6 +189,7 @@ class _TourEditPageState extends State<TourEditPage> {
               : _naturalNotesCtrl.text.trim(),
           trackIds: _selectedIds,
           stageAccommodations: cleanedAccommodations,
+          daysCount: daysCountOverride,
           isPublic: _isPublic,
         );
       } else {
@@ -201,6 +211,7 @@ class _TourEditPageState extends State<TourEditPage> {
               : _naturalNotesCtrl.text.trim(),
           trackIds: _selectedIds,
           stageAccommodations: cleanedAccommodations,
+          daysCount: daysCountOverride,
           isPublic: _isPublic,
         );
       }
@@ -539,58 +550,90 @@ class _TourEditPageState extends State<TourEditPage> {
     );
   }
 
-  // ─── METADATA SECTION (difficoltà + periodo) ────────────────────────
+  // ─── METADATA SECTION (difficoltà + periodo + giorni) ──────────────
   Widget _buildMetadataSection() {
-    return Row(
+    // Suggerimento giorni per il placeholder: numero tappe selezionate.
+    // Se l'utente non inserisce niente nel campo, salviamo questo
+    // default. Se inserisce un valore diverso, override manuale.
+    final suggestedDays = _selectedIds.isEmpty ? '—' : _selectedIds.length.toString();
+    return Column(
       children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            initialValue: _difficultyGrade,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Difficoltà',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: [
-              const DropdownMenuItem<String>(
-                value: null,
-                child: Text('—'),
-              ),
-              ..._difficultyOptions.map(
-                (d) => DropdownMenuItem<String>(
-                  value: d,
-                  child: Text(d, overflow: TextOverflow.ellipsis),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                initialValue: _difficultyGrade,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Difficoltà',
+                  border: OutlineInputBorder(),
+                  isDense: true,
                 ),
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('—'),
+                  ),
+                  ..._difficultyOptions.map(
+                    (d) => DropdownMenuItem<String>(
+                      value: d,
+                      child: Text(d, overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _difficultyGrade = v),
               ),
-            ],
-            onChanged: (v) => setState(() => _difficultyGrade = v),
-          ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                initialValue: _bestPeriod,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Periodo migliore',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('—'),
+                  ),
+                  ..._periodOptions.map(
+                    (p) => DropdownMenuItem<String>(
+                      value: p,
+                      child: Text(p, overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _bestPeriod = v),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            initialValue: _bestPeriod,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Periodo migliore',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: [
-              const DropdownMenuItem<String>(
-                value: null,
-                child: Text('—'),
-              ),
-              ..._periodOptions.map(
-                (p) => DropdownMenuItem<String>(
-                  value: p,
-                  child: Text(p, overflow: TextOverflow.ellipsis),
-                ),
-              ),
-            ],
-            onChanged: (v) => setState(() => _bestPeriod = v),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _daysCtrl,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Numero giorni',
+            hintText: 'Default: $suggestedDays (1 tappa = 1 giorno)',
+            helperText: _selectedIds.isEmpty
+                ? 'Seleziona prima le tappe'
+                : 'Lascia vuoto per usare il default ($suggestedDays giorni). '
+                    'Imposta manualmente se i giorni effettivi sono diversi '
+                    'dal numero di tappe (es. tappa lunga in 2 giorni).',
+            border: const OutlineInputBorder(),
+            isDense: true,
           ),
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return null;
+            final n = int.tryParse(v.trim());
+            if (n == null || n < 1 || n > 30) {
+              return 'Inserire un numero da 1 a 30';
+            }
+            return null;
+          },
         ),
       ],
     );
