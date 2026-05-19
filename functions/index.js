@@ -4633,3 +4633,51 @@ exports.trackFunnelEvent = onCall(async (request) => {
 
   return { success: true };
 });
+
+// ===================================================================
+// STATIC MAP PROXY (Epic 7.H10 — Outreach PDF)
+// ===================================================================
+// MapTiler Cloud applica una restrizione `User-Agent: TrailShareApp`
+// sulla nostra key. Sul browser web il campo User-Agent è un
+// "forbidden header" (CORS security) → non possiamo settarlo da
+// http.get di Dart, e MapTiler rifiuta la request.
+//
+// Soluzione: questa Cloud Function fa proxy server-side. Il client
+// chiama `staticMapProxy?lat=...&lng=...&markers=...`, noi chiamiamo
+// MapTiler dal Cloud Run env settando il giusto UA, e restituiamo
+// l'immagine PNG con Cache-Control 7 giorni.
+//
+// Le tile di MapTiler sono cachate dal CDN nostro per ridurre il
+// numero di richieste a MapTiler (free tier 100k/mese).
+
+exports.staticMapProxy = onRequest(
+  { region: "europe-west3", cors: true, timeoutSeconds: 30 },
+  async (req, res) => {
+    try {
+      const { lat, lng, markers } = req.query;
+      if (!lat || !lng) {
+        res.status(400).send('Missing lat/lng');
+        return;
+      }
+      const MAPTILER_KEY = 'EagFyuDbTNmVOAX1zlbz';
+      let url = `https://api.maptiler.com/maps/streets-v2/static/auto/640x300.png?key=${MAPTILER_KEY}&padding=40`;
+      if (markers && typeof markers === 'string' && markers.length > 0) {
+        url += `&markers=${encodeURIComponent(markers)}`;
+      }
+      const resp = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: 20000,
+        headers: {
+          'User-Agent': 'TrailShareApp',
+          'Referer': 'https://trailshare.app',
+        },
+      });
+      res.set('Content-Type', 'image/png');
+      res.set('Cache-Control', 'public, max-age=604800'); // 7 giorni
+      res.send(Buffer.from(resp.data));
+    } catch (e) {
+      logger.error('[staticMapProxy] error:', e.message);
+      res.status(500).send(`MapTiler error: ${e.message}`);
+    }
+  }
+);

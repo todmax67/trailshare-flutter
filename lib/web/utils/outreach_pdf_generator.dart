@@ -1,10 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-import '../../core/constants/api_keys.dart';
 import '../../data/models/business.dart';
 
 /// Epic 7.H10 — Generatore PDF Outreach Kit lato client.
@@ -45,9 +43,6 @@ class OutreachPdfGenerator {
       ),
     );
 
-    // Fetch static map in background. Se fallisce, proseguiamo senza.
-    final mapBytes = await _fetchStaticMap(business, nearby);
-
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -60,7 +55,7 @@ class OutreachPdfGenerator {
           pw.SizedBox(height: 12),
           _buildFunnelStats(business),
           pw.SizedBox(height: 12),
-          _buildMap(business, nearby, mapBytes),
+          _buildMap(business, nearby, null),
           pw.SizedBox(height: 12),
           _buildCompetitor(business, nearby),
           pw.SizedBox(height: 14),
@@ -279,76 +274,88 @@ class OutreachPdfGenerator {
     );
   }
 
-  // ─── MAP ────────────────────────────────────────────────────────────
+  // ─── MAP PLACEHOLDER ───────────────────────────────────────────────
+  // Versione MVP senza mappa raster nel PDF: il free tier MapTiler
+  // non include la Static Maps API, e i servizi public free
+  // (staticmap.openstreetmap.de) sono offline. Sostituiamo con un
+  // box pulito che invita ad aprire la mappa online via QR/URL.
+  // TODO futuro: implementare tile composition OSM con disegno
+  // marker server-side (Cloud Function + jimp/sharp) o passare a
+  // un provider static maps a pagamento.
   static pw.Widget _buildMap(
       Business b, List<Business> nearby, Uint8List? mapBytes) {
+    final url = 'https://trailshare.app/b/${b.slug}';
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Text(
-          'Dove sei e chi c\'è intorno',
+          'Mappa interattiva',
           style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
         ),
         pw.SizedBox(height: 6),
-        if (mapBytes != null)
-          pw.ClipRRect(
-            horizontalRadius: 6,
-            verticalRadius: 6,
-            child: pw.Container(
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: _border),
-              ),
-              child: pw.Image(
-                pw.MemoryImage(mapBytes),
-                fit: pw.BoxFit.cover,
-                height: 180,
-                width: double.infinity,
-              ),
-            ),
-          )
-        else
-          pw.Container(
-            height: 60,
-            decoration: pw.BoxDecoration(
-              color: _surface,
-              borderRadius: pw.BorderRadius.circular(6),
-              border: pw.Border.all(color: _border),
-            ),
-            alignment: pw.Alignment.center,
-            child: pw.Text(
-              '(Mappa non disponibile in questo momento — vedi link in fondo)',
-              style: pw.TextStyle(
-                  fontSize: 10,
-                  color: _textSecondary,
-                  fontStyle: pw.FontStyle.italic),
-            ),
-          ),
-        pw.SizedBox(height: 4),
-        pw.Row(
-          children: [
-            _legend(_primary, 'La tua scheda'),
-            pw.SizedBox(width: 12),
-            _legend(_success, 'Schede rivendicate (Pro)'),
-            pw.SizedBox(width: 12),
-            _legend(_muted, 'Schede non rivendicate'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  static pw.Widget _legend(PdfColor color, String label) {
-    return pw.Row(
-      children: [
         pw.Container(
-          width: 8,
-          height: 8,
-          decoration:
-              pw.BoxDecoration(color: color, shape: pw.BoxShape.circle),
+          padding: const pw.EdgeInsets.all(12),
+          decoration: pw.BoxDecoration(
+            color: _surface,
+            borderRadius: pw.BorderRadius.circular(6),
+            border: pw.Border.all(color: _border),
+          ),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Apri la mappa interattiva sul tuo telefono',
+                      style: pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Vedi la tua scheda sulla mappa con le altre attività '
+                      'TrailShare entro 10 km, percorsi consigliati e '
+                      'sentieri vicini.',
+                      style: pw.TextStyle(
+                          fontSize: 9, color: _textSecondary),
+                    ),
+                    pw.SizedBox(height: 6),
+                    pw.UrlLink(
+                      destination: url,
+                      child: pw.Text(
+                        url,
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          color: _primary,
+                          decoration: pw.TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(width: 10),
+              // QR rapido per scansione: porta a /b/{slug} dove si
+              // vede la mappa live.
+              pw.Container(
+                padding: const pw.EdgeInsets.all(3),
+                decoration: pw.BoxDecoration(
+                  color: _white,
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.BarcodeWidget(
+                  data: url,
+                  barcode: pw.Barcode.qrCode(),
+                  width: 64,
+                  height: 64,
+                ),
+              ),
+            ],
+          ),
         ),
-        pw.SizedBox(width: 4),
-        pw.Text(label,
-            style: pw.TextStyle(fontSize: 9, color: _textSecondary)),
       ],
     );
   }
@@ -536,47 +543,10 @@ class OutreachPdfGenerator {
     );
   }
 
-  // ─── STATIC MAP FETCH ──────────────────────────────────────────────
-  /// Recupera un PNG static map da MapTiler.
-  /// Sostituito staticmap.openstreetmap.de (offline / DNS fail) con
-  /// MapTiler Static API che usa la stessa chiave già in app.
-  /// Free tier MapTiler: 100k tile/mese — abbondante per il volume
-  /// outreach (max ~50 PDF/mese).
-  /// Se fallisce ritorna null e il PDF viene generato senza la mappa.
-  ///
-  /// Nota: il MapTiler API endpoint usa lon,lat (non lat,lon!) sia
-  /// per il centro che per i marker. Inversione comune di errore.
-  static Future<Uint8List?> _fetchStaticMap(
-      Business b, List<Business> nearby) async {
-    // Marker pattern MapTiler: `pin-s+{color}({lon},{lat})` per pin
-    // semplici. Limitiamo a 8 concorrenti per non gonfiare la URL.
-    final markersList = <String>[
-      'pin-s+E07B4C(${b.location.lng},${b.location.lat})',
-      ...nearby.take(8).map((n) {
-        final color = n.tier == BusinessTier.unclaimed ? 'B2BEC3' : '4CAF50';
-        return 'pin-s+$color(${n.location.lng},${n.location.lat})';
-      }),
-    ];
-
-    final url = Uri.parse(
-      'https://api.maptiler.com/maps/streets-v2/static/auto/640x300.png'
-      '?key=${ApiKeys.mapTiler}'
-      '&padding=40'
-      '&markers=${markersList.join(",")}',
-    );
-    try {
-      final resp = await http
-          .get(url)
-          .timeout(const Duration(seconds: 15));
-      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
-        return resp.bodyBytes;
-      }
-      debugPrint('[OutreachPdf] MapTiler static HTTP ${resp.statusCode}: '
-          '${resp.body.length < 300 ? resp.body : "..."}');
-      return null;
-    } catch (e) {
-      debugPrint('[OutreachPdf] MapTiler static fetch error: $e');
-      return null;
-    }
-  }
+  // TODO: ripristinare static map quando avremo provider con free
+  // tier static maps abilitato (MapTiler Cloud plan / Mapbox / Cloud
+  // Function con tile composition OSM via jimp).
+  // Codice rimosso: era _fetchStaticMap() che chiamava la Cloud
+  // Function `staticMapProxy` → MapTiler. MapTiler free non include
+  // Static Maps API (403 "Access to rendered maps not allowed").
 }
