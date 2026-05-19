@@ -311,6 +311,21 @@ class Business {
   /// pubblica) → ok mostrare anche all'owner.
   final Map<String, int> funnelCounters;
 
+  /// 7.H10b — Tracking outreach email automatica.
+  /// `outreachEmailSentAt` = timestamp del primo invio email
+  /// outreach (settato dalla Cloud Function `sendOutreachBatch`).
+  /// `null` se mai contattata via email auto. Idempotenza: la
+  /// batch function skippa le schede con questo campo già settato.
+  /// Per re-inviare manualmente, l'admin lo cancella dal pannello.
+  final DateTime? outreachEmailSentAt;
+
+  /// Stato outreach: `pending` (mai contattato), `sent` (email
+  /// inviata), `replied` (gestore ha risposto), `not_interested`
+  /// (esplicito no), `bounced` (email errata). Default null = mai
+  /// processato. Aggiornato a mano dal team o auto dalla batch
+  /// function.
+  final String? outreachStatus;
+
   const Business({
     this.id,
     required this.name,
@@ -338,6 +353,8 @@ class Business {
     this.sourceUrl,
     this.disclaimerVisible = false,
     this.funnelCounters = const {},
+    this.outreachEmailSentAt,
+    this.outreachStatus,
   });
 
   bool get isOwnedBy => false; // placeholder, l'owner check è nel repo
@@ -458,6 +475,10 @@ class Business {
             (k, v) => MapEntry(k.toString(), (v as num?)?.toInt() ?? 0),
           ) ??
           const {},
+      outreachEmailSentAt: m['outreachEmailSentAt'] != null
+          ? ts(m['outreachEmailSentAt'])
+          : null,
+      outreachStatus: m['outreachStatus']?.toString(),
     );
   }
 

@@ -4650,6 +4650,325 @@ exports.trackFunnelEvent = onCall(async (request) => {
 // Le tile di MapTiler sono cachate dal CDN nostro per ridurre il
 // numero di richieste a MapTiler (free tier 100k/mese).
 
+// ===================================================================
+// OUTREACH BATCH EMAIL (Epic 7.H10b)
+// ===================================================================
+// Invio automatico email outreach alle schede unclaimed con email
+// pubblica. Pesca da Firestore, genera self-claim token per ognuna,
+// scrive doc su `mail/` collection (Trigger Email Extension lo manda
+// via SendGrid).
+//
+// GDPR:
+// - Solo email pubbliche delle attività (campo contacts.email del
+//   doc business — di solito letto da OSM, sito ufficiale, registro
+//   imprese)
+// - Footer obbligatorio con motivazione contatto + opt-out via reply
+// - Cap 50 email/batch (free tier SendGrid 100/giorno totali)
+// - Skip schede già contattate (campo outreachEmailSentAt non null)
+// - Skip domini personali generici (gmail/hotmail/yahoo/libero —
+//   probabili email private, non aziendali)
+//
+// Funzioni:
+// - previewOutreachBatch({region, type}) → conteggio + sample 5
+//   senza inviare nulla
+// - sendOutreachBatch({region, type, maxEmails=50, dryRun}) → invio
+//   batch effettivo
+
+const _PERSONAL_EMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.it',
+  'yahoo.com', 'yahoo.it', 'libero.it', 'live.it', 'live.com',
+  'outlook.com', 'outlook.it', 'msn.com', 'tin.it', 'alice.it',
+  'virgilio.it', 'fastwebnet.it', 'tiscali.it', 'me.com',
+  'icloud.com', 'privaterelay.appleid.com', 'aol.com',
+]);
+
+function _isLikelyBusinessEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const m = email.toLowerCase().trim().match(/@([^@\s]+)$/);
+  if (!m) return false;
+  return !_PERSONAL_EMAIL_DOMAINS.has(m[1]);
+}
+
+// Bbox approssimati per regioni italiane (lat_min, lat_max, lng_min,
+// lng_max). Allineati a ITALY_REGION_BBOX usato per OSM import.
+// `null` = no filtro regione (tutte).
+const _OUTREACH_REGION_BBOX = {
+  lombardia:     [44.7, 46.7, 8.5, 11.5],
+  piemonte:      [44.0, 46.5, 6.6, 9.2],
+  veneto:        [44.7, 46.7, 10.6, 13.1],
+  trentino:      [45.6, 46.6, 10.4, 11.9],
+  altoadige:     [46.2, 47.1, 10.3, 12.5],
+  valleaosta:    [45.4, 45.9, 6.8, 7.9],
+  liguria:       [43.7, 44.7, 7.5, 10.0],
+  emiliaromagna: [43.7, 45.1, 9.2, 12.8],
+  toscana:       [42.2, 44.5, 9.6, 12.4],
+  marche:        [42.7, 44.0, 12.2, 13.9],
+  umbria:        [42.5, 43.6, 11.9, 13.3],
+  lazio:         [40.7, 42.7, 11.4, 14.0],
+  abruzzo:       [41.7, 42.9, 13.0, 14.8],
+  molise:        [41.4, 42.1, 14.0, 15.2],
+  campania:      [39.9, 41.5, 13.7, 15.8],
+  puglia:        [39.7, 42.2, 14.8, 18.6],
+  basilicata:    [39.9, 41.2, 15.3, 16.9],
+  calabria:      [37.9, 40.2, 15.5, 17.3],
+  sicilia:       [36.6, 38.4, 12.3, 15.7],
+  sardegna:      [38.8, 41.3, 8.1, 9.9],
+};
+
+/// Costruisce body HTML email outreach per una scheda specifica.
+function _buildOutreachEmailHtml(business, claimUrl) {
+  const name = (business.name || '').replace(/</g, '&lt;');
+  const city = business.location && business.location.city
+    ? business.location.city.replace(/</g, '&lt;')
+    : '';
+  const publicUrl = `https://trailshare.app/b/${business.slug}`;
+  const typeLabel = ({
+    rifugio: 'rifugio',
+    noleggio: 'noleggio',
+    guidaAlpina: 'guida alpina',
+    scuolaAlpinismo: 'scuola alpinismo',
+    shop: 'shop outdoor',
+    tourOperator: 'tour operator',
+    consorzioTurismo: 'consorzio turismo',
+    altro: 'attività',
+  })[business.type] || 'attività';
+
+  return `
+    <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; color: #2d3436; line-height: 1.5;">
+      <p>Buongiorno,</p>
+
+      <p>mi chiamo Massimiliano e gestisco <strong>TrailShare</strong>,
+      un'app di tracking GPS e mappe per escursionisti, alpinisti e
+      bikers attiva in Italia.</p>
+
+      <p>Su TrailShare abbiamo creato una scheda pubblica del vostro
+      ${typeLabel} <strong>${name}</strong> a partire da fonti pubbliche
+      (OpenStreetMap, sito CAI, registro imprese):</p>
+
+      <p><a href="${publicUrl}" style="color: #E07B4C; font-weight: 600;">${publicUrl}</a></p>
+
+      <p>La scheda è già online e visitata dai nostri utenti che cercano
+      informazioni ${city ? `sulla zona di ${city}` : 'nella vostra zona'}.</p>
+
+      <p>Ti scrivo per proporti di <strong>prenderne tu il controllo</strong>:
+      bastano cinque minuti, e da subito potrai:</p>
+
+      <ul>
+        <li>aggiornare foto, orari di apertura, listino prezzi</li>
+        <li>aggiungere i percorsi che consigli ai tuoi ospiti</li>
+        <li>ricevere statistiche delle visite e dei contatti</li>
+        <li>rispondere alle domande dei clienti direttamente dall'app</li>
+      </ul>
+
+      <p>Per i primi sei mesi il servizio è <strong>gratuito</strong>
+      (design partner program), poi €19,99/mese o €199/anno solo da
+      gennaio 2027.</p>
+
+      <p style="margin: 24px 0;">
+        <a href="${claimUrl}"
+           style="display: inline-block; background: #E07B4C; color: white;
+                  padding: 12px 24px; text-decoration: none; border-radius: 8px;
+                  font-weight: 600;">
+          → Rivendica la scheda (1 click)
+        </a>
+      </p>
+
+      <p>Il link sopra ti porta direttamente alla pagina dove confermi
+      con un click di essere tu il gestore. Niente form lunghi.</p>
+
+      <p>Per qualunque domanda mi puoi rispondere qui o scrivere a
+      <a href="mailto:info@trailshare.app">info@trailshare.app</a>.</p>
+
+      <p>Grazie del tempo, buona stagione.</p>
+
+      <p>Massimiliano<br>
+      <em>TrailShare · gestita da Bluspose S.r.l.</em><br>
+      <a href="https://trailshare.app">trailshare.app</a></p>
+
+      <hr style="border: none; border-top: 1px solid #dfe6e9; margin: 24px 0;">
+
+      <p style="font-size: 11px; color: #636e72; line-height: 1.4;">
+        Hai ricevuto questa email perché la tua attività è inserita su
+        TrailShare a partire da dati pubblici (OpenStreetMap, registro
+        imprese). Se non vuoi più ricevere comunicazioni o desideri la
+        rimozione della scheda, rispondi a info@trailshare.app con
+        oggetto "Rimozione" e provvederemo entro 48 ore lavorative.
+        Base legale: interesse legittimo art. 6.1.f GDPR — dati
+        pubblici aziendali.
+      </p>
+    </div>
+  `;
+}
+
+/// Query base: schede unclaimed con email business pubblica e
+/// outreach mai inviato. Filtra opzionalmente per regione (bbox) e
+/// tipo. Ritorna lista di doc snapshot.
+async function _findOutreachCandidates(region, businessType, limit) {
+  // Lato Firestore filtriamo tier + outreachEmailSentAt null. Il
+  // resto (email valida, bbox regione) in-memory perché Firestore
+  // non supporta range + multiple inequality.
+  let query = db.collection('businesses')
+    .where('tier', '==', 'unclaimed')
+    .where('status', '==', 'active');
+  if (businessType) {
+    query = query.where('type', '==', businessType);
+  }
+  // Senza orderBy esplicito Firestore usa __name__; non garantiamo
+  // ordine specifico oltre quello.
+  const snap = await query.limit(3000).get();
+
+  const bbox = region ? _OUTREACH_REGION_BBOX[region] : null;
+  const candidates = [];
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    // Skip se outreach gia' inviato
+    if (data.outreachEmailSentAt) continue;
+    // Skip se email mancante / non aziendale / personale
+    const email = data.contacts && data.contacts.email;
+    if (!_isLikelyBusinessEmail(email)) continue;
+    // Skip se fuori dalla regione bbox
+    if (bbox) {
+      const lat = data.location && data.location.lat;
+      const lng = data.location && data.location.lng;
+      if (lat == null || lng == null) continue;
+      if (lat < bbox[0] || lat > bbox[1] || lng < bbox[2] || lng > bbox[3]) {
+        continue;
+      }
+    }
+    candidates.push({ id: doc.id, ref: doc.ref, data });
+    if (candidates.length >= limit) break;
+  }
+  return candidates;
+}
+
+exports.previewOutreachBatch = onCall(async (request) => {
+  if (!(await _isCallerAdmin(request.auth))) {
+    throw new functions.https.HttpsError(
+      'permission-denied', 'Solo admin platform puo eseguire outreach.'
+    );
+  }
+  const { region, businessType } = request.data || {};
+  if (region && !_OUTREACH_REGION_BBOX[region]) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      `region invalida. Disponibili: ${Object.keys(_OUTREACH_REGION_BBOX).join(', ')}, oppure null.`
+    );
+  }
+
+  const candidates = await _findOutreachCandidates(region, businessType, 500);
+  const samples = candidates.slice(0, 5).map((c) => ({
+    id: c.id,
+    name: c.data.name,
+    city: c.data.location && c.data.location.city,
+    email: c.data.contacts && c.data.contacts.email,
+  }));
+
+  return {
+    success: true,
+    region: region || 'all',
+    businessType: businessType || 'all',
+    found: candidates.length,
+    samples,
+  };
+});
+
+exports.sendOutreachBatch = onCall(
+  { timeoutSeconds: 300, memory: '512MiB' },
+  async (request) => {
+    if (!(await _isCallerAdmin(request.auth))) {
+      throw new functions.https.HttpsError(
+        'permission-denied', 'Solo admin platform puo eseguire outreach.'
+      );
+    }
+    const { region, businessType, maxEmails, dryRun } = request.data || {};
+    const cap = Math.min(Math.max(parseInt(maxEmails) || 50, 1), 100);
+    if (region && !_OUTREACH_REGION_BBOX[region]) {
+      throw new functions.https.HttpsError(
+        'invalid-argument', `region invalida.`
+      );
+    }
+
+    const candidates = await _findOutreachCandidates(region, businessType, cap);
+
+    let sent = 0;
+    const errors = [];
+    const senderUid = request.auth.uid;
+
+    for (const c of candidates) {
+      const b = c.data;
+      const email = b.contacts.email;
+      try {
+        if (dryRun) {
+          sent++;
+          continue;
+        }
+
+        // Genera self-claim token per la scheda (inline — replica
+        // logica generateSelfClaimToken con dedup).
+        const token = crypto.randomBytes(16).toString('hex');
+        const expiresAt = admin.firestore.Timestamp.fromMillis(
+          Date.now() + SELF_CLAIM_TTL_DAYS * 24 * 60 * 60 * 1000
+        );
+
+        // Invalida token precedenti per questa scheda
+        const oldTokens = await db.collection('business_self_claims')
+          .where('businessId', '==', c.id)
+          .get();
+        const batch = db.batch();
+        oldTokens.forEach((d) => batch.delete(d.ref));
+
+        batch.set(db.collection('business_self_claims').doc(token), {
+          businessId: c.id,
+          expiresAt,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdByUid: senderUid,
+          source: 'outreach_batch',
+        });
+
+        batch.update(c.ref, {
+          pendingSelfManagement: true,
+          outreachEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          outreachStatus: 'sent',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        const claimUrl = `https://app.trailshare.app/claim-self/${c.id}?t=${token}`;
+        const html = _buildOutreachEmailHtml({ ...b, slug: b.slug }, claimUrl);
+        const subject = `${b.name} è già su TrailShare — ti va di gestirlo tu?`;
+
+        // Scrive su collection `mail` per Trigger Email Extension
+        batch.set(db.collection('mail').doc(), {
+          to: [email],
+          message: { subject, html },
+          replyTo: 'info@trailshare.app',
+        });
+
+        await batch.commit();
+        sent++;
+      } catch (e) {
+        logger.warn(`[sendOutreachBatch] error on ${c.id}: ${e.message}`);
+        errors.push({ businessId: c.id, name: b.name, error: e.message });
+      }
+    }
+
+    logger.info(
+      `[sendOutreachBatch] region=${region || 'all'} type=${businessType || 'all'} ` +
+      `dryRun=${!!dryRun} candidates=${candidates.length} sent=${sent} ` +
+      `errors=${errors.length}`
+    );
+
+    return {
+      success: true,
+      region: region || 'all',
+      businessType: businessType || 'all',
+      dryRun: !!dryRun,
+      candidates: candidates.length,
+      sent,
+      errors,
+    };
+  }
+);
+
 exports.staticMapProxy = onRequest(
   { region: "europe-west3", cors: true, timeoutSeconds: 30 },
   async (req, res) => {

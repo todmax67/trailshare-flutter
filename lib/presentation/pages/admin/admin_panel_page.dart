@@ -124,6 +124,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             const SizedBox(height: 24),
             _buildOutreachKitSection(),
             const SizedBox(height: 24),
+            _buildOutreachCampaignSection(),
+            const SizedBox(height: 24),
             _buildQualityFlagsSection(),
             const SizedBox(height: 24),
             _buildStatsSection(),
@@ -158,6 +160,13 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
   // 7.H10 — Outreach kit state
   final TextEditingController _outreachIdCtrl = TextEditingController();
+
+  // 7.H10b — Outreach campaign batch state
+  String? _campaignRegion;
+  String _campaignType = '__all__';
+  bool _campaignBusy = false;
+  Map<String, dynamic>? _campaignPreview;
+  Map<String, dynamic>? _campaignSendResult;
 
   Widget _buildAdminClaimsSection() {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -1068,6 +1077,349 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           builder: (_) => WebOutreachPdfPage(businessId: businessId),
         ),
       );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // OUTREACH CAMPAIGN BATCH (Epic 7.H10b)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Invio email automatico alle schede unclaimed con email pubblica.
+  // Filtri: regione (bbox) + tipo. Preview prima per stimare volume,
+  // poi Invia (cap 50 email per batch). Idempotente: skippa schede
+  // già contattate.
+
+  static const _campaignTypeOptions = <String, String>{
+    '__all__': 'Tutti i tipi',
+    'rifugio': 'Rifugi (alpine_hut)',
+    'noleggio': 'Noleggio bici/sci',
+    'guidaAlpina': 'Guide alpine / arrampicata',
+    'shop': 'Negozi outdoor',
+  };
+
+  Widget _buildOutreachCampaignSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.send_outlined,
+                    color: Colors.deepOrange.shade400, size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Campagna outreach email',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Invio email automatico alle schede unclaimed con email '
+              'aziendale pubblica. Esclude email personali (gmail/hotmail). '
+              'Genera link self-claim individuale + tracking. Cap 50/giorno.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 500;
+                final regionField = DropdownButtonFormField<String?>(
+                  initialValue: _campaignRegion,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Regione',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Tutte le regioni'),
+                    ),
+                    ..._osmRegions.entries
+                        .where((e) => e.key != 'italia')
+                        .map((e) => DropdownMenuItem<String?>(
+                              value: e.key,
+                              child: Text(e.value,
+                                  overflow: TextOverflow.ellipsis),
+                            )),
+                  ],
+                  onChanged: _campaignBusy
+                      ? null
+                      : (v) => setState(() => _campaignRegion = v),
+                );
+                final typeField = DropdownButtonFormField<String>(
+                  initialValue: _campaignType,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: _campaignTypeOptions.entries
+                      .map((e) => DropdownMenuItem<String>(
+                            value: e.key,
+                            child: Text(e.value,
+                                overflow: TextOverflow.ellipsis),
+                          ))
+                      .toList(),
+                  onChanged: _campaignBusy
+                      ? null
+                      : (v) => setState(() => _campaignType = v ?? '__all__'),
+                );
+                if (wide) {
+                  return Row(
+                    children: [
+                      Expanded(child: regionField),
+                      const SizedBox(width: 12),
+                      Expanded(child: typeField),
+                    ],
+                  );
+                }
+                return Column(
+                  children: [
+                    regionField,
+                    const SizedBox(height: 12),
+                    typeField,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _campaignBusy ? null : _previewCampaign,
+                  icon: const Icon(Icons.visibility, size: 18),
+                  label: const Text('Preview candidati'),
+                ),
+                FilledButton.icon(
+                  onPressed: (_campaignBusy || _campaignPreview == null)
+                      ? null
+                      : _confirmSendCampaign,
+                  icon: _campaignBusy
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.send, size: 18),
+                  label: Text(_campaignBusy
+                      ? 'Invio...'
+                      : 'Invia campagna (max 50)'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.deepOrange.shade400,
+                  ),
+                ),
+              ],
+            ),
+            if (_campaignPreview != null) ...[
+              const SizedBox(height: 16),
+              _buildCampaignPreviewBlock(_campaignPreview!),
+            ],
+            if (_campaignSendResult != null) ...[
+              const SizedBox(height: 16),
+              _buildCampaignSendResultBlock(_campaignSendResult!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCampaignPreviewBlock(Map<String, dynamic> r) {
+    final found = r['found'] ?? 0;
+    final samples = (r['samples'] as List?) ?? const [];
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Candidati pronti per invio: $found',
+            style:
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Filtro: tier=unclaimed, email business pubblica, mai contattate.',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
+          if (samples.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Primi 5 sample:',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textMuted),
+            ),
+            ...samples.map((s) {
+              final m = Map<String, dynamic>.from(s as Map);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(
+                  '• ${m['name']} ${m['city'] != null ? "(${m['city']})" : ""} → ${m['email']}',
+                  style: const TextStyle(fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCampaignSendResultBlock(Map<String, dynamic> r) {
+    final sent = r['sent'] ?? 0;
+    final candidates = r['candidates'] ?? 0;
+    final errors = (r['errors'] as List?) ?? const [];
+    final dryRun = r['dryRun'] == true;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            dryRun
+                ? 'Dry-run completato: $sent/$candidates email simulate'
+                : 'Invio completato: $sent/$candidates email accodate',
+            style: const TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          if (errors.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Errori: ${errors.length} (primi 3: ${errors.take(3).join("; ")})',
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.danger),
+              ),
+            ),
+          const SizedBox(height: 4),
+          const Text(
+            'Trigger Email Extension manda le email via SendGrid in '
+            'pochi secondi. Vedi stato real-time in Firestore Console '
+            '→ collection mail/.',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _previewCampaign() async {
+    setState(() {
+      _campaignBusy = true;
+      _campaignPreview = null;
+      _campaignSendResult = null;
+    });
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable('previewOutreachBatch')
+              .call({
+        'region': _campaignRegion,
+        'businessType':
+            _campaignType == '__all__' ? null : _campaignType,
+      });
+      if (!mounted) return;
+      setState(() => _campaignPreview =
+          Map<String, dynamic>.from(result.data as Map));
+    } catch (e) {
+      _snack('Errore preview: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _campaignBusy = false);
+    }
+  }
+
+  Future<void> _confirmSendCampaign() async {
+    final found = _campaignPreview?['found'] ?? 0;
+    if (found == 0) {
+      _snack('Nessun candidato da inviare.', error: true);
+      return;
+    }
+    final toSend = found > 50 ? 50 : found;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confermi invio campagna?'),
+        content: Text(
+          'Sto per inviare $toSend email a schede unclaimed '
+          '(su $found candidati). Ogni email contiene un link self-claim '
+          'unico. Le schede contattate saranno marcate come "sent" e '
+          'non più ricontattate.\n\n'
+          'Procedere?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: Colors.deepOrange.shade400),
+            child: const Text('Invia'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() {
+      _campaignBusy = true;
+      _campaignSendResult = null;
+    });
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable(
+                'sendOutreachBatch',
+                options: HttpsCallableOptions(
+                    timeout: const Duration(seconds: 300)),
+              )
+              .call({
+        'region': _campaignRegion,
+        'businessType':
+            _campaignType == '__all__' ? null : _campaignType,
+        'maxEmails': 50,
+        'dryRun': false,
+      });
+      if (!mounted) return;
+      setState(() {
+        _campaignSendResult =
+            Map<String, dynamic>.from(result.data as Map);
+        _campaignPreview = null; // dopo l'invio i candidati sono stati ridotti
+      });
+      _snack(
+        'Campagna inviata: ${_campaignSendResult!['sent']} email',
+        error: false,
+      );
+    } catch (e) {
+      _snack('Errore invio campagna: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _campaignBusy = false);
     }
   }
 

@@ -226,7 +226,8 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['ownerId', 'tier', 'status', 'adminUserIds',
                       'updatedAt', 'claimedAt', 'claimedByUid',
-                      'disclaimerVisible', 'pendingSelfManagement']);
+                      'disclaimerVisible', 'pendingSelfManagement',
+                      'outreachEmailSentAt', 'outreachStatus']);
 
       // Update dei contatori: SOLO via transaction che modifica anche
       // la sub-collection (Firestore non lo verifica direttamente, ma
