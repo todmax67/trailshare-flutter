@@ -397,7 +397,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               stream: FirebaseFirestore.instance
                   .collection('businesses')
                   .where('pendingSelfManagement', isEqualTo: true)
-                  .limit(50)
+                  .limit(200)
                   .snapshots(),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
@@ -422,15 +422,91 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     ),
                   );
                 }
+
+                // Ordinamento per priorità operativa:
+                // 1. Manuali (no email outreach) → azione: generare link
+                // 2. Email outreach stale (>7gg, no claim) → azione: follow-up
+                // 3. Email outreach recente → in attesa naturale
+                final sortedDocs = docs.toList()
+                  ..sort((a, b) {
+                    final aSent = a.data()['outreachEmailSentAt'];
+                    final bSent = b.data()['outreachEmailSentAt'];
+                    if (aSent == null && bSent != null) return -1;
+                    if (aSent != null && bSent == null) return 1;
+                    if (aSent == null && bSent == null) return 0;
+                    if (aSent is Timestamp && bSent is Timestamp) {
+                      return aSent.compareTo(bSent); // più vecchi prima
+                    }
+                    return 0;
+                  });
+
+                // Conta sottocategorie per il summary
+                int manualCount = 0;
+                int outreachCount = 0;
+                int staleCount = 0;
+                final now = DateTime.now();
+                for (final d in sortedDocs) {
+                  final sent = d.data()['outreachEmailSentAt'];
+                  if (sent == null) {
+                    manualCount++;
+                  } else {
+                    outreachCount++;
+                    if (sent is Timestamp) {
+                      if (now.difference(sent.toDate()).inDays >= 7) {
+                        staleCount++;
+                      }
+                    }
+                  }
+                }
+
                 return Column(
-                  children: docs
-                      .map((d) => _PendingClaimTile(
-                            businessId: d.id,
-                            data: d.data(),
-                            onGenerate: () => _generateSelfClaimLink(d.id),
-                            onOpenOutreach: () => _openOutreachFor(d.id),
-                          ))
-                      .toList(),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 4,
+                        children: [
+                          Text(
+                            '${sortedDocs.length} totali',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            '$manualCount manuali (link da generare)',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.primary),
+                          ),
+                          Text(
+                            '$outreachCount email inviate',
+                            style: const TextStyle(
+                                fontSize: 11, color: AppColors.info),
+                          ),
+                          if (staleCount > 0)
+                            Text(
+                              '$staleCount stale (>7gg, follow-up?)',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.warning),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...sortedDocs.map((d) => _PendingClaimTile(
+                          businessId: d.id,
+                          data: d.data(),
+                          onGenerate: () => _generateSelfClaimLink(d.id),
+                          onOpenOutreach: () => _openOutreachFor(d.id),
+                        )),
+                  ],
                 );
               },
             ),
@@ -2272,53 +2348,155 @@ class _PendingClaimTile extends StatelessWidget {
     final city = (data['location'] is Map)
         ? (data['location']['city']?.toString() ?? '')
         : '';
+    final email = (data['contacts'] is Map)
+        ? (data['contacts']['email']?.toString())
+        : null;
+    // outreach status badge
+    final sentAt = data['outreachEmailSentAt'];
+    final outreachStatus = data['outreachStatus']?.toString();
+    Widget? statusBadge;
+    if (sentAt != null) {
+      // Calcola "X giorni fa" dal Timestamp Firestore
+      DateTime? sentDate;
+      if (sentAt is Timestamp) {
+        sentDate = sentAt.toDate();
+      }
+      final daysAgo = sentDate != null
+          ? DateTime.now().difference(sentDate).inDays
+          : 0;
+      final stale = daysAgo >= 7;
+      statusBadge = _statusPill(
+        icon: Icons.mark_email_read_outlined,
+        label: daysAgo == 0
+            ? 'Email inviata oggi'
+            : daysAgo == 1
+                ? 'Email inviata ieri'
+                : 'Email inviata ${daysAgo}gg fa',
+        color: stale ? AppColors.warning : AppColors.info,
+        tooltip: stale
+            ? 'Più di 7 giorni senza claim — considera follow-up manuale'
+            : 'Email outreach automatica inviata. In attesa di click sul link Rivendica.',
+      );
+    } else {
+      statusBadge = _statusPill(
+        icon: Icons.person_add_outlined,
+        label: 'Manuale',
+        color: AppColors.primary,
+        tooltip: 'Scheda creata manualmente dal team. Genera link self-claim per inviarlo via WhatsApp.',
+      );
+    }
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      [
+                        if (city.isNotEmpty) city,
+                        if (email != null) email,
+                        businessId,
+                      ].join('  ·  '),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-                Text(
-                  city.isEmpty ? businessId : '$city  ·  $businessId',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Wrap(
+                spacing: 4,
+                children: [
+                  IconButton(
+                    onPressed: onOpenOutreach,
+                    tooltip: 'Apri Outreach PDF',
+                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                    visualDensity: VisualDensity.compact,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  TextButton.icon(
+                    onPressed: onGenerate,
+                    icon: const Icon(Icons.link, size: 16),
+                    label: const Text('Genera link'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              statusBadge,
+              if (outreachStatus != null &&
+                  outreachStatus != 'sent' &&
+                  outreachStatus != 'pending') ...[
+                const SizedBox(width: 6),
+                _statusPill(
+                  icon: outreachStatus == 'replied'
+                      ? Icons.reply
+                      : outreachStatus == 'bounced'
+                          ? Icons.error_outline
+                          : Icons.info_outline,
+                  label: outreachStatus,
+                  color: outreachStatus == 'replied'
+                      ? AppColors.success
+                      : outreachStatus == 'bounced'
+                          ? AppColors.danger
+                          : AppColors.textMuted,
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Wrap(
-            spacing: 4,
-            children: [
-              IconButton(
-                onPressed: onOpenOutreach,
-                tooltip: 'Apri Outreach PDF',
-                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                visualDensity: VisualDensity.compact,
-              ),
-              TextButton.icon(
-                onPressed: onGenerate,
-                icon: const Icon(Icons.link, size: 16),
-                label: const Text('Genera link'),
-              ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _statusPill({
+    required IconData icon,
+    required String label,
+    required Color color,
+    String? tooltip,
+  }) {
+    final pill = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (tooltip == null) return pill;
+    return Tooltip(message: tooltip, child: pill);
   }
 }
 
