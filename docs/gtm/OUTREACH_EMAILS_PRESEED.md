@@ -303,3 +303,120 @@ Evita assolutamente:
 L'outdoor italiano è un mondo molto tradizionale e relazionale. Il
 contatto onesto + valore concreto funziona meglio di qualunque
 sales funnel.
+
+---
+
+## 📱 Messaggio WhatsApp / SMS (short form)
+
+Per provincia di Bergamo prima, poi le altre. Quando hai il numero
+ma non l'email, oppure quando l'email non risponde dopo 7-14 giorni.
+
+```
+Ciao {NOME},
+
+sono Massimiliano di TrailShare (l'app per escursionisti).
+
+Ho creato la scheda del {rifugio / locale} sulla nostra app,
+è già visitata dai trekker della zona. Ti va di gestirla tu?
+Servono 5 minuti, gratis i primi 6 mesi.
+
+Ti mando il link?
+```
+
+Quando il gestore risponde "sì":
+1. Pannello admin → cerca scheda → "Genera link self-claim"
+2. Manda il link via WhatsApp: *"Ecco, cliccaci sopra, fa login e
+   diventi tu il gestore in 1 secondo"*
+
+---
+
+## 🚶 Canovaccio visita fisica
+
+Stampa il **PDF outreach** dal pannello admin (Outreach Kit → ID
+scheda → Apri PDF → ⌘P salva → stampa A4). Consegna a mano durante
+visita stagionale.
+
+Discorso tipo:
+```
+"Buongiorno, gestisco un'app si chiama TrailShare — è un po' come
+Komoot ma italiana e per chi va in montagna. Vi ho lasciato qua un
+foglietto, sono i numeri della vostra scheda sulla nostra app:
+X visite, Y click rivendica, qualcuno vi sta già cercando. Per ora
+la gestiamo noi del team a partire da OpenStreetMap, ma se volete
+prendervela in mano è 1 click — c'è il QR sul foglio.
+
+Per quest'anno è gratis, dall'anno prossimo €20 al mese se volete
+sbloccare le foto e i percorsi consigliati ai clienti — ma anche
+solo tenerla aggiornata è già utile.
+
+Se avete domande chiamatemi a {NUMERO}. Buona stagione."
+```
+
+Conversion attesa visita fisica: ~30-50% (molto più alta di email
+fredda, perché c'è il rapporto umano).
+
+---
+
+## 💬 Risposte rapide a obiezioni comuni
+
+### "Abbiamo già Booking / sito CAI / Tripadvisor"
+
+> Perfetto, TrailShare non sostituisce Booking — è complementare.
+> I nostri utenti sono escursionisti che cercano dove dormire e
+> mangiare *durante* l'attività in montagna, non il viaggio in
+> albergo. La scheda è gratis i primi 6 mesi, non ti costa niente
+> provare. Se non porta valore, dopo 6 mesi la disabilitiamo.
+
+### "Non ho tempo per gestire un'altra app"
+
+> 5 minuti, niente di più. E se vuoi, te la gestisco io le prime
+> settimane finché non hai un momento — ti mando solo update via
+> WhatsApp.
+
+### "Quanto costa davvero?"
+
+> Per te zero euro fino a gennaio 2027 (design partner program).
+> Dopo, se vorrai restare Pro, €19,99/mese (€199/anno annuale).
+> Sotto piano gratis resta la scheda base con orari e contatti.
+
+### "Chi sono i vostri utenti?"
+
+> Escursionisti, trail runner, ciclisti che usano l'app per
+> tracciare GPS, registrare percorsi, scoprire sentieri. Italiani,
+> con concentrazione nelle Alpi e Appennini. {Aggiungi metriche
+> Discovery se le hai a mano}.
+
+### "Non mi piace OpenStreetMap, ho dati sbagliati"
+
+> Capisco. Per questo vogliamo che la gestisca tu: i dati che
+> aggiornerai sostituiscono quelli OSM e diventano la fonte
+> autoritativa della scheda. Se vuoi, ti mostro adesso al telefono
+> quali campi hanno errori per partire subito.
+
+### "Mandami una proposta scritta"
+
+> Te l'ho già mandata (il PDF outreach in allegato / quello che ti
+> ho dato a mano). Ti rimando il PDF aggiornato con i numeri della
+> tua scheda di oggi? Tutto è scritto lì, anche pricing.
+
+---
+
+## 🤖 Note GDPR e compliance per invio automatico
+
+Quando faremo invio email programmatico (vedere Epic 7.H10b futuro,
+batch sender via Trigger Email extension):
+
+- ✅ **Solo email pubbliche** scritte sulla scheda business (campo
+  `contacts.email`) o reperite via sito ufficiale / registro
+  imprese. **MAI** email personali / Gmail individuali / Apple
+  privaterelay.
+- ✅ Base legale art. 6.1.f GDPR (interesse legittimo per
+  comunicazione B2B aziendale)
+- ✅ Footer obbligatorio con: motivo del contatto + sorgente dei
+  dati + opt-out 1-click via reply
+- ✅ Soft opt-out: se non risponde dopo 2 follow-up → segna
+  "non interessato", non riscrivere più
+- ✅ Cap rate: max 50 email/giorno (free tier SendGrid 100/giorno,
+  margine per email transazionali di claim/reject)
+- ❌ Niente "newsletter" o invii ricorrenti senza opt-in esplicito
+
