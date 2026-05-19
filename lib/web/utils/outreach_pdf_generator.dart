@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
+import '../../core/constants/api_keys.dart';
 import '../../data/models/business.dart';
 
 /// Epic 7.H10 — Generatore PDF Outreach Kit lato client.
@@ -23,9 +25,24 @@ class OutreachPdfGenerator {
     required Business business,
     required List<Business> nearby,
   }) async {
+    // Carica Noto Sans (Unicode completo) da Google Fonts. Senza
+    // questo, il font default Helvetica del pacchetto pdf NON ha
+    // glyph per em-dash (—), middle-dot (·), apostrofi ricciolati,
+    // accenti italiani in alcuni casi. La generation può fallire o
+    // produrre quadratini al loro posto.
+    // `printing` package cachefica il download dopo il primo accesso.
+    final notoRegular = await PdfGoogleFonts.notoSansRegular();
+    final notoBold = await PdfGoogleFonts.notoSansBold();
+    final notoItalic = await PdfGoogleFonts.notoSansItalic();
+
     final doc = pw.Document(
       title: 'TrailShare Outreach Kit — ${business.name}',
       author: 'TrailShare (Bluspose S.r.l.)',
+      theme: pw.ThemeData.withFont(
+        base: notoRegular,
+        bold: notoBold,
+        italic: notoItalic,
+      ),
     );
 
     // Fetch static map in background. Se fallisce, proseguiamo senza.
@@ -520,37 +537,45 @@ class OutreachPdfGenerator {
   }
 
   // ─── STATIC MAP FETCH ──────────────────────────────────────────────
-  /// Recupera un PNG static map da staticmap.openstreetmap.de.
-  /// Servizio gratuito senza API key. Se fallisce ritorna null e il
-  /// PDF viene generato senza la mappa.
+  /// Recupera un PNG static map da MapTiler.
+  /// Sostituito staticmap.openstreetmap.de (offline / DNS fail) con
+  /// MapTiler Static API che usa la stessa chiave già in app.
+  /// Free tier MapTiler: 100k tile/mese — abbondante per il volume
+  /// outreach (max ~50 PDF/mese).
+  /// Se fallisce ritorna null e il PDF viene generato senza la mappa.
+  ///
+  /// Nota: il MapTiler API endpoint usa lon,lat (non lat,lon!) sia
+  /// per il centro che per i marker. Inversione comune di errore.
   static Future<Uint8List?> _fetchStaticMap(
       Business b, List<Business> nearby) async {
-    // Markers: il business principale in rosso + concorrenti zona
-    // come pallini grigi (limitiamo a 8 per non gonfiare l'URL).
-    final markers = <String>[
-      '${b.location.lat},${b.location.lng},red',
-      ...nearby.take(8).map(
-            (n) => '${n.location.lat},${n.location.lng},'
-                '${n.tier == BusinessTier.unclaimed ? "lightgray" : "lightgreen"}',
-          ),
+    // Marker pattern MapTiler: `pin-s+{color}({lon},{lat})` per pin
+    // semplici. Limitiamo a 8 concorrenti per non gonfiare la URL.
+    final markersList = <String>[
+      'pin-s+E07B4C(${b.location.lng},${b.location.lat})',
+      ...nearby.take(8).map((n) {
+        final color = n.tier == BusinessTier.unclaimed ? 'B2BEC3' : '4CAF50';
+        return 'pin-s+$color(${n.location.lng},${n.location.lat})';
+      }),
     ];
+
     final url = Uri.parse(
-      'https://staticmap.openstreetmap.de/staticmap.php'
-      '?center=${b.location.lat},${b.location.lng}'
-      '&zoom=11&size=640x300'
-      '&markers=${markers.join("|")}',
+      'https://api.maptiler.com/maps/streets-v2/static/auto/640x300.png'
+      '?key=${ApiKeys.mapTiler}'
+      '&padding=40'
+      '&markers=${markersList.join(",")}',
     );
     try {
       final resp = await http
-          .get(url, headers: {'User-Agent': 'TrailShare/2.5.0'})
+          .get(url)
           .timeout(const Duration(seconds: 15));
       if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
         return resp.bodyBytes;
       }
-      debugPrint('[OutreachPdf] static map HTTP ${resp.statusCode}');
+      debugPrint('[OutreachPdf] MapTiler static HTTP ${resp.statusCode}: '
+          '${resp.body.length < 300 ? resp.body : "..."}');
       return null;
     } catch (e) {
-      debugPrint('[OutreachPdf] static map fetch error: $e');
+      debugPrint('[OutreachPdf] MapTiler static fetch error: $e');
       return null;
     }
   }
