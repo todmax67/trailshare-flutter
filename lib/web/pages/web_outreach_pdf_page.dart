@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -11,6 +10,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/business.dart';
 import '../../data/repositories/business_repository.dart';
 import '../utils/outreach_pdf_generator.dart';
+import '../utils/pdf_downloader.dart';
 
 /// Epic 7.H10 — Outreach kit PDF (Fase 3a: pagina printable, admin
 /// fa Cmd+P / Ctrl+P → "Salva come PDF" dal browser).
@@ -104,10 +104,11 @@ class _WebOutreachPdfPageState extends State<WebOutreachPdfPage> {
         business: b,
         nearby: _nearby,
       );
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: 'TrailShare-${b.slug}.pdf',
-      );
+      // Download diretto via dart:html (no plugin `printing` su web —
+      // richiederebbe setup JS in web/index.html). Su mobile la
+      // funzione throw UnsupportedError ma questa pagina è raggiunta
+      // solo dalla shell web (`/admin/outreach/{id}` route).
+      downloadPdfBytes(bytes, 'TrailShare-${b.slug}.pdf');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
