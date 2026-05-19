@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import '../../../core/utils/text_search.dart';
@@ -12,7 +13,6 @@ import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../business/business_profile_page.dart';
 import '../../../data/repositories/groups_repository.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../tours/community_tour_detail_page.dart';
@@ -103,6 +103,10 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   List<Tour> _publicTours = [];
   bool _isLoadingPublicTours = false;
   bool _publicToursLoaded = false;
+  // Filtri community tour
+  final TextEditingController _tourSearchCtrl = TextEditingController();
+  String _tourSearchQuery = '';
+  String? _tourFilterDifficulty;
 
   @override
   void initState() {
@@ -139,6 +143,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   @override
   void dispose() {
     _tabController.dispose();
+    _tourSearchCtrl.dispose();
     _searchController.dispose();
     super.dispose();
     _scrollController.dispose();
@@ -662,44 +667,153 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     if (_isLoadingPublicTours && _publicTours.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_publicTours.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _loadPublicTours,
-        child: ListView(
-          children: [
-            const SizedBox(height: 100),
-            Center(
-              child: Column(
-                children: [
-                  Icon(Icons.map_outlined, size: 80, color: AppColors.primary.withValues(alpha: 0.3)),
-                  const SizedBox(height: 16),
-                  Text(
-                    context.l10n.noTours,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                  ),
-                ],
+
+    // Filtro in-memory: search query (titolo, autore, città di
+    // partenza approssimata) + filtro difficoltà.
+    final query = _tourSearchQuery.toLowerCase();
+    final filtered = _publicTours.where((t) {
+      if (_tourFilterDifficulty != null &&
+          t.difficultyGrade != _tourFilterDifficulty) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return t.title.toLowerCase().contains(query) ||
+          t.ownerName.toLowerCase().contains(query) ||
+          (t.description?.toLowerCase().contains(query) ?? false);
+    }).toList();
+
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: TextField(
+            controller: _tourSearchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Cerca tour, autore, regione...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _tourSearchCtrl.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        _tourSearchCtrl.clear();
+                        setState(() => _tourSearchQuery = '');
+                      },
+                    ),
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-          ],
+            onChanged: (v) => setState(() => _tourSearchQuery = v.trim()),
+          ),
         ),
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: _loadPublicTours,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _publicTours.length,
-        itemBuilder: (ctx, i) {
-          final t = _publicTours[i];
-          return _PublicTourCard(
-            tour: t,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CommunityTourDetailPage(tourId: t.id),
+        // Filter chip difficoltà
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            children: [
+              _diffChip(null, 'Tutte difficoltà'),
+              _diffChip('T (Turistico)', '🚶 T'),
+              _diffChip('E (Escursionistico)', '⛰️ E'),
+              _diffChip('EE (Escursionisti Esperti)', '⛰️ EE'),
+              _diffChip(
+                  'EEA (Esperti con Attrezzatura)', '🧗 EEA'),
+            ],
+          ),
+        ),
+        // Counter
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${filtered.length} di ${_publicTours.length} tour',
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w500,
               ),
             ),
-          );
+          ),
+        ),
+        // Lista (o empty/no-match state)
+        Expanded(
+          child: filtered.isEmpty
+              ? RefreshIndicator(
+                  onRefresh: _loadPublicTours,
+                  child: ListView(
+                    children: [
+                      const SizedBox(height: 80),
+                      Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.map_outlined,
+                                size: 64,
+                                color: AppColors.primary
+                                    .withValues(alpha: 0.3)),
+                            const SizedBox(height: 12),
+                            Text(
+                              _publicTours.isEmpty
+                                  ? context.l10n.noTours
+                                  : 'Nessun tour per i filtri attivi',
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500),
+                            ),
+                            if (_publicTours.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Prova a togliere un filtro',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadPublicTours,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    itemCount: filtered.length,
+                    itemBuilder: (ctx, i) {
+                      final t = filtered[i];
+                      return _PublicTourCard(
+                        tour: t,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                CommunityTourDetailPage(tourId: t.id),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _diffChip(String? value, String label) {
+    final selected = _tourFilterDifficulty == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        selected: selected,
+        onSelected: (_) {
+          setState(() => _tourFilterDifficulty = value);
         },
       ),
     );
@@ -1957,73 +2071,250 @@ class _PublicTourCard extends StatelessWidget {
     final durStr = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Hero photo o fallback gradient. Titolo overlay con
+            // gradient nero sotto per leggibilità.
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                  if (tour.coverPhotoUrl != null)
+                    CachedNetworkImage(
+                      imageUrl: tour.coverPhotoUrl!,
+                      fit: BoxFit.cover,
+                      placeholder: (c, _) =>
+                          Container(color: AppColors.surface),
+                    )
+                  else
+                    // Fallback: gradient brand + icona mappa centrata.
+                    // Se in futuro la card userà mini-map polyline,
+                    // sostituisci questo blocco con un widget
+                    // che disegna le tappe (TourBounds + downsampled
+                    // points del primo stage, ad esempio).
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFFE07B4C),
+                            Color(0xFFFFA726),
+                          ],
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.map,
+                            color: Colors.white, size: 56),
+                      ),
                     ),
-                    child: Icon(Icons.map, color: AppColors.primary),
+                  // Gradient nero per leggibilità titolo
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.0),
+                          Colors.black.withValues(alpha: 0.75),
+                        ],
+                        stops: const [0.0, 0.45, 1.0],
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
+                  // Top-left chip "TOUR" + giorni
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.calendar_month,
+                              size: 12, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(
+                            context.l10n.tourDays(tour.daysCount),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Titolo + autore in basso
+                  Positioned(
+                    left: 14,
+                    right: 14,
+                    bottom: 12,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           tour.title,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                          maxLines: 1,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            height: 1.15,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black54,
+                                blurRadius: 6,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${tour.ownerName} · ${context.l10n.tourDays(tour.daysCount)} · ${context.l10n.tourStages(tour.trackIds.length)}',
-                          style: TextStyle(color: context.textSecondary, fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const CircleAvatar(
+                              radius: 8,
+                              backgroundColor: Colors.white24,
+                              child: Icon(Icons.person,
+                                  size: 10, color: Colors.white),
+                            ),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                tour.ownerName,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white70,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+            ),
+            // Body: stats + meta chips
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _chip(context, Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
-                  _chip(context, Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
-                  if (tour.totalDuration.inMinutes > 0)
-                    _chip(context, Icons.schedule, durStr),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 6,
+                    children: [
+                      _stat(context, Icons.straighten,
+                          '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
+                      _stat(
+                        context,
+                        Icons.trending_up,
+                        '+${tour.totalElevationGain.toStringAsFixed(0)} m',
+                        AppColors.success,
+                      ),
+                      _stat(context, Icons.format_list_numbered,
+                          '${tour.trackIds.length} tappe'),
+                      if (tour.totalDuration.inMinutes > 0)
+                        _stat(context, Icons.schedule, durStr),
+                    ],
+                  ),
+                  if (tour.difficultyGrade != null ||
+                      tour.bestPeriod != null) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (tour.difficultyGrade != null)
+                          _metaPill(
+                            icon: Icons.hiking,
+                            label: tour.difficultyGrade!,
+                            color: AppColors.danger,
+                          ),
+                        if (tour.bestPeriod != null)
+                          _metaPill(
+                            icon: Icons.event_available_outlined,
+                            label: tour.bestPeriod!,
+                            color: AppColors.success,
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _chip(BuildContext context, IconData icon, String value, [Color? color]) {
+  Widget _stat(BuildContext context, IconData icon, String value,
+      [Color? color]) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 16, color: color ?? context.textSecondary),
         const SizedBox(width: 4),
-        Text(value, style: TextStyle(fontSize: 13, color: color ?? context.textPrimary, fontWeight: FontWeight.w500)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            color: color ?? context.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _metaPill({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
