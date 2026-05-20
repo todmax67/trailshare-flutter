@@ -5041,6 +5041,394 @@ exports.sendOutreachBatch = onCall(
   }
 );
 
+// ===================================================================
+// NEWSLETTER UTENTI — Service update email (v2.5.1)
+// ===================================================================
+// Invio email informative agli utenti registrati sulle principali
+// novità del prodotto. Base legale: legittimo interesse art. 6.1.f
+// GDPR + relazione contrattuale di servizio. Vedi privacy.html sez.
+// "Comunicazioni di aggiornamento prodotto".
+//
+// Architettura:
+// - Schema: user_profiles/{uid}.marketingOptOut (bool) +
+//   marketingOptOutAt + newsletterLastSentAt
+// - unsubscribeNewsletter: endpoint HTTP pubblico con uid+token HMAC,
+//   marca opt-out e ritorna pagina HTML
+// - previewNewsletterBatch: admin only, conta destinatari + 5 sample
+// - sendNewsletterBatch: admin only, invia batch scrivendo su mail/
+//   (Trigger Email Extension SendGrid)
+//
+// GDPR & best practice:
+// - Link "Annulla iscrizione" obbligatorio in ogni email (footer)
+// - Skip automatico utenti con marketingOptOut: true
+// - Skip utenti con account cancellato / deleted
+// - Cap di sicurezza (default 50, max 500 per batch)
+// - DryRun mode per simulare senza inviare
+// - Idempotente: newsletterLastSentCampaign per evitare doppi invii
+//   della stessa campagna
+
+const _NEWSLETTER_UNSUBSCRIBE_SECRET = () => {
+  // HMAC secret stabile derivato dal project. In produzione si può
+  // spostare su Secret Manager se serve rotazione. Per ora basta che
+  // sia non guessable e stabile tra runtime instances.
+  return process.env.NEWSLETTER_UNSUB_SECRET ||
+    'trailshare-newsletter-unsub-v1-do-not-share';
+};
+
+function _newsletterUnsubToken(uid) {
+  return crypto
+    .createHmac('sha256', _NEWSLETTER_UNSUBSCRIBE_SECRET())
+    .update(`unsub:${uid}`)
+    .digest('hex')
+    .substring(0, 32);
+}
+
+function _newsletterUnsubUrl(uid) {
+  const token = _newsletterUnsubToken(uid);
+  return `https://europe-west3-trailshare-5334b.cloudfunctions.net/unsubscribeNewsletter?uid=${encodeURIComponent(uid)}&t=${token}`;
+}
+
+/// Costruisce il body HTML della newsletter v2.5.1.
+/// [displayName] = nome utente per personalizzazione (fallback "ciao").
+function _buildNewsletterHtml(displayName, unsubUrl) {
+  const greetName = (displayName || '').trim().split(' ')[0] || '';
+  const greeting = greetName ? `Ciao ${greetName.replace(/</g, '&lt;')},` : 'Ciao,';
+
+  return `
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>TrailShare — Le novità di questi mesi</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f4f1;font-family:'Helvetica Neue',Arial,sans-serif;color:#2d3436;">
+<div style="max-width:600px;margin:0 auto;background:#ffffff;">
+
+  <!-- Hero -->
+  <div style="background:linear-gradient(135deg,#E07B4C 0%,#D86B3C 100%);padding:32px 24px;text-align:center;">
+    <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:-0.3px;">
+      TrailShare è cresciuto.
+    </h1>
+    <p style="margin:8px 0 0;color:#fff3ee;font-size:15px;">
+      Le novità che ti sei perso, in 2 minuti.
+    </p>
+  </div>
+
+  <!-- Body -->
+  <div style="padding:28px 24px;line-height:1.55;font-size:15px;">
+
+    <p style="margin:0 0 16px;">${greeting}</p>
+
+    <p style="margin:0 0 20px;">
+      sono Massimiliano, fondatore di TrailShare. Ti scrivo perché ti sei
+      registrato all'app nei mesi scorsi e nel frattempo sono uscite tre
+      novità grosse che cambiano il modo di usarla. Te le racconto in breve.
+    </p>
+
+    <!-- News 1: Tour multi-giorno -->
+    <div style="margin:24px 0;padding:18px;background:#fef9f5;border-left:4px solid #E07B4C;border-radius:6px;">
+      <h2 style="margin:0 0 8px;font-size:18px;color:#2d3436;">
+        🗺️ Tour multi-giorno
+      </h2>
+      <p style="margin:0;font-size:14px;color:#4a5560;">
+        Crea cammini di più giorni unendo le tue tracce: foto di copertina,
+        gallery, descrizione strutturata, periodo migliore, difficoltà,
+        e rifugio dove pernotti per ogni tappa. Distingue cammini consecutivi
+        (es. Alta Via) da collezioni tematiche (es. "le più belle della
+        Valle Seriana"). Pubblicabili anche sulla community.
+      </p>
+    </div>
+
+    <!-- News 2: AR Recognition -->
+    <div style="margin:24px 0;padding:18px;background:#f5f9fe;border-left:4px solid #4a90d9;border-radius:6px;">
+      <h2 style="margin:0 0 8px;font-size:18px;color:#2d3436;">
+        📸 Riconosci le cime con la fotocamera
+      </h2>
+      <p style="margin:0;font-size:14px;color:#4a5560;">
+        Inquadra le montagne intorno a te: TrailShare riconosce automaticamente
+        le cime visibili sovrapponendo nomi e quote in tempo reale. Dataset
+        di 37.000+ cime italiane già bundlato nell'app (funziona anche offline).
+        AR Photo Mode con foto annotate per gli abbonati Pro.
+      </p>
+    </div>
+
+    <!-- News 3: Lifeline + LiveTrack -->
+    <div style="margin:24px 0;padding:18px;background:#f3faf5;border-left:4px solid #5cb47e;border-radius:6px;">
+      <h2 style="margin:0 0 8px;font-size:18px;color:#2d3436;">
+        🛟 Lifeline e LiveTrack — sicurezza in montagna
+      </h2>
+      <p style="margin:0;font-size:14px;color:#4a5560;">
+        Imposta fino a 3 contatti di emergenza che ricevono un link
+        personalizzato con la tua posizione live durante l'attività.
+        In caso di inattività prolungata o SOS manuale, Lifeline prepara
+        messaggi precompilati pronti da inviare. LiveTrack condivide la
+        posizione live con chiunque tu voglia, via link.
+        <br><br>
+        <em style="color:#8392a5;">Limiti: non è un servizio di emergenza,
+        serve copertura cellulare. Per il 112 c'è il tasto dedicato.</em>
+      </p>
+    </div>
+
+    <p style="margin:24px 0 16px;font-size:15px;">
+      Se l'app ti aveva deluso quando l'hai provata, oggi è davvero un'altra
+      cosa. Dacci un'altra occasione 🙂
+    </p>
+
+    <!-- CTA -->
+    <div style="text-align:center;margin:28px 0;">
+      <a href="https://trailshare.app/#download"
+         style="display:inline-block;background:#E07B4C;color:#ffffff;
+                padding:14px 32px;text-decoration:none;border-radius:10px;
+                font-weight:700;font-size:15px;">
+        Aggiorna l'app o scaricala di nuovo
+      </a>
+    </div>
+
+    <p style="margin:20px 0 0;font-size:14px;color:#4a5560;">
+      Per qualsiasi cosa puoi rispondere direttamente a questa email, oppure
+      scrivere a <a href="mailto:info@trailshare.app" style="color:#E07B4C;">info@trailshare.app</a>.
+    </p>
+
+    <p style="margin:16px 0 0;font-size:14px;">
+      Buoni sentieri,<br>
+      <strong>Massimiliano</strong><br>
+      <span style="color:#8392a5;font-size:13px;">TrailShare · Bluspose S.r.l.</span>
+    </p>
+
+  </div>
+
+  <!-- Footer -->
+  <div style="padding:20px 24px;background:#f8f7f4;border-top:1px solid #e4e2dd;font-size:11px;color:#8392a5;line-height:1.5;">
+    <p style="margin:0 0 8px;">
+      Ricevi questa email perché sei un utente registrato di TrailShare.
+      Te la mandiamo per informarti delle novità rilevanti del servizio,
+      sulla base del nostro
+      <a href="https://trailshare.app/privacy#comunicazioni" style="color:#8392a5;text-decoration:underline;">legittimo interesse (art. 6.1.f GDPR)</a>
+      a tenerti aggiornato. Le email transazionali continueranno comunque.
+    </p>
+    <p style="margin:0;">
+      <a href="${unsubUrl}" style="color:#8392a5;text-decoration:underline;">Annulla iscrizione</a>
+      &nbsp;·&nbsp;
+      <a href="https://trailshare.app/privacy" style="color:#8392a5;text-decoration:underline;">Privacy</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:privacy@trailshare.app" style="color:#8392a5;text-decoration:underline;">privacy@trailshare.app</a>
+    </p>
+  </div>
+
+</div>
+</body>
+</html>
+  `;
+}
+
+/// Endpoint pubblico HTTPS: utente clicca "Annulla iscrizione" → marca
+/// opt-out su user_profiles/{uid}, ritorna pagina HTML di conferma.
+/// Verifica HMAC: ?uid=...&t=...
+exports.unsubscribeNewsletter = onRequest(
+  { region: 'europe-west3', cors: true, timeoutSeconds: 15 },
+  async (req, res) => {
+    const uid = (req.query.uid || '').toString();
+    const token = (req.query.t || '').toString();
+    if (!uid || !token) {
+      res.status(400).send('Missing uid or token');
+      return;
+    }
+    if (token !== _newsletterUnsubToken(uid)) {
+      res.status(403).send('Invalid unsubscribe token');
+      return;
+    }
+    try {
+      await db.collection('user_profiles').doc(uid).set({
+        marketingOptOut: true,
+        marketingOptOutAt: admin.firestore.FieldValue.serverTimestamp(),
+        marketingOptOutSource: 'newsletter_link',
+      }, { merge: true });
+      logger.info(`[unsubscribeNewsletter] opt-out registered for ${uid}`);
+    } catch (e) {
+      logger.error('[unsubscribeNewsletter] write error:', e.message);
+      res.status(500).send('Errore tecnico. Scrivi a privacy@trailshare.app.');
+      return;
+    }
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(`<!DOCTYPE html><html lang="it"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Disiscritto — TrailShare</title>
+<link rel="icon" type="image/png" href="https://trailshare.app/images/app-icon.png">
+</head><body style="margin:0;padding:48px 20px;background:#f5f4f1;font-family:'Helvetica Neue',Arial,sans-serif;color:#2d3436;text-align:center;">
+<div style="max-width:480px;margin:0 auto;background:#fff;padding:40px 28px;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,.06);">
+  <div style="font-size:48px;margin-bottom:12px;">✅</div>
+  <h1 style="margin:0 0 12px;font-size:22px;">Ti abbiamo disiscritto.</h1>
+  <p style="margin:0 0 16px;color:#4a5560;line-height:1.5;">
+    Non riceverai più email di aggiornamento prodotto da TrailShare.
+    Le email transazionali indispensabili al servizio (sicurezza account,
+    conferme di azioni) continueranno a essere inviate.
+  </p>
+  <p style="margin:24px 0 0;font-size:13px;color:#8392a5;">
+    Se hai cambiato idea, scrivici a
+    <a href="mailto:privacy@trailshare.app" style="color:#E07B4C;">privacy@trailshare.app</a>.
+  </p>
+  <a href="https://trailshare.app" style="display:inline-block;margin-top:28px;color:#E07B4C;text-decoration:none;font-weight:600;">
+    ← Torna a trailshare.app
+  </a>
+</div>
+</body></html>`);
+  }
+);
+
+/// Conta destinatari della prossima campagna newsletter e ritorna 5
+/// sample (senza inviare). Admin only.
+exports.previewNewsletterBatch = onCall(
+  { region: 'europe-west3', timeoutSeconds: 60 },
+  async (request) => {
+    if (!(await _isCallerAdmin(request.auth))) {
+      throw new functions.https.HttpsError(
+        'permission-denied', 'Solo admin platform.'
+      );
+    }
+    const { campaignId } = request.data || {};
+    if (!campaignId || typeof campaignId !== 'string') {
+      throw new functions.https.HttpsError(
+        'invalid-argument', 'campaignId richiesto (es. "v2.5.1-launch").'
+      );
+    }
+    // Lista utenti Firebase Auth (paginata, fino a 5000 per il preview).
+    // Per project con >5000 utenti aggiungere paginazione completa.
+    const all = [];
+    let nextPageToken;
+    do {
+      const page = await admin.auth().listUsers(1000, nextPageToken);
+      all.push(...page.users);
+      nextPageToken = page.pageToken;
+    } while (nextPageToken && all.length < 5000);
+
+    // Filtra: email valida + non opt-out + non già contattati per
+    // questa campagna.
+    const eligible = [];
+    let skipNoEmail = 0, skipOptOut = 0, skipAlreadySent = 0, skipDisabled = 0;
+    for (const u of all) {
+      if (u.disabled) { skipDisabled++; continue; }
+      if (!u.email || !u.emailVerified) { skipNoEmail++; continue; }
+      const profileSnap = await db.collection('user_profiles').doc(u.uid).get();
+      const p = profileSnap.exists ? profileSnap.data() : {};
+      if (p.marketingOptOut === true) { skipOptOut++; continue; }
+      if (p.newsletterLastSentCampaign === campaignId) { skipAlreadySent++; continue; }
+      eligible.push({
+        uid: u.uid,
+        email: u.email,
+        displayName: u.displayName || p.displayName || '',
+        createdAt: u.metadata.creationTime,
+        lastSignIn: u.metadata.lastSignInTime,
+      });
+    }
+    const samples = eligible.slice(0, 5);
+    return {
+      campaignId,
+      totalAuthUsers: all.length,
+      eligible: eligible.length,
+      skipped: {
+        noEmail: skipNoEmail,
+        optOut: skipOptOut,
+        alreadySent: skipAlreadySent,
+        disabled: skipDisabled,
+      },
+      samples,
+    };
+  }
+);
+
+/// Invia un batch della newsletter. Admin only. Cap di sicurezza.
+exports.sendNewsletterBatch = onCall(
+  { region: 'europe-west3', timeoutSeconds: 540, memory: '512MiB' },
+  async (request) => {
+    if (!(await _isCallerAdmin(request.auth))) {
+      throw new functions.https.HttpsError(
+        'permission-denied', 'Solo admin platform.'
+      );
+    }
+    const {
+      campaignId,
+      subject,
+      maxEmails,
+      dryRun,
+    } = request.data || {};
+    if (!campaignId || typeof campaignId !== 'string') {
+      throw new functions.https.HttpsError(
+        'invalid-argument', 'campaignId richiesto.'
+      );
+    }
+    const cap = Math.min(Math.max(parseInt(maxEmails) || 50, 1), 500);
+    const finalSubject = (subject && typeof subject === 'string' && subject.trim())
+      ? subject.trim()
+      : 'TrailShare è cresciuto. Le novità che ti sei perso.';
+
+    // Lista utenti Auth con paginazione.
+    const all = [];
+    let nextPageToken;
+    do {
+      const page = await admin.auth().listUsers(1000, nextPageToken);
+      all.push(...page.users);
+      nextPageToken = page.pageToken;
+    } while (nextPageToken);
+
+    let sent = 0;
+    let skipped = 0;
+    const errors = [];
+
+    for (const u of all) {
+      if (sent >= cap) break;
+      if (u.disabled || !u.email || !u.emailVerified) { skipped++; continue; }
+      try {
+        const profileRef = db.collection('user_profiles').doc(u.uid);
+        const profileSnap = await profileRef.get();
+        const p = profileSnap.exists ? profileSnap.data() : {};
+        if (p.marketingOptOut === true) { skipped++; continue; }
+        if (p.newsletterLastSentCampaign === campaignId) { skipped++; continue; }
+
+        if (dryRun) {
+          sent++;
+          continue;
+        }
+
+        const displayName = u.displayName || p.displayName || '';
+        const unsubUrl = _newsletterUnsubUrl(u.uid);
+        const html = _buildNewsletterHtml(displayName, unsubUrl);
+
+        const batch = db.batch();
+        batch.set(db.collection('mail').doc(), {
+          to: [u.email],
+          message: { subject: finalSubject, html },
+          replyTo: 'info@trailshare.app',
+        });
+        batch.set(profileRef, {
+          newsletterLastSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          newsletterLastSentCampaign: campaignId,
+        }, { merge: true });
+        await batch.commit();
+        sent++;
+      } catch (e) {
+        logger.warn(`[sendNewsletterBatch] error on ${u.uid}: ${e.message}`);
+        errors.push({ uid: u.uid, email: u.email, error: e.message });
+      }
+    }
+
+    logger.info(
+      `[sendNewsletterBatch] campaign=${campaignId} dryRun=${!!dryRun} ` +
+      `total=${all.length} sent=${sent} skipped=${skipped} errors=${errors.length}`
+    );
+    return {
+      success: true,
+      campaignId,
+      dryRun: !!dryRun,
+      totalAuthUsers: all.length,
+      cap,
+      sent,
+      skipped,
+      errors,
+    };
+  }
+);
+
 exports.staticMapProxy = onRequest(
   { region: "europe-west3", cors: true, timeoutSeconds: 30 },
   async (req, res) => {
