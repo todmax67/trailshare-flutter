@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/track.dart';
 import 'cheer_button.dart'; // ⭐ AGGIUNTO: Import CheerButton
+import 'difficulty_badge.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 
 /// Card per visualizzare una traccia della community
@@ -25,6 +26,7 @@ class CommunityTrackCard extends StatelessWidget {
   final int cheerCount;
   final DateTime? sharedAt;
   final String? difficulty;
+  final String? computedDifficulty; // Komoot K1a Step 2
   final List<String> photoUrls;
   final List<TrackPoint> points;
   final VoidCallback onTap;
@@ -41,6 +43,7 @@ class CommunityTrackCard extends StatelessWidget {
     required this.cheerCount,
     this.sharedAt,
     this.difficulty,
+    this.computedDifficulty,
     this.photoUrls = const [],
     this.points = const [],
     required this.onTap,
@@ -115,8 +118,15 @@ class CommunityTrackCard extends StatelessWidget {
                   
                   const SizedBox(height: 12),
                   
-                  // Badge difficoltà
-                  if (difficulty != null && difficulty!.isNotEmpty)
+                  // Badge difficoltà — priorità a computedDifficulty
+                  // (Komoot K1a Step 2). Fallback a difficulty manuale
+                  // per tracce legacy che non hanno il calcolo.
+                  if (computedDifficulty != null)
+                    DifficultyBadge(
+                      difficultyKey: computedDifficulty,
+                      compact: false,
+                    )
+                  else if (difficulty != null && difficulty!.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(

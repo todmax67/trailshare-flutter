@@ -320,6 +320,8 @@ class _WishlistPageState extends State<WishlistPage> {
               durationFormatted: track.durationFormatted,
               cheerCount: track.cheerCount,
               sharedAt: track.sharedAt,
+              difficulty: track.difficulty,
+              computedDifficulty: track.computedDifficulty,
               onTap: () => _openTrackDetail(track),
             ),
           );

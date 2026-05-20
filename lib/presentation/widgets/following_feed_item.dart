@@ -45,6 +45,7 @@ class FollowingFeedItem extends StatelessWidget {
             cheerCount: track.cheerCount,
             sharedAt: track.sharedAt,
             difficulty: track.difficulty,
+            computedDifficulty: track.computedDifficulty,
             photoUrls: track.photoUrls,
             points: track.points,
             onTap: onTap,

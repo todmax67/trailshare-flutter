@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import '../../../core/utils/difficulty_calculator.dart';
 import '../../../core/utils/text_search.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
@@ -62,6 +63,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   bool _showMap = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  // Komoot K1a Step 2 — filtro difficoltà computata. Null = "Tutte".
+  // Logica "T3+" = include T3, T4, T5 (≥ livello selezionato).
+  ComputedDifficulty? _filterMinDifficulty;
   // Paginazione
   QueryDocumentSnapshot? _lastDocument;
   bool _hasMoreTracks = true;
@@ -255,15 +259,25 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   }
 
   List<CommunityTrack> get _filteredCommunity {
-    if (_searchQuery.isEmpty) return _communityTracks;
-    // 4.4 — Ricerca accent-insensitive (allineata a Discover).
-    // Esempio: "perù" matcha "Peru'", "città" matcha "Citta'".
-    return _communityTracks.where((track) {
-      return TextSearch.matchesAny(_searchQuery, [
-        track.name,
-        track.ownerUsername,
-      ]);
-    }).toList();
+    var list = _communityTracks;
+    if (_searchQuery.isNotEmpty) {
+      // 4.4 — Ricerca accent-insensitive (allineata a Discover).
+      // Esempio: "perù" matcha "Peru'", "città" matcha "Citta'".
+      list = list.where((track) {
+        return TextSearch.matchesAny(_searchQuery, [
+          track.name,
+          track.ownerUsername,
+        ]);
+      }).toList();
+    }
+    if (_filterMinDifficulty != null) {
+      final minIdx = _filterMinDifficulty!.index;
+      list = list.where((t) {
+        final level = ComputedDifficulty.fromKey(t.computedDifficulty);
+        return level != null && level.index >= minIdx;
+      }).toList();
+    }
+    return list;
   }
 
   void _onSearchChanged(String query) {
@@ -860,6 +874,11 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           ),
         ),
 
+        // Komoot K1a Step 2 — filtro per difficoltà computata.
+        // "Tutte" disattiva il filtro. T1+/T2+/T3+/T4+/T5 = livello
+        // minimo (es. T3+ mostra T3, T4 e T5).
+        _buildDifficultyFilterStrip(),
+
         // Contenuto
         Expanded(
           child: _isLoadingCommunity
@@ -867,6 +886,47 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               : _buildTracksContent(),
         ),
       ],
+    );
+  }
+
+  Widget _buildDifficultyFilterStrip() {
+    final levels = ComputedDifficulty.values;
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          ChoiceChip(
+            label: const Text('Tutte', style: TextStyle(fontSize: 12)),
+            selected: _filterMinDifficulty == null,
+            onSelected: (_) => setState(() => _filterMinDifficulty = null),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          const SizedBox(width: 6),
+          for (final lvl in levels) ...[
+            ChoiceChip(
+              label: Text(
+                '${lvl.code}+',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _filterMinDifficulty == lvl ? Colors.white : lvl.color,
+                ),
+              ),
+              selected: _filterMinDifficulty == lvl,
+              selectedColor: lvl.color,
+              backgroundColor: lvl.color.withValues(alpha: 0.10),
+              side: BorderSide(color: lvl.color.withValues(alpha: 0.5)),
+              onSelected: (_) => setState(() => _filterMinDifficulty = lvl),
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            const SizedBox(width: 6),
+          ],
+        ],
+      ),
     );
   }
 
@@ -1134,6 +1194,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             cheerCount: track.cheerCount,
             sharedAt: track.sharedAt,
             difficulty: track.difficulty,
+            computedDifficulty: track.computedDifficulty,
             photoUrls: track.photoUrls,
             points: track.points,
             onTap: () => _openCommunityTrackDetail(track),
