@@ -4674,6 +4674,46 @@ exports.trackFunnelEvent = onCall(async (request) => {
 // - sendOutreachBatch({region, type, maxEmails=50, dryRun}) → invio
 //   batch effettivo
 
+/// Converte un body HTML in plain text accettabile come fallback
+/// multipart/alternative. Rimuove tag, decodifica entità HTML basilari,
+/// normalizza gli spazi. Best-effort — non è un parser HTML completo:
+/// va bene per i nostri template controllati lato server.
+function _htmlToPlainText(html) {
+  if (!html) return '';
+  let s = String(html);
+  // Sostituisci <br>, </p>, </div>, </li>, </h*> con newline
+  s = s.replace(/<\s*br\s*\/?\s*>/gi, '\n');
+  s = s.replace(/<\/\s*(p|div|li|h[1-6])\s*>/gi, '\n\n');
+  // Bullet point per <li>
+  s = s.replace(/<\s*li[^>]*>/gi, '• ');
+  // Rimuovi style/script/head/title interi (con contenuto)
+  s = s.replace(/<\s*(style|script|head|title)[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, '');
+  // Estrai href dai link in formato "testo (https://url)"
+  s = s.replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    (_m, href, txt) => {
+      const t = txt.replace(/<[^>]+>/g, '').trim();
+      if (!t || t === href) return href;
+      return `${t} (${href})`;
+    });
+  // Rimuovi tutti gli altri tag
+  s = s.replace(/<[^>]+>/g, '');
+  // Decodifica entità HTML comuni
+  s = s.replace(/&nbsp;/g, ' ')
+       .replace(/&amp;/g, '&')
+       .replace(/&lt;/g, '<')
+       .replace(/&gt;/g, '>')
+       .replace(/&quot;/g, '"')
+       .replace(/&#39;/g, "'")
+       .replace(/&euro;/g, '€')
+       .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+       .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)));
+  // Normalizza whitespace
+  s = s.replace(/[ \t]+/g, ' ');
+  s = s.replace(/\n{3,}/g, '\n\n');
+  s = s.split('\n').map((l) => l.trim()).join('\n').trim();
+  return s;
+}
+
 const _PERSONAL_EMAIL_DOMAINS = new Set([
   'gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.it',
   'yahoo.com', 'yahoo.it', 'libero.it', 'live.it', 'live.com',
@@ -5008,10 +5048,13 @@ exports.sendOutreachBatch = onCall(
         const html = _buildOutreachEmailHtml({ ...b, slug: b.slug }, claimUrl);
         const subject = `${b.name} è già su TrailShare — ti va di gestirlo tu?`;
 
-        // Scrive su collection `mail` per Trigger Email Extension
+        // Scrive su collection `mail` per Trigger Email Extension.
+        // Includiamo sempre il plain text fallback (multipart/alternative)
+        // per evitare che vecchie webmail (Aruba, Libero, ecc.) mostrino
+        // il codice HTML grezzo invece del messaggio renderizzato.
         batch.set(db.collection('mail').doc(), {
           to: [email],
-          message: { subject, html },
+          message: { subject, html, text: _htmlToPlainText(html) },
           replyTo: 'info@trailshare.app',
         });
 
@@ -5397,7 +5440,7 @@ exports.sendNewsletterBatch = onCall(
         const batch = db.batch();
         batch.set(db.collection('mail').doc(), {
           to: [u.email],
-          message: { subject: finalSubject, html },
+          message: { subject: finalSubject, html, text: _htmlToPlainText(html) },
           replyTo: 'info@trailshare.app',
         });
         batch.set(profileRef, {
