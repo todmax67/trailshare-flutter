@@ -126,6 +126,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             const SizedBox(height: 24),
             _buildOutreachCampaignSection(),
             const SizedBox(height: 24),
+            _buildNewsletterSection(),
+            const SizedBox(height: 24),
             _buildQualityFlagsSection(),
             const SizedBox(height: 24),
             _buildStatsSection(),
@@ -167,6 +169,17 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   bool _campaignBusy = false;
   Map<String, dynamic>? _campaignPreview;
   Map<String, dynamic>? _campaignSendResult;
+
+  // Newsletter v2.5.1 — service-update email agli utenti registrati
+  final TextEditingController _newsletterCampaignIdCtrl =
+      TextEditingController(text: 'v2.5.1-launch');
+  final TextEditingController _newsletterSubjectCtrl = TextEditingController(
+      text: 'TrailShare è cresciuto. Le novità che ti sei perso.');
+  final TextEditingController _newsletterMaxEmailsCtrl =
+      TextEditingController(text: '50');
+  bool _newsletterBusy = false;
+  Map<String, dynamic>? _newsletterPreview;
+  Map<String, dynamic>? _newsletterSendResult;
 
   Widget _buildAdminClaimsSection() {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -1511,6 +1524,335 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     } finally {
       if (mounted) setState(() => _campaignBusy = false);
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // NEWSLETTER UTENTI (service update v2.5.1+)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Email di aggiornamento prodotto a tutti gli utenti registrati.
+  // Base legale: legittimo interesse art. 6.1.f GDPR (vedi privacy.html).
+  // Backend: previewNewsletterBatch + sendNewsletterBatch + unsubscribeNewsletter.
+
+  Widget _buildNewsletterSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.campaign_outlined,
+                    color: Colors.purple.shade400, size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Newsletter utenti (service update)',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Email informativa sulle novità del prodotto a tutti gli utenti '
+              'registrati (emailVerified). Skip automatico di chi ha fatto '
+              'opt-out o è già stato contattato per questa campagna. Base '
+              'legale: legittimo interesse art. 6.1.f GDPR. Cap di sicurezza '
+              'configurabile.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _newsletterCampaignIdCtrl,
+              enabled: !_newsletterBusy,
+              decoration: const InputDecoration(
+                labelText: 'Campaign ID',
+                helperText:
+                    'ID univoco campagna (es. "v2.5.1-launch"). Usato per dedup: '
+                    'gli utenti con questo ID già impostato vengono skippati.',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _newsletterSubjectCtrl,
+              enabled: !_newsletterBusy,
+              decoration: const InputDecoration(
+                labelText: 'Oggetto email',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _newsletterMaxEmailsCtrl,
+              enabled: !_newsletterBusy,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Max email per batch',
+                helperText: 'Default 50, max 500. Riesegui per fare i batch successivi.',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _newsletterBusy ? null : _previewNewsletter,
+                  icon: const Icon(Icons.visibility, size: 18),
+                  label: const Text('Preview destinatari'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: (_newsletterBusy || _newsletterPreview == null)
+                      ? null
+                      : () => _sendNewsletter(dryRun: true),
+                  icon: const Icon(Icons.science_outlined, size: 18),
+                  label: const Text('Dry-run'),
+                ),
+                FilledButton.icon(
+                  onPressed: (_newsletterBusy || _newsletterPreview == null)
+                      ? null
+                      : _confirmSendNewsletter,
+                  icon: _newsletterBusy
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.send, size: 18),
+                  label: Text(_newsletterBusy ? 'Invio...' : 'Invia batch'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.purple.shade400,
+                  ),
+                ),
+              ],
+            ),
+            if (_newsletterPreview != null) ...[
+              const SizedBox(height: 16),
+              _buildNewsletterPreviewBlock(_newsletterPreview!),
+            ],
+            if (_newsletterSendResult != null) ...[
+              const SizedBox(height: 16),
+              _buildNewsletterSendResultBlock(_newsletterSendResult!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewsletterPreviewBlock(Map<String, dynamic> r) {
+    final total = r['totalAuthUsers'] ?? 0;
+    final eligible = r['eligible'] ?? 0;
+    final skipped = (r['skipped'] as Map?) ?? const {};
+    final samples = (r['samples'] as List?) ?? const [];
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Destinatari eleggibili: $eligible (su $total totali Auth)',
+            style:
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Skippati: no-email=${skipped['noEmail'] ?? 0} · '
+            'opt-out=${skipped['optOut'] ?? 0} · '
+            'già-inviata=${skipped['alreadySent'] ?? 0} · '
+            'disabled=${skipped['disabled'] ?? 0}',
+            style: const TextStyle(
+                fontSize: 11, color: AppColors.textMuted),
+          ),
+          if (samples.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Primi 5 sample:',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textMuted),
+            ),
+            ...samples.map((s) {
+              final m = Map<String, dynamic>.from(s as Map);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(
+                  '• ${m['displayName'] ?? "(nessun nome)"} → ${m['email']}',
+                  style: const TextStyle(fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewsletterSendResultBlock(Map<String, dynamic> r) {
+    final sent = r['sent'] ?? 0;
+    final skipped = r['skipped'] ?? 0;
+    final errors = (r['errors'] as List?) ?? const [];
+    final dryRun = r['dryRun'] == true;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            dryRun
+                ? 'Dry-run completato: $sent email simulate (skippati $skipped)'
+                : 'Invio completato: $sent email accodate (skippati $skipped)',
+            style: const TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          if (errors.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Errori: ${errors.length}',
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.danger),
+              ),
+            ),
+          const SizedBox(height: 4),
+          const Text(
+            'Trigger Email Extension manda le email via SendGrid in pochi '
+            'secondi. Stato real-time in Firestore → collection mail/.',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _previewNewsletter() async {
+    final cid = _newsletterCampaignIdCtrl.text.trim();
+    if (cid.isEmpty) {
+      _snack('Inserisci un Campaign ID.', error: true);
+      return;
+    }
+    setState(() {
+      _newsletterBusy = true;
+      _newsletterPreview = null;
+      _newsletterSendResult = null;
+    });
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable('previewNewsletterBatch')
+              .call({'campaignId': cid});
+      if (!mounted) return;
+      setState(() => _newsletterPreview =
+          Map<String, dynamic>.from(result.data as Map));
+    } catch (e) {
+      _snack('Errore preview newsletter: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _newsletterBusy = false);
+    }
+  }
+
+  Future<void> _sendNewsletter({required bool dryRun}) async {
+    final cid = _newsletterCampaignIdCtrl.text.trim();
+    final subject = _newsletterSubjectCtrl.text.trim();
+    final maxEmails = int.tryParse(_newsletterMaxEmailsCtrl.text.trim()) ?? 50;
+    if (cid.isEmpty) {
+      _snack('Campaign ID mancante.', error: true);
+      return;
+    }
+    setState(() {
+      _newsletterBusy = true;
+      _newsletterSendResult = null;
+    });
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable(
+                'sendNewsletterBatch',
+                options: HttpsCallableOptions(
+                    timeout: const Duration(seconds: 540)),
+              )
+              .call({
+        'campaignId': cid,
+        'subject': subject.isEmpty ? null : subject,
+        'maxEmails': maxEmails,
+        'dryRun': dryRun,
+      });
+      if (!mounted) return;
+      setState(() {
+        _newsletterSendResult =
+            Map<String, dynamic>.from(result.data as Map);
+      });
+      _snack(
+        dryRun
+            ? 'Dry-run: ${_newsletterSendResult!['sent']} email simulate'
+            : 'Inviate: ${_newsletterSendResult!['sent']} email',
+        error: false,
+      );
+    } catch (e) {
+      _snack('Errore invio newsletter: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _newsletterBusy = false);
+    }
+  }
+
+  Future<void> _confirmSendNewsletter() async {
+    final eligible = _newsletterPreview?['eligible'] ?? 0;
+    if (eligible == 0) {
+      _snack('Nessun destinatario eleggibile.', error: true);
+      return;
+    }
+    final maxEmails = int.tryParse(_newsletterMaxEmailsCtrl.text.trim()) ?? 50;
+    final toSend = eligible > maxEmails ? maxEmails : eligible;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confermi invio newsletter?'),
+        content: Text(
+          'Sto per inviare $toSend email agli utenti registrati '
+          '(su $eligible eleggibili). Ogni email contiene il link di '
+          'disiscrizione individuale. Gli utenti contattati saranno '
+          'marcati per la campagna "${_newsletterCampaignIdCtrl.text.trim()}" '
+          'e non più ricontattati con lo stesso ID.\n\n'
+          'Procedere?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: Colors.purple.shade400),
+            child: const Text('Invia'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _sendNewsletter(dryRun: false);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
