@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
+import '../../data/models/business.dart';
 import '../../data/models/trail_poi.dart';
+import '../../data/repositories/business_repository.dart';
 import '../../data/repositories/poi_repository.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 import '../../core/extensions/l10n_extension.dart';
@@ -69,6 +71,7 @@ class _PoiEditorSheet extends StatefulWidget {
 
 class _PoiEditorSheetState extends State<_PoiEditorSheet> {
   final _repo = PoiRepository();
+  final _businessRepo = BusinessRepository();
   final _picker = ImagePicker();
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
@@ -79,6 +82,14 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
   String? _existingPhotoUrl;
   bool _isPublic = false;
   bool _saving = false;
+
+  // Komoot K1a — highlight con link a Spazio Pro. Quando linkato,
+  // il POI viene mostrato come "highlight" cliccabile sulla scheda
+  // traccia. Denormalizziamo name+slug per evitare fetch extra
+  // in rendering.
+  String? _linkedBusinessId;
+  String? _linkedBusinessName;
+  String? _linkedBusinessSlug;
 
   bool get _isEdit => widget.initialPoi != null;
 
@@ -92,7 +103,37 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
       _descCtrl.text = init.description ?? '';
       _existingPhotoUrl = init.photoUrl;
       _isPublic = init.isPublic;
+      _linkedBusinessId = init.linkedBusinessId;
+      _linkedBusinessName = init.linkedBusinessName;
+      _linkedBusinessSlug = init.linkedBusinessSlug;
     }
+  }
+
+  /// Apre il picker degli Spazi Pro entro 10 km dalla posizione del POI.
+  /// Riusa BusinessRepository.getNearby (geohash + haversine).
+  Future<void> _pickLinkedBusiness() async {
+    final selected = await showDialog<Business>(
+      context: context,
+      builder: (_) => _BusinessPickerDialog(
+        repo: _businessRepo,
+        centerLat: widget.latitude,
+        centerLng: widget.longitude,
+      ),
+    );
+    if (selected == null) return;
+    setState(() {
+      _linkedBusinessId = selected.id;
+      _linkedBusinessName = selected.name;
+      _linkedBusinessSlug = selected.slug;
+    });
+  }
+
+  void _clearLinkedBusiness() {
+    setState(() {
+      _linkedBusinessId = null;
+      _linkedBusinessName = null;
+      _linkedBusinessSlug = null;
+    });
   }
 
   @override
@@ -157,6 +198,9 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
               ? null
               : _descCtrl.text.trim(),
           isPublic: _isPublic,
+          linkedBusinessId: _linkedBusinessId,
+          linkedBusinessName: _linkedBusinessName,
+          linkedBusinessSlug: _linkedBusinessSlug,
         );
         // Upload nuova foto se selezionata
         if (_photoFile != null) {
@@ -187,6 +231,9 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
           relatedTrailId: widget.relatedTrailId,
           relatedTrackId: widget.relatedTrackId,
           isPublic: _isPublic,
+          linkedBusinessId: _linkedBusinessId,
+          linkedBusinessName: _linkedBusinessName,
+          linkedBusinessSlug: _linkedBusinessSlug,
         );
         final id = await _repo.createPoi(draft);
         if (id == null) {
@@ -317,6 +364,10 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
                     contentPadding: EdgeInsets.zero,
                     dense: true,
                   ),
+                  const SizedBox(height: 8),
+
+                  // ── Komoot K1a — Link a Spazio Pro (highlight) ──
+                  _buildLinkedBusinessTile(),
                   const SizedBox(height: 12),
 
                   // Azioni
@@ -467,6 +518,236 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
               ],
             ),
         ],
+      ),
+    );
+  }
+
+  /// Tile per linkare un POI a uno Spazio Pro vicino (Komoot K1a).
+  /// Quando linkato, il POI diventa un "highlight" della traccia.
+  Widget _buildLinkedBusinessTile() {
+    final hasLink = _linkedBusinessId != null;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+            color: hasLink ? AppColors.primary : Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+        color: hasLink ? AppColors.primary.withValues(alpha: 0.05) : null,
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: _pickLinkedBusiness,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(
+                hasLink ? Icons.storefront : Icons.add_business_outlined,
+                size: 20,
+                color: hasLink ? AppColors.primary : context.textMuted,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasLink
+                          ? 'Collegato a uno Spazio Pro'
+                          : 'Collega uno Spazio Pro vicino',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: hasLink ? AppColors.primary : null,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasLink
+                          ? (_linkedBusinessName ?? '')
+                          : 'Trasforma questo POI in un highlight cliccabile',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: context.textMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (hasLink)
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: _clearLinkedBusiness,
+                  tooltip: 'Rimuovi link',
+                  visualDensity: VisualDensity.compact,
+                )
+              else
+                Icon(Icons.chevron_right, color: context.textMuted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// BUSINESS PICKER DIALOG (Komoot K1a)
+// ─────────────────────────────────────────────────────────────────────
+/// Dialog per scegliere uno Spazio Pro da linkare a un POI.
+/// Mostra i business entro 10 km dal POI ordinati per distanza.
+/// Search-as-you-type per filtrare la lista in memoria.
+class _BusinessPickerDialog extends StatefulWidget {
+  final BusinessRepository repo;
+  final double centerLat;
+  final double centerLng;
+
+  const _BusinessPickerDialog({
+    required this.repo,
+    required this.centerLat,
+    required this.centerLng,
+  });
+
+  @override
+  State<_BusinessPickerDialog> createState() => _BusinessPickerDialogState();
+}
+
+class _BusinessPickerDialogState extends State<_BusinessPickerDialog> {
+  final _searchCtrl = TextEditingController();
+  Future<List<Business>>? _future;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.repo.getNearby(
+      lat: widget.centerLat,
+      lng: widget.centerLng,
+      radiusKm: 10,
+      limit: 100,
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.all(20),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 600),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.storefront, color: AppColors.primary),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Collega Spazio Pro',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Spazi Pro entro 10 km dal POI, ordinati per distanza.',
+              style: TextStyle(
+                  fontSize: 11, color: context.textMuted),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _searchCtrl,
+              decoration: const InputDecoration(
+                hintText: 'Cerca per nome…',
+                prefixIcon: Icon(Icons.search, size: 18),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _query = v.toLowerCase().trim()),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: FutureBuilder<List<Business>>(
+                future: _future,
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                        child: CircularProgressIndicator());
+                  }
+                  if (snap.hasError) {
+                    return Center(
+                      child: Text('Errore: ${snap.error}',
+                          style: const TextStyle(color: AppColors.danger)),
+                    );
+                  }
+                  final all = snap.data ?? const <Business>[];
+                  final filtered = _query.isEmpty
+                      ? all
+                      : all
+                          .where((b) => b.name.toLowerCase().contains(_query))
+                          .toList();
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          all.isEmpty
+                              ? 'Nessuno Spazio Pro trovato entro 10 km da questa posizione.'
+                              : 'Nessun risultato per "${_searchCtrl.text}".',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 13, color: context.textMuted),
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.separated(
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final b = filtered[i];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              AppColors.primary.withValues(alpha: 0.12),
+                          child: const Icon(Icons.storefront,
+                              color: AppColors.primary, size: 20),
+                        ),
+                        title: Text(b.name,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                          [
+                            if (b.location.city != null) b.location.city!,
+                            b.type.displayName,
+                          ].join(' · '),
+                          style: const TextStyle(fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => Navigator.pop(context, b),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
