@@ -96,6 +96,32 @@ class TourStageSummary {
   }
 }
 
+/// Tipologia di tour. Differenzia un cammino/trek consecutivo (le tappe si
+/// concatenano in sequenza temporale e geografica) da una collezione tematica
+/// di tracce indipendenti (es. "Le più belle della Valle Seriana").
+///
+/// Determina:
+/// - Se il grafico altimetrico cumulativo ha senso (consecutive) o è
+///   fuorviante (collection: tracce a sé).
+/// - Le label dei chip stats: "N giorni" per i cammini, "N tracce" per le
+///   collezioni.
+enum TourType {
+  consecutive,
+  collection;
+
+  static TourType fromString(String? s) {
+    switch (s) {
+      case 'collection':
+        return TourType.collection;
+      case 'consecutive':
+      default:
+        return TourType.consecutive;
+    }
+  }
+
+  String get asString => name;
+}
+
 /// Bounding box geografico di un tour (aggregato dai punti delle tracce).
 class TourBounds {
   final double north;
@@ -143,6 +169,10 @@ class Tour {
   final String? description;
   final String? coverPhotoUrl;
 
+  /// Cammino consecutivo vs collezione tematica. Default `consecutive` per
+  /// retrocompatibilità coi tour esistenti.
+  final TourType type;
+
   /// Epic 11 — Gallery foto extra (oltre la cover). 5-10 foto per
   /// raccontare il tour. Memorizzate come URL Firebase Storage
   /// (caricate via BusinessPhotosService o helper analogo).
@@ -187,6 +217,7 @@ class Tour {
     required this.title,
     this.description,
     this.coverPhotoUrl,
+    this.type = TourType.consecutive,
     this.galleryUrls = const [],
     this.bestPeriod,
     this.difficultyGrade,
@@ -211,6 +242,7 @@ class Tour {
     String? title,
     String? description,
     String? coverPhotoUrl,
+    TourType? type,
     List<String>? galleryUrls,
     String? bestPeriod,
     String? difficultyGrade,
@@ -234,6 +266,7 @@ class Tour {
       title: title ?? this.title,
       description: description ?? this.description,
       coverPhotoUrl: coverPhotoUrl ?? this.coverPhotoUrl,
+      type: type ?? this.type,
       galleryUrls: galleryUrls ?? this.galleryUrls,
       bestPeriod: bestPeriod ?? this.bestPeriod,
       difficultyGrade: difficultyGrade ?? this.difficultyGrade,
@@ -262,6 +295,7 @@ class Tour {
       'title': title,
       if (description != null) 'description': description,
       if (coverPhotoUrl != null) 'coverPhotoUrl': coverPhotoUrl,
+      'type': type.asString,
       if (galleryUrls.isNotEmpty) 'galleryUrls': galleryUrls,
       if (bestPeriod != null) 'bestPeriod': bestPeriod,
       if (difficultyGrade != null) 'difficultyGrade': difficultyGrade,
@@ -308,6 +342,7 @@ class Tour {
       title: data['title']?.toString() ?? '',
       description: data['description']?.toString(),
       coverPhotoUrl: data['coverPhotoUrl']?.toString(),
+      type: TourType.fromString(data['type']?.toString()),
       galleryUrls: (data['galleryUrls'] as List?)
               ?.map((e) => e.toString())
               .toList() ??

@@ -147,7 +147,8 @@ class _TourDetailPageState extends State<TourDetailPage> {
           TourHero(
             coverPhotoUrl: tour.coverPhotoUrl,
             title: tour.title,
-            subtitle: '${tour.daysCount} giorni · '
+            subtitle:
+                '${tour.type == TourType.consecutive ? "${tour.daysCount} giorni" : "${tour.trackIds.length} tracce"} · '
                 '${tour.totalDistanceKm.toStringAsFixed(1)} km · '
                 '+${tour.totalElevationGain.toStringAsFixed(0)} m',
             map: _buildMap(tour),
@@ -181,8 +182,16 @@ class _TourDetailPageState extends State<TourDetailPage> {
                   spacing: 16,
                   runSpacing: 8,
                   children: [
-                    _stat(Icons.calendar_month, context.l10n.tourDays(tour.daysCount)),
-                    _stat(Icons.format_list_numbered, context.l10n.tourStages(tour.trackIds.length)),
+                    if (tour.type == TourType.consecutive)
+                      _stat(Icons.calendar_month, context.l10n.tourDays(tour.daysCount)),
+                    _stat(
+                      tour.type == TourType.consecutive
+                          ? Icons.format_list_numbered
+                          : Icons.collections_bookmark_outlined,
+                      tour.type == TourType.consecutive
+                          ? context.l10n.tourStages(tour.trackIds.length)
+                          : '${tour.trackIds.length} tracce',
+                    ),
                     _stat(Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
                     _stat(Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
                     if (tour.totalDuration.inMinutes > 0) _stat(Icons.schedule, durStr),
@@ -192,14 +201,21 @@ class _TourDetailPageState extends State<TourDetailPage> {
                 // Epic 11 — chart altimetria multistage (solo owner
                 // detail: ha accesso alle tracce private con TrackPoint
                 // elevation).
-                if (_tracks.isNotEmpty) ...[
+                // Per le collezioni le tracce sono indipendenti: il
+                // grafico cumulativo sarebbe fuorviante.
+                if (_tracks.isNotEmpty && tour.type == TourType.consecutive) ...[
                   MultiStageElevationChart.fromTracks(_tracks),
                   const SizedBox(height: 20),
                 ],
                 // Epic 11 — sezioni ricche: chip difficoltà/periodo,
                 // gallery, equipaggiamento, note storiche.
                 TourRichHeaderSections(tour: tour),
-                Text(context.l10n.tourStagesTitle, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                Text(
+                  tour.type == TourType.consecutive
+                      ? context.l10n.tourStagesTitle
+                      : 'Tracce',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                ),
                 const SizedBox(height: 8),
                 for (var i = 0; i < _tracks.length; i++) ...[
                   _StageTile(

@@ -187,7 +187,9 @@ class _TourCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${context.l10n.tourDays(tour.daysCount)} · ${context.l10n.tourStages(tour.trackIds.length)}',
+                          tour.type == TourType.consecutive
+                              ? '${context.l10n.tourDays(tour.daysCount)} · ${context.l10n.tourStages(tour.trackIds.length)}'
+                              : '${tour.trackIds.length} tracce',
                           style: TextStyle(color: context.textSecondary, fontSize: 12),
                         ),
                       ],

@@ -51,6 +51,7 @@ class _TourEditPageState extends State<TourEditPage> {
   List<String> _galleryUrls = const [];
   String? _bestPeriod;
   String? _difficultyGrade;
+  TourType _type = TourType.consecutive;
   // Mappa trackId → businessId rifugio
   Map<String, String> _stageAccommodations = {};
   // Cache business per visualizzazione (id → Business). Popolata on-demand
@@ -96,6 +97,7 @@ class _TourEditPageState extends State<TourEditPage> {
       _galleryUrls = List.of(e.galleryUrls);
       _bestPeriod = e.bestPeriod;
       _difficultyGrade = e.difficultyGrade;
+      _type = e.type;
       _stageAccommodations = Map.of(e.stageAccommodations);
       _daysCtrl.text = e.daysCount.toString();
     }
@@ -178,6 +180,7 @@ class _TourEditPageState extends State<TourEditPage> {
               ? null
               : _descCtrl.text.trim(),
           coverPhotoUrl: _coverPhotoUrl,
+          type: _type,
           galleryUrls: _galleryUrls,
           bestPeriod: _bestPeriod,
           difficultyGrade: _difficultyGrade,
@@ -200,6 +203,7 @@ class _TourEditPageState extends State<TourEditPage> {
               ? null
               : _descCtrl.text.trim(),
           coverPhotoUrl: _coverPhotoUrl,
+          type: _type,
           galleryUrls: _galleryUrls,
           bestPeriod: _bestPeriod,
           difficultyGrade: _difficultyGrade,
@@ -557,7 +561,40 @@ class _TourEditPageState extends State<TourEditPage> {
     // default. Se inserisce un valore diverso, override manuale.
     final suggestedDays = _selectedIds.isEmpty ? '—' : _selectedIds.length.toString();
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── Tipo tour: cammino consecutivo vs collezione tematica ──
+        // Determina se mostrare il grafico altimetrico cumulativo
+        // (consecutive) e le label "giorni" vs "tracce".
+        const Text(
+          'Tipo tour',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        const SizedBox(height: 6),
+        SegmentedButton<TourType>(
+          segments: const [
+            ButtonSegment(
+              value: TourType.consecutive,
+              label: Text('Cammino'),
+              icon: Icon(Icons.timeline),
+            ),
+            ButtonSegment(
+              value: TourType.collection,
+              label: Text('Collezione'),
+              icon: Icon(Icons.collections_bookmark_outlined),
+            ),
+          ],
+          selected: {_type},
+          onSelectionChanged: (s) => setState(() => _type = s.first),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _type == TourType.consecutive
+              ? 'Tappe consecutive (es. cammino di più giorni). Mostra giorni e altimetria cumulativa.'
+              : 'Tracce indipendenti (es. "Le più belle della Valle Seriana"). Mostra solo il conteggio tracce, senza altimetria cumulativa.',
+          style: TextStyle(fontSize: 12, color: context.textSecondary),
+        ),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -615,14 +652,19 @@ class _TourEditPageState extends State<TourEditPage> {
         TextFormField(
           controller: _daysCtrl,
           keyboardType: TextInputType.number,
+          enabled: _type == TourType.consecutive,
           decoration: InputDecoration(
-            labelText: 'Numero giorni',
+            labelText: _type == TourType.consecutive
+                ? 'Numero giorni'
+                : 'Numero giorni (solo cammini)',
             hintText: 'Default: $suggestedDays (1 tappa = 1 giorno)',
-            helperText: _selectedIds.isEmpty
-                ? 'Seleziona prima le tappe'
-                : 'Lascia vuoto per usare il default ($suggestedDays giorni). '
-                    'Imposta manualmente se i giorni effettivi sono diversi '
-                    'dal numero di tappe (es. tappa lunga in 2 giorni).',
+            helperText: _type == TourType.collection
+                ? 'Non applicabile alle collezioni: le tracce sono indipendenti.'
+                : (_selectedIds.isEmpty
+                    ? 'Seleziona prima le tappe'
+                    : 'Lascia vuoto per usare il default ($suggestedDays giorni). '
+                        'Imposta manualmente se i giorni effettivi sono diversi '
+                        'dal numero di tappe (es. tappa lunga in 2 giorni).'),
             border: const OutlineInputBorder(),
             isDense: true,
           ),

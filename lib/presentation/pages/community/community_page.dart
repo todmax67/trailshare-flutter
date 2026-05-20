@@ -2143,11 +2143,17 @@ class _PublicTourCard extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.calendar_month,
-                              size: 12, color: Colors.white),
+                          Icon(
+                              tour.type == TourType.consecutive
+                                  ? Icons.calendar_month
+                                  : Icons.collections_bookmark_outlined,
+                              size: 12,
+                              color: Colors.white),
                           const SizedBox(width: 4),
                           Text(
-                            context.l10n.tourDays(tour.daysCount),
+                            tour.type == TourType.consecutive
+                                ? context.l10n.tourDays(tour.daysCount)
+                                : '${tour.trackIds.length} tracce',
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -2232,8 +2238,12 @@ class _PublicTourCard extends StatelessWidget {
                         '+${tour.totalElevationGain.toStringAsFixed(0)} m',
                         AppColors.success,
                       ),
-                      _stat(context, Icons.format_list_numbered,
-                          '${tour.trackIds.length} tappe'),
+                      _stat(
+                          context,
+                          tour.type == TourType.consecutive
+                              ? Icons.format_list_numbered
+                              : Icons.collections_bookmark_outlined,
+                          '${tour.trackIds.length} ${tour.type == TourType.consecutive ? "tappe" : "tracce"}'),
                       if (tour.totalDuration.inMinutes > 0)
                         _stat(context, Icons.schedule, durStr),
                     ],
