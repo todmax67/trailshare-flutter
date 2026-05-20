@@ -7,6 +7,7 @@ import '../../data/models/osm_poi.dart';
 import '../../data/models/trail_poi.dart';
 import '../../data/repositories/osm_pois_repository.dart';
 import '../../data/repositories/poi_repository.dart';
+import '../pages/business/business_profile_page.dart';
 import '../pages/poi/poi_location_picker_page.dart';
 import 'osm_poi_detail_sheet.dart';
 import 'poi_detail_sheet.dart';
@@ -536,6 +537,15 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
                           Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  // Komoot K1a — pill highlight cliccabile se il POI è
+                  // linkato a uno Spazio Pro.
+                  if (poi.isHighlight) ...[
+                    const SizedBox(height: 4),
+                    _HighlightBusinessPill(
+                      businessId: poi.linkedBusinessId!,
+                      businessName: poi.linkedBusinessName ?? 'Spazio Pro',
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -575,6 +585,74 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
             Icon(Icons.chevron_right,
                 size: 18, color: context.textMuted),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// HIGHLIGHT BUSINESS PILL (Komoot K1a)
+// ─────────────────────────────────────────────────────────────────────
+/// Pill cliccabile mostrata sotto un POI quando è linkato a uno Spazio Pro.
+/// Tap → apre BusinessProfilePage del business.
+/// Usa un InkWell separato per intercettare il tap senza propagarlo al
+/// detail sheet del POI (gestureArena: il child Inkwell wins).
+class _HighlightBusinessPill extends StatelessWidget {
+  final String businessId;
+  final String businessName;
+
+  const _HighlightBusinessPill({
+    required this.businessId,
+    required this.businessName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BusinessProfilePage(businessId: businessId),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.4),
+              width: 0.8,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.storefront,
+                  size: 12, color: AppColors.primary),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  businessName,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(Icons.arrow_outward,
+                  size: 10,
+                  color: AppColors.primary.withValues(alpha: 0.8)),
+            ],
+          ),
         ),
       ),
     );
