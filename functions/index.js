@@ -5394,6 +5394,7 @@ exports.sendNewsletterBatch = onCall(
       subject,
       maxEmails,
       dryRun,
+      testEmail, // se valorizzato → invia solo a quest'indirizzo, salta Auth/dedup
     } = request.data || {};
     if (!campaignId || typeof campaignId !== 'string') {
       throw new functions.https.HttpsError(
@@ -5404,6 +5405,42 @@ exports.sendNewsletterBatch = onCall(
     const finalSubject = (subject && typeof subject === 'string' && subject.trim())
       ? subject.trim()
       : 'TrailShare è cresciuto. Le novità che ti sei perso.';
+
+    // ─── Modalità TEST: invio singolo a un indirizzo specifico ──────
+    // Non legge Auth, non aggiorna user_profiles, non rispetta dedup.
+    // Usato per controllare il rendering del template prima del rollout.
+    if (testEmail && typeof testEmail === 'string') {
+      const email = testEmail.trim();
+      if (!email.match(/^[^@\s]+@[^@\s]+\.[^@\s]+$/)) {
+        throw new functions.https.HttpsError(
+          'invalid-argument', 'testEmail non valida.'
+        );
+      }
+      const html = _buildNewsletterHtml('Massimiliano',
+        _newsletterUnsubUrl('TEST-USER-UID-NOT-REAL'));
+      const subjectWithTag = `[TEST] ${finalSubject}`;
+      if (!dryRun) {
+        await db.collection('mail').add({
+          to: [email],
+          message: {
+            subject: subjectWithTag,
+            html,
+            text: _htmlToPlainText(html),
+          },
+          replyTo: 'info@trailshare.app',
+        });
+      }
+      logger.info(`[sendNewsletterBatch] TEST mode → ${email} dryRun=${!!dryRun}`);
+      return {
+        success: true,
+        testMode: true,
+        testEmail: email,
+        dryRun: !!dryRun,
+        sent: dryRun ? 0 : 1,
+        skipped: 0,
+        errors: [],
+      };
+    }
 
     // Lista utenti Auth con paginazione.
     const all = [];

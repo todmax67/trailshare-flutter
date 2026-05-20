@@ -177,6 +177,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       text: 'TrailShare è cresciuto. Le novità che ti sei perso.');
   final TextEditingController _newsletterMaxEmailsCtrl =
       TextEditingController(text: '50');
+  final TextEditingController _newsletterTestEmailCtrl =
+      TextEditingController();
   bool _newsletterBusy = false;
   Map<String, dynamic>? _newsletterPreview;
   Map<String, dynamic>? _newsletterSendResult;
@@ -1565,6 +1567,66 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 12),
+            // ─── Email di prova ─────────────────────────────────────
+            // Manda l'email rendering completo a un singolo indirizzo,
+            // bypassando Auth/dedup. Utile per controllare aspetto e
+            // deliverability prima del rollout.
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.purple.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: Colors.purple.shade200.withValues(alpha: 0.6)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Email di prova',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.purple.shade700),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Invia il template a un indirizzo specifico per '
+                    'controllare il rendering. Subject prefissato con [TEST]. '
+                    'Non legge Auth, non aggiorna user_profiles, non blocca i batch.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _newsletterTestEmailCtrl,
+                          enabled: !_newsletterBusy,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            hintText: 'tua@email.com',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: _newsletterBusy ? null : _sendTestNewsletter,
+                        icon: const Icon(Icons.outgoing_mail, size: 18),
+                        label: const Text('Invia prova'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.purple.shade700,
+                          side: BorderSide(color: Colors.purple.shade300),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: _newsletterCampaignIdCtrl,
               enabled: !_newsletterBusy,
@@ -1812,6 +1874,41 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       );
     } catch (e) {
       _snack('Errore invio newsletter: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _newsletterBusy = false);
+    }
+  }
+
+  Future<void> _sendTestNewsletter() async {
+    final email = _newsletterTestEmailCtrl.text.trim();
+    final cid = _newsletterCampaignIdCtrl.text.trim();
+    final subject = _newsletterSubjectCtrl.text.trim();
+    if (!email.contains('@') || !email.contains('.')) {
+      _snack('Inserisci una email valida.', error: true);
+      return;
+    }
+    if (cid.isEmpty) {
+      _snack('Campaign ID mancante.', error: true);
+      return;
+    }
+    setState(() => _newsletterBusy = true);
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable('sendNewsletterBatch')
+              .call({
+        'campaignId': cid,
+        'subject': subject.isEmpty ? null : subject,
+        'testEmail': email,
+      });
+      final data = Map<String, dynamic>.from(result.data as Map);
+      if (data['sent'] == 1) {
+        _snack('Email di prova inviata a $email', error: false);
+      } else {
+        _snack('Esito inatteso: ${data.toString()}', error: true);
+      }
+    } catch (e) {
+      _snack('Errore invio prova: $e', error: true);
     } finally {
       if (mounted) setState(() => _newsletterBusy = false);
     }
