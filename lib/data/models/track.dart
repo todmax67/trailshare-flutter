@@ -409,6 +409,13 @@ class Track {
   /// case-insensitive coerente. Filtrabili in "Le mie tracce".
   final List<String> tags;
 
+  /// Komoot K1a Step 2 — difficoltà computata dalla formula
+  /// `DifficultyCalculator`. Persistita per evitare ricalcolo a ogni
+  /// render e per consentire filtri Firestore (es. tracce T3+).
+  /// Storage: stringa "t1".."t5" via `ComputedDifficulty.firestoreKey`.
+  /// null = non ancora calcolata (tracce legacy o stats insufficienti).
+  final String? computedDifficulty;
+
   const Track({
     this.id,
     required this.name,
@@ -429,6 +436,7 @@ class Track {
     this.importedFromStrava = false,
     this.stravaSourceActivityId,
     this.tags = const [],
+    this.computedDifficulty,
   });
 
   Map<String, dynamic> toMap() {
@@ -474,6 +482,9 @@ class Track {
     if (tags.isNotEmpty) {
       map['tags'] = tags;
     }
+    if (computedDifficulty != null) {
+      map['computedDifficulty'] = computedDifficulty;
+    }
 
     return map;
   }
@@ -498,6 +509,7 @@ class Track {
     bool? importedFromStrava,
     String? stravaSourceActivityId,
     List<String>? tags,
+    String? computedDifficulty,
   }) {
     return Track(
       id: id ?? this.id,
@@ -519,6 +531,7 @@ class Track {
       importedFromStrava: importedFromStrava ?? this.importedFromStrava,
       stravaSourceActivityId: stravaSourceActivityId ?? this.stravaSourceActivityId,
       tags: tags ?? this.tags,
+      computedDifficulty: computedDifficulty ?? this.computedDifficulty,
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/track.dart';
+import '../../core/utils/difficulty_calculator.dart';
 import '../../core/utils/elevation_processor.dart';
 
 /// Risultato paginato per le tracce
@@ -591,9 +592,18 @@ class TracksRepository {
           (key, value) => MapEntry(key.millisecondsSinceEpoch.toString(), value),
         ),
       if (track.healthCalories != null)
-        'healthCalories': track.healthCalories,  
+        'healthCalories': track.healthCalories,
       if (track.healthSteps != null)
-        'healthSteps': track.healthSteps,  
+        'healthSteps': track.healthSteps,
+      // Komoot K1a Step 2 — difficoltà computata client-side al save.
+      // Preserva valore esistente se passato dall'utente (override
+      // manuale), altrimenti ricalcola da stats. null se insufficient.
+      'computedDifficulty':
+          track.computedDifficulty ??
+              DifficultyCalculator.compute(
+                stats: stats,
+                activityType: track.activityType,
+              )?.firestoreKey,
     };
   }
 
@@ -778,6 +788,7 @@ class TracksRepository {
       tags: data['tags'] is List
           ? List<String>.from(data['tags'] as List)
           : const <String>[],
+      computedDifficulty: data['computedDifficulty']?.toString(),
     );
   }
 

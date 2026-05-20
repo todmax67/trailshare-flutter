@@ -13,6 +13,7 @@ import '../../../data/models/recording_reference.dart';
 import '../record/record_page.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../../core/services/track_photos_service.dart';
+import '../../widgets/difficulty_badge.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -282,6 +283,19 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildMainStats(),
+
+                  // Komoot K1a Step 2 — badge difficoltà computata.
+                  if (_track.computedDifficulty != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        DifficultyBadge(
+                          difficultyKey: _track.computedDifficulty,
+                          compact: false,
+                        ),
+                      ],
+                    ),
+                  ],
 
                   // ⭐ Galleria foto — visibile sempre al proprietario
                   // (anche se vuota) per permettere add post-import
@@ -1603,6 +1617,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         ownerId: user.uid,
         ownerUsername: await _getUsername(user.uid),
         photoUrls: _track.photos.map((p) => p.url).toList(),
+        computedDifficulty: _track.computedDifficulty,
       );
 
       if (success) {

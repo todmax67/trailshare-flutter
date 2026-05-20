@@ -6,6 +6,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/discovery_prompt_service.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/difficulty_badge.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
@@ -220,6 +221,21 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
 
                   // Stats principali
                   _buildMainStats(),
+
+                  // Komoot K1a Step 2 — badge difficoltà computata.
+                  // Mostrato solo se la traccia ha computedDifficulty
+                  // (tracce nuove ≥ 20/5/2026 o ri-salvate).
+                  if (track.computedDifficulty != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        DifficultyBadge(
+                          difficultyKey: track.computedDifficulty,
+                          compact: false,
+                        ),
+                      ],
+                    ),
+                  ],
 
                   const SizedBox(height: 16),
 

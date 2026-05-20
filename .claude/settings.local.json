@@ -25,7 +25,20 @@
       "Bash(curl -sL https://trailshare.app/privacy)",
       "Bash(curl -sIL https://app.trailshare.app)",
       "Bash(curl -sL https://app.trailshare.app -o /tmp/app.html)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(flutter build *)",
+      "Bash(firebase deploy *)",
+      "Bash(git commit -m 'chore: bump 2.4.3+70 *)",
+      "Bash(git commit -m 'fix\\(record\\): mappa grigia/freeze in release — Positioned annidato male *)",
+      "Bash(git commit -m 'chore: bump 2.4.4+71 \\(hotfix mappa grigia in release\\) *)",
+      "Bash(git commit -m 'fix\\(profile+chat\\): 3 regressioni 2.4.3 — totali 0, admin sparito, upload chat 403 *)",
+      "Bash(git commit -m 'feat\\(admin\\): pulsante '\\\\''Esegui migrazione'\\\\'' GeoHash ripristinato *)",
+      "Bash(git commit -m 'fix\\(rules\\): aggiungi rule per doc root /users/{uid} \\(ProGate sync\\) *)",
+      "Bash(git commit -m 'chore: bump 2.4.5+72 *)",
+      "Bash(git commit -m 'fix\\(detail\\): mostra Spazi Pro lungo percorso anche sulle proprie tracce *)",
+      "Bash(git commit -m 'fix\\(web\\): ProGateService isPro/isMonetizationActive crashava su web \\(dart:io Platform\\) *)",
+      "Bash(git commit -m 'docs\\(roadmap\\): Epic 13 — Trail Connectivity Graph \\(target v2.7.0+\\) *)",
+      "Bash(git commit *)"
     ]
   }
 }
