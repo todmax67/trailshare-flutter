@@ -152,6 +152,21 @@ class TrailPoi {
   /// Visibilità: se false, solo l'autore lo vede.
   final bool isPublic;
 
+  /// Komoot K1a — Highlight con link a Spazio Pro.
+  ///
+  /// Quando un autore di track collega un POI a uno Spazio Pro (rifugio,
+  /// noleggio, guida, ecc.), il POI diventa un "highlight" della traccia:
+  /// pill cliccabile che apre la scheda business. Resta un POI a tutti
+  /// gli effetti (tipo, mappa, voting), ma con il valore aggiunto del
+  /// link B2B.
+  ///
+  /// Denormalizziamo `linkedBusinessName` e `linkedBusinessSlug` per
+  /// permettere il rendering delle pill senza una read extra per POI.
+  /// Sync via Cloud Function quando il business cambia nome/slug.
+  final String? linkedBusinessId;
+  final String? linkedBusinessName;
+  final String? linkedBusinessSlug;
+
   TrailPoi({
     required this.id,
     required this.type,
@@ -170,9 +185,15 @@ class TrailPoi {
     this.relatedTrailId,
     this.relatedTrackId,
     this.isPublic = false,
+    this.linkedBusinessId,
+    this.linkedBusinessName,
+    this.linkedBusinessSlug,
   }) : geohash = geohash ?? GeoHashUtil.encode(latitude, longitude);
 
   int get score => upvotes - downvotes;
+
+  /// Komoot K1a — true se il POI è anche un highlight (linkato a Spazio Pro).
+  bool get isHighlight => linkedBusinessId != null && linkedBusinessId!.isNotEmpty;
 
   TrailPoi copyWith({
     String? id,
@@ -191,6 +212,9 @@ class TrailPoi {
     String? relatedTrailId,
     String? relatedTrackId,
     bool? isPublic,
+    String? linkedBusinessId,
+    String? linkedBusinessName,
+    String? linkedBusinessSlug,
   }) {
     return TrailPoi(
       id: id ?? this.id,
@@ -209,6 +233,9 @@ class TrailPoi {
       relatedTrailId: relatedTrailId ?? this.relatedTrailId,
       relatedTrackId: relatedTrackId ?? this.relatedTrackId,
       isPublic: isPublic ?? this.isPublic,
+      linkedBusinessId: linkedBusinessId ?? this.linkedBusinessId,
+      linkedBusinessName: linkedBusinessName ?? this.linkedBusinessName,
+      linkedBusinessSlug: linkedBusinessSlug ?? this.linkedBusinessSlug,
     );
   }
 
@@ -230,6 +257,9 @@ class TrailPoi {
         if (relatedTrailId != null) 'relatedTrailId': relatedTrailId,
         if (relatedTrackId != null) 'relatedTrackId': relatedTrackId,
         'isPublic': isPublic,
+        if (linkedBusinessId != null) 'linkedBusinessId': linkedBusinessId,
+        if (linkedBusinessName != null) 'linkedBusinessName': linkedBusinessName,
+        if (linkedBusinessSlug != null) 'linkedBusinessSlug': linkedBusinessSlug,
       };
 
   /// Solo i campi modificabili dopo la creazione (no createdBy, no createdAt,
@@ -245,6 +275,9 @@ class TrailPoi {
         'relatedTrailId': relatedTrailId ?? FieldValue.delete(),
         'relatedTrackId': relatedTrackId ?? FieldValue.delete(),
         'isPublic': isPublic,
+        'linkedBusinessId': linkedBusinessId ?? FieldValue.delete(),
+        'linkedBusinessName': linkedBusinessName ?? FieldValue.delete(),
+        'linkedBusinessSlug': linkedBusinessSlug ?? FieldValue.delete(),
       };
 
   factory TrailPoi.fromFirestore(DocumentSnapshot doc) {
@@ -267,6 +300,9 @@ class TrailPoi {
       relatedTrailId: data['relatedTrailId'] as String?,
       relatedTrackId: data['relatedTrackId'] as String?,
       isPublic: data['isPublic'] != false, // default true per retrocompatibilità
+      linkedBusinessId: data['linkedBusinessId'] as String?,
+      linkedBusinessName: data['linkedBusinessName'] as String?,
+      linkedBusinessSlug: data['linkedBusinessSlug'] as String?,
     );
   }
 }
