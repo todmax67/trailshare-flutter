@@ -107,26 +107,66 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(_track.name, style: const TextStyle(fontSize: 16)),
-              background: Padding(
-                padding: const EdgeInsets.only(bottom: 48),
-                child: RepaintBoundary(
-                  key: _mapKey,
-                  child: InteractiveTrackMap(
-                  points: _track.points,
-                  height: 300,
-                  photoMarkers: _buildPhotoMarkers(),
-                  onPhotoMarkerTap: _onPhotoMarkerTap,
-                  title: _track.name,
-                  showUserLocation: true,
-                  highlightedPointIndex: _selectedPointIndex,
-                  onPointTap: (index) {
-                    setState(() => _selectedPointIndex = index);
-                  },
-                  track: _track, // ⭐ Per fullscreen con TrackMapPage
+              titlePadding: const EdgeInsetsDirectional.only(
+                  start: 56, bottom: 14, end: 16),
+              title: Text(
+                _track.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black87,
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
-                ),
+              ),
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  RepaintBoundary(
+                    key: _mapKey,
+                    child: InteractiveTrackMap(
+                      points: _track.points,
+                      height: 300,
+                      photoMarkers: _buildPhotoMarkers(),
+                      onPhotoMarkerTap: _onPhotoMarkerTap,
+                      title: _track.name,
+                      showUserLocation: true,
+                      highlightedPointIndex: _selectedPointIndex,
+                      onPointTap: (index) {
+                        setState(() => _selectedPointIndex = index);
+                      },
+                      track: _track, // ⭐ Per fullscreen con TrackMapPage
+                    ),
+                  ),
+                  // Gradient nero in basso per leggibilità titolo +
+                  // separazione netta dal contenuto bianco sottostante.
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.center,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.55),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             actions: [

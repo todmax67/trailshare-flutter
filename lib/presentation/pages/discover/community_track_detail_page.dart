@@ -142,32 +142,66 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
             flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsetsDirectional.only(
+                  start: 56, bottom: 14, end: 16),
               title: Text(
                 track.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 16,
-                  shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black87,
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
               ),
-              background: Padding(
-                padding: const EdgeInsets.only(bottom: 48), // Spazio per il titolo
-                child: InteractiveTrackMap(
-                  points: track.points,
-                  height: 300,
-                  photoMarkers: _buildPhotoMarkers(),
-                  title: track.name,
-                  showUserLocation: true,
-                  highlightedPointIndex: _selectedPointIndex,
-                  poiTrackId: track.id,
-                  poiIncludePrivate:
-                      FirebaseAuth.instance.currentUser?.uid == track.ownerId,
-                  loadOsmPois: true, // POI OSM lungo la traccia
-                  onPointTap: (index) {
-                    setState(() => _selectedPointIndex = index);
-                  },
-                  communityTrack: track, // ⭐ Per fullscreen con TrackMapPage
-                ),
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  InteractiveTrackMap(
+                    points: track.points,
+                    height: 300,
+                    photoMarkers: _buildPhotoMarkers(),
+                    title: track.name,
+                    showUserLocation: true,
+                    highlightedPointIndex: _selectedPointIndex,
+                    poiTrackId: track.id,
+                    poiIncludePrivate:
+                        FirebaseAuth.instance.currentUser?.uid == track.ownerId,
+                    loadOsmPois: true, // POI OSM lungo la traccia
+                    onPointTap: (index) {
+                      setState(() => _selectedPointIndex = index);
+                    },
+                    communityTrack: track, // ⭐ Per fullscreen con TrackMapPage
+                  ),
+                  // Gradient nero in basso per leggibilità titolo +
+                  // separazione netta dal contenuto bianco sottostante.
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.center,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.55),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
