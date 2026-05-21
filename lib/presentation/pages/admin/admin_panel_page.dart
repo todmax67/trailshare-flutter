@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
+import '../../../data/repositories/public_trails_repository.dart';
 import '../../../web/pages/web_outreach_pdf_page.dart';
 import '../groups/group_detail_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -195,6 +196,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   // precedente. Passato a startAfterId del prossimo batch per
   // scorrere il DB senza ri-leggere sempre gli stessi doc.
   String? _terrainCursorAfterId;
+  // Statistiche progresso enrichment: totali wmt_relation_* + arricchiti
+  ({int total, int enriched})? _terrainStats;
+  bool _terrainStatsBusy = false;
 
   Widget _buildAdminClaimsSection() {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -2005,6 +2009,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             ),
             const SizedBox(height: 12),
 
+            // ─── Progresso enrichment globale ───────────────────────
+            _buildTerrainStatusCard(),
+            const SizedBox(height: 12),
+
             // ─── Test su singolo trail ──────────────────────────────
             Container(
               padding: const EdgeInsets.all(10),
@@ -2160,6 +2168,96 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         ),
       ),
     );
+  }
+
+  /// Card "Progresso enrichment": totali, arricchiti, percentuale.
+  Widget _buildTerrainStatusCard() {
+    final stats = _terrainStats;
+    final pct = stats == null || stats.total == 0
+        ? 0.0
+        : stats.enriched / stats.total;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.assessment, color: Colors.green.shade700, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Progresso enrichment',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.green.shade800),
+                ),
+                const SizedBox(height: 2),
+                if (stats == null && !_terrainStatsBusy)
+                  const Text(
+                    'Click "Aggiorna" per leggere il count su Firestore.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  )
+                else if (_terrainStatsBusy)
+                  const Text(
+                    'Conteggio in corso…',
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  )
+                else ...[
+                  Text(
+                    '${stats!.enriched} arricchiti su ${stats.total} totali '
+                    '(${(pct * 100).toStringAsFixed(1)}%)',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: pct,
+                      minHeight: 6,
+                      backgroundColor: Colors.green.shade100,
+                      valueColor: AlwaysStoppedAnimation(Colors.green.shade600),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: _terrainStatsBusy ? null : _refreshTerrainStats,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Aggiorna',
+                style: TextStyle(fontSize: 12)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.green.shade700,
+              side: BorderSide(color: Colors.green.shade300),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _refreshTerrainStats() async {
+    setState(() => _terrainStatsBusy = true);
+    try {
+      final stats = await PublicTrailsRepository()
+          .getTerrainEnrichmentStatus();
+      if (mounted) setState(() => _terrainStats = stats);
+    } catch (e) {
+      _snack('Errore stats: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _terrainStatsBusy = false);
+    }
   }
 
   Widget _buildTerrainResultBlock(Map<String, dynamic> r) {

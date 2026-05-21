@@ -100,6 +100,37 @@ class PublicTrailsRepository {
     return TrailsResult(clusters: [], trails: trails, fromCache: false);
   }
 
+  /// Komoot K1b — statistiche progresso dell'arricchimento terrain.
+  /// Ritorna {total, enriched} dove total è il count dei
+  /// public_trail_geometries con id wmt_relation_* e enriched è il
+  /// sottoinsieme di quelli che hanno terrainEnrichedAt impostato.
+  ///
+  /// Usa Firestore COUNT() aggregation: 1 read per metric, server-side,
+  /// no fetch dei doc. Veloce anche su DB con migliaia di trail.
+  Future<({int total, int enriched})> getTerrainEnrichmentStatus() async {
+    try {
+      final col = _firestore.collection('public_trail_geometries');
+      final idPath = FieldPath.documentId;
+      final totalSnap = await col
+          .orderBy(idPath)
+          .startAt(['wmt_relation_'])
+          .endAt(['wmt_relation_'])
+          .count()
+          .get();
+      final enrichedSnap = await col
+          .where('terrainEnrichedAt', isNull: false)
+          .count()
+          .get();
+      return (
+        total: totalSnap.count ?? 0,
+        enriched: enrichedSnap.count ?? 0,
+      );
+    } catch (e) {
+      debugPrint('[PublicTrails] getTerrainEnrichmentStatus error: $e');
+      return (total: 0, enriched: 0);
+    }
+  }
+
   /// Komoot K1b — carica i terrainSegments denormalizzati da
   /// public_trail_geometries/{trailId}.terrainSegments[]. Ritorna
   /// null o lista vuota se il trail non è ancora stato arricchito
