@@ -72,11 +72,39 @@ class MultiStageElevationChart extends StatelessWidget {
     return MultiStageElevationChart._(out);
   }
 
-  /// Build dalle stage summaries (community). Per ora ritorna chart
-  /// vuoto: le summary non includono elevation array.
+  /// Build dalle stage summaries (community). Usa elevationSamples
+  /// denormalizzato in ogni TourStageSummary (~60 punti). Distribuisce
+  /// uniformemente i sample sulla distanza della stage per ricostruire
+  /// l'asse X cumulativo. Se una stage non ha elevation samples (es.
+  /// tour pubblicato prima del denorm), viene skippata.
   factory MultiStageElevationChart.fromStageSummaries(
       List<TourStageSummary> stages) {
-    return const MultiStageElevationChart._([]);
+    double cumulativeKm = 0;
+    final out = <_StageElevationSeries>[];
+    for (var i = 0; i < stages.length; i++) {
+      final s = stages[i];
+      final samples = s.elevationSamples;
+      if (samples.length < 2) {
+        cumulativeKm += s.distanceKm;
+        continue;
+      }
+      final spots = <FlSpot>[];
+      // Distribuzione uniforme: il j-esimo sample è alla frazione
+      // j/(N-1) della distanza della stage.
+      final segmentKm = s.distanceKm;
+      for (var j = 0; j < samples.length; j++) {
+        final fraction = j / (samples.length - 1);
+        spots.add(FlSpot(cumulativeKm + segmentKm * fraction, samples[j]));
+      }
+      out.add(_StageElevationSeries(
+        stageIndex: i,
+        name: s.name,
+        spots: spots,
+        color: _stageColor(i),
+      ));
+      cumulativeKm += segmentKm;
+    }
+    return MultiStageElevationChart._(out);
   }
 
   static Color _stageColor(int i) {

@@ -17,6 +17,12 @@ class TourStageSummary {
   /// Polyline overview — punti downsamplati.
   final List<LatLng> points;
 
+  /// Epic 11 / K1 fix — array di elevation samples downsamplato (~50 pt)
+  /// per renderizzare il grafico altimetrico cumulativo nella community
+  /// detail (mirror community_tours) senza accedere alle tracce private.
+  /// Vuoto = grafico non disponibile (tracce legacy o senza elevation).
+  final List<double> elevationSamples;
+
   /// true se la traccia sottostante è pubblicata in `community_tracks`
   /// (permette il tap-through alla detail community ricca).
   final bool isTrackPublic;
@@ -43,6 +49,7 @@ class TourStageSummary {
     required this.duration,
     required this.points,
     required this.isTrackPublic,
+    this.elevationSamples = const [],
     this.communityTrackId,
     this.accommodationBusinessId,
     this.accommodationName,
@@ -62,6 +69,7 @@ class TourStageSummary {
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList(),
         'isTrackPublic': isTrackPublic,
+        if (elevationSamples.isNotEmpty) 'elevationSamples': elevationSamples,
         if (communityTrackId != null) 'communityTrackId': communityTrackId,
         if (accommodationBusinessId != null)
           'accommodationBusinessId': accommodationBusinessId,
@@ -88,6 +96,11 @@ class TourStageSummary {
       duration: Duration(seconds: (map['durationSeconds'] as num?)?.toInt() ?? 0),
       points: points,
       isTrackPublic: map['isTrackPublic'] == true,
+      elevationSamples: (map['elevationSamples'] as List?)
+              ?.whereType<num>()
+              .map((e) => e.toDouble())
+              .toList() ??
+          const [],
       communityTrackId: map['communityTrackId']?.toString(),
       accommodationBusinessId: map['accommodationBusinessId']?.toString(),
       accommodationName: map['accommodationName']?.toString(),

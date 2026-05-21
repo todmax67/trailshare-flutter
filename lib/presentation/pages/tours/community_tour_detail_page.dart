@@ -12,6 +12,7 @@ import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../discover/community_track_detail_page.dart';
 import 'widgets/expandable_description.dart';
+import 'widgets/multi_stage_elevation_chart.dart';
 import 'widgets/tour_hero.dart';
 import 'widgets/tour_rich_sections.dart';
 
@@ -218,6 +219,14 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
+                // Grafico altimetrico cumulativo: solo per cammini
+                // consecutivi (per le collezioni le tracce sono
+                // indipendenti, sommarle sarebbe fuorviante).
+                if (tour.type == TourType.consecutive &&
+                    stages.isNotEmpty) ...[
+                  MultiStageElevationChart.fromStageSummaries(stages),
+                  const SizedBox(height: 20),
+                ],
                 // Epic 11 — sezioni ricche: chip difficoltà/periodo,
                 // gallery, equipaggiamento, note storiche.
                 TourRichHeaderSections(tour: tour),

@@ -102,6 +102,29 @@ class ToursRepository {
     return docRef.id;
   }
 
+  /// Downsample uniforme delle elevazioni a max [maxSamples] valori.
+  /// Punti senza elevation vengono skippati (l'array risultante può
+  /// essere più corto se la traccia ha lacune). Se nessun punto ha
+  /// elevation, ritorna vuoto → il chart fa fallback "no data".
+  List<double> _downsampleElevations(List<TrackPoint> points,
+      {int maxSamples = 60}) {
+    if (points.isEmpty) return const [];
+    final withElev = <double>[];
+    for (final p in points) {
+      if (p.elevation != null) withElev.add(p.elevation!);
+    }
+    if (withElev.isEmpty) return const [];
+    if (withElev.length <= maxSamples) return withElev;
+    final result = <double>[withElev.first];
+    final step = withElev.length / (maxSamples - 2);
+    for (var i = 1; i < maxSamples - 1; i++) {
+      final idx = (i * step).round();
+      if (idx < withElev.length - 1) result.add(withElev[idx]);
+    }
+    result.add(withElev.last);
+    return result;
+  }
+
   /// Downsample uniforme di [points] a max [maxPoints] preservando primo/ultimo.
   List<LatLng> _downsamplePolyline(List<TrackPoint> points, {int maxPoints = 200}) {
     if (points.isEmpty) return const [];
@@ -167,6 +190,7 @@ class ToursRepository {
             elevationGain: t.stats.elevationGain,
             duration: t.stats.duration,
             points: _downsamplePolyline(t.points),
+            elevationSamples: _downsampleElevations(t.points),
             isTrackPublic: t.id != null && publicMap.containsKey(t.id),
             communityTrackId: t.id != null ? publicMap[t.id] : null,
             accommodationBusinessId: bizId,
