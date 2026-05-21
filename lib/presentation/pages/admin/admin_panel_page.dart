@@ -128,6 +128,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             const SizedBox(height: 24),
             _buildNewsletterSection(),
             const SizedBox(height: 24),
+            _buildTerrainEnrichmentSection(),
+            const SizedBox(height: 24),
             _buildQualityFlagsSection(),
             const SizedBox(height: 24),
             _buildStatsSection(),
@@ -182,6 +184,13 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   bool _newsletterBusy = false;
   Map<String, dynamic>? _newsletterPreview;
   Map<String, dynamic>? _newsletterSendResult;
+
+  // K1b — Terrain enrichment per public_trails
+  final TextEditingController _terrainTrailIdCtrl = TextEditingController();
+  final TextEditingController _terrainMaxTrailsCtrl =
+      TextEditingController(text: '20');
+  bool _terrainBusy = false;
+  Map<String, dynamic>? _terrainResult;
 
   Widget _buildAdminClaimsSection() {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -1950,6 +1959,333 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
     if (ok != true) return;
     await _sendNewsletter(dryRun: false);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // TERRAIN ENRICHMENT — Surface profile public_trails (K1b)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Lancia le Cloud Function di arricchimento OSM tag per i sentieri
+  // pubblici (Waymarked Trails). Pre-elabora terrainSegments
+  // denormalizzati per ogni public_trail_geometries.
+
+  Widget _buildTerrainEnrichmentSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.landscape_outlined,
+                    color: Colors.brown.shade400, size: 22),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Terrain enrichment (K1b)',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Pre-elabora i tag OSM way per ogni public_trail e salva un '
+              'array di TerrainSegment denormalizzato in '
+              'public_trail_geometries. Permette di colorare la mappa per '
+              'tipo terreno (asfalto/sterrato/sentiero/roccia/ferrata) '
+              'senza chiamate Overpass dal client.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+
+            // ─── Test su singolo trail ──────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.brown.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: Colors.brown.shade200.withValues(alpha: 0.6)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Test singolo trail',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.brown.shade700),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Trail ID del formato wmt_relation_<numero>. '
+                    'Prima fai dry-run per controllare l\'output, poi '
+                    'esegui senza dryRun per scrivere su Firestore.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _terrainTrailIdCtrl,
+                    enabled: !_terrainBusy,
+                    decoration: const InputDecoration(
+                      hintText: 'es. wmt_relation_12345678',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _terrainBusy
+                            ? null
+                            : () => _enrichSingleTrail(dryRun: true),
+                        icon: const Icon(Icons.science_outlined, size: 16),
+                        label: const Text('Dry-run',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _terrainBusy
+                            ? null
+                            : () => _enrichSingleTrail(dryRun: false),
+                        icon: const Icon(Icons.upload, size: 16),
+                        label: const Text('Arricchisci',
+                            style: TextStyle(fontSize: 12)),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.brown.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // ─── Batch tutti i trails ───────────────────────────────
+            Text(
+              'Batch enrichment',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _terrainMaxTrailsCtrl,
+              enabled: !_terrainBusy,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Max trails per batch',
+                helperText:
+                    'Default 20, max 200. Skippa automaticamente i trail '
+                    'già arricchiti (terrainEnrichedAt). Rate limit 1.1s/trail '
+                    'per Overpass: 200 trail = ~4 min.',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _terrainBusy
+                      ? null
+                      : () => _enrichBatch(dryRun: true),
+                  icon: const Icon(Icons.science_outlined, size: 16),
+                  label: const Text('Dry-run batch',
+                      style: TextStyle(fontSize: 12)),
+                ),
+                FilledButton.icon(
+                  onPressed: _terrainBusy
+                      ? null
+                      : () => _enrichBatch(dryRun: false),
+                  icon: _terrainBusy
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.batch_prediction, size: 16),
+                  label: Text(_terrainBusy ? 'Lavoro...' : 'Esegui batch',
+                      style: const TextStyle(fontSize: 12)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.brown.shade600,
+                  ),
+                ),
+              ],
+            ),
+
+            if (_terrainResult != null) ...[
+              const SizedBox(height: 12),
+              _buildTerrainResultBlock(_terrainResult!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTerrainResultBlock(Map<String, dynamic> r) {
+    final isBatch = r.containsKey('processed');
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isBatch ? 'Batch completato' : 'Trail elaborato',
+            style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          if (isBatch) ...[
+            Text(
+              'Processed: ${r['processed']} · '
+              'Enriched: ${r['enriched']} · '
+              'Skipped: ${r['skipped']} · '
+              'Errors: ${(r['errors'] as List?)?.length ?? 0}',
+              style: const TextStyle(fontSize: 11),
+            ),
+            if ((r['samples'] as List?)?.isNotEmpty == true) ...[
+              const SizedBox(height: 6),
+              const Text('Primi sample:',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textMuted)),
+              for (final s in (r['samples'] as List).cast<Map>())
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 1),
+                  child: Text(
+                    '• ${s['trailId']}: ${s['segments']} segmenti · '
+                    '${(s['types'] as List?)?.join(',') ?? '—'}',
+                    style: const TextStyle(fontSize: 10),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          ] else ...[
+            Text(
+              'Trail: ${r['trailId']} · '
+              'Punti: ${r['totalPoints']} · '
+              'Ways analizzate: ${r['waysAnalyzed']} · '
+              'Segmenti: ${r['segmentCount']}',
+              style: const TextStyle(fontSize: 11),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Tipi terreno trovati: '
+              '${(r['typesFound'] as List?)?.join(', ') ?? '—'}',
+              style: const TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ],
+          if (r['dryRun'] == true) ...[
+            const SizedBox(height: 4),
+            const Text(
+              '⚠️ Modalità dry-run: nessuna scrittura su Firestore.',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.textMuted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _enrichSingleTrail({required bool dryRun}) async {
+    final trailId = _terrainTrailIdCtrl.text.trim();
+    if (trailId.isEmpty) {
+      _snack('Inserisci un trail ID.', error: true);
+      return;
+    }
+    setState(() {
+      _terrainBusy = true;
+      _terrainResult = null;
+    });
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable(
+                'enrichTrailWithTerrain',
+                options: HttpsCallableOptions(
+                    timeout: const Duration(seconds: 120)),
+              )
+              .call({'trailId': trailId, 'dryRun': dryRun});
+      if (!mounted) return;
+      final data = Map<String, dynamic>.from(result.data as Map);
+      setState(() => _terrainResult = data);
+      if (data['success'] == true) {
+        _snack(
+          dryRun
+              ? 'Dry-run completato: ${data['segmentCount']} segmenti'
+              : 'Trail arricchito: ${data['segmentCount']} segmenti scritti',
+          error: false,
+        );
+      } else {
+        _snack('Esito: ${data['reason'] ?? "fail"}', error: true);
+      }
+    } catch (e) {
+      _snack('Errore: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _terrainBusy = false);
+    }
+  }
+
+  Future<void> _enrichBatch({required bool dryRun}) async {
+    final maxTrails =
+        int.tryParse(_terrainMaxTrailsCtrl.text.trim()) ?? 20;
+    setState(() {
+      _terrainBusy = true;
+      _terrainResult = null;
+    });
+    try {
+      final result =
+          await FirebaseFunctions.instanceFor(region: 'europe-west3')
+              .httpsCallable(
+                'enrichAllTrailsTerrain',
+                options: HttpsCallableOptions(
+                    timeout: const Duration(seconds: 540)),
+              )
+              .call({
+        'maxTrails': maxTrails,
+        'dryRun': dryRun,
+        'skipAlreadyEnriched': true,
+      });
+      if (!mounted) return;
+      final data = Map<String, dynamic>.from(result.data as Map);
+      setState(() => _terrainResult = data);
+      _snack(
+        dryRun
+            ? 'Dry-run batch: ${data['enriched']}/${data['processed']}'
+            : 'Batch: ${data['enriched']} arricchiti, '
+                '${data['skipped']} skip',
+        error: false,
+      );
+    } catch (e) {
+      _snack('Errore batch: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _terrainBusy = false);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════
