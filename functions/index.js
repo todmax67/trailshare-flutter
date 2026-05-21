@@ -5828,26 +5828,36 @@ exports.enrichAllTrailsTerrain = onCall(
     // sfruttando skipAlreadyEnriched come dedup.
     const cap = Math.min(Math.max(parseInt(maxTrails) || 20, 1), 25);
 
-    // Pesca trail ids candidati. Filtro lato Firestore impossibile per
-    // "non ha terrainEnrichedAt" senza creare index → fetch + filter.
+    // Pesca SOLO i doc con id formato "wmt_relation_*" (gli unici
+    // arricchibili). Pattern Firestore standard per prefix matching
+    // su document id: orderBy + startAt + endAt('').
+    // Limit più conservativo perché ora la query è già filtrata.
+    const docIdPath = admin.firestore.FieldPath.documentId();
     const snap = await db.collection('public_trail_geometries')
-      .limit(cap * 3) // overscan per compensare gli skip
+      .orderBy(docIdPath)
+      .startAt('wmt_relation_')
+      .endAt('wmt_relation_')
+      .limit(cap * 2)
       .get();
 
-    let processed = 0, enriched = 0, skipped = 0;
+    let processed = 0, enriched = 0;
+    let skippedAlreadyDone = 0, skippedInvalid = 0;
     const errors = [];
     const samples = [];
     for (const doc of snap.docs) {
       if (enriched >= cap) break;
       if (skipAlreadyEnriched !== false && doc.data().terrainEnrichedAt) {
-        skipped++;
+        skippedAlreadyDone++;
         continue;
       }
       processed++;
       try {
         const result = await _computeTerrainSegments(doc.id);
         if (!result) {
-          skipped++;
+          // _computeTerrainSegments ha già loggato il motivo specifico
+          // (id format invalido, geometria assente, Overpass fallito,
+          // way vuote).
+          skippedInvalid++;
           continue;
         }
         if (!dryRun) {
@@ -5871,9 +5881,11 @@ exports.enrichAllTrailsTerrain = onCall(
         errors.push({ trailId: doc.id, error: e.message });
       }
     }
+    const skipped = skippedAlreadyDone + skippedInvalid;
     logger.info(
       `[K1b] enrichAllTrailsTerrain processed=${processed} enriched=${enriched} ` +
-      `skipped=${skipped} errors=${errors.length} dryRun=${!!dryRun}`
+      `skip(done)=${skippedAlreadyDone} skip(invalid)=${skippedInvalid} ` +
+      `errors=${errors.length} dryRun=${!!dryRun}`
     );
     return {
       success: true,
@@ -5881,6 +5893,8 @@ exports.enrichAllTrailsTerrain = onCall(
       processed,
       enriched,
       skipped,
+      skippedAlreadyDone,
+      skippedInvalid,
       errors: errors.slice(0, 10),
       samples,
     };
