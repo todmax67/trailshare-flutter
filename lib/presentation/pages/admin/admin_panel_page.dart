@@ -2085,9 +2085,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               decoration: const InputDecoration(
                 labelText: 'Max trails per batch',
                 helperText:
-                    'Default 20, max 200. Skippa automaticamente i trail '
-                    'già arricchiti (terrainEnrichedAt). Rate limit 1.1s/trail '
-                    'per Overpass: 200 trail = ~4 min.',
+                    'Default 20, MAX 25 (limite hard server-side). Per '
+                    'processare molti trail, ri-clicca "Esegui batch" '
+                    'in sequenza: skipAlreadyEnriched fa il dedup. '
+                    'Rate limit 3.5s/trail per Overpass.',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),

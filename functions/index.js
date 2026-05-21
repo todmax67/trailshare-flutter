@@ -5535,12 +5535,19 @@ exports.sendNewsletterBatch = onCall(
 // 7. Update terrainSegments array sul doc geometria
 
 // Mirror Overpass in ordine di velocità tipica. Failover automatico:
-// se il primario va in timeout, prova il secondario.
+// se il primario va in timeout/429, prova il secondario.
+// openstreetmap.fr rimosso: ritorna sempre 403 dalla Cloud Function
+// (probabile blocco IP/UA).
 const _OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.openstreetmap.fr/api/interpreter',
 ];
+
+// User-Agent richiesto dalla policy Overpass (best practice).
+const _OVERPASS_HEADERS = {
+  'Content-Type': 'text/plain',
+  'User-Agent': 'TrailShare/2.5.1 (info@trailshare.app) — terrain enrichment K1b',
+};
 
 /// Replica server-side di parseTerrainFromOsmTags() — TENERLA SINCRONIZZATA
 /// con lib/data/models/terrain_segment.dart. Funzione pura.
@@ -5610,18 +5617,29 @@ function _buildOverpassRelationQuery(relationId) {
 
 /// Esegue la query con failover automatico sui mirror Overpass.
 /// Ritorna gli elements; lancia errore se TUTTI i mirror falliscono.
+/// Su 429 (rate limit) ritenta dopo 5s sullo stesso mirror una volta
+/// prima di passare al successivo.
 async function _overpassQueryWithFailover(query) {
   let lastError;
   for (const endpoint of _OVERPASS_ENDPOINTS) {
-    try {
-      const resp = await axios.post(endpoint, query, {
-        headers: { 'Content-Type': 'text/plain' },
-        timeout: 90000, // 90s client-side, server-side timeout:180 nel QL
-      });
-      return resp.data?.elements || [];
-    } catch (e) {
-      lastError = e;
-      logger.warn(`[K1b] Overpass mirror ${endpoint} failed: ${e.message}, trying next`);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const resp = await axios.post(endpoint, query, {
+          headers: _OVERPASS_HEADERS,
+          timeout: 60000, // 60s client-side, server-side timeout:180 nel QL
+        });
+        return resp.data?.elements || [];
+      } catch (e) {
+        lastError = e;
+        const status = e.response?.status;
+        if (status === 429 && attempt === 0) {
+          logger.warn(`[K1b] ${endpoint} → 429, sleep 5s + retry`);
+          await new Promise((r) => setTimeout(r, 5000));
+          continue;
+        }
+        logger.warn(`[K1b] ${endpoint} → ${e.message}, next mirror`);
+        break;
+      }
     }
   }
   throw lastError || new Error('Tutti i mirror Overpass hanno fallito');
@@ -5805,7 +5823,10 @@ exports.enrichAllTrailsTerrain = onCall(
       );
     }
     const { maxTrails, dryRun, skipAlreadyEnriched } = request.data || {};
-    const cap = Math.min(Math.max(parseInt(maxTrails) || 20, 1), 200);
+    // Cap hard a 25 per batch per stare ben sotto il timeout function
+    // di 540s. Per processare molti trail, il client ri-chiama in loop
+    // sfruttando skipAlreadyEnriched come dedup.
+    const cap = Math.min(Math.max(parseInt(maxTrails) || 20, 1), 25);
 
     // Pesca trail ids candidati. Filtro lato Firestore impossibile per
     // "non ha terrainEnrichedAt" senza creare index → fetch + filter.
@@ -5843,8 +5864,9 @@ exports.enrichAllTrailsTerrain = onCall(
             types: result.stats.typesFound,
           });
         }
-        // Rate limit Overpass (~1 req/sec è prudente per le free instance)
-        await new Promise((r) => setTimeout(r, 1100));
+        // Rate limit Overpass: kumi.systems da 429 sotto i 3s — usiamo
+        // 3.5s di margine per non beccarli.
+        await new Promise((r) => setTimeout(r, 3500));
       } catch (e) {
         errors.push({ trailId: doc.id, error: e.message });
       }
