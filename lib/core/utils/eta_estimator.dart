@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import '../../data/models/terrain_segment.dart';
 import '../../data/models/track.dart';
 
 /// Stima del tempo necessario a completare un percorso, dato distanza,
@@ -111,6 +114,149 @@ class EtaEstimator {
     if (h <= 0) return '$m min';
     if (m == 0) return '$h h';
     return '${h}h ${m}m';
+  }
+
+  /// Komoot K1b Step 4 — ETA terrain-aware.
+  ///
+  /// A differenza di [estimate] (che usa una velocità unica per attività),
+  /// questo metodo applica un moltiplicatore di velocità per ogni
+  /// segmento di terreno, leggendo i `TerrainSegment` denormalizzati.
+  ///
+  /// Per ogni segmento:
+  /// 1. Calcola distanza percorsa nei punti tra startPointIdx e endPointIdx
+  ///    (somma Haversine consecutiva)
+  /// 2. Calcola dislivello positivo nei punti del segmento
+  /// 3. Calcola velocità effettiva = baseSpeed × [terrainSpeedFactor]
+  /// 4. Tempo segmento = distance/speed + climb/metersPerHourClimb
+  ///
+  /// Somma i tempi dei segmenti.
+  ///
+  /// Fallback: se [segments] è vuoto, ricade su [estimate] usando
+  /// distanza totale + dislivello stimato dai punti.
+  static Duration estimateWithTerrain({
+    required List<TrackPoint> points,
+    required List<TerrainSegment> segments,
+    required ActivityType activityType,
+  }) {
+    if (points.length < 2) return Duration.zero;
+    final params = _paramsFor(activityType);
+    if (params.speedKmh <= 0) return Duration.zero;
+
+    // Fallback se niente segmenti: comportamento legacy
+    if (segments.isEmpty) {
+      final totalDist = _haversineCumulative(points);
+      final totalGain = _cumulativeGain(points);
+      return estimate(
+        distanceMeters: totalDist,
+        elevationGainMeters: totalGain,
+        activityType: activityType,
+      );
+    }
+
+    double totalSeconds = 0;
+    for (final seg in segments) {
+      final start = seg.startPointIdx.clamp(0, points.length - 1);
+      final end = (seg.endPointIdx + 1).clamp(start + 1, points.length);
+      if (end - start < 2) continue;
+      final sub = points.sublist(start, end);
+      final segDistMeters = _haversineCumulative(sub);
+      final segGainMeters = _cumulativeGain(sub);
+      final factor = terrainSpeedFactor(seg.type, activityType);
+      final effectiveSpeed = params.speedKmh * factor;
+      if (effectiveSpeed <= 0) continue;
+      final flatHours = (segDistMeters / 1000) / effectiveSpeed;
+      // Il climbing factor è meno influenzato dal terreno (su asfalto
+      // 1000m gain in salita = comunque ~1h). Però su roccia la salita
+      // è ancora più lenta, quindi applichiamo un mezzo factor.
+      final climbFactor = 0.5 + factor * 0.5; // smorzato
+      final adjustedClimbRate = params.metersPerHourClimb * climbFactor;
+      final climbHours = adjustedClimbRate > 0
+          ? (segGainMeters / adjustedClimbRate)
+          : 0;
+      totalSeconds += (flatHours + climbHours) * 3600;
+    }
+
+    return Duration(seconds: totalSeconds.round());
+  }
+
+  /// Moltiplicatore di velocità per ogni combinazione
+  /// (TerrainType × ActivityType). Valori empirici:
+  /// - 1.0 = velocità base per quell'attività
+  /// - 0.5 = metà velocità (terreno difficile)
+  /// - 1.1 = leggermente più veloce (asfalto in bici)
+  /// - 0.0 = praticamente fermo (ferrata = arrampicata cauta)
+  ///
+  /// Esposto pubblicamente per UI tooltip / debug.
+  static double terrainSpeedFactor(TerrainType terrain, ActivityType activity) {
+    // Categorizza attività in "pedestre" vs "ciclo" per semplicità
+    final isCycling = switch (activity) {
+      ActivityType.cycling ||
+      ActivityType.gravelBiking ||
+      ActivityType.mountainBiking ||
+      ActivityType.eBike ||
+      ActivityType.eMountainBike =>
+        true,
+      _ => false,
+    };
+
+    switch (terrain) {
+      case TerrainType.asphalt:
+        if (isCycling) return 1.10; // bici è ottimizzata per asfalto
+        return 1.00; // pedestre normale
+      case TerrainType.gravel:
+        if (isCycling) {
+          return activity == ActivityType.cycling ? 0.65 : 0.85;
+        }
+        return 0.95;
+      case TerrainType.path:
+        if (isCycling) {
+          return activity == ActivityType.cycling ? 0.40 : 0.70;
+        }
+        return 1.00;
+      case TerrainType.rocky:
+        if (isCycling) return 0.30; // a piedi quasi
+        return 0.55;
+      case TerrainType.viaFerrata:
+        return 0.20; // procedi cauto, attrezzatura
+      case TerrainType.unknown:
+        return 0.95; // leggermente conservativo
+    }
+  }
+
+  /// Somma cumulativa delle distanze Haversine tra punti consecutivi.
+  static double _haversineCumulative(List<TrackPoint> pts) {
+    double total = 0;
+    for (var i = 1; i < pts.length; i++) {
+      total += _haversineMeters(pts[i - 1], pts[i]);
+    }
+    return total;
+  }
+
+  /// Somma dei dislivelli positivi tra punti consecutivi (filtrando
+  /// micro-variazioni < 1m che sono rumore GPS).
+  static double _cumulativeGain(List<TrackPoint> pts) {
+    double total = 0;
+    for (var i = 1; i < pts.length; i++) {
+      final a = pts[i - 1].elevation;
+      final b = pts[i].elevation;
+      if (a == null || b == null) continue;
+      final diff = b - a;
+      if (diff > 1) total += diff;
+    }
+    return total;
+  }
+
+  static double _haversineMeters(TrackPoint a, TrackPoint b) {
+    const r = 6371000.0;
+    double toRad(double d) => d * math.pi / 180;
+    final dLat = toRad(b.latitude - a.latitude);
+    final dLng = toRad(b.longitude - a.longitude);
+    final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(toRad(a.latitude)) *
+            math.cos(toRad(b.latitude)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    return 2 * r * math.asin(math.sqrt(h));
   }
 
   static _Params _paramsFor(ActivityType t) {
