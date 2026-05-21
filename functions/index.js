@@ -5534,7 +5534,13 @@ exports.sendNewsletterBatch = onCall(
 // 6. Comprime TrackPoint consecutivi con stesso TerrainType in segmenti
 // 7. Update terrainSegments array sul doc geometria
 
-const _OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
+// Mirror Overpass in ordine di velocità tipica. Failover automatico:
+// se il primario va in timeout, prova il secondario.
+const _OVERPASS_ENDPOINTS = [
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+];
 
 /// Replica server-side di parseTerrainFromOsmTags() — TENERLA SINCRONIZZATA
 /// con lib/data/models/terrain_segment.dart. Funzione pura.
@@ -5595,9 +5601,30 @@ function _extractOsmRelationId(trailDocId) {
 }
 
 /// Costruisce il query string Overpass QL per una relation.
-/// Recupera relation + way members + nodi (per coordinate).
+/// `out tags geom` ritorna le way con tags + geometry inline (lat/lon
+/// per ogni nodo), evitando di scaricare i nodi separatamente con
+/// `(._;>;)`. Significativamente più veloce e ~50% meno payload.
 function _buildOverpassRelationQuery(relationId) {
-  return `[out:json][timeout:60];relation(${relationId});(._;>;);out body;`;
+  return `[out:json][timeout:180];relation(${relationId});way(r);out tags geom;`;
+}
+
+/// Esegue la query con failover automatico sui mirror Overpass.
+/// Ritorna gli elements; lancia errore se TUTTI i mirror falliscono.
+async function _overpassQueryWithFailover(query) {
+  let lastError;
+  for (const endpoint of _OVERPASS_ENDPOINTS) {
+    try {
+      const resp = await axios.post(endpoint, query, {
+        headers: { 'Content-Type': 'text/plain' },
+        timeout: 90000, // 90s client-side, server-side timeout:180 nel QL
+      });
+      return resp.data?.elements || [];
+    } catch (e) {
+      lastError = e;
+      logger.warn(`[K1b] Overpass mirror ${endpoint} failed: ${e.message}, trying next`);
+    }
+  }
+  throw lastError || new Error('Tutti i mirror Overpass hanno fallito');
 }
 
 /// Calcola terrainSegments per un singolo trail.
@@ -5631,35 +5658,28 @@ async function _computeTerrainSegments(trailDocId) {
     .map((p) => ({ lng: p[0], lat: p[1] }));
   if (points.length < 2) return null;
 
-  // 2. Query Overpass
+  // 2. Query Overpass con failover automatico tra mirror
   const query = _buildOverpassRelationQuery(relationId);
   let elements;
   try {
-    const resp = await axios.post(_OVERPASS_ENDPOINT, query, {
-      headers: { 'Content-Type': 'text/plain' },
-      timeout: 60000,
-    });
-    elements = resp.data?.elements || [];
+    elements = await _overpassQueryWithFailover(query);
   } catch (e) {
-    logger.error(`[K1b] Overpass error per relation ${relationId}: ${e.message}`);
+    logger.error(`[K1b] Overpass tutti i mirror falliti per relation ${relationId}: ${e.message}`);
     return null;
   }
 
-  // 3. Struttura: ways[] con tags + nodes[]; nodes{} mappa id → coords
-  const nodeMap = new Map(); // nodeId → {lat, lng}
+  // 3. Schema "out tags geom": ogni way ha tags + geometry inline
+  //    (array di {lat, lon} per ogni nodo della way). Niente fetch
+  //    separato dei nodi.
   const ways = []; // {nodes: [{lat,lng}], terrain: TerrainType}
-  for (const el of elements) {
-    if (el.type === 'node') {
-      nodeMap.set(el.id, { lat: el.lat, lng: el.lon });
-    }
-  }
   for (const el of elements) {
     if (el.type === 'way') {
       const tags = el.tags || {};
       const terrain = _parseTerrainFromOsmTags(tags);
-      const wayNodes = (el.nodes || [])
-        .map((nid) => nodeMap.get(nid))
-        .filter((n) => n);
+      const geom = el.geometry || [];
+      const wayNodes = geom
+        .filter((g) => typeof g.lat === 'number' && typeof g.lon === 'number')
+        .map((g) => ({ lat: g.lat, lng: g.lon }));
       if (wayNodes.length > 0) {
         ways.push({ nodes: wayNodes, terrain });
       }
