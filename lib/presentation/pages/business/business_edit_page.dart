@@ -115,8 +115,12 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
       // Helper: se il campo è vuoto, lo cancella esplicitamente dal
       // doc Firestore tramite FieldValue.delete(). Senza questa
       // distinzione, l'update di un campo opzionale a stringa vuota
-      // veniva silenziosamente ignorato perché il pattern `if (x.isNotEmpty)`
-      // non includeva proprio la chiave nel patch.
+      // veniva silenziosamente ignorato.
+      //
+      // ⚠️ Firestore vincolo: FieldValue.delete() può apparire SOLO
+      // al top level di un update. Per i nested fields (contacts.*,
+      // location.*) usiamo la dot-notation così Firestore aggiorna
+      // solo quei campi specifici senza sostituire l'intero oggetto.
       dynamic textOrDelete(String text) =>
           text.trim().isNotEmpty ? text.trim() : FieldValue.delete();
 
@@ -124,32 +128,27 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
         'name': _name.text.trim(),
         'shortDescription': textOrDelete(_shortDesc.text),
         'description': textOrDelete(_description.text),
-        'branding': {
-          if (_logoUrl != null) 'logoUrl': _logoUrl,
-          if (_heroUrl != null) 'heroPhotoUrl': _heroUrl,
-          ..._business!.branding.toMap()
-            ..removeWhere((k, _) =>
-                k == 'logoUrl' || k == 'heroPhotoUrl'),
-        },
-        // Sub-objects (contacts, location): Firestore .update() sostituisce
-        // l'intero oggetto annidato con quello fornito. Usiamo
-        // FieldValue.delete() per pulire i campi vuoti senza perdere
-        // gli altri.
-        'contacts': {
-          'phone': textOrDelete(_phone.text),
-          'whatsapp': textOrDelete(_whatsapp.text),
-          'email': textOrDelete(_email.text),
-          'website': textOrDelete(_website.text),
-          'instagram': textOrDelete(_instagram.text),
-        },
-        'location': {
-          ..._business!.location.toMap(),
-          if (_lat != null) 'lat': _lat,
-          if (_lng != null) 'lng': _lng,
-          if (_geohash != null) 'geohash': _geohash,
-          'address': textOrDelete(_address.text),
-          'city': textOrDelete(_city.text),
-        },
+
+        // contacts.* — dot-notation per gestire delete dei singoli campi
+        'contacts.phone': textOrDelete(_phone.text),
+        'contacts.whatsapp': textOrDelete(_whatsapp.text),
+        'contacts.email': textOrDelete(_email.text),
+        'contacts.website': textOrDelete(_website.text),
+        'contacts.instagram': textOrDelete(_instagram.text),
+
+        // location.* — stessa logica
+        if (_lat != null) 'location.lat': _lat,
+        if (_lng != null) 'location.lng': _lng,
+        if (_geohash != null) 'location.geohash': _geohash,
+        'location.address': textOrDelete(_address.text),
+        'location.city': textOrDelete(_city.text),
+
+        // branding.* — solo update positivo (no delete per ora)
+        if (_logoUrl != null) 'branding.logoUrl': _logoUrl,
+        if (_heroUrl != null) 'branding.heroPhotoUrl': _heroUrl,
+
+        // openingHours è una map nested completa (tutti i giorni
+        // sempre presenti) → replace dell'intero oggetto è ok.
         'openingHours': {
           for (final entry in _hours.entries) entry.key: entry.value.toMap(),
         },
