@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -111,12 +112,18 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
+      // Helper: se il campo è vuoto, lo cancella esplicitamente dal
+      // doc Firestore tramite FieldValue.delete(). Senza questa
+      // distinzione, l'update di un campo opzionale a stringa vuota
+      // veniva silenziosamente ignorato perché il pattern `if (x.isNotEmpty)`
+      // non includeva proprio la chiave nel patch.
+      dynamic textOrDelete(String text) =>
+          text.trim().isNotEmpty ? text.trim() : FieldValue.delete();
+
       final patch = <String, dynamic>{
         'name': _name.text.trim(),
-        if (_shortDesc.text.trim().isNotEmpty)
-          'shortDescription': _shortDesc.text.trim(),
-        if (_description.text.trim().isNotEmpty)
-          'description': _description.text.trim(),
+        'shortDescription': textOrDelete(_shortDesc.text),
+        'description': textOrDelete(_description.text),
         'branding': {
           if (_logoUrl != null) 'logoUrl': _logoUrl,
           if (_heroUrl != null) 'heroPhotoUrl': _heroUrl,
@@ -124,24 +131,24 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
             ..removeWhere((k, _) =>
                 k == 'logoUrl' || k == 'heroPhotoUrl'),
         },
+        // Sub-objects (contacts, location): Firestore .update() sostituisce
+        // l'intero oggetto annidato con quello fornito. Usiamo
+        // FieldValue.delete() per pulire i campi vuoti senza perdere
+        // gli altri.
         'contacts': {
-          if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
-          if (_whatsapp.text.trim().isNotEmpty)
-            'whatsapp': _whatsapp.text.trim(),
-          if (_email.text.trim().isNotEmpty) 'email': _email.text.trim(),
-          if (_website.text.trim().isNotEmpty)
-            'website': _website.text.trim(),
-          if (_instagram.text.trim().isNotEmpty)
-            'instagram': _instagram.text.trim(),
+          'phone': textOrDelete(_phone.text),
+          'whatsapp': textOrDelete(_whatsapp.text),
+          'email': textOrDelete(_email.text),
+          'website': textOrDelete(_website.text),
+          'instagram': textOrDelete(_instagram.text),
         },
         'location': {
           ..._business!.location.toMap(),
           if (_lat != null) 'lat': _lat,
           if (_lng != null) 'lng': _lng,
           if (_geohash != null) 'geohash': _geohash,
-          if (_address.text.trim().isNotEmpty)
-            'address': _address.text.trim(),
-          if (_city.text.trim().isNotEmpty) 'city': _city.text.trim(),
+          'address': textOrDelete(_address.text),
+          'city': textOrDelete(_city.text),
         },
         'openingHours': {
           for (final entry in _hours.entries) entry.key: entry.value.toMap(),
