@@ -5349,9 +5349,18 @@ exports.previewNewsletterBatch = onCall(
     // questa campagna.
     const eligible = [];
     let skipNoEmail = 0, skipOptOut = 0, skipAlreadySent = 0, skipDisabled = 0;
+    let skipPrivateRelay = 0;
     for (const u of all) {
       if (u.disabled) { skipDisabled++; continue; }
       if (!u.email || !u.emailVerified) { skipNoEmail++; continue; }
+      // Skip Apple Hide My Email: SendGrid mostra >80% block rate su
+      // privaterelay.appleid.com finché trailshare.app non ha DKIM/SPF/
+      // DMARC perfetti. Filtro temporaneo per non bruciare reputation
+      // ad Apple. Rimuovere quando domain auth SendGrid è verde.
+      if (u.email.toLowerCase().endsWith('@privaterelay.appleid.com')) {
+        skipPrivateRelay++;
+        continue;
+      }
       const profileSnap = await db.collection('user_profiles').doc(u.uid).get();
       const p = profileSnap.exists ? profileSnap.data() : {};
       if (p.marketingOptOut === true) { skipOptOut++; continue; }
@@ -5374,6 +5383,7 @@ exports.previewNewsletterBatch = onCall(
         optOut: skipOptOut,
         alreadySent: skipAlreadySent,
         disabled: skipDisabled,
+        privateRelay: skipPrivateRelay,
       },
       samples,
     };
@@ -5458,6 +5468,13 @@ exports.sendNewsletterBatch = onCall(
     for (const u of all) {
       if (sent >= cap) break;
       if (u.disabled || !u.email || !u.emailVerified) { skipped++; continue; }
+      // Skip Apple Hide My Email (vedi previewNewsletterBatch per
+      // motivazione: SendGrid block 80% finché DKIM trailshare.app
+      // non è perfetto).
+      if (u.email.toLowerCase().endsWith('@privaterelay.appleid.com')) {
+        skipped++;
+        continue;
+      }
       try {
         const profileRef = db.collection('user_profiles').doc(u.uid);
         const profileSnap = await profileRef.get();
