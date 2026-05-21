@@ -321,6 +321,10 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
             communityPois: _pois,
             loadOsmPois: widget.loadOsmPois,
             osmRadiusMeters: widget.osmRadiusMeters,
+            // Komoot K1b — abilita toggle "Terreno" se siamo su un
+            // trail pubblico (Waymarked relation). I terrainSegments
+            // vengono caricati da public_trail_geometries.
+            publicTrailId: widget.poiTrailId,
           ),
         ),
       );

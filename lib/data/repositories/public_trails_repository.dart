@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:latlong2/latlong.dart';
+import '../models/terrain_segment.dart';
 import '../models/track.dart';
 import '../../core/utils/geohash_util.dart';
 import '../../core/services/trails_cache_service.dart';
@@ -97,6 +98,26 @@ class PublicTrailsRepository {
     debugPrint('[PublicTrails] 🌐 Firestore in ${stopwatch.elapsedMilliseconds}ms (${trails.length} sentieri)');
     
     return TrailsResult(clusters: [], trails: trails, fromCache: false);
+  }
+
+  /// Komoot K1b — carica i terrainSegments denormalizzati da
+  /// public_trail_geometries/{trailId}.terrainSegments[]. Ritorna
+  /// null o lista vuota se il trail non è ancora stato arricchito
+  /// (campo terrainEnrichedAt assente).
+  Future<List<TerrainSegment>> getTerrainSegments(String trailId) async {
+    try {
+      final geoDoc = await _firestore
+          .collection('public_trail_geometries')
+          .doc(trailId)
+          .get();
+      if (!geoDoc.exists) return const [];
+      return TerrainSegment.listFromFirestore(
+        geoDoc.data()?['terrainSegments'],
+      );
+    } catch (e) {
+      debugPrint('[PublicTrails] getTerrainSegments error: $e');
+      return const [];
+    }
   }
 
   /// Carica geometria completa per un sentiero (per pagina dettaglio)
