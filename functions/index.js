@@ -5919,6 +5919,109 @@ exports.enrichAllTrailsTerrain = onCall(
   }
 );
 
+// ===================================================================
+// TERRAIN ENRICHMENT — Cron schedule autonomo (K1b)
+// ===================================================================
+// Cron che processa 25 trail ogni 15 minuti in background.
+// 25 × 4/ora = 100/ora = 2400/giorno (sotto la quota soft di Overpass
+// ~10k/giorno). Per 10k trail: ~4 giorni di processing autonomo.
+//
+// Cursor persistito su Firestore in system_state/terrain_enrichment.
+// Quando arriva alla fine del DB (hasMore=false), resetta il cursor
+// così il prossimo ciclo ricomincia dall'inizio. Trail già arricchiti
+// vengono skippati automaticamente da skippedAlreadyDone.
+//
+// Per pausare il cron: impostare system_state/terrain_enrichment.paused=true
+// su Firestore (no redeploy necessario).
+
+const _TERRAIN_CRON_STATE_DOC = 'system_state/terrain_enrichment';
+const _TERRAIN_CRON_BATCH_SIZE = 25;
+
+exports.enrichTrailsTerrainCron = onSchedule(
+  {
+    schedule: 'every 15 minutes',
+    region: 'europe-west3',
+    timeoutSeconds: 540,
+    memory: '512MiB',
+  },
+  async (event) => {
+    const stateRef = db.doc(_TERRAIN_CRON_STATE_DOC);
+    const stateSnap = await stateRef.get();
+    const state = stateSnap.exists ? stateSnap.data() : {};
+
+    if (state.paused === true) {
+      logger.info('[K1b-cron] Skippato: paused=true');
+      return;
+    }
+
+    const docIdPath = admin.firestore.FieldPath.documentId();
+    const cap = _TERRAIN_CRON_BATCH_SIZE;
+    let query = db.collection('public_trail_geometries').orderBy(docIdPath);
+    if (state.lastTrailId && typeof state.lastTrailId === 'string') {
+      query = query.startAfter(state.lastTrailId);
+    } else {
+      query = query.startAt('wmt_relation_');
+    }
+    const snap = await query.endAt('wmt_relation_').limit(cap * 2).get();
+
+    let enriched = 0, skippedAlreadyDone = 0, skippedInvalid = 0, errors = 0;
+    for (const doc of snap.docs) {
+      if (enriched >= cap) break;
+      if (doc.data().terrainEnrichedAt) {
+        skippedAlreadyDone++;
+        continue;
+      }
+      try {
+        const result = await _computeTerrainSegments(doc.id);
+        if (!result) {
+          skippedInvalid++;
+          continue;
+        }
+        await db.collection('public_trail_geometries').doc(doc.id).set({
+          terrainSegments: result.segments,
+          terrainEnrichedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        enriched++;
+        await new Promise((r) => setTimeout(r, 3500));
+      } catch (e) {
+        errors++;
+        logger.warn(`[K1b-cron] error on ${doc.id}: ${e.message}`);
+      }
+    }
+
+    const lastTrailId = snap.docs.length > 0
+      ? snap.docs[snap.docs.length - 1].id
+      : null;
+    const hasMore = snap.docs.length >= cap * 2;
+
+    // Update state: se hasMore=false abbiamo finito il giro → resetta
+    // cursor (il prossimo ciclo riparte dall'inizio, dedup salta i
+    // già fatti). Altrimenti avanza il cursor.
+    await stateRef.set({
+      lastTrailId: hasMore ? lastTrailId : null,
+      lastRunAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastRunStats: {
+        enriched,
+        skippedAlreadyDone,
+        skippedInvalid,
+        errors,
+        hasMore,
+      },
+      // Counter cumulativo dall'attivazione del cron
+      totalEnriched: (state.totalEnriched || 0) + enriched,
+      cycleCount: hasMore
+        ? (state.cycleCount || 0)
+        : (state.cycleCount || 0) + 1,
+    }, { merge: true });
+
+    logger.info(
+      `[K1b-cron] enriched=${enriched} skip(done)=${skippedAlreadyDone} ` +
+      `skip(invalid)=${skippedInvalid} errors=${errors} hasMore=${hasMore} ` +
+      `lastTrailId=${lastTrailId}`
+    );
+  }
+);
+
 exports.staticMapProxy = onRequest(
   { region: "europe-west3", cors: true, timeoutSeconds: 30 },
   async (req, res) => {
