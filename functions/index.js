@@ -5973,16 +5973,28 @@ exports.enrichTrailsTerrainCron = onSchedule(
 
     const docIdPath = admin.firestore.FieldPath.documentId();
     const cap = _TERRAIN_CRON_BATCH_SIZE;
+    // Overscan 10× il cap per saltare velocemente le zone del DB
+    // già arricchite dai batch manuali. Usiamo .select() per leggere
+    // solo terrainEnrichedAt durante la scansione (no payload pesante
+    // del coordinatesJson). Quando troviamo un doc non arricchito,
+    // _computeTerrainSegments farà fetch del doc completo separato.
+    const scanLimit = cap * 10;
     let query = db.collection('public_trail_geometries').orderBy(docIdPath);
     if (state.lastTrailId && typeof state.lastTrailId === 'string') {
       query = query.startAfter(state.lastTrailId);
     } else {
       query = query.startAt('wmt_relation_');
     }
-    const snap = await query.endAt('wmt_relation_').limit(cap * 2).get();
+    const snap = await query
+      .endAt('wmt_relation_\uf8ff')
+      .select('terrainEnrichedAt')
+      .limit(scanLimit)
+      .get();
 
     let enriched = 0, skippedAlreadyDone = 0, skippedInvalid = 0, errors = 0;
+    let lastScannedId = null;
     for (const doc of snap.docs) {
+      lastScannedId = doc.id;
       if (enriched >= cap) break;
       if (doc.data().terrainEnrichedAt) {
         skippedAlreadyDone++;
@@ -6006,10 +6018,11 @@ exports.enrichTrailsTerrainCron = onSchedule(
       }
     }
 
-    const lastTrailId = snap.docs.length > 0
-      ? snap.docs[snap.docs.length - 1].id
-      : null;
-    const hasMore = snap.docs.length >= cap * 2;
+    // Cursor avanza all'ultimo doc scansionato (anche se cap raggiunto
+    // prima della fine del snap). Così il prossimo tick continua da
+    // lì senza saltare e senza ri-scansionare.
+    const lastTrailId = lastScannedId;
+    const hasMore = snap.docs.length >= scanLimit;
 
     // Update state: se hasMore=false abbiamo finito il giro → resetta
     // cursor (il prossimo ciclo riparte dall'inizio, dedup salta i
