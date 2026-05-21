@@ -14,6 +14,7 @@ import '../record/record_page.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../../core/services/track_photos_service.dart';
 import '../../widgets/difficulty_badge.dart';
+import '../../widgets/expandable_description.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -1031,8 +1032,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  _track.description!,
+                child: ExpandableDescription(
+                  text: _track.description!,
                   style: const TextStyle(fontSize: 14, height: 1.4),
                 ),
               ),

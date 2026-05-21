@@ -7,6 +7,7 @@ import '../../../core/services/discovery_prompt_service.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/difficulty_badge.dart';
+import '../../widgets/expandable_description.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
@@ -583,9 +584,13 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 8),
-            Text(
-              widget.track.description!,
-              style: TextStyle(color: context.textSecondary),
+            ExpandableDescription(
+              text: widget.track.description!,
+              style: TextStyle(
+                color: context.textSecondary,
+                height: 1.45,
+                fontSize: 14,
+              ),
             ),
           ],
         ),

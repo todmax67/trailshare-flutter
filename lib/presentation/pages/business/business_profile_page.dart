@@ -11,6 +11,7 @@ import '../../../data/repositories/admin_repository.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../widgets/business_claim_banner.dart';
+import '../../widgets/expandable_description.dart';
 import '../../widgets/star_rating.dart';
 import 'business_claim_request_page.dart';
 import 'business_analytics_page.dart';
@@ -367,8 +368,8 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
   Widget _buildDescription(Business b) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Text(
-        b.description!,
+      child: ExpandableDescription(
+        text: b.description!,
         style: const TextStyle(fontSize: 14, height: 1.4),
       ),
     );
