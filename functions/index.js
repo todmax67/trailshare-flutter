@@ -5544,9 +5544,10 @@ const _OVERPASS_ENDPOINTS = [
 ];
 
 // User-Agent richiesto dalla policy Overpass (best practice).
+// ⚠️ Solo ASCII negli header HTTP: niente em-dash, accenti, ecc.
 const _OVERPASS_HEADERS = {
   'Content-Type': 'text/plain',
-  'User-Agent': 'TrailShare/2.5.1 (info@trailshare.app) — terrain enrichment K1b',
+  'User-Agent': 'TrailShare/2.5.1 (info@trailshare.app) terrain-enrichment-K1b',
 };
 
 /// Replica server-side di parseTerrainFromOsmTags() — TENERLA SINCRONIZZATA
