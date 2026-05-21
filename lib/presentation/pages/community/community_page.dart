@@ -115,11 +115,25 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // = solo cammini, collection = solo collezioni tematiche.
   TourType? _tourFilterType;
 
+  // Discovery carousel: aperto al primo ingresso alla tab Tracce,
+  // collassato quando l'utente cambia tab (= non interessato a
+  // restare a guardare i consigli). Tap sulla pill collassata lo
+  // riapre.
+  bool _discoveryCollapsed = false;
+  bool _discoveryEverOpened = false; // primo apertura tab tracce
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(() {
+      // Discovery carousel: se l'utente cambia tab significa che
+      // non sta guardando i consigli → li collassiamo per dare più
+      // spazio al contenuto. Tornando sulla tab Tracce restano
+      // collassati finché l'utente non riapre col tap sulla pill.
+      if (_tabController.index != 0 && !_discoveryCollapsed) {
+        setState(() => _discoveryCollapsed = true);
+      }
       // Carica lazy i dati quando si cambia tab
       if (_tabController.index == 1 && _myGroups.isEmpty && !_isLoadingMyGroups) {
         _loadMyGroups();
@@ -887,16 +901,97 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // TAB 1: TRACCE COMMUNITY
   // ═══════════════════════════════════════════════════════════════════════
 
-  Widget _buildTracksTab() {
-    return Column(
+  /// Wrapper attorno al DiscoveryCarousel con stato collassabile.
+  /// Quando collassato, mostra una pill compatta tappabile per
+  /// riaprirlo. Auto-collassato quando l'utente cambia tab (gestito
+  /// dal listener _tabController in initState).
+  Widget _buildCollapsibleDiscovery() {
+    if (_discoveryCollapsed) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => setState(() => _discoveryCollapsed = false),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.3),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lightbulb_outline,
+                    size: 14, color: AppColors.primary),
+                const SizedBox(width: 6),
+                const Text(
+                  'Consigli per te',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.keyboard_arrow_down,
+                    size: 16, color: AppColors.primary),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    // Aperto: carousel completo + bottoncino X in overlay per
+    // collassare manualmente.
+    if (!_discoveryEverOpened) {
+      _discoveryEverOpened = true;
+    }
+    return Stack(
       children: [
-        // Discovery carousel: card informative sulle funzionalita meno
-        // scoperte (Lifeline, Tour, Export FIT, etc). Si auto-collassa se
-        // non ci sono prompt attivi o l'utente li ha tutti dismissati.
         const Padding(
           padding: EdgeInsets.only(top: 8),
           child: DiscoveryCarousel(),
         ),
+        Positioned(
+          top: 4,
+          right: 8,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => setState(() => _discoveryCollapsed = true),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.keyboard_arrow_up,
+                  size: 18,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTracksTab() {
+    return Column(
+      children: [
+        // Discovery carousel: card informative sulle funzionalita meno
+        // scoperte (Lifeline, Tour, Export FIT, etc). Aperto al primo
+        // ingresso → collassato quando l'utente cambia tab (=non
+        // interessato a restare). Tap sulla pill compatta lo riapre.
+        _buildCollapsibleDiscovery(),
 
         // Barra di ricerca
         Padding(
