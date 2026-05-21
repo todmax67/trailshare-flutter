@@ -5509,6 +5509,342 @@ exports.sendNewsletterBatch = onCall(
   }
 );
 
+// ===================================================================
+// SURFACE PROFILE — Enrichment public_trails con terrainSegments (K1b)
+// ===================================================================
+// Cloud Function batch che pre-elabora i tag OSM way per ogni public_trail
+// (relation OSM via Waymarked Trails) e denormalizza un array di
+// TerrainSegment in public_trail_geometries/{trailId}.terrainSegments.
+//
+// Pattern: come il pre-import POI Mountain Finder (statico, refresh
+// periodico) — niente Overpass live dal client. Vantaggio: offline,
+// veloce, niente rate-limit lato utente.
+//
+// Funzioni:
+// - enrichTrailWithTerrain({trailId}) — onCall admin, singolo trail
+// - enrichAllTrailsTerrain({maxTrails, dryRun}) — onCall admin, batch
+//
+// Algoritmo per singolo trail:
+// 1. Estrae osmRelationId dall'id Firestore (formato "wmt_relation_<id>")
+// 2. Query Overpass: relation + way members + tutti i nodi
+// 3. Per ogni way, applica logica equivalente a parseTerrainFromOsmTags
+//    (replicata server-side per evitare import dart→js)
+// 4. Carica coordinatesJson da public_trail_geometries/{trailId}
+// 5. Per ogni TrackPoint, trova la way più vicina (matching nodo)
+// 6. Comprime TrackPoint consecutivi con stesso TerrainType in segmenti
+// 7. Update terrainSegments array sul doc geometria
+
+const _OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
+
+/// Replica server-side di parseTerrainFromOsmTags() — TENERLA SINCRONIZZATA
+/// con lib/data/models/terrain_segment.dart. Funzione pura.
+function _parseTerrainFromOsmTags(tags) {
+  const g = (k) => {
+    const v = tags[k];
+    if (v == null) return null;
+    const t = String(v).trim().toLowerCase();
+    return t.length === 0 ? null : t;
+  };
+  const highway = g('highway');
+  if (highway === 'via_ferrata' || tags['via_ferrata_scale'] || g('climbing') === 'via_ferrata') {
+    return 'via_ferrata';
+  }
+  const surface = g('surface');
+  const sacScale = g('sac_scale');
+  const tracktype = g('tracktype');
+  const rockySurfaces = new Set(['rock', 'rocks', 'scree', 'pebblestone', 'stone']);
+  const alpineSacScales = new Set(['alpine_hiking', 'demanding_alpine_hiking', 'difficult_alpine_hiking']);
+  if (surface && rockySurfaces.has(surface)) return 'rocky';
+  if (sacScale && alpineSacScales.has(sacScale)) return 'rocky';
+  const asphaltSurfaces = new Set(['asphalt', 'paved', 'concrete', 'paving_stones', 'sett', 'cobblestone']);
+  const asphaltHighways = new Set([
+    'primary', 'secondary', 'tertiary', 'unclassified',
+    'residential', 'service', 'cycleway', 'living_street',
+  ]);
+  if (surface && asphaltSurfaces.has(surface)) return 'asphalt';
+  if (highway && asphaltHighways.has(highway)) return 'asphalt';
+  const gravelSurfaces = new Set(['gravel', 'fine_gravel', 'dirt', 'earth', 'ground', 'unpaved', 'compacted']);
+  if (surface && gravelSurfaces.has(surface)) return 'gravel';
+  if (highway === 'track') {
+    if (tracktype === 'grade1' || tracktype === 'grade2' || tracktype === 'grade3') return 'gravel';
+    if (tracktype === 'grade4' || tracktype === 'grade5') return 'path';
+    return 'gravel';
+  }
+  if (highway === 'path' || highway === 'footway' || highway === 'bridleway') return 'path';
+  if (sacScale === 'hiking' || sacScale === 'mountain_hiking') return 'path';
+  return 'unknown';
+}
+
+/// Haversine tra due coordinate (gradi → metri).
+function _haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/// Estrae l'osmRelationId dall'id documento. Format atteso:
+/// "wmt_relation_<id>" → ritorna <id> come numero. null se non matcha.
+function _extractOsmRelationId(trailDocId) {
+  const m = /^wmt_relation_(\d+)$/.exec(trailDocId);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/// Costruisce il query string Overpass QL per una relation.
+/// Recupera relation + way members + nodi (per coordinate).
+function _buildOverpassRelationQuery(relationId) {
+  return `[out:json][timeout:60];relation(${relationId});(._;>;);out body;`;
+}
+
+/// Calcola terrainSegments per un singolo trail.
+/// Ritorna {segments, stats} oppure null se i dati sono insufficienti.
+async function _computeTerrainSegments(trailDocId) {
+  const relationId = _extractOsmRelationId(trailDocId);
+  if (relationId == null) {
+    logger.warn(`[K1b] Trail ${trailDocId} non ha id wmt_relation_<id>, skip`);
+    return null;
+  }
+
+  // 1. Carica geometria
+  const geoDoc = await db.collection('public_trail_geometries').doc(trailDocId).get();
+  if (!geoDoc.exists) {
+    logger.warn(`[K1b] Geometria assente per ${trailDocId}`);
+    return null;
+  }
+  const coordsJsonStr = geoDoc.data().coordinatesJson;
+  if (!coordsJsonStr || typeof coordsJsonStr !== 'string') return null;
+  let coordsList;
+  try {
+    coordsList = JSON.parse(coordsJsonStr);
+  } catch (e) {
+    logger.warn(`[K1b] coordinatesJson malformato per ${trailDocId}: ${e.message}`);
+    return null;
+  }
+  if (!Array.isArray(coordsList) || coordsList.length < 2) return null;
+  // Punti come [lng, lat, ele?] — schema esistente
+  const points = coordsList
+    .filter((p) => Array.isArray(p) && p.length >= 2)
+    .map((p) => ({ lng: p[0], lat: p[1] }));
+  if (points.length < 2) return null;
+
+  // 2. Query Overpass
+  const query = _buildOverpassRelationQuery(relationId);
+  let elements;
+  try {
+    const resp = await axios.post(_OVERPASS_ENDPOINT, query, {
+      headers: { 'Content-Type': 'text/plain' },
+      timeout: 60000,
+    });
+    elements = resp.data?.elements || [];
+  } catch (e) {
+    logger.error(`[K1b] Overpass error per relation ${relationId}: ${e.message}`);
+    return null;
+  }
+
+  // 3. Struttura: ways[] con tags + nodes[]; nodes{} mappa id → coords
+  const nodeMap = new Map(); // nodeId → {lat, lng}
+  const ways = []; // {nodes: [{lat,lng}], terrain: TerrainType}
+  for (const el of elements) {
+    if (el.type === 'node') {
+      nodeMap.set(el.id, { lat: el.lat, lng: el.lon });
+    }
+  }
+  for (const el of elements) {
+    if (el.type === 'way') {
+      const tags = el.tags || {};
+      const terrain = _parseTerrainFromOsmTags(tags);
+      const wayNodes = (el.nodes || [])
+        .map((nid) => nodeMap.get(nid))
+        .filter((n) => n);
+      if (wayNodes.length > 0) {
+        ways.push({ nodes: wayNodes, terrain });
+      }
+    }
+  }
+  if (ways.length === 0) {
+    logger.warn(`[K1b] Nessuna way per relation ${relationId}`);
+    return null;
+  }
+
+  // 4. Per ogni TrackPoint, assegna terrain della way più vicina
+  const pointTerrains = new Array(points.length);
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    let bestTerrain = 'unknown';
+    let bestDist = Infinity;
+    for (const w of ways) {
+      for (const n of w.nodes) {
+        const d = _haversineMeters(p.lat, p.lng, n.lat, n.lng);
+        if (d < bestDist) {
+          bestDist = d;
+          bestTerrain = w.terrain;
+        }
+        if (bestDist < 5) break; // Hot path: < 5m è già match esatto
+      }
+      if (bestDist < 5) break;
+    }
+    // Se il nodo più vicino è > 100m è probabile noise, fallback unknown
+    pointTerrains[i] = bestDist > 100 ? 'unknown' : bestTerrain;
+  }
+
+  // 5. Comprime indici consecutivi con stesso terrain
+  const segments = [];
+  let segStart = 0;
+  for (let i = 1; i <= points.length; i++) {
+    if (i === points.length || pointTerrains[i] !== pointTerrains[segStart]) {
+      segments.push({
+        startIdx: segStart,
+        endIdx: i - 1,
+        type: pointTerrains[segStart],
+      });
+      segStart = i;
+    }
+  }
+
+  // 6. Smoothing: unisce segmenti di <= 2 punti col vicino dominante
+  const smoothed = [];
+  for (const seg of segments) {
+    const len = seg.endIdx - seg.startIdx + 1;
+    if (len <= 2 && smoothed.length > 0) {
+      smoothed[smoothed.length - 1].endIdx = seg.endIdx;
+    } else if (len <= 2 && smoothed.length === 0 && segments.length > 1) {
+      // Primo seg corto: posticipa decisione, unisce col successivo dopo
+      smoothed.push({ ...seg });
+    } else {
+      smoothed.push({ ...seg });
+    }
+  }
+  // Secondo pass: merge segmenti consecutivi con stesso type
+  const merged = [];
+  for (const seg of smoothed) {
+    if (merged.length > 0 && merged[merged.length - 1].type === seg.type) {
+      merged[merged.length - 1].endIdx = seg.endIdx;
+    } else {
+      merged.push(seg);
+    }
+  }
+
+  return {
+    segments: merged,
+    stats: {
+      totalPoints: points.length,
+      waysAnalyzed: ways.length,
+      segmentCount: merged.length,
+      typesFound: [...new Set(merged.map((s) => s.type))],
+    },
+  };
+}
+
+exports.enrichTrailWithTerrain = onCall(
+  { region: 'europe-west3', timeoutSeconds: 120, memory: '512MiB' },
+  async (request) => {
+    if (!(await _isCallerAdmin(request.auth))) {
+      throw new functions.https.HttpsError(
+        'permission-denied', 'Solo admin platform.'
+      );
+    }
+    const { trailId, dryRun } = request.data || {};
+    if (!trailId || typeof trailId !== 'string') {
+      throw new functions.https.HttpsError(
+        'invalid-argument', 'trailId richiesto.'
+      );
+    }
+    const result = await _computeTerrainSegments(trailId);
+    if (!result) {
+      return { success: false, reason: 'no-data-or-invalid' };
+    }
+    if (!dryRun) {
+      await db.collection('public_trail_geometries').doc(trailId).set({
+        terrainSegments: result.segments,
+        terrainEnrichedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    logger.info(
+      `[K1b] enrichTrailWithTerrain trail=${trailId} segments=${result.segments.length} ` +
+      `types=${result.stats.typesFound.join(',')} dryRun=${!!dryRun}`
+    );
+    return {
+      success: true,
+      trailId,
+      dryRun: !!dryRun,
+      ...result.stats,
+    };
+  }
+);
+
+exports.enrichAllTrailsTerrain = onCall(
+  { region: 'europe-west3', timeoutSeconds: 540, memory: '512MiB' },
+  async (request) => {
+    if (!(await _isCallerAdmin(request.auth))) {
+      throw new functions.https.HttpsError(
+        'permission-denied', 'Solo admin platform.'
+      );
+    }
+    const { maxTrails, dryRun, skipAlreadyEnriched } = request.data || {};
+    const cap = Math.min(Math.max(parseInt(maxTrails) || 20, 1), 200);
+
+    // Pesca trail ids candidati. Filtro lato Firestore impossibile per
+    // "non ha terrainEnrichedAt" senza creare index → fetch + filter.
+    const snap = await db.collection('public_trail_geometries')
+      .limit(cap * 3) // overscan per compensare gli skip
+      .get();
+
+    let processed = 0, enriched = 0, skipped = 0;
+    const errors = [];
+    const samples = [];
+    for (const doc of snap.docs) {
+      if (enriched >= cap) break;
+      if (skipAlreadyEnriched !== false && doc.data().terrainEnrichedAt) {
+        skipped++;
+        continue;
+      }
+      processed++;
+      try {
+        const result = await _computeTerrainSegments(doc.id);
+        if (!result) {
+          skipped++;
+          continue;
+        }
+        if (!dryRun) {
+          await db.collection('public_trail_geometries').doc(doc.id).set({
+            terrainSegments: result.segments,
+            terrainEnrichedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+        enriched++;
+        if (samples.length < 5) {
+          samples.push({
+            trailId: doc.id,
+            segments: result.segments.length,
+            types: result.stats.typesFound,
+          });
+        }
+        // Rate limit Overpass (~1 req/sec è prudente per le free instance)
+        await new Promise((r) => setTimeout(r, 1100));
+      } catch (e) {
+        errors.push({ trailId: doc.id, error: e.message });
+      }
+    }
+    logger.info(
+      `[K1b] enrichAllTrailsTerrain processed=${processed} enriched=${enriched} ` +
+      `skipped=${skipped} errors=${errors.length} dryRun=${!!dryRun}`
+    );
+    return {
+      success: true,
+      dryRun: !!dryRun,
+      processed,
+      enriched,
+      skipped,
+      errors: errors.slice(0, 10),
+      samples,
+    };
+  }
+);
+
 exports.staticMapProxy = onRequest(
   { region: "europe-west3", cors: true, timeoutSeconds: 30 },
   async (req, res) => {
