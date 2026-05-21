@@ -111,6 +111,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   final TextEditingController _tourSearchCtrl = TextEditingController();
   String _tourSearchQuery = '';
   String? _tourFilterDifficulty;
+  // Komoot K2-light — filtro tipo tour: null = tutti, consecutive
+  // = solo cammini, collection = solo collezioni tematiche.
+  TourType? _tourFilterType;
 
   @override
   void initState() {
@@ -686,6 +689,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     // partenza approssimata) + filtro difficoltà.
     final query = _tourSearchQuery.toLowerCase();
     final filtered = _publicTours.where((t) {
+      if (_tourFilterType != null && t.type != _tourFilterType) {
+        return false;
+      }
       if (_tourFilterDifficulty != null &&
           t.difficultyGrade != _tourFilterDifficulty) {
         return false;
@@ -695,6 +701,12 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           t.ownerName.toLowerCase().contains(query) ||
           (t.description?.toLowerCase().contains(query) ?? false);
     }).toList();
+
+    // Conteggi rapidi per badge nei chip "Cammini"/"Collezioni".
+    final consecutiveCount =
+        _publicTours.where((t) => t.type == TourType.consecutive).length;
+    final collectionCount =
+        _publicTours.where((t) => t.type == TourType.collection).length;
 
     return Column(
       children: [
@@ -722,6 +734,22 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
             onChanged: (v) => setState(() => _tourSearchQuery = v.trim()),
+          ),
+        ),
+        // Komoot K2-light — filter chip tipo tour: tutti / cammini /
+        // collezioni. Mostra il count come badge sui chip.
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            children: [
+              _typeChip(null, 'Tutti'),
+              _typeChip(TourType.consecutive,
+                  '🥾 Cammini ($consecutiveCount)'),
+              _typeChip(TourType.collection,
+                  '📚 Collezioni ($collectionCount)'),
+            ],
           ),
         ),
         // Filter chip difficoltà
@@ -828,6 +856,28 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         selected: selected,
         onSelected: (_) {
           setState(() => _tourFilterDifficulty = value);
+        },
+      ),
+    );
+  }
+
+  /// Komoot K2-light — chip filtro tipo tour (Cammini/Collezioni).
+  Widget _typeChip(TourType? value, String label) {
+    final selected = _tourFilterType == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+        selected: selected,
+        selectedColor: AppColors.primary.withValues(alpha: 0.18),
+        onSelected: (_) {
+          setState(() => _tourFilterType = value);
         },
       ),
     );
