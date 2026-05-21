@@ -191,6 +191,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       TextEditingController(text: '20');
   bool _terrainBusy = false;
   Map<String, dynamic>? _terrainResult;
+  // Cursore di pagination: l'ID dell'ultimo trail letto al batch
+  // precedente. Passato a startAfterId del prossimo batch per
+  // scorrere il DB senza ri-leggere sempre gli stessi doc.
+  String? _terrainCursorAfterId;
 
   Widget _buildAdminClaimsSection() {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -2093,7 +2097,19 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 isDense: true,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
+            if (_terrainCursorAfterId != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '📍 Cursore: continua dopo ${_terrainCursorAfterId!}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ),
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -2124,6 +2140,15 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     backgroundColor: Colors.brown.shade600,
                   ),
                 ),
+                if (_terrainCursorAfterId != null)
+                  TextButton.icon(
+                    onPressed: _terrainBusy
+                        ? null
+                        : () => setState(() => _terrainCursorAfterId = null),
+                    icon: const Icon(Icons.restart_alt, size: 16),
+                    label: const Text('Reset cursore',
+                        style: TextStyle(fontSize: 12)),
+                  ),
               ],
             ),
 
@@ -2271,15 +2296,29 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         'maxTrails': maxTrails,
         'dryRun': dryRun,
         'skipAlreadyEnriched': true,
+        if (_terrainCursorAfterId != null)
+          'startAfterId': _terrainCursorAfterId,
       });
       if (!mounted) return;
       final data = Map<String, dynamic>.from(result.data as Map);
-      setState(() => _terrainResult = data);
+      // Aggiorna il cursore col lastTrailId restituito dal server.
+      // Se hasMore=false, resettiamo il cursore: il prossimo batch
+      // ripartirà dall'inizio (utile per nuovo ciclo dopo aver
+      // arricchito tutto).
+      final hasMore = data['hasMore'] == true;
+      setState(() {
+        _terrainResult = data;
+        _terrainCursorAfterId = hasMore
+            ? (data['lastTrailId'] as String?)
+            : null;
+      });
       _snack(
         dryRun
-            ? 'Dry-run batch: ${data['enriched']}/${data['processed']}'
+            ? 'Dry-run: ${data['enriched']}/${data['processed']} '
+                '${hasMore ? "(altri trail dopo)" : "(fine pagina)"}'
             : 'Batch: ${data['enriched']} arricchiti, '
-                '${data['skipped']} skip',
+                '${data['skipped']} skip '
+                '${hasMore ? "→ ri-clicca per il prossimo" : "(fine pagina)"}',
         error: false,
       );
     } catch (e) {

@@ -5823,10 +5823,11 @@ exports.enrichAllTrailsTerrain = onCall(
         'permission-denied', 'Solo admin platform.'
       );
     }
-    const { maxTrails, dryRun, skipAlreadyEnriched } = request.data || {};
+    const { maxTrails, dryRun, skipAlreadyEnriched, startAfterId } =
+      request.data || {};
     // Cap hard a 25 per batch per stare ben sotto il timeout function
     // di 540s. Per processare molti trail, il client ri-chiama in loop
-    // sfruttando skipAlreadyEnriched come dedup.
+    // passando startAfterId = ultimo trail letto del batch precedente.
     const cap = Math.min(Math.max(parseInt(maxTrails) || 20, 1), 25);
 
     // Pesca SOLO i doc con id formato "wmt_relation_*" (gli unici
@@ -5834,9 +5835,13 @@ exports.enrichAllTrailsTerrain = onCall(
     // su document id: orderBy + startAt + endAt('').
     // Limit più conservativo perché ora la query è già filtrata.
     const docIdPath = admin.firestore.FieldPath.documentId();
-    const snap = await db.collection('public_trail_geometries')
-      .orderBy(docIdPath)
-      .startAt('wmt_relation_')
+    let query = db.collection('public_trail_geometries').orderBy(docIdPath);
+    if (startAfterId && typeof startAfterId === 'string') {
+      query = query.startAfter(startAfterId);
+    } else {
+      query = query.startAt('wmt_relation_');
+    }
+    const snap = await query
       .endAt('wmt_relation_')
       .limit(cap * 2)
       .get();
@@ -5888,6 +5893,16 @@ exports.enrichAllTrailsTerrain = onCall(
       `skip(done)=${skippedAlreadyDone} skip(invalid)=${skippedInvalid} ` +
       `errors=${errors.length} dryRun=${!!dryRun}`
     );
+    // Cursor per il prossimo batch: l'ID dell'ultimo doc Firestore
+    // letto in questa pagina (anche se skippato). Il client lo passa
+    // come startAfterId del batch successivo per scorrere il DB
+    // intero senza re-leggere sempre gli stessi doc.
+    // null se il batch è arrivato alla fine della pagina query
+    // (segnale: hasMore=false, abbiamo finito).
+    const lastTrailId = snap.docs.length > 0
+      ? snap.docs[snap.docs.length - 1].id
+      : null;
+    const hasMore = snap.docs.length >= cap * 2;
     return {
       success: true,
       dryRun: !!dryRun,
@@ -5898,6 +5913,8 @@ exports.enrichAllTrailsTerrain = onCall(
       skippedInvalid,
       errors: errors.slice(0, 10),
       samples,
+      lastTrailId,
+      hasMore,
     };
   }
 );
