@@ -35,7 +35,7 @@ class OutreachPdfGenerator {
 
     final doc = pw.Document(
       title: 'TrailShare Outreach Kit — ${business.name}',
-      author: 'TrailShare (Bluspose S.r.l.)',
+      author: 'TrailShare',
       theme: pw.ThemeData.withFont(
         base: notoRegular,
         bold: notoBold,
@@ -534,8 +534,7 @@ class OutreachPdfGenerator {
           pw.Divider(color: _border, height: 1),
           pw.SizedBox(height: 6),
           pw.Text(
-            'Per qualunque domanda: info@trailshare.app\n'
-            'TrailShare è gestita da Bluspose S.r.l.',
+            'Per qualunque domanda: info@trailshare.app',
             style: pw.TextStyle(fontSize: 8, color: _muted),
           ),
         ],

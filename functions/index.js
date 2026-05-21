@@ -4850,7 +4850,7 @@ function _buildOutreachEmailHtml(business, claimUrl) {
       <p>Grazie del tempo, buona stagione.</p>
 
       <p>Massimiliano<br>
-      <em>TrailShare · gestita da Bluspose S.r.l.</em><br>
+      <em>TrailShare</em><br>
       <a href="https://trailshare.app">trailshare.app</a></p>
 
       <hr style="border: none; border-top: 1px solid #dfe6e9; margin: 24px 0;">
@@ -5236,7 +5236,7 @@ function _buildNewsletterHtml(displayName, unsubUrl) {
     <p style="margin:16px 0 0;font-size:14px;">
       Buoni sentieri,<br>
       <strong>Massimiliano</strong><br>
-      <span style="color:#8392a5;font-size:13px;">TrailShare · Bluspose S.r.l.</span>
+      <span style="color:#8392a5;font-size:13px;">TrailShare</span>
     </p>
 
   </div>

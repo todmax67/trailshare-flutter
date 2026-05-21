@@ -781,8 +781,7 @@ class _WebOutreachPdfPageState extends State<WebOutreachPdfPage> {
           const Divider(),
           const SizedBox(height: 6),
           const Text(
-            'Per qualunque domanda: info@trailshare.app\n'
-            'TrailShare è gestita da Bluspose S.r.l.',
+            'Per qualunque domanda: info@trailshare.app',
             style: TextStyle(fontSize: 10, color: AppColors.textMuted),
           ),
         ],
