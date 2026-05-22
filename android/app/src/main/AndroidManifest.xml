@@ -62,7 +62,7 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
-        android:label="trailshare_flutter"
+        android:label="TrailShare"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:largeHeap="true"><!-- 2.4.6 — OOM ricorrente su platform channel
