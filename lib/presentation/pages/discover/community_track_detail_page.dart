@@ -9,6 +9,7 @@ import '../../widgets/app_snackbar.dart';
 import '../../widgets/difficulty_badge.dart';
 import '../../widgets/expandable_description.dart';
 import '../../widgets/export_format_sheet.dart';
+import '../../../data/models/track.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
@@ -224,19 +225,23 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                   _buildMainStats(),
 
                   // Komoot K1a Step 2 — badge difficoltà computata.
-                  // Mostrato solo se la traccia ha computedDifficulty
-                  // (tracce nuove ≥ 20/5/2026 o ri-salvate).
-                  if (track.computedDifficulty != null) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        DifficultyBadge(
-                          difficultyKey: track.computedDifficulty,
-                          compact: false,
+                  // Per tracce legacy senza computedDifficulty
+                  // persistito, calcolo al volo dal fallback per
+                  // mostrare comunque il T-grade.
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      DifficultyBadge(
+                        difficultyKey: track.computedDifficulty,
+                        compact: false,
+                        fallbackStats: TrackStats(
+                          distance: track.distance,
+                          elevationGain: track.elevationGain,
                         ),
-                      ],
-                    ),
-                  ],
+                        fallbackActivity: track.parsedActivityType,
+                      ),
+                    ],
+                  ),
 
                   const SizedBox(height: 16),
 

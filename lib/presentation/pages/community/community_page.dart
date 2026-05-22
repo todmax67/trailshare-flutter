@@ -4,12 +4,13 @@ import 'package:flutter_map/flutter_map.dart';
 import '../../../core/utils/difficulty_calculator.dart';
 import '../../../core/utils/text_search.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart' hide ActivityType;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/models/business.dart';
+import '../../../data/models/track.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../business/business_profile_page.dart';
@@ -288,10 +289,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       }).toList();
     }
     if (_filterMinDifficulty != null) {
-      final minIdx = _filterMinDifficulty!.index;
       list = list.where((t) {
         final level = ComputedDifficulty.fromKey(t.computedDifficulty);
-        return level != null && level.index >= minIdx;
+        return level == _filterMinDifficulty;
       }).toList();
     }
     return list;
@@ -875,6 +875,14 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     );
   }
 
+  /// Parser tollerante stringa → ActivityType (per fallback T-grade).
+  ActivityType _parseTrackActivity(String raw) {
+    for (final t in ActivityType.values) {
+      if (t.name == raw) return t;
+    }
+    return ActivityType.trekking;
+  }
+
   /// Komoot K2-light — chip filtro tipo tour (Cammini/Collezioni).
   Widget _typeChip(TourType? value, String label) {
     final selected = _tourFilterType == value;
@@ -1053,7 +1061,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           for (final lvl in levels) ...[
             ChoiceChip(
               label: Text(
-                '${lvl.code}+',
+                lvl.code,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -1340,6 +1348,11 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             sharedAt: track.sharedAt,
             difficulty: track.difficulty,
             computedDifficulty: track.computedDifficulty,
+            fallbackStats: TrackStats(
+              distance: track.distance,
+              elevationGain: track.elevationGain,
+            ),
+            fallbackActivity: _parseTrackActivity(track.activityType),
             photoUrls: track.photoUrls,
             points: track.points,
             onTap: () => _openCommunityTrackDetail(track),

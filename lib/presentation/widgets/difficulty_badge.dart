@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/utils/difficulty_calculator.dart';
+import '../../data/models/track.dart';
 
 /// Badge "T1..T5" colorato per mostrare la difficoltà computata di una
 /// traccia. Si adatta a due varianti:
@@ -15,15 +16,33 @@ class DifficultyBadge extends StatelessWidget {
   final String? difficultyKey;
   final bool compact;
 
+  /// Komoot K1a — fallback per tracce legacy senza computedDifficulty
+  /// persistito. Se [difficultyKey] è null ma [fallbackStats] +
+  /// [fallbackActivity] sono valorizzati, calcola la difficoltà al
+  /// volo per il display (no write su Firestore — quello avviene
+  /// quando l'utente modifica/salva la traccia).
+  final TrackStats? fallbackStats;
+  final ActivityType? fallbackActivity;
+
   const DifficultyBadge({
     super.key,
     required this.difficultyKey,
     this.compact = false,
+    this.fallbackStats,
+    this.fallbackActivity,
   });
 
   @override
   Widget build(BuildContext context) {
-    final level = ComputedDifficulty.fromKey(difficultyKey);
+    var level = ComputedDifficulty.fromKey(difficultyKey);
+    if (level == null &&
+        fallbackStats != null &&
+        fallbackActivity != null) {
+      level = DifficultyCalculator.compute(
+        stats: fallbackStats!,
+        activityType: fallbackActivity!,
+      );
+    }
     if (level == null) return const SizedBox.shrink();
 
     if (compact) {

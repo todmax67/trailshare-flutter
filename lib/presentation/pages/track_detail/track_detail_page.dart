@@ -286,17 +286,20 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   _buildMainStats(),
 
                   // Komoot K1a Step 2 — badge difficoltà computata.
-                  if (_track.computedDifficulty != null) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        DifficultyBadge(
-                          difficultyKey: _track.computedDifficulty,
-                          compact: false,
-                        ),
-                      ],
-                    ),
-                  ],
+                  // Per tracce legacy senza valore persistito, calcolo
+                  // al volo dal fallback (stats + activity) per
+                  // mostrare comunque il T-grade.
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      DifficultyBadge(
+                        difficultyKey: _track.computedDifficulty,
+                        compact: false,
+                        fallbackStats: _track.stats,
+                        fallbackActivity: _track.activityType,
+                      ),
+                    ],
+                  ),
 
                   // ⭐ Galleria foto — visibile sempre al proprietario
                   // (anche se vuota) per permettere add post-import

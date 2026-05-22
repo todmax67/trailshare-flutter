@@ -30,6 +30,10 @@ class CommunityTrackCard extends StatelessWidget {
   final List<String> photoUrls;
   final List<TrackPoint> points;
   final VoidCallback onTap;
+  // Fallback per calcolo on-the-fly del T-grade quando
+  // computedDifficulty è null (tracce legacy).
+  final TrackStats? fallbackStats;
+  final ActivityType? fallbackActivity;
 
   const CommunityTrackCard({
     super.key,
@@ -47,6 +51,8 @@ class CommunityTrackCard extends StatelessWidget {
     this.photoUrls = const [],
     this.points = const [],
     required this.onTap,
+    this.fallbackStats,
+    this.fallbackActivity,
   });
 
   @override
@@ -119,12 +125,16 @@ class CommunityTrackCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   
                   // Badge difficoltà — priorità a computedDifficulty
-                  // (Komoot K1a Step 2). Fallback a difficulty manuale
-                  // per tracce legacy che non hanno il calcolo.
-                  if (computedDifficulty != null)
+                  // persistito; se assente prova il fallback al volo
+                  // (legacy); poi fallback ulteriore a difficulty
+                  // manuale (vecchie tracce con label testuale).
+                  if (computedDifficulty != null ||
+                      (fallbackStats != null && fallbackActivity != null))
                     DifficultyBadge(
                       difficultyKey: computedDifficulty,
                       compact: false,
+                      fallbackStats: fallbackStats,
+                      fallbackActivity: fallbackActivity,
                     )
                   else if (difficulty != null && difficulty!.isNotEmpty)
                     Container(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../data/models/track.dart';
 import '../../data/repositories/community_tracks_repository.dart';
 import 'community_track_card.dart';
 
@@ -46,6 +47,11 @@ class FollowingFeedItem extends StatelessWidget {
             sharedAt: track.sharedAt,
             difficulty: track.difficulty,
             computedDifficulty: track.computedDifficulty,
+            fallbackStats: TrackStats(
+              distance: track.distance,
+              elevationGain: track.elevationGain,
+            ),
+            fallbackActivity: track.parsedActivityType,
             photoUrls: track.photoUrls,
             points: track.points,
             onTap: onTap,

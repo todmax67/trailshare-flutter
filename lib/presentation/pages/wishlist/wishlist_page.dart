@@ -322,6 +322,14 @@ class _WishlistPageState extends State<WishlistPage> {
               sharedAt: track.sharedAt,
               difficulty: track.difficulty,
               computedDifficulty: track.computedDifficulty,
+              fallbackStats: TrackStats(
+                distance: track.distance,
+                elevationGain: track.elevationGain,
+              ),
+              fallbackActivity: ActivityType.values.firstWhere(
+                (t) => t.name == track.activityType,
+                orElse: () => ActivityType.trekking,
+              ),
               onTap: () => _openTrackDetail(track),
             ),
           );
