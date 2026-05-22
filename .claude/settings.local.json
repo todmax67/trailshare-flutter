@@ -5,6 +5,11 @@
       "Bash(xargs basename *)",
       "Bash(git add *)",
       "Bash(git commit -m 'chore: track social_lab/assets structure while excluding media files *)",
+      "Bash(mkdir -p /Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/carousel_intro /Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/web)",
+      "Bash(cp /Volumes/Lexar/Sviluppo/trailshare_flutter/adv/slide_*.png /Volumes/Lexar/Sviluppo/trailshare_flutter/adv/logo.png /Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/carousel_intro/)",
+      "Bash(cp /Volumes/Lexar/Sviluppo/trailshare_flutter/adv/TrailShare_carousel.html /Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/web/)",
+      "Read(//Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/assets/generated/**)",
+      "Bash(git commit -m 'feat\\(social\\): add IG carousel draft + integrate 11 promo slides *)",
       "Bash(chmod +x /Volumes/Lexar/Sviluppo/trailshare_flutter/tool/fetch_italian_pois.sh)",
       "Bash(chmod +x tool/clean_italian_pois.sh)",
       "Bash(bash tool/clean_italian_pois.sh)",
@@ -38,7 +43,8 @@
       "Bash(git commit -m 'fix\\(detail\\): mostra Spazi Pro lungo percorso anche sulle proprie tracce *)",
       "Bash(git commit -m 'fix\\(web\\): ProGateService isPro/isMonetizationActive crashava su web \\(dart:io Platform\\) *)",
       "Bash(git commit -m 'docs\\(roadmap\\): Epic 13 — Trail Connectivity Graph \\(target v2.7.0+\\) *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git -c submodule.recurse=false commit --no-edit)"
     ]
   }
 }
