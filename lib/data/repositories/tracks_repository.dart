@@ -329,9 +329,49 @@ class TracksRepository {
     if (activityType != null) updates['activityType'] = activityType.name;
     if (isPublic != null) updates['isPublic'] = isPublic;
 
-    if (updates.isNotEmpty) {
-      await _tracksCollection(userId).doc(trackId).update(updates);
+    if (updates.isEmpty) return;
+
+    // Komoot K1a — se cambia activityType, oppure se la traccia non
+    // ha ancora computedDifficulty (legacy pre-21/5), ricalcoliamo
+    // T-grade dalle stats correnti. Fetch del doc per leggere stats
+    // + activityType corrente (se non viene cambiato in questo
+    // update).
+    final docRef = _tracksCollection(userId).doc(trackId);
+    final snap = await docRef.get();
+    if (snap.exists) {
+      final data = snap.data();
+      final hasComputed =
+          data?['computedDifficulty'] != null;
+      if (activityType != null || !hasComputed) {
+        final currentActivity = activityType ??
+            _parseActivity(data?['activityType']?.toString());
+        final stats = TrackStats(
+          distance: (data?['distance'] as num?)?.toDouble() ?? 0,
+          elevationGain:
+              (data?['elevationGain'] as num?)?.toDouble() ?? 0,
+          elevationLoss:
+              (data?['elevationLoss'] as num?)?.toDouble() ?? 0,
+        );
+        final newDifficulty = DifficultyCalculator.compute(
+          stats: stats,
+          activityType: currentActivity,
+        );
+        if (newDifficulty != null) {
+          updates['computedDifficulty'] = newDifficulty.firestoreKey;
+        }
+      }
     }
+
+    await docRef.update(updates);
+  }
+
+  /// Parser tolerante per stringhe activityType da Firestore.
+  static ActivityType _parseActivity(String? raw) {
+    if (raw == null) return ActivityType.trekking;
+    for (final t in ActivityType.values) {
+      if (t.name == raw) return t;
+    }
+    return ActivityType.trekking;
   }
 
   /// 📸 Aggiorna le foto di una traccia
