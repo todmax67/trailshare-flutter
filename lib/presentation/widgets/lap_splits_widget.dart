@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/extensions/l10n_extension.dart';
 import '../../core/utils/elevation_processor.dart';
 import '../../data/models/track.dart';
 import 'package:latlong2/latlong.dart';
@@ -18,6 +19,10 @@ class LapData {
   final int startPointIndex;
   final int endPointIndex;
 
+  /// Tempo cumulativo dall'inizio della traccia fino al termine di
+  /// questo lap (4.8). Riempito dal widget dopo il loop di calcolo.
+  final Duration cumulativeTime;
+
   const LapData({
     required this.lapNumber,
     required this.time,
@@ -28,7 +33,35 @@ class LapData {
     this.avgHeartRate,
     required this.startPointIndex,
     required this.endPointIndex,
+    this.cumulativeTime = Duration.zero,
   });
+
+  /// Crea una copia di questo lap con i campi sovrascritti.
+  LapData copyWith({Duration? cumulativeTime}) {
+    return LapData(
+      lapNumber: lapNumber,
+      time: time,
+      distance: distance,
+      elevationGain: elevationGain,
+      elevationLoss: elevationLoss,
+      avgSpeed: avgSpeed,
+      avgHeartRate: avgHeartRate,
+      startPointIndex: startPointIndex,
+      endPointIndex: endPointIndex,
+      cumulativeTime: cumulativeTime ?? this.cumulativeTime,
+    );
+  }
+
+  /// Tempo cumulativo formattato hh:mm:ss (o mm:ss sotto l'ora).
+  String get cumulativeTimeFormatted {
+    final h = cumulativeTime.inHours;
+    final m = cumulativeTime.inMinutes % 60;
+    final s = cumulativeTime.inSeconds % 60;
+    if (h > 0) {
+      return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
 
   /// Passo in formato mm:ss per km
   String get paceFormatted {
@@ -127,10 +160,6 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
     final eleResult = elevationProcessor.process(rawElevations);
     final smoothedElevations = eleResult.smoothedElevations;
 
-    // Per il calcolo dislivello per km, usiamo l'isteresi
-    // tramite un tracker dedicato per ogni lap
-    double? lastSmoothedElevation;
-    
     // Verifica se i timestamp sono validi
     final firstTime = widget.points.first.timestamp;
     final lastTime = widget.points.last.timestamp;
@@ -306,6 +335,13 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
       debugPrint('[LapSplits] Lap $currentLap (parziale ${remainingDistance.toStringAsFixed(0)}m): ${lapTime.inMinutes}m${lapTime.inSeconds % 60}s, +${lapElevationGain.toStringAsFixed(0)}m/-${lapElevationLoss.toStringAsFixed(0)}m');
     }
 
+    // 4.8 — Popola tempo cumulativo: somma incrementale dei tempi di lap.
+    var cumSeconds = 0;
+    for (int i = 0; i < laps.length; i++) {
+      cumSeconds += laps[i].time.inSeconds;
+      laps[i] = laps[i].copyWith(cumulativeTime: Duration(seconds: cumSeconds));
+    }
+
     setState(() => _laps = laps);
     debugPrint('[LapSplits] Totale laps: ${_laps.length}');
   }
@@ -364,10 +400,10 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                 children: [
                   const Icon(Icons.timer, color: AppColors.primary, size: 20),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Statistiche per Km',
-                      style: TextStyle(
+                      context.l10n.statsPerKm,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -402,7 +438,7 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                 children: [
                   SizedBox(width: 40, child: Text('Km', style: _headerStyle)),
                   Expanded(child: Text('Passo', style: _headerStyle, textAlign: TextAlign.center)),
-                  Expanded(child: Text('Vel.', style: _headerStyle, textAlign: TextAlign.center)),
+                  Expanded(child: Text('Cum.', style: _headerStyle, textAlign: TextAlign.center)),
                   Expanded(child: Text('Disliv.', style: _headerStyle, textAlign: TextAlign.center)),
                 ],
               ),
@@ -413,7 +449,7 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _laps.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final lap = _laps[index];
                 final isSelected = _selectedLap == index;
@@ -428,14 +464,14 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    color: isSelected ? AppColors.primary.withOpacity(0.1) : null,
+                    color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : null,
                     child: Row(
                       children: [
                         SizedBox(
                           width: 40,
                           child: Text(
                             isLastPartial 
-                                ? '${(lap.distance / 1000).toStringAsFixed(1)}'
+                                ? (lap.distance / 1000).toStringAsFixed(1)
                                 : '${lap.lapNumber}',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
@@ -452,7 +488,7 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                         ),
                         Expanded(
                           child: Text(
-                            '${lap.avgSpeed.toStringAsFixed(1)}',
+                            lap.cumulativeTimeFormatted,
                             textAlign: TextAlign.center,
                             style: _valueStyle,
                           ),
@@ -499,7 +535,7 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
                   ),
                   Expanded(
                     child: Text(
-                      '${_calculateAvgSpeed().toStringAsFixed(1)}',
+                      _calculateAvgSpeed().toStringAsFixed(1),
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
@@ -537,20 +573,6 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
         ],
       ),
     );
-  }
-
-  String _formatTotalTime() {
-    final total = _laps.fold<Duration>(
-      Duration.zero,
-      (sum, lap) => sum + lap.time,
-    );
-    final hours = total.inHours;
-    final mins = total.inMinutes % 60;
-    final secs = total.inSeconds % 60;
-    if (hours > 0) {
-      return '$hours:${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-    }
-    return '$mins:${secs.toString().padLeft(2, '0')}';
   }
 
   String _calculateAvgPace() {

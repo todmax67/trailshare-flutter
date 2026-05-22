@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/italian_regions.dart';
 import '../models/discover_filters.dart';
 import '../../../../core/extensions/theme_colors_extension.dart';
+import '../../../../core/extensions/l10n_extension.dart';
 
 /// Bottom sheet modale per i filtri avanzati della pagina Scopri.
 ///
@@ -189,14 +191,30 @@ class _DiscoverFilterSheetState extends State<DiscoverFilterSheet> {
                     },
                   ),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Solo sentieri circolari'),
+                    title: Text(context.l10n.filterOnlyCircular),
                     value: _filters.onlyCircular,
                     onChanged: (v) => setState(
                       () => _filters = _filters.copyWith(onlyCircular: v),
                     ),
+                  ),
+
+                  // Epic 4.5 — Filtro regione amministrativa
+                  const SizedBox(height: 16),
+                  _buildSectionTitle('Regione'),
+                  const SizedBox(height: 8),
+                  _RegionPickerRow(
+                    currentCode: _filters.regionCode,
+                    onChanged: (code) {
+                      setState(() {
+                        _filters = _filters.copyWith(
+                          regionCode: code,
+                          clearRegion: code == null,
+                        );
+                      });
+                    },
                   ),
 
                   const SizedBox(height: 16),
@@ -258,6 +276,181 @@ class _DifficultyOption {
   final String label;
   final String emoji;
   const _DifficultyOption(this.code, this.label, this.emoji);
+}
+
+/// Riga che mostra la regione attualmente selezionata (con flag + nome)
+/// e apre il [showRegionPickerSheet] al tap. Esclude la sentinella
+/// `international` dalla lista perché qui filtra le tracce per area
+/// geografica, non per la regione del profilo utente.
+class _RegionPickerRow extends StatelessWidget {
+  final String? currentCode;
+  final ValueChanged<String?> onChanged;
+  const _RegionPickerRow({required this.currentCode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final region = ItalianRegions.byCode(currentCode);
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return Row(
+      children: [
+        Expanded(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () async {
+              final picked = await showModalBottomSheet<ItalianRegion>(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => _DiscoverRegionPickerSheet(
+                  currentCode: currentCode,
+                ),
+              );
+              // null = annullato dall'utente. Per cancellare uso il
+              // bottone X a destra.
+              if (picked != null) onChanged(picked.code);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade400),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    region?.flag ?? '🇮🇹',
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      region != null
+                          ? region.displayName(locale)
+                          : 'Tutte le regioni',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: region == null
+                            ? FontWeight.w400
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.expand_more, color: Colors.grey.shade600),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (currentCode != null) ...[
+          const SizedBox(width: 6),
+          IconButton(
+            tooltip: 'Rimuovi filtro regione',
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: () => onChanged(null),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Bottom sheet con elenco regioni (esclude `international`). Differisce
+/// da [showRegionPickerSheet] in widgets/region_picker_sheet.dart perché
+/// quel widget salva su user_profiles, mentre qui vogliamo solo
+/// selezionare e ritornare.
+class _DiscoverRegionPickerSheet extends StatelessWidget {
+  final String? currentCode;
+  const _DiscoverRegionPickerSheet({this.currentCode});
+
+  @override
+  Widget build(BuildContext context) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final regions = ItalianRegions.all
+        .where((r) => r.code != 'international')
+        .toList();
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.7,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Filtra per regione',
+                  style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 4),
+                itemCount: regions.length,
+                separatorBuilder: (_, i) => const SizedBox(height: 2),
+                itemBuilder: (_, i) {
+                  final r = regions[i];
+                  final selected = r.code == currentCode;
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => Navigator.pop(context, r),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Colors.grey.shade200
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(r.flag, style: const TextStyle(fontSize: 22)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                r.displayName(locale),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: selected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            if (selected)
+                              const Icon(Icons.check_circle, size: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _FilterChip extends StatelessWidget {

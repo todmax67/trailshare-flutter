@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/track.dart';
 import 'cheer_button.dart'; // ⭐ AGGIUNTO: Import CheerButton
+import 'difficulty_badge.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 
 /// Card per visualizzare una traccia della community
@@ -25,6 +26,7 @@ class CommunityTrackCard extends StatelessWidget {
   final int cheerCount;
   final DateTime? sharedAt;
   final String? difficulty;
+  final String? computedDifficulty; // Komoot K1a Step 2
   final List<String> photoUrls;
   final List<TrackPoint> points;
   final VoidCallback onTap;
@@ -41,6 +43,7 @@ class CommunityTrackCard extends StatelessWidget {
     required this.cheerCount,
     this.sharedAt,
     this.difficulty,
+    this.computedDifficulty,
     this.photoUrls = const [],
     this.points = const [],
     required this.onTap,
@@ -52,7 +55,7 @@ class CommunityTrackCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       clipBehavior: Clip.antiAlias,
       elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.2),
+      shadowColor: Colors.black.withValues(alpha: 0.2),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -115,15 +118,22 @@ class CommunityTrackCard extends StatelessWidget {
                   
                   const SizedBox(height: 12),
                   
-                  // Badge difficoltà
-                  if (difficulty != null && difficulty!.isNotEmpty)
+                  // Badge difficoltà — priorità a computedDifficulty
+                  // (Komoot K1a Step 2). Fallback a difficulty manuale
+                  // per tracce legacy che non hanno il calcolo.
+                  if (computedDifficulty != null)
+                    DifficultyBadge(
+                      difficultyKey: computedDifficulty,
+                      compact: false,
+                    )
+                  else if (difficulty != null && difficulty!.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: _getDifficultyColor().withOpacity(0.15),
+                        color: _getDifficultyColor().withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: _getDifficultyColor().withOpacity(0.5),
+                          color: _getDifficultyColor().withValues(alpha: 0.5),
                         ),
                       ),
                       child: Text(
@@ -139,7 +149,7 @@ class CommunityTrackCard extends StatelessWidget {
                   const SizedBox(height: 16),
                   
                   // Divider
-                  Divider(color: Colors.grey.withOpacity(0.3), height: 1),
+                  Divider(color: Colors.grey.withValues(alpha: 0.3), height: 1),
                   
                   const SizedBox(height: 16),
                   
@@ -236,7 +246,7 @@ class CommunityTrackCard extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.6),
+                    Colors.black.withValues(alpha: 0.6),
                   ],
                 ),
               ),
@@ -250,7 +260,7 @@ class CommunityTrackCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
@@ -281,7 +291,7 @@ class CommunityTrackCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -338,10 +348,15 @@ class CommunityTrackCard extends StatelessWidget {
     final lngDiff = maxLng - minLng;
     final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
     double zoom = 14.0;
-    if (maxDiff > 0.5) zoom = 10;
-    else if (maxDiff > 0.2) zoom = 11;
-    else if (maxDiff > 0.1) zoom = 12;
-    else if (maxDiff > 0.05) zoom = 13;
+    if (maxDiff > 0.5) {
+      zoom = 10;
+    } else if (maxDiff > 0.2) {
+      zoom = 11;
+    } else if (maxDiff > 0.1) {
+      zoom = 12;
+    } else if (maxDiff > 0.05) {
+      zoom = 13;
+    }
 
     return IgnorePointer(
       child: FlutterMap(
@@ -524,7 +539,7 @@ class CommunityTrackCardCompact extends StatelessWidget {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -532,7 +547,7 @@ class CommunityTrackCardCompact extends StatelessWidget {
                     ? Image.network(
                         thumbnailUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(
+                        errorBuilder: (_, _, _) => Center(
                           child: Text(activityIcon, style: const TextStyle(fontSize: 24)),
                         ),
                       )

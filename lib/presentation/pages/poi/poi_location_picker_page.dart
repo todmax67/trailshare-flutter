@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina full-screen per scegliere la posizione di un nuovo POI tappando
 /// sulla mappa. Mostra la polyline di riferimento (trail/track) per aiutare
@@ -118,7 +119,7 @@ class _PoiLocationPickerPageState extends State<PoiLocationPickerPage> {
                   Polyline(
                     points: widget.polyline,
                     strokeWidth: 5,
-                    color: AppColors.info.withOpacity(0.7),
+                    color: AppColors.info.withValues(alpha: 0.7),
                     pattern:
                         StrokePattern.dashed(segments: const [10, 6]),
                   ),
@@ -138,7 +139,7 @@ class _PoiLocationPickerPageState extends State<PoiLocationPickerPage> {
                         boxShadow: [
                           BoxShadow(
                             color:
-                                AppColors.success.withOpacity(0.5),
+                                AppColors.success.withValues(alpha: 0.5),
                             blurRadius: 8,
                             spreadRadius: 1,
                           ),
@@ -160,7 +161,7 @@ class _PoiLocationPickerPageState extends State<PoiLocationPickerPage> {
             child: Material(
               elevation: 2,
               borderRadius: BorderRadius.circular(10),
-              color: Colors.white.withOpacity(0.95),
+              color: Colors.white.withValues(alpha: 0.95),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 10),
@@ -212,7 +213,7 @@ class _PoiLocationPickerPageState extends State<PoiLocationPickerPage> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => Navigator.pop<LatLng?>(context, null),
-                  child: const Text('Annulla'),
+                  child: Text(context.l10n.cancel),
                 ),
               ),
               const SizedBox(width: 10),

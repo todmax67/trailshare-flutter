@@ -14,6 +14,10 @@ class UserActivitySnapshot {
   final bool hasExportedFit;
   final bool hasUsedPlanner;
 
+  /// Conteggio delle cime salvate nei preferiti (Mountain Finder).
+  /// Usato per il prompt "Salva la tua prima cima".
+  final int savedPeaksCount;
+
   const UserActivitySnapshot({
     required this.trackCount,
     required this.hasLifelineContacts,
@@ -21,6 +25,7 @@ class UserActivitySnapshot {
     required this.tourCount,
     required this.hasExportedFit,
     required this.hasUsedPlanner,
+    this.savedPeaksCount = 0,
   });
 }
 

@@ -9,8 +9,12 @@ import '../../data/repositories/community_tracks_repository.dart';
 import '../pages/map/track_map_page.dart';
 import '../../core/services/offline_tile_provider.dart';
 import '../../core/services/location_service.dart';
+import '../../data/models/osm_poi.dart';
 import '../../data/models/trail_poi.dart';
+import '../../data/repositories/osm_pois_repository.dart';
 import '../../data/repositories/poi_repository.dart';
+import 'osm_attribution.dart';
+import 'osm_poi_detail_sheet.dart';
 import 'poi_marker_layer.dart';
 import 'poi_detail_sheet.dart';
 import '../../core/extensions/theme_colors_extension.dart';
@@ -67,6 +71,12 @@ class InteractiveTrackMap extends StatefulWidget {
   /// (proprietario di una track). Default false.
   final bool poiIncludePrivate;
 
+  /// Se true, carica e mostra anche i POI OSM (rifugi, sorgenti,
+  /// fontane, panorami…) entro [osmRadiusMeters] dalla polyline.
+  /// Si propaga anche alla fullscreen [TrackMapPage].
+  final bool loadOsmPois;
+  final double osmRadiusMeters;
+
   const InteractiveTrackMap({
     super.key,
     required this.points,
@@ -82,6 +92,8 @@ class InteractiveTrackMap extends StatefulWidget {
     this.poiTrailId,
     this.poiTrackId,
     this.poiIncludePrivate = false,
+    this.loadOsmPois = false,
+    this.osmRadiusMeters = 500,
   });
 
   @override
@@ -98,7 +110,9 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
   final OfflineFallbackTileProvider _tileProvider = OfflineFallbackTileProvider();
 
   final PoiRepository _poiRepo = PoiRepository();
+  final OsmPoisRepository _osmRepo = OsmPoisRepository();
   List<TrailPoi> _pois = const [];
+  List<OsmPoi> _osmPois = const [];
 
   @override
   void initState() {
@@ -107,6 +121,25 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
       _loadUserPosition();
     }
     _loadPois();
+    _loadOsmPois();
+  }
+
+  Future<void> _loadOsmPois() async {
+    if (!widget.loadOsmPois || widget.points.isEmpty) return;
+    await _osmRepo.ensureLoaded();
+    if (!mounted) return;
+    final latLngs = widget.points
+        .map((p) => LatLng(p.latitude, p.longitude))
+        .toList();
+    final found = _osmRepo.findNearPolyline(
+      latLngs,
+      radiusMeters: widget.osmRadiusMeters,
+    );
+    if (mounted) setState(() => _osmPois = found);
+  }
+
+  void _onOsmPoiTap(OsmPoi poi) {
+    showOsmPoiDetailSheet(context, poi: poi);
   }
 
   @override
@@ -115,6 +148,14 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
     if (old.poiTrailId != widget.poiTrailId ||
         old.poiTrackId != widget.poiTrackId) {
       _loadPois();
+    }
+    // Quando il padre carica la geometria completa (semplificata →
+    // dettagliata), la polyline cresce significativamente. Ri-fetch
+    // i POI OSM così la mappa li mostra anche per tratti che la
+    // versione semplificata saltava.
+    if (widget.loadOsmPois &&
+        widget.points.length > old.points.length + 50) {
+      _loadOsmPois();
     }
   }
 
@@ -197,10 +238,15 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
     final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
     
     double zoom = 14.0;
-    if (maxDiff > 0.5) zoom = 10;
-    else if (maxDiff > 0.2) zoom = 11;
-    else if (maxDiff > 0.1) zoom = 12;
-    else if (maxDiff > 0.05) zoom = 13;
+    if (maxDiff > 0.5) {
+      zoom = 10;
+    } else if (maxDiff > 0.2) {
+      zoom = 11;
+    } else if (maxDiff > 0.1) {
+      zoom = 12;
+    } else if (maxDiff > 0.05) {
+      zoom = 13;
+    }
 
     return (center, zoom);
   }
@@ -261,7 +307,9 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
   }
 
   void _openFullscreen() {
-    // Se abbiamo Track o CommunityTrack, usa TrackMapPage con colori pendenza
+    // Se abbiamo Track o CommunityTrack, usa TrackMapPage con colori
+    // pendenza. Le passiamo i POI community già caricati + il flag
+    // loadOsmPois per fare ricaricare gli OSM con stesso radius.
     if (widget.track != null || widget.communityTrack != null) {
       Navigator.push(
         context,
@@ -270,6 +318,13 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
             track: widget.track,
             communityTrack: widget.communityTrack,
             showGradientColors: true,
+            communityPois: _pois,
+            loadOsmPois: widget.loadOsmPois,
+            osmRadiusMeters: widget.osmRadiusMeters,
+            // Komoot K1b — abilita toggle "Terreno" se siamo su un
+            // trail pubblico (Waymarked relation). I terrainSegments
+            // vengono caricati da public_trail_geometries.
+            publicTrailId: widget.poiTrailId,
           ),
         ),
       );
@@ -285,6 +340,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
             userPosition: _userPosition,
             title: widget.title ?? 'Mappa',
             pois: _pois,
+            osmPois: _osmPois,
           ),
         ),
       );
@@ -354,7 +410,39 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                   ],
                 ),
 
-                // POI lungo il percorso (sopra polyline, sotto marker start/end)
+                // POI OSM (rifugi, sorgenti, fontane, panorami…) — sotto
+                // i POI community per non sovrastarli quando coincidono.
+                if (_osmPois.isNotEmpty)
+                  MarkerLayer(
+                    markers: _osmPois.map((poi) => Marker(
+                          point: LatLng(poi.latitude, poi.longitude),
+                          width: 26,
+                          height: 26,
+                          child: GestureDetector(
+                            onTap: () => _onOsmPoiTap(poi),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.info,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 3,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                poi.type.icon,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                            ),
+                          ),
+                        )).toList(),
+                  ),
+
+                // POI community (sopra polyline e OSM, sotto marker start/end)
                 if (_pois.isNotEmpty)
                   PoiMarkerLayer(pois: _pois, onTap: _onPoiTap),
 
@@ -373,7 +461,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               blurRadius: 4,
                               offset: const Offset(0, 2),
                             ),
@@ -395,7 +483,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               blurRadius: 4,
                               offset: const Offset(0, 2),
                             ),
@@ -418,7 +506,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.blue.withOpacity(0.4),
+                                color: Colors.blue.withValues(alpha: 0.4),
                                 blurRadius: 8,
                                 spreadRadius: 2,
                               ),
@@ -457,7 +545,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                               border: Border.all(color: Colors.white, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
+                                  color: Colors.black.withValues(alpha: 0.3),
                                   blurRadius: 4,
                                 ),
                               ],
@@ -482,7 +570,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primary.withOpacity(0.5),
+                                color: AppColors.primary.withValues(alpha: 0.5),
                                 blurRadius: 10,
                                 spreadRadius: 3,
                               ),
@@ -496,6 +584,14 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
               ],
             ),
             
+            // Attribuzione OSM (ODbL): obbligatoria su ogni mappa
+            // che usa tile/dati OSM. Tap apre la copyright page.
+            const Positioned(
+              bottom: 4,
+              right: 4,
+              child: OsmAttribution(),
+            ),
+
             // Info box quando si tocca il percorso
             if (_tappedPoint != null)
               Positioned(
@@ -509,7 +605,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 8,
                       ),
                     ],
@@ -586,7 +682,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.info.withOpacity(0.9),
+                    color: AppColors.info.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -674,6 +770,10 @@ class _FullscreenMapPage extends StatefulWidget {
   /// rifare la query. Se null, nessun POI viene mostrato.
   final List<TrailPoi>? pois;
 
+  /// POI OSM già calcolati dal padre (findNearPolyline). Se null o
+  /// vuoto, niente marker OSM.
+  final List<OsmPoi>? osmPois;
+
   const _FullscreenMapPage({
     required this.points,
     this.photoMarkers,
@@ -681,6 +781,7 @@ class _FullscreenMapPage extends StatefulWidget {
     this.userPosition,
     required this.title,
     this.pois,
+    this.osmPois,
   });
 
   @override
@@ -733,10 +834,15 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
     final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
     
     double zoom = 14.0;
-    if (maxDiff > 0.5) zoom = 10;
-    else if (maxDiff > 0.2) zoom = 11;
-    else if (maxDiff > 0.1) zoom = 12;
-    else if (maxDiff > 0.05) zoom = 13;
+    if (maxDiff > 0.5) {
+      zoom = 10;
+    } else if (maxDiff > 0.2) {
+      zoom = 11;
+    } else if (maxDiff > 0.1) {
+      zoom = 12;
+    } else if (maxDiff > 0.05) {
+      zoom = 13;
+    }
 
     return (center, zoom);
   }
@@ -850,7 +956,39 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                 ],
               ),
 
-              // POI pin (fullscreen)
+              // POI OSM (fullscreen, sotto i community per non sovrastarli)
+              if (widget.osmPois != null && widget.osmPois!.isNotEmpty)
+                MarkerLayer(
+                  markers: widget.osmPois!.map((poi) => Marker(
+                        point: LatLng(poi.latitude, poi.longitude),
+                        width: 32,
+                        height: 32,
+                        child: GestureDetector(
+                          onTap: () =>
+                              showOsmPoiDetailSheet(context, poi: poi),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.info,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              poi.type.icon,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      )).toList(),
+                ),
+
+              // POI community (fullscreen)
               if (_pois.isNotEmpty)
                 PoiMarkerLayer(
                     pois: _pois, onTap: _onPoiTap, markerSize: 40),
@@ -869,7 +1007,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 6,
                           ),
                         ],
@@ -890,7 +1028,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 6,
                           ),
                         ],
@@ -912,7 +1050,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.withOpacity(0.4),
+                              color: Colors.blue.withValues(alpha: 0.4),
                               blurRadius: 12,
                               spreadRadius: 4,
                             ),
@@ -954,7 +1092,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
+                                color: Colors.black.withValues(alpha: 0.3),
                                 blurRadius: 6,
                               ),
                             ],
@@ -967,7 +1105,14 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
               ),
             ],
           ),
-          
+
+          // Attribuzione OSM (ODbL)
+          const Positioned(
+            bottom: 16,
+            right: 12,
+            child: OsmAttribution(),
+          ),
+
           // Info box
           if (_tappedPoint != null)
             Positioned(
@@ -981,7 +1126,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 12,
                     ),
                   ],
@@ -1045,7 +1190,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 8,
                   ),
                 ],

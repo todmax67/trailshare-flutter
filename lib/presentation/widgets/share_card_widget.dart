@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -132,11 +131,11 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
 
       if (mounted) Navigator.pop(context);
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
         text: text,
         subject: 'La mia attività su TrailShare',
-      );
+      ));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -232,7 +231,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                             ? Border.all(color: Colors.black, width: 2.5)
                             : null,
                         boxShadow: isSelected
-                            ? [BoxShadow(color: s.gradientColors.first.withOpacity(0.4), blurRadius: 8)]
+                            ? [BoxShadow(color: s.gradientColors.first.withValues(alpha: 0.4), blurRadius: 8)]
                             : null,
                       ),
                       child: Center(
@@ -343,7 +342,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                 height: 180,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                 ),
               ),
             ),
@@ -355,7 +354,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                 height: 140,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                 ),
               ),
             ),
@@ -372,7 +371,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                       Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: ClipRRect(
@@ -400,7 +399,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
+                              color: Colors.white.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -436,7 +435,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                                   end: Alignment.bottomCenter,
                                   colors: [
                                     Colors.transparent,
-                                    Colors.black.withOpacity(0.5),
+                                    Colors.black.withValues(alpha: 0.5),
                                   ],
                                 ),
                               ),
@@ -470,7 +469,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
+                      color: Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -518,7 +517,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
@@ -548,7 +547,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withValues(alpha: 0.6),
               fontSize: 11,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.3,
@@ -572,7 +571,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
     return Container(
       width: 1,
       height: 30,
-      color: Colors.white.withOpacity(0.15),
+      color: Colors.white.withValues(alpha: 0.15),
     );
   }
 
@@ -619,7 +618,7 @@ class _SharePreviewSheetState extends State<_SharePreviewSheet> {
                 strokeWidth: 4,
                 color: style.trackColor,
                 borderStrokeWidth: 1.5,
-                borderColor: style.trackColor.withOpacity(0.3),
+                borderColor: style.trackColor.withValues(alpha: 0.3),
               ),
             ],
           ),

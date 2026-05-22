@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:math';
+
+import '../../core/services/owner_pro_status_cache.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MODELLI
@@ -12,28 +17,201 @@ class Group {
   final String name;
   final String? description;
   final String? avatarUrl;
+  final String? coverUrl;
+  /// Colore brand custom in formato ARGB int (0xFFRRGGBB). Sostituisce
+  /// l'arancio TrailShare negli accenti UI delle viste interne al
+  /// gruppo (TabBar, badge, ecc.). null = usa default AppColors.primary.
+  final int? brandColor;
   final String createdBy;
   final DateTime createdAt;
   final List<String> memberIds;
   final int memberCount;
   final String visibility; // 'public' | 'private' | 'secret'
   final String? inviteCode;
+
+  /// Marca il gruppo come **Business** (B2B): è la "porta attiva"
+  /// che abilita branding (logo, cover, brand color), badge verificato,
+  /// statistiche e card invito.
+  ///
+  /// Settato manualmente dal super admin per i primi clienti gratis.
+  /// Quando arriverà Stripe sarà aggiornato automaticamente dal webhook
+  /// in base allo stato della subscription.
+  final bool isBusinessGroup;
+
+  /// Tier commerciale Business. Valori previsti: 'none' | 'trial' |
+  /// 'verified' | 'pro' | 'enterprise'. Quando `isBusinessGroup=true`
+  /// ma il campo manca su Firestore (gruppi pre-esistenti), viene
+  /// considerato 'verified' di default per backward compatibility.
+  final String businessTier;
+
+  /// Scadenza del trial Verified (14 giorni). Valido solo se
+  /// `businessTier == 'trial'`. Allo scadere il webhook (futuro)
+  /// dovrà chiamare clearBusinessTier se Stripe non risulta pagante.
+  final DateTime? businessTrialUntil;
+
+  /// Numero cumulativo di utenti che si sono iscritti al gruppo via
+  /// codice invito (sia incollando il codice che via deep link
+  /// trailshare://g/{code}). Stat aggregata Verified.
+  final int qrJoinCount;
+
+  /// Messaggio fisso (Pinned post) mostrato in cima al tab Chat del
+  /// gruppo. Feature riservata al tier Business **Pro** ed Enterprise:
+  /// la UI lo nasconde se il tier scende a Verified o trial scaduto,
+  /// ma il dato resta su Firestore per riattivazione.
+  final String? pinnedPostText;
+  final DateTime? pinnedPostUpdatedAt;
+
+  /// ID dello Spazio Pro (`businesses/{id}`) di cui questo gruppo è la
+  /// "Community VIP". Quando settato, il gruppo:
+  ///  - diventa Pro-equivalent automaticamente (cap espansi + branding
+  ///    visibile, senza bisogno del flag admin `isBusinessGroup=true`);
+  ///  - mostra un badge "Community di [BusinessName]" cliccabile che
+  ///    apre la pagina del business;
+  ///  - può essere gestito dal pannello owner del business.
+  /// Mirror reverse del campo `businesses/{id}.linkedGroupId`.
+  final String? linkedBusinessId;
+
+  /// Nome denormalizzato del business linkato (per evitare un fetch
+  /// dello Spazio Pro solo per mostrare il badge nella header).
+  /// Aggiornato dall'app al link/unlink, non garantito sempre fresh.
+  final String? linkedBusinessName;
+
   bool get isPublic => visibility == 'public';
   bool get isPrivate => visibility == 'private';
   bool get isSecret => visibility == 'secret';
   bool get isDiscoverable => visibility != 'secret';
+
+  /// `true` se questo gruppo è la Community VIP di uno Spazio Pro.
+  /// Comporta automaticamente accesso a branding + cap espansi.
+  bool get isLinkedToBusiness =>
+      linkedBusinessId != null && linkedBusinessId!.isNotEmpty;
+
+  /// Vero quando il gruppo ha una rappresentazione visuale custom
+  /// (logo caricato dall'admin).
+  ///
+  /// Il branding è visibile se il gruppo è "Pro-equivalent" — tre path:
+  ///   1. owner Consumer Pro (`user_profiles.isPro=true`, store-driven)
+  ///   2. `isBusinessGroup=true` (override admin, es. seed clients)
+  ///   3. `linkedBusinessId != null` (gruppo è Community VIP di uno
+  ///      Spazio Pro — Pro-equivalent automatico)
+  /// Altrimenti il branding resta nascosto.
+  bool get hasCustomLogo {
+    if (avatarUrl == null || avatarUrl!.isEmpty) return false;
+    if (isBusinessGroup || isLinkedToBusiness) return true;
+    return OwnerProStatusCache().isOwnerProCached(createdBy) == true;
+  }
+
+  /// Stesso gating di [hasCustomLogo].
+  bool get hasCustomCover {
+    if (coverUrl == null || coverUrl!.isEmpty) return false;
+    if (isBusinessGroup || isLinkedToBusiness) return true;
+    return OwnerProStatusCache().isOwnerProCached(createdBy) == true;
+  }
+
+  /// Rank per il sort della discovery community: i gruppi Business
+  /// con tier alto vengono mostrati in cima ("featured placement").
+  /// I gruppi non-Business hanno rank 0 e sono ordinati tra loro per
+  /// memberCount (vedi [getDiscoverableGroups]).
+  int get discoveryRank {
+    if (!isBusinessActive) return 0;
+    switch (businessTier) {
+      case 'enterprise':
+        return 40;
+      case 'pro':
+        return 30;
+      case 'verified':
+        return 20;
+      case 'trial':
+        return 15;
+      default:
+        return 0;
+    }
+  }
+
+  /// Vero quando il gruppo va etichettato "FEATURED" (tier Pro o
+  /// Enterprise attivo): card discovery con ribbon evidenziato.
+  bool get isFeatured =>
+      isBusinessActive &&
+      (businessTier == 'pro' || businessTier == 'enterprise');
+
+  /// Vero quando il pinned post deve essere visibile: testo presente
+  /// e tier Business attivo Pro o Enterprise.
+  bool get hasActivePinnedPost {
+    final text = pinnedPostText;
+    if (text == null || text.trim().isEmpty) return false;
+    if (!isBusinessActive) return false;
+    return businessTier == 'pro' || businessTier == 'enterprise';
+  }
+
+  /// Vero quando il gruppo è in trial Verified (gratis 14 gg).
+  bool get isInTrial =>
+      businessTier == 'trial' &&
+      businessTrialUntil != null &&
+      businessTrialUntil!.isAfter(DateTime.now());
+
+  /// Vero quando il Business è attivo: tier valido e — se trial —
+  /// non ancora scaduto. Da preferire a `isBusinessGroup` per qualunque
+  /// gating futuro che debba rispettare la scadenza trial.
+  ///
+  /// Oggi `isBusinessGroup` viene gestito a mano e resta affidabile;
+  /// quando arriverà Stripe il webhook farà sì che l'uno e l'altro
+  /// restino allineati. Nel frattempo questo getter copre già la
+  /// logica trial.
+  bool get isBusinessActive {
+    if (!isBusinessGroup) return false;
+    if (businessTier == 'trial') return isInTrial;
+    return businessTier == 'verified' ||
+        businessTier == 'pro' ||
+        businessTier == 'enterprise';
+  }
+
+  /// Giorni rimanenti al trial (0 se non in trial o scaduto).
+  int get trialDaysRemaining {
+    if (!isInTrial) return 0;
+    final diff = businessTrialUntil!.difference(DateTime.now());
+    return diff.inDays + (diff.inHours % 24 > 0 ? 1 : 0);
+  }
+
+  /// Etichetta umana del tier per la UI ("Business Verified",
+  /// "Business Pro", "Trial — 5 giorni", ecc.).
+  String get businessTierLabel {
+    if (!isBusinessGroup) return 'Non Business';
+    switch (businessTier) {
+      case 'trial':
+        return isInTrial
+            ? 'Trial Verified — $trialDaysRemaining giorni rimasti'
+            : 'Trial scaduto';
+      case 'pro':
+        return 'Business Pro';
+      case 'enterprise':
+        return 'Business Enterprise';
+      case 'verified':
+      default:
+        return 'Business Verified';
+    }
+  }
 
   const Group({
     required this.id,
     required this.name,
     this.description,
     this.avatarUrl,
+    this.coverUrl,
+    this.brandColor,
     required this.createdBy,
     required this.createdAt,
     required this.memberIds,
     this.memberCount = 0,
     this.visibility = 'secret',
     this.inviteCode,
+    this.isBusinessGroup = false,
+    this.businessTier = 'none',
+    this.businessTrialUntil,
+    this.qrJoinCount = 0,
+    this.pinnedPostText,
+    this.pinnedPostUpdatedAt,
+    this.linkedBusinessId,
+    this.linkedBusinessName,
   });
 
   factory Group.fromFirestore(DocumentSnapshot doc) {
@@ -43,12 +221,28 @@ class Group {
       name: data['name'] ?? 'Gruppo',
       description: data['description'],
       avatarUrl: data['avatarUrl'],
+      coverUrl: data['coverUrl'],
+      brandColor: (data['brandColor'] as num?)?.toInt(),
       createdBy: data['createdBy'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       memberIds: List<String>.from(data['memberIds'] ?? []),
       memberCount: (data['memberCount'] as num?)?.toInt() ?? 0,
       visibility: _parseVisibility(data),
       inviteCode: data['inviteCode'],
+      isBusinessGroup: data['isBusinessGroup'] == true,
+      // Backward compat: se il gruppo è marcato Business ma non ha
+      // ancora il campo tier, lo trattiamo come Verified (i primi
+      // gruppi seed sono partiti senza tier esplicito).
+      businessTier: (data['businessTier'] as String?) ??
+          (data['isBusinessGroup'] == true ? 'verified' : 'none'),
+      businessTrialUntil:
+          (data['businessTrialUntil'] as Timestamp?)?.toDate(),
+      qrJoinCount: (data['qrJoinCount'] as num?)?.toInt() ?? 0,
+      pinnedPostText: (data['pinnedPostText'] as String?),
+      pinnedPostUpdatedAt:
+          (data['pinnedPostUpdatedAt'] as Timestamp?)?.toDate(),
+      linkedBusinessId: data['linkedBusinessId']?.toString(),
+      linkedBusinessName: data['linkedBusinessName']?.toString(),
     );
   }
 }
@@ -57,6 +251,15 @@ String _parseVisibility(Map<String, dynamic> data) {
   if (data['visibility'] != null) return data['visibility'];
   if (data['isPublic'] == true) return 'public';
   return 'secret';
+}
+
+/// Bucket mensile per le statistiche timeline (Pro). Rappresenta il
+/// primo giorno del mese e il count dell'evento aggregato (membri
+/// iscritti, tracce condivise, eventi creati, ecc.).
+class MonthlyBucket {
+  final DateTime month;
+  final int count;
+  const MonthlyBucket({required this.month, required this.count});
 }
 
 class GroupMember {
@@ -167,6 +370,13 @@ class GroupChallenge {
   final DateTime endDate;
   final String createdBy;
   final String createdByName;
+  /// Epic 3.2 — quando un partecipante raggiunge il target la Cloud
+  /// Function `onChallengeStandingUpdated` marca questi campi. Permette
+  /// alla UI di mostrare il badge "Completata da X" e di skippare il
+  /// dialog di celebrazione se l'utente non è il vincitore.
+  final DateTime? completedAt;
+  final String? completedByUserId;
+  final String? completedByUsername;
 
   const GroupChallenge({
     required this.id,
@@ -177,6 +387,9 @@ class GroupChallenge {
     required this.endDate,
     required this.createdBy,
     this.createdByName = '',
+    this.completedAt,
+    this.completedByUserId,
+    this.completedByUsername,
   });
 
   factory GroupChallenge.fromFirestore(DocumentSnapshot doc) {
@@ -190,11 +403,20 @@ class GroupChallenge {
       endDate: (data['endDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       createdBy: data['createdBy'] ?? '',
       createdByName: data['createdByName'] ?? '',
+      completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
+      completedByUserId: data['completedByUserId']?.toString(),
+      completedByUsername: data['completedByUsername']?.toString(),
     );
   }
 
-  bool get isActive => DateTime.now().isAfter(startDate) && DateTime.now().isBefore(endDate);
-  bool get isCompleted => DateTime.now().isAfter(endDate);
+  /// Sfida nel range temporale corretto E non ancora vinta.
+  bool get isActive =>
+      completedAt == null &&
+      DateTime.now().isAfter(startDate) &&
+      DateTime.now().isBefore(endDate);
+  bool get isExpired => DateTime.now().isAfter(endDate);
+  bool get isWon => completedAt != null;
+  bool get isCompleted => isWon || isExpired;
 
   String get typeIcon {
     switch (type) {
@@ -386,15 +608,18 @@ class GroupsRepository {
   }
 
   /// Carica gruppi dell'utente corrente
-  Future<List<Group>> getMyGroups() async {
+  Future<List<Group>> getMyGroups({bool forceServer = false}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
 
     try {
+      // Source.server forza Firestore a ignorare la cache locale e
+      // rifetchare dal server. Utile dopo upload logo o cambio
+      // isBusinessGroup, altrimenti la lista resta stale.
       final snapshot = await _groupsRef
           .where('memberIds', arrayContains: user.uid)
           .orderBy('createdAt', descending: true)
-          .get();
+          .get(forceServer ? const GetOptions(source: Source.server) : null);
 
       return snapshot.docs.map((doc) => Group.fromFirestore(doc)).toList();
     } catch (e) {
@@ -423,14 +648,27 @@ class GroupsRepository {
 
       // Merge e deduplica
       final allDocs = <String, QueryDocumentSnapshot>{};
-      for (final doc in snapshot1.docs) allDocs[doc.id] = doc;
-      for (final doc in snapshot2.docs) allDocs[doc.id] = doc;
+      for (final doc in snapshot1.docs) {
+        allDocs[doc.id] = doc;
+      }
+      for (final doc in snapshot2.docs) {
+        allDocs[doc.id] = doc;
+      }
 
-      return allDocs.values
+      final discoverable = allDocs.values
           .map((doc) => Group.fromFirestore(doc))
           .where((g) => !g.memberIds.contains(user.uid) && g.isDiscoverable)
           .toList();
 
+      // Sort tier-aware (featured placement Pro): Enterprise → Pro →
+      // Verified → Trial → resto. A parità di rank, ordina per
+      // memberCount desc così i gruppi attivi salgono.
+      discoverable.sort((a, b) {
+        final r = b.discoveryRank.compareTo(a.discoveryRank);
+        if (r != 0) return r;
+        return b.memberCount.compareTo(a.memberCount);
+      });
+      return discoverable;
     } catch (e) {
       debugPrint('[Groups] Errore caricamento gruppi pubblici: $e');
       return [];
@@ -975,7 +1213,124 @@ class GroupsRepository {
     }
   }
 
-  /// Aggiorna punteggio utente nella sfida
+  /// Epic 3.2 — incremento atomico del contributo dell'utente a una
+  /// sfida di gruppo. Usato da [autoUpdateGroupChallengesForTrack] al
+  /// salvataggio di una traccia. Transaction garantisce idempotenza
+  /// vs run concorrenti (es. salvataggio + retry network).
+  Future<void> incrementChallengeStanding(
+    String groupId,
+    String challengeId,
+    double delta, {
+    String? username,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || delta <= 0) return;
+
+    String resolvedUsername = username ?? '';
+    if (resolvedUsername.isEmpty) {
+      try {
+        final profileDoc = await _firestore
+            .collection('user_profiles')
+            .doc(user.uid)
+            .get();
+        resolvedUsername =
+            profileDoc.data()?['username']?.toString() ?? 'Utente';
+      } catch (_) {
+        resolvedUsername = 'Utente';
+      }
+    }
+
+    final standingRef = _groupDoc(groupId)
+        .collection('challenges')
+        .doc(challengeId)
+        .collection('standings')
+        .doc(user.uid);
+
+    try {
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(standingRef);
+        final previous = (snap.data()?['value'] as num?)?.toDouble() ?? 0;
+        tx.set(standingRef, {
+          'username': resolvedUsername,
+          'value': previous + delta,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+    } catch (e) {
+      debugPrint('[Groups] Errore increment standing: $e');
+    }
+  }
+
+  /// Per ogni gruppo a cui appartiene l'utente, scansiona le sfide
+  /// attive che includono la traccia nel proprio intervallo e aggiorna
+  /// le standings con il contributo della traccia. Da chiamare DOPO
+  /// il salvataggio (post_track_save_service).
+  ///
+  /// Contributo per tipo sfida:
+  /// - distance  → metri della traccia
+  /// - elevation → dislivello positivo
+  /// - tracks    → 1 (ogni traccia conta come +1)
+  /// - streak    → 1 al giorno (semplice: ogni traccia +1, l'aggregatore
+  ///               futuro potrebbe fare smart-grouping per giorno)
+  Future<void> autoUpdateGroupChallengesForTrack({
+    required DateTime trackDate,
+    required double distanceMeters,
+    required double elevationGain,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final myGroups = await getMyGroups();
+      if (myGroups.isEmpty) return;
+
+      // Risolvi username una sola volta.
+      String username = 'Utente';
+      try {
+        final profile = await _firestore
+            .collection('user_profiles')
+            .doc(user.uid)
+            .get();
+        username = profile.data()?['username']?.toString() ?? username;
+      } catch (_) {}
+
+      for (final group in myGroups) {
+        final challenges =
+            await getChallenges(group.id, activeOnly: true);
+        for (final c in challenges) {
+          if (trackDate.isBefore(c.startDate) ||
+              trackDate.isAfter(c.endDate)) {
+            continue;
+          }
+          double delta = 0;
+          switch (c.type) {
+            case 'distance':
+              delta = distanceMeters;
+              break;
+            case 'elevation':
+              delta = elevationGain;
+              break;
+            case 'tracks':
+            case 'streak':
+              delta = 1;
+              break;
+          }
+          if (delta <= 0) continue;
+          await incrementChallengeStanding(
+            group.id,
+            c.id,
+            delta,
+            username: username,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[Groups] autoUpdateGroupChallengesForTrack error: $e');
+    }
+  }
+
+  /// Aggiorna punteggio utente nella sfida (LEGACY setter — usato da
+  /// pochi call sites manuali. Per il flusso post-save usa
+  /// [autoUpdateGroupChallengesForTrack]).
   Future<void> updateChallengeStanding(String groupId, String challengeId, double value) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -1039,6 +1394,9 @@ class GroupsRepository {
       // Unisciti
       final success = await joinGroup(group.id);
       if (success) {
+        // Stat Verified: conta gli ingressi via codice invito
+        // (sia QR brandizzato che paste manuale).
+        unawaited(_incrementQrJoinCount(group.id));
         return {'success': true, 'groupId': group.id, 'groupName': group.name};
       } else {
         return {'success': false, 'error': 'Errore nell\'unirsi al gruppo'};
@@ -1301,5 +1659,516 @@ class GroupsRepository {
   String _formatDate(DateTime date) {
     final months = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
     return '${date.day} ${months[date.month - 1]} ${date.year} alle ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // BUSINESS GROUPS (L1)
+  // ─────────────────────────────────────────────────────────────────────
+
+  /// Imposta il tier Business del gruppo. Solo super admin / webhook
+  /// Stripe (in futuro).
+  ///
+  /// [tier] accettati: 'verified' | 'pro' | 'enterprise' | 'trial'.
+  /// Per disattivare un Business usare [clearBusinessTier].
+  ///
+  /// Se tier == 'trial' viene scritto anche `businessTrialUntil`
+  /// (default: oggi + 14 giorni). Il flag legacy `isBusinessGroup`
+  /// viene allineato a true così le UI esistenti che leggono solo
+  /// quel campo continuano a funzionare.
+  Future<bool> setBusinessTier(
+    String groupId,
+    String tier, {
+    DateTime? trialUntil,
+  }) async {
+    final allowed = {'verified', 'pro', 'enterprise', 'trial'};
+    if (!allowed.contains(tier)) {
+      debugPrint('[GroupsRepo] Tier non valido: $tier');
+      return false;
+    }
+    try {
+      final update = <String, dynamic>{
+        'isBusinessGroup': true,
+        'businessTier': tier,
+      };
+      if (tier == 'trial') {
+        final until =
+            trialUntil ?? DateTime.now().add(const Duration(days: 14));
+        update['businessTrialUntil'] = Timestamp.fromDate(until);
+      } else {
+        update['businessTrialUntil'] = FieldValue.delete();
+      }
+      await _groupDoc(groupId).update(update);
+      debugPrint('[GroupsRepo] setBusinessTier $groupId = $tier');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore setBusinessTier: $e');
+      return false;
+    }
+  }
+
+  /// Disattiva il Business sul gruppo. Pulisce flag, tier, trial e
+  /// avatarUrl (il logo non si tiene se non sei più premium).
+  Future<bool> clearBusinessTier(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({
+        'isBusinessGroup': false,
+        'businessTier': 'none',
+        'businessTrialUntil': FieldValue.delete(),
+        'avatarUrl': FieldValue.delete(),
+      });
+      debugPrint('[GroupsRepo] clearBusinessTier $groupId');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore clearBusinessTier: $e');
+      return false;
+    }
+  }
+
+  /// Wrapper legacy. Conservato per non rompere l'admin panel
+  /// esistente. `value=true` attiva il tier Verified, `value=false`
+  /// disattiva tutto.
+  Future<bool> setBusinessFlag(String groupId, bool value) async {
+    if (value) {
+      return setBusinessTier(groupId, 'verified');
+    }
+    return clearBusinessTier(groupId);
+  }
+
+  /// Carica un logo per il gruppo Business. Restituisce l'URL pubblico
+  /// dell'immagine in Firebase Storage o null su errore.
+  ///
+  /// Path storage: `groups/{groupId}/logo.jpg`. Sostituisce qualsiasi
+  /// logo precedente (overwrite). Il chiamante deve essere admin del
+  /// gruppo E il gruppo deve avere isBusinessGroup=true (controllo lato
+  /// UI prima di mostrare il pulsante upload).
+  Future<String?> uploadGroupLogo(String groupId, Uint8List bytes) async {
+    try {
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('groups')
+          .child(groupId)
+          .child('logo.jpg');
+      final task = await ref.putData(
+        bytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      final url = await task.ref.getDownloadURL();
+      // Salva l'URL su Firestore cosi' la UI lo legge dal modello Group
+      await _groupDoc(groupId).update({'avatarUrl': url});
+      debugPrint('[GroupsRepo] Logo caricato per $groupId: $url');
+      return url;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore uploadGroupLogo: $e');
+      return null;
+    }
+  }
+
+  /// Conta i nuovi membri del gruppo bucketati per mese, ultimi
+  /// [months] mesi (incluso il corrente). Ritorna sempre [months]
+  /// elementi anche se il count è 0.
+  ///
+  /// Usato dalle statistiche avanzate Pro per la timeline membri.
+  Future<List<MonthlyBucket>> getMonthlyMemberJoins(
+    String groupId, {
+    int months = 6,
+  }) async {
+    try {
+      final snap = await _groupDoc(groupId).collection('members').get();
+      final dates = snap.docs
+          .map((d) => (d.data()['joinedAt'] as Timestamp?)?.toDate())
+          .whereType<DateTime>()
+          .toList();
+      return _bucketByMonth(dates, months: months);
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore getMonthlyMemberJoins: $e');
+      return _emptyBuckets(months);
+    }
+  }
+
+  /// Conta gli eventi creati per mese (usa il campo `date` dell'evento
+  /// come proxy del "mese a cui si riferisce l'evento").
+  Future<List<MonthlyBucket>> getMonthlyEventCreations(
+    String groupId, {
+    int months = 6,
+  }) async {
+    try {
+      final snap = await _groupDoc(groupId).collection('events').get();
+      final dates = snap.docs
+          .map((d) => (d.data()['date'] as Timestamp?)?.toDate())
+          .whereType<DateTime>()
+          .toList();
+      return _bucketByMonth(dates, months: months);
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore getMonthlyEventCreations: $e');
+      return _emptyBuckets(months);
+    }
+  }
+
+  /// Conta le tracce condivise nel gruppo bucketate per mese di
+  /// `createdAt` della traccia. Usa una collectionGroup query.
+  Future<List<MonthlyBucket>> getMonthlyTrackShares(
+    String groupId, {
+    int months = 6,
+  }) async {
+    try {
+      final snap = await _firestore
+          .collectionGroup('tracks')
+          .where('groupIds', arrayContains: groupId)
+          .get();
+      final dates = snap.docs
+          .map((d) => (d.data()['createdAt'] as Timestamp?)?.toDate())
+          .whereType<DateTime>()
+          .toList();
+      return _bucketByMonth(dates, months: months);
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore getMonthlyTrackShares: $e');
+      return _emptyBuckets(months);
+    }
+  }
+
+  /// Helper: bucket di [dates] per mese, ritornando gli ultimi
+  /// [months] mesi in ordine cronologico (il più vecchio per primo,
+  /// il più recente per ultimo). I mesi senza match hanno count=0.
+  List<MonthlyBucket> _bucketByMonth(
+    List<DateTime> dates, {
+    required int months,
+  }) {
+    final now = DateTime.now();
+    final firstMonth = DateTime(now.year, now.month - (months - 1), 1);
+    final buckets = <MonthlyBucket>[];
+    for (int i = 0; i < months; i++) {
+      final m = DateTime(firstMonth.year, firstMonth.month + i, 1);
+      buckets.add(MonthlyBucket(month: m, count: 0));
+    }
+    for (final d in dates) {
+      if (d.isBefore(firstMonth)) continue;
+      final idx = (d.year - firstMonth.year) * 12 +
+          (d.month - firstMonth.month);
+      if (idx >= 0 && idx < buckets.length) {
+        buckets[idx] = MonthlyBucket(
+          month: buckets[idx].month,
+          count: buckets[idx].count + 1,
+        );
+      }
+    }
+    return buckets;
+  }
+
+  List<MonthlyBucket> _emptyBuckets(int months) {
+    final now = DateTime.now();
+    final firstMonth = DateTime(now.year, now.month - (months - 1), 1);
+    return [
+      for (int i = 0; i < months; i++)
+        MonthlyBucket(
+          month: DateTime(firstMonth.year, firstMonth.month + i, 1),
+          count: 0,
+        ),
+    ];
+  }
+
+  /// Increment best-effort del counter qrJoinCount sul gruppo.
+  /// Fallisce silenziosamente — la stat è informativa, non critica.
+  Future<void> _incrementQrJoinCount(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({
+        'qrJoinCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore _incrementQrJoinCount: $e');
+    }
+  }
+
+  /// Promuove un membro a co-admin del gruppo. Solo il founder può
+  /// chiamare (controllo locale + server-side via Firestore rule).
+  ///
+  /// Restituisce un map `{ success: bool, error?: String }`.
+  /// Errori possibili: utente non founder, target non è membro,
+  /// cap admin Pro raggiunto.
+  Future<Map<String, dynamic>> promoteToAdmin(
+    String groupId,
+    String targetUserId,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return {'success': false, 'error': 'Non autenticato'};
+    }
+    try {
+      final group = await getGroup(groupId);
+      if (group == null) return {'success': false, 'error': 'Gruppo non trovato'};
+      if (group.createdBy != user.uid) {
+        return {'success': false, 'error': 'Solo il founder può gestire gli admin'};
+      }
+      final memberDocRef =
+          _groupDoc(groupId).collection('members').doc(targetUserId);
+      final memberSnap = await memberDocRef.get();
+      if (!memberSnap.exists) {
+        return {'success': false, 'error': 'L\'utente non è membro del gruppo'};
+      }
+      if (memberSnap.data()?['role'] == 'admin') {
+        return {'success': false, 'error': 'L\'utente è già admin'};
+      }
+      // Cap check: conta admin attuali (escludendo il founder).
+      final adminsSnap = await _groupDoc(groupId)
+          .collection('members')
+          .where('role', isEqualTo: 'admin')
+          .get();
+      final additionalAdmins = adminsSnap.docs
+          .where((d) => d.id != group.createdBy)
+          .length;
+      // Limite Sprint B (cap derivati da owner Pro status):
+      // - owner Free  → 0 co-admin (solo founder)
+      // - owner Pro   → 5 co-admin
+      // La UI dovrebbe già aver bloccato; check server-side come safety.
+      final maxAdditional = await _additionalAdminCapInternal(group);
+      if (maxAdditional != null && additionalAdmins >= maxAdditional) {
+        return {
+          'success': false,
+          'error': maxAdditional == 0
+              ? 'I gruppi Free non supportano co-admin. Passa a TrailShare Pro.'
+              : 'Hai raggiunto il limite di $maxAdditional co-admin.',
+        };
+      }
+      await memberDocRef.update({'role': 'admin'});
+      debugPrint('[GroupsRepo] $targetUserId promosso ad admin in $groupId');
+      return {'success': true};
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore promoteToAdmin: $e');
+      return {'success': false, 'error': 'Errore: $e'};
+    }
+  }
+
+  /// Demote di un co-admin a member. Solo il founder può chiamare.
+  /// Il founder non può essere demoteato (regola applicata anche
+  /// lato Firestore).
+  Future<Map<String, dynamic>> demoteToMember(
+    String groupId,
+    String targetUserId,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return {'success': false, 'error': 'Non autenticato'};
+    }
+    try {
+      final group = await getGroup(groupId);
+      if (group == null) return {'success': false, 'error': 'Gruppo non trovato'};
+      if (group.createdBy != user.uid) {
+        return {'success': false, 'error': 'Solo il founder può gestire gli admin'};
+      }
+      if (targetUserId == group.createdBy) {
+        return {'success': false, 'error': 'Il founder non può essere demoteato'};
+      }
+      await _groupDoc(groupId)
+          .collection('members')
+          .doc(targetUserId)
+          .update({'role': 'member'});
+      debugPrint('[GroupsRepo] $targetUserId demoteato a member in $groupId');
+      return {'success': true};
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore demoteToMember: $e');
+      return {'success': false, 'error': 'Errore: $e'};
+    }
+  }
+
+  /// Helper interno per il cap admin Sprint B (legge owner Pro status).
+  /// Evita la dipendenza circolare core/utils ↔ data/repositories
+  /// importando il servizio direttamente.
+  Future<int?> _additionalAdminCapInternal(Group group) async {
+    if (group.createdBy.isEmpty) return 0;
+    final ownerIsPro =
+        await OwnerProStatusCache().isOwnerPro(group.createdBy);
+    return ownerIsPro ? 5 : 0;
+  }
+
+  /// Genera la stringa CSV della lista membri del gruppo per l'export
+  /// del tier Pro/Enterprise. Include username, email (dal profilo
+  /// utente), ruolo e data di iscrizione in ISO 8601.
+  ///
+  /// Solo admin del gruppo può chiamare (controllo lato UI). Le email
+  /// vengono fetchate dai documenti `user_profiles/{uid}` con un
+  /// piccolo batch parallelo — accettabile fino a qualche centinaia
+  /// di membri.
+  Future<String> exportMembersToCsv(String groupId) async {
+    final members = await getMembers(groupId);
+
+    // Fetch parallelo dei profili per recuperare l'email. Limitato a
+    // 25 query in parallelo per non saturare la rete sui device deboli.
+    final futures = members.map((m) async {
+      try {
+        final profile = await _firestore
+            .collection('user_profiles')
+            .doc(m.userId)
+            .get();
+        return profile.data()?['email'] as String?;
+      } catch (_) {
+        return null;
+      }
+    });
+    final emails = await Future.wait(futures);
+
+    final buf = StringBuffer();
+    buf.writeln('username,email,role,joinedAt');
+    for (int i = 0; i < members.length; i++) {
+      final m = members[i];
+      final email = emails[i] ?? '';
+      buf.writeln([
+        m.username,
+        email,
+        m.role,
+        m.joinedAt.toIso8601String(),
+      ].map(_csvEscape).join(','));
+    }
+    return buf.toString();
+  }
+
+  String _csvEscape(String s) {
+    if (s.contains(',') ||
+        s.contains('"') ||
+        s.contains('\n') ||
+        s.contains('\r')) {
+      return '"${s.replaceAll('"', '""')}"';
+    }
+    return s;
+  }
+
+  /// Imposta il pinned post (messaggio fisso in cima alla chat).
+  /// Feature Pro: il chiamante deve essere admin del gruppo e il
+  /// gruppo deve avere tier `pro` o `enterprise` (controlli lato UI).
+  ///
+  /// [text] viene troncato a 500 caratteri lato server (Firestore
+  /// non ha limite ma teniamo la UI leggibile).
+  Future<bool> setPinnedPost(String groupId, String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return clearPinnedPost(groupId);
+    final clipped = trimmed.length > 500 ? trimmed.substring(0, 500) : trimmed;
+    try {
+      await _groupDoc(groupId).update({
+        'pinnedPostText': clipped,
+        'pinnedPostUpdatedAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint('[GroupsRepo] setPinnedPost $groupId (${clipped.length} chars)');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore setPinnedPost: $e');
+      return false;
+    }
+  }
+
+  /// Rimuove il pinned post dal gruppo.
+  Future<bool> clearPinnedPost(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({
+        'pinnedPostText': FieldValue.delete(),
+        'pinnedPostUpdatedAt': FieldValue.delete(),
+      });
+      debugPrint('[GroupsRepo] clearPinnedPost $groupId');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore clearPinnedPost: $e');
+      return false;
+    }
+  }
+
+  /// Imposta il colore brand custom del gruppo. Salvato come int ARGB
+  /// (0xFFRRGGBB). Solo gruppi Business — controllo lato UI.
+  Future<bool> setBrandColor(String groupId, int colorValue) async {
+    try {
+      await _groupDoc(groupId).update({'brandColor': colorValue});
+      debugPrint('[GroupsRepo] BrandColor $groupId = ${colorValue.toRadixString(16)}');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore setBrandColor: $e');
+      return false;
+    }
+  }
+
+  /// Resetta il colore brand al default (rimuove il campo Firestore).
+  Future<bool> clearBrandColor(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({'brandColor': FieldValue.delete()});
+      debugPrint('[GroupsRepo] BrandColor $groupId resettato');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore clearBrandColor: $e');
+      return false;
+    }
+  }
+
+  /// Carica una cover image 16:9 per il gruppo Business. Restituisce
+  /// l'URL pubblico o null su errore.
+  ///
+  /// Path storage: `groups/{groupId}/cover.jpg`. Sostituisce qualsiasi
+  /// cover precedente (overwrite). Stesso pattern di [uploadGroupLogo].
+  Future<String?> uploadGroupCover(String groupId, Uint8List bytes) async {
+    try {
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('groups')
+          .child(groupId)
+          .child('cover.jpg');
+      final task = await ref.putData(
+        bytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      final url = await task.ref.getDownloadURL();
+      await _groupDoc(groupId).update({'coverUrl': url});
+      debugPrint('[GroupsRepo] Cover caricata per $groupId: $url');
+      return url;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore uploadGroupCover: $e');
+      return null;
+    }
+  }
+
+  /// Rimuove la cover image del gruppo (sia Storage che il puntatore
+  /// su Firestore). Idempotente.
+  Future<bool> removeGroupCover(String groupId) async {
+    try {
+      await _groupDoc(groupId).update({
+        'coverUrl': FieldValue.delete(),
+      });
+      try {
+        await FirebaseStorage.instance
+            .ref()
+            .child('groups')
+            .child(groupId)
+            .child('cover.jpg')
+            .delete();
+      } catch (_) {
+        // Ignora "object not found"
+      }
+      debugPrint('[GroupsRepo] Cover rimossa per $groupId');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore removeGroupCover: $e');
+      return false;
+    }
+  }
+
+  /// Rimuove il logo personalizzato del gruppo (sia Storage che il
+  /// puntatore su Firestore). Idempotente.
+  Future<bool> removeGroupLogo(String groupId) async {
+    try {
+      // Prima togli il puntatore Firestore (cosi' la UI non punta a
+      // un'immagine in via di cancellazione)
+      await _groupDoc(groupId).update({
+        'avatarUrl': FieldValue.delete(),
+      });
+      // Poi cancella il file Storage (best-effort, se gia' assente OK)
+      try {
+        await FirebaseStorage.instance
+            .ref()
+            .child('groups')
+            .child(groupId)
+            .child('logo.jpg')
+            .delete();
+      } catch (_) {
+        // Ignora "object not found"
+      }
+      debugPrint('[GroupsRepo] Logo rimosso per $groupId');
+      return true;
+    } catch (e) {
+      debugPrint('[GroupsRepo] Errore removeGroupLogo: $e');
+      return false;
+    }
   }
 }

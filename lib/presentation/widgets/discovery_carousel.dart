@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../core/extensions/l10n_extension.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 import '../../core/services/discovery_prompt_service.dart';
 import '../../core/services/monthly_report_service.dart';
@@ -55,19 +54,36 @@ class _DiscoveryCarouselState extends State<DiscoveryCarousel> {
   }
 
   Future<void> _load() async {
-    // Assicura che la sfida settimanale sia caricata prima del collect:
-    // il prompt weekly_challenge valuta WeeklyChallengesService().cached.
-    await WeeklyChallengesService().ensureCurrent();
-    // Stessa cosa per il report mensile: il prompt monthly_report_ready
-    // legge MonthlyReportService().hasNewReportCached (sync).
-    await MonthlyReportService().refreshHasNewReportFlag();
-    // Regione utente: necessaria per il prompt "imposta la tua regione".
-    if (!UserRegionService().isLoaded) {
-      await UserRegionService().load();
+    // I tre prefetch sotto sono best-effort: se uno fallisce (permission,
+    // offline, transitorio) il carousel deve comunque mostrare i prompt
+    // che NON dipendono da quella sorgente, invece di restare vuoto come
+    // succedeva prima del fix.
+    try {
+      await WeeklyChallengesService().ensureCurrent();
+    } catch (e) {
+      debugPrint('[DiscoveryCarousel] weekly challenge prefetch failed: $e');
+    }
+    try {
+      await MonthlyReportService().refreshHasNewReportFlag();
+    } catch (e) {
+      debugPrint('[DiscoveryCarousel] monthly report prefetch failed: $e');
+    }
+    try {
+      if (!UserRegionService().isLoaded) {
+        await UserRegionService().load();
+      }
+    } catch (e) {
+      debugPrint('[DiscoveryCarousel] region prefetch failed: $e');
     }
     if (!mounted) return;
     final candidates = DiscoveryPromptsRegistry.all(context);
-    final active = await _service.collect(candidates);
+    List<DiscoveryPrompt> active;
+    try {
+      active = await _service.collect(candidates);
+    } catch (e) {
+      debugPrint('[DiscoveryCarousel] collect failed: $e');
+      active = const [];
+    }
     if (!mounted) return;
     setState(() {
       _prompts = active;

@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
+import '../../../data/repositories/tracks_repository.dart';
 import '../follow/follow_list_page.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -84,21 +85,18 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         _username = widget.username ?? 'Utente';
       }
 
-      // Carica stats tracce
-      final tracksSnapshot = await _firestore
-          .collection('users')
-          .doc(widget.userId)
-          .collection('tracks')
-          .get();
-
-      _totalTracks = tracksSnapshot.docs.length;
+      // Carica stats tracce via TracksRepository.getUserTracksLightweight
+      // — query con limit alto e SKIP del campo `points` prima del parse,
+      // così niente OOM (era 24MB+ con GPS embedded) e niente null
+      // silenziosi della aggregate.sum (vedi profile_page).
+      final tracks = await TracksRepository()
+          .getUserTracksLightweight(widget.userId);
+      _totalTracks = tracks.length;
       _totalDistance = 0;
       _totalElevation = 0;
-
-      for (final doc in tracksSnapshot.docs) {
-        final data = doc.data();
-        _totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
-        _totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
+      for (final t in tracks) {
+        _totalDistance += t.stats.distance;
+        _totalElevation += t.stats.elevationGain;
       }
 
       // Verifica se lo seguo
@@ -234,7 +232,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       children: [
         CircleAvatar(
           radius: 50,
-          backgroundColor: AppColors.primary.withOpacity(0.1),
+          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
           backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
           child: _avatarUrl == null
               ? Text(
@@ -300,9 +298,9 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
+        color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -437,7 +435,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               child: const Icon(Icons.route, color: AppColors.primary),
             ),
             title: Text(

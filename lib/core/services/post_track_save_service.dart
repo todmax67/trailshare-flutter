@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'badge_evaluator_service.dart';
 import 'gamification_service.dart';
 import 'challenges_service.dart';
 import 'segment_matching_service.dart';
@@ -9,6 +10,7 @@ import '../extensions/l10n_extension.dart';
 import '../../data/models/segment.dart';
 import '../../data/models/track.dart';
 import '../../data/models/weekly_challenge.dart';
+import '../../data/repositories/groups_repository.dart';
 import '../../data/repositories/segments_repository.dart';
 import '../../presentation/widgets/level_up_dialog.dart';
 import '../../presentation/widgets/segment_results_dialog.dart';
@@ -105,22 +107,35 @@ class PostTrackSaveService {
     // STEP 2: Controlla e sblocca badge
     // ═══════════════════════════════════════════════════════════════
     try {
-      // Calcola totali utente da tutte le tracce
-      final tracksSnapshot = await _firestore
+      // Calcola totali utente via SERVER-SIDE aggregation.
+      // CRITICO: il loop precedente scaricava ogni traccia con i GPS
+      // points embedded (24MB+ su utenti con storico) → OutOfMemory
+      // sul thread Firestore proprio al post-save di una traccia,
+      // crashando l'app nel flow più critico.
+      //
+      // TRADE-OFF: l'aggregation include anche le tracce pianificate
+      // (planner ORS) nei totali badge — Firestore non supporta
+      // 'isPlanned != true OR isNull' in una sola query e split + sum
+      // raddoppia il costo. Il bias è minimo (utenti tipici hanno
+      // pochissime planned tracks) e infinitamente preferibile a un
+      // crash. La precisione si recupera col fix vero (split sub-
+      // collection track_points, già in backlog).
+      final tracksRef = _firestore
           .collection('users')
           .doc(user.uid)
-          .collection('tracks')
+          .collection('tracks');
+      final agg = await tracksRef
+          .aggregate(
+            count(),
+            sum('distance'),
+            sum('elevationGain'),
+          )
           .get();
-
-      double totalDistance = 0;
-      double totalElevation = 0;
-      int totalTracks = tracksSnapshot.docs.length;
-
-      for (final doc in tracksSnapshot.docs) {
-        final data = doc.data();
-        totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
-        totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
-      }
+      final int totalTracks = agg.count ?? 0;
+      final double totalDistance =
+          (agg.getSum('distance') ?? 0).toDouble();
+      final double totalElevation =
+          (agg.getSum('elevationGain') ?? 0).toDouble();
 
       // Ottieni followers
       int followersCount = 0;
@@ -164,6 +179,15 @@ class PostTrackSaveService {
 
       if (newBadges.isNotEmpty) {
         debugPrint('[PostTrackSave] 🏅 Nuovi badge: ${newBadges.map((b) => b.name).join(', ')}');
+      }
+
+      // Sistema badge Garmin-style (Epic refactor): popola in parallelo
+      // i tier multi-livello (totalDistance_bronze..platinum, ecc.).
+      // Best-effort, non blocca il flow se errore.
+      try {
+        await BadgeEvaluatorService().getAllProgress();
+      } catch (e) {
+        debugPrint('[PostTrackSave] BadgeEvaluator error: $e');
       }
     } catch (e) {
       debugPrint('[PostTrackSave] ❌ Errore badge: $e');
@@ -259,11 +283,13 @@ class PostTrackSaveService {
           await Future.delayed(const Duration(milliseconds: 500));
           if (context.mounted) {
             final totalXp = await _getCurrentXp(user.uid);
-            await showLevelUpDialog(
-              context,
-              newLevel: newLevel,
-              totalXp: totalXp,
-            );
+            if (context.mounted) {
+              await showLevelUpDialog(
+                context,
+                newLevel: newLevel,
+                totalXp: totalXp,
+              );
+            }
           }
         }
 
@@ -317,6 +343,25 @@ class PostTrackSaveService {
         }
       } catch (e) {
         debugPrint('[PostTrackSave] ⚠️ Errore weekly challenge: $e');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 5.b: Aggiorna sfide di gruppo (Epic 3.2)
+    // Best-effort: per ogni gruppo dell'utente, somma il contributo
+    // della traccia alle sfide attive (distance/elevation/tracks/streak).
+    // La Cloud Function `onChallengeStandingUpdated` controlla
+    // eventuale completamento target e notifica i partecipanti.
+    // ═══════════════════════════════════════════════════════════════
+    if (track != null) {
+      try {
+        await GroupsRepository().autoUpdateGroupChallengesForTrack(
+          trackDate: track.recordedAt ?? track.createdAt,
+          distanceMeters: distanceMeters,
+          elevationGain: elevationGain,
+        );
+      } catch (e) {
+        debugPrint('[PostTrackSave] ⚠️ Errore group challenges: $e');
       }
     }
 

@@ -1772,35 +1772,70 @@ class AppLocalizationsIt extends AppLocalizations {
   String get closeAction => 'Chiudi';
 
   @override
-  String get privacyLastUpdated => 'Ultimo aggiornamento: Febbraio 2026';
+  String get privacyLastUpdated => 'Ultimo aggiornamento: Maggio 2026';
 
   @override
   String get privacyIntroTitle => 'Introduzione';
 
   @override
   String get privacyIntroContent =>
-      'TrailShare (\"noi\", \"nostro\" o \"app\") rispetta la tua privacy. Questa informativa descrive quali dati raccogliamo, come li utilizziamo e i tuoi diritti in merito.';
+      'TrailShare (\"noi\", \"nostro\" o \"app\") rispetta la tua privacy. Questa informativa descrive quali dati raccogliamo, come li utilizziamo e i tuoi diritti in merito. La versione completa è disponibile su trailshare.app/privacy.';
 
   @override
   String get privacyDataCollectedTitle => 'Dati che raccogliamo';
 
   @override
   String get privacyDataCollectedContent =>
-      '• **Dati di registrazione**: email, nome utente, foto profilo (opzionale)\n• **Dati di posizione**: coordinate GPS durante la registrazione delle tracce\n• **Dati delle attività**: tracce registrate, statistiche, dislivello, distanza\n• **Dati social**: follower, following, \"cheers\" (like)\n• **Dati del dispositivo**: modello, sistema operativo, per migliorare l\'app';
+      '• Dati di registrazione: email, nome utente, foto profilo (opzionale)\n• Dati di posizione: coordinate GPS durante la registrazione delle tracce\n• Dati delle attività: distanza, velocità, dislivello, durata, frequenza cardiaca dalla fascia BLE se collegata\n• Contenuti: foto, commenti e descrizioni che aggiungi alle tracce\n• Dati del dispositivo: modello, sistema operativo, log di errore\n• Contatti di emergenza: se configuri Lifeline, salviamo nome, telefono e/o email dei contatti scelti (max 3)\n• Posizione live: se attivi LiveTrack o Lifeline, la posizione viene pubblicata in tempo reale (~30 secondi)';
 
   @override
   String get privacyDataUsageTitle => 'Come utilizziamo i tuoi dati';
 
   @override
   String get privacyDataUsageContent =>
-      '• Fornire e migliorare i servizi dell\'app\n• Salvare e sincronizzare le tue tracce\n• Abilitare funzionalità social (follow, cheers, classifica)\n• Funzionalità LiveTrack per condividere la posizione in tempo reale\n• Analisi aggregate per migliorare l\'esperienza utente';
+      '• Fornire il servizio di tracking GPS e analisi delle attività\n• Mostrare le tracce pubblicate nella sezione Esplora\n• Calcolare classifiche, badge e statistiche\n• Inviare notifiche relative all\'app (nuovi follower, cheers, ecc.)\n• Migliorare l\'app e correggere bug\n\nNon vendiamo i tuoi dati a terze parti. Non utilizziamo i tuoi dati per pubblicità.';
 
   @override
   String get privacyDataSharingTitle => 'Condivisione dei dati';
 
   @override
   String get privacyDataSharingContent =>
-      '• **Non vendiamo** i tuoi dati personali a terzi\n• Le tracce pubblicate sono visibili ad altri utenti\n• LiveTrack condivide la posizione solo con chi ha il link\n• Utilizziamo Firebase (Google) per l\'archiviazione sicura dei dati';
+      'Le tue tracce sono private di default. Solo le tracce che pubblichi esplicitamente saranno visibili nella sezione Esplora e agli altri utenti. Il tuo profilo mostra solo le informazioni che scegli di rendere pubbliche.';
+
+  @override
+  String get privacyThirdPartiesTitle => 'Servizi di terze parti';
+
+  @override
+  String get privacyThirdPartiesContent =>
+      'Utilizziamo i seguenti servizi:\n\n• Firebase (Google): autenticazione, database, storage, Cloud Functions. Server in area UE\n• OpenStreetMap: tile mappe, dataset cime e POI bundlati nell\'app come asset statici. Licenza ODbL — © OpenStreetMap contributors\n• MapTiler: stili mappa premium per abbonati Pro\n• Open-Meteo: previsioni meteo (richiesta con coordinate del trail, nessun dato personale)\n• OpenRouteService: calcolo percorsi nel pianificatore (waypoints, no PII)\n• Apple App Store / Google Play: pagamenti per gli abbonamenti Pro\n• Anthropic (Claude AI): generazione del riassunto delle condizioni sentiero (Pro)\n\nQuesti servizi hanno proprie privacy policy che ti invitiamo a consultare.';
+
+  @override
+  String get privacyAiSummaryTitle => 'Riassunto AI delle condizioni sentiero';
+
+  @override
+  String get privacyAiSummaryContent =>
+      'Per gli abbonati Pro, l\'app può generare un riassunto in linguaggio naturale delle segnalazioni community su un sentiero, prodotto dal modello Claude di Anthropic.\n\nCosa inviamo all\'API:\n• Nome del sentiero (pubblico, da OpenStreetMap)\n• Testo delle segnalazioni community pubbliche degli ultimi 60 giorni (max 20)\n• Età relativa di ogni segnalazione (es. \"3h fa\")\n\nCosa NON inviamo:\n• Username, ID utente o identificativi personali\n• Coordinate GPS, tracce o dati di localizzazione\n• Foto, dati salute, contatti di emergenza\n\nI riassunti sono memorizzati in cache 24h. Anthropic non utilizza i dati inviati per addestrare i propri modelli. La feature è disattivata di default.';
+
+  @override
+  String get privacyProSubsTitle => 'Abbonamenti TrailShare Pro';
+
+  @override
+  String get privacyProSubsContent =>
+      'TrailShare Pro è un abbonamento opzionale che sblocca funzioni avanzate. I pagamenti sono elaborati esclusivamente da Apple App Store o Google Play Store.\n\n• TrailShare non riceve né conserva dati di pagamento (carta, conto): le transazioni avvengono interamente sui sistemi degli store\n• Per verificare lo stato del tuo abbonamento, le receipt vengono validate sui nostri server (Firebase Cloud Functions) tramite le API ufficiali. Salviamo solo lo stato (attivo/scaduto), il prodotto attivo e la data di scadenza\n• Puoi gestire o annullare l\'abbonamento dalle impostazioni del tuo account App Store o Google Play\n• Alla cancellazione del tuo account, eliminiamo lo stato dell\'abbonamento dai nostri server';
+
+  @override
+  String get privacyArTitle => 'Mountain Recognition AR (fotocamera)';
+
+  @override
+  String get privacyArContent =>
+      'La funzione \"Riconosci le cime\" usa la fotocamera e i sensori (bussola, accelerometro, GPS) per sovrapporre i nomi delle cime al viewfinder live.\n\n• L\'elaborazione avviene interamente sul tuo dispositivo: nessun frame video, foto o dato di sensore viene inviato ai nostri server o a terze parti\n• Il dataset delle cime italiane (37.000+) è bundlato nell\'app come file statico\n• AR Photo Mode (Pro) salva la foto annotata solo localmente finché non scegli di condividerla\n• L\'accesso alla fotocamera può essere revocato dalle impostazioni del sistema operativo';
+
+  @override
+  String get privacyLifelineTitle => 'Lifeline e Live Tracking (sicurezza)';
+
+  @override
+  String get privacyLifelineContent =>
+      'LiveTrack (condivisione pubblica manuale) e Lifeline (sicurezza con contatti d\'emergenza) sono entrambe disattivate per impostazione predefinita.\n\nDati trattati:\n• Posizione GPS in tempo reale (~30s) mentre la sessione è attiva\n• Nome utente e livello batteria, per informare chi segue il link\n• Contatti di emergenza salvati (solo per Lifeline): nome + telefono e/o email\n\nCondivisione:\n• LiveTrack: chi ha il link pubblico vede la posizione live\n• Lifeline: solo i contatti emergenza configurati ricevono link con token univoco\n• I messaggi (SMS/WhatsApp/Email) sono precompilati ma richiedono la tua conferma manuale\n\nLa sessione live è archiviata 24h dopo la chiusura, poi eliminata automaticamente.\n\nLifeline non è un servizio di emergenza: non contatta autonomamente Soccorso Alpino o 112. Vedi i Termini per i limiti completi.';
 
   @override
   String get privacyHealthDataTitle =>
@@ -1808,7 +1843,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get privacyHealthDataContent =>
-      'Se attivi la sincronizzazione con Health Connect (Android) o Apple Salute (iOS), TrailShare accede ai seguenti dati dal tuo dispositivo wearable:\n\n• **Frequenza cardiaca**: per mostrare il battito durante le attività e calcolare le zone cardio\n• **Passi**: per contare i passi durante le attività e mostrare il totale giornaliero nella Dashboard Salute\n• **Calorie bruciate**: per mostrare il dispendio energetico durante le attività e il riepilogo settimanale\n• **Allenamenti**: per sincronizzare le attività registrate con TrailShare su Health Connect/Apple Salute\n\nQuesti dati vengono:\n• Utilizzati esclusivamente per le funzionalità dell\'app descritte sopra\n• Salvati nel tuo account personale su Firebase (Google Cloud)\n• Mostrati solo a te, l\'utente autenticato\n• Mai venduti, condivisi con terze parti o utilizzati per pubblicità\n• Eliminati dal nostro server quando elimini il tuo account\n\nLa sincronizzazione è disattivata per impostazione predefinita. Puoi attivarla o disattivarla in qualsiasi momento dalle Impostazioni.';
+      'Se attivi la sincronizzazione con Health Connect (Android) o Apple Salute (iOS), TrailShare accede ai seguenti dati dal tuo dispositivo wearable:\n\n• Frequenza cardiaca: per mostrare il battito durante le attività e calcolare le zone cardio\n• Passi: per contare i passi durante le attività e mostrare il totale giornaliero\n• Calorie bruciate: per mostrare il dispendio energetico\n• Allenamenti: per sincronizzare le attività registrate\n\nQuesti dati vengono:\n• Utilizzati esclusivamente per le funzionalità dell\'app\n• Salvati nel tuo account personale su Firebase\n• Mostrati solo a te, l\'utente autenticato\n• Mai venduti, condivisi con terze parti o usati per pubblicità\n• Eliminati dal nostro server quando elimini il tuo account\n\nLa sincronizzazione è disattivata per impostazione predefinita.';
 
   @override
   String get privacyRetentionTitle => 'Conservazione dei dati';
@@ -1822,7 +1857,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get privacyRightsContent =>
-      '• **Accesso**: puoi visualizzare tutti i tuoi dati nell\'app\n• **Modifica**: puoi modificare il tuo profilo in qualsiasi momento\n• **Eliminazione**: puoi eliminare il tuo account e tutti i dati associati\n• **Esportazione**: puoi esportare le tue tracce in formato GPX';
+      '• Accesso: puoi visualizzare tutti i tuoi dati nell\'app\n• Modifica: puoi modificare il tuo profilo in qualsiasi momento\n• Eliminazione: puoi eliminare il tuo account e tutti i dati associati\n• Esportazione: puoi esportare le tue tracce in formato GPX\n• Revoca del consenso al trattamento dei dati';
 
   @override
   String get privacySecurityTitle => 'Sicurezza';
@@ -4249,4 +4284,646 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get discoveryRegionCta => 'Imposta regione';
+
+  @override
+  String get preStartReadyToGo => 'PRONTO A PARTIRE';
+
+  @override
+  String get preStartDistance => 'DISTANZA';
+
+  @override
+  String get preStartElevation => 'DISLIVELLO';
+
+  @override
+  String get preStartEta => 'TEMPO STIMATO';
+
+  @override
+  String get preStartStartButton => 'Inizia';
+
+  @override
+  String get preStartEtaDisclaimer =>
+      'Stima basata sul tuo passo medio e sul dislivello. Cambia in base al tuo ritmo reale.';
+
+  @override
+  String get preStartLifelineLabel => 'Lifeline';
+
+  @override
+  String get preStartLifelineOff => 'Tocca per attivare la condivisione sicura';
+
+  @override
+  String preStartLifelineOn(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Attiva · $count contatti',
+      one: 'Attiva · 1 contatto',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get preStartLifelineNoContacts =>
+      'Aggiungi un contatto di emergenza per usarla';
+
+  @override
+  String get mfTitle => 'Riconosci le cime';
+
+  @override
+  String get mfCameraNotAvailable =>
+      'Fotocamera non disponibile su questo dispositivo';
+
+  @override
+  String get mfDebugTitle => 'DEBUG · 5 CIME PIÙ VICINE';
+
+  @override
+  String get mfDebugWaitingGps => 'In attesa del GPS…';
+
+  @override
+  String get mfNoPeaksInView => 'Ruota il telefono per cercare le cime';
+
+  @override
+  String mfPeaksInView(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cime riconosciute',
+      one: '1 cima riconosciuta',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get mfDetailElevation => 'ALTITUDINE';
+
+  @override
+  String get mfDetailDistance => 'DISTANZA';
+
+  @override
+  String get mfDetailBearing => 'DIREZIONE';
+
+  @override
+  String get mfDetailOpenOsm => 'Apri su OpenStreetMap';
+
+  @override
+  String get mfDetailOpenError =>
+      'Impossibile aprire il link. Verifica di avere un browser predefinito.';
+
+  @override
+  String get mfDetailDataSource => 'Dati da OpenStreetMap (ODbL 1.0)';
+
+  @override
+  String get mfCalibrationTitle => 'Calibra Mountain Finder';
+
+  @override
+  String get mfCalibrationHelp =>
+      'Punta verso una cima nota e regola finché il pin si centra sulla cima reale.';
+
+  @override
+  String get mfCalibrationHorizontalFov => 'FOV orizzontale';
+
+  @override
+  String get mfCalibrationVerticalFov => 'FOV verticale';
+
+  @override
+  String get mfCalibrationReset => 'Predefinito';
+
+  @override
+  String get mfCalibrationDone => 'Fatto';
+
+  @override
+  String get mfDistanceFilterTitle => 'Distanza massima';
+
+  @override
+  String get mfDistanceFilterHelp =>
+      'Limita le cime mostrate a questa distanza dalla tua posizione.';
+
+  @override
+  String get mfPhotoProcessing => 'Identificazione cime in corso…';
+
+  @override
+  String get mfPhotoNoSensors => 'Sensori non pronti, aspetta qualche secondo';
+
+  @override
+  String get mfPhotoProUpsell => 'Photo Mode è una funzione TrailShare Pro';
+
+  @override
+  String get mfPhotoResultTitle => 'Cime identificate';
+
+  @override
+  String mfPhotoIdentifiedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cime identificate',
+      one: '1 cima identificata',
+      zero: 'Nessuna cima identificata',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get mfPhotoShareButton => 'Condividi foto annotata';
+
+  @override
+  String get mfPhotoShareSubject => 'Cime identificate con TrailShare';
+
+  @override
+  String mfPhotoShareText(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Ho identificato $count cime con TrailShare',
+      one: 'Ho identificato 1 cima con TrailShare',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get mfPhotoShareError => 'Impossibile condividere la foto';
+
+  @override
+  String get mfArLock => 'Blocca puntamento';
+
+  @override
+  String get mfArUnlock => 'Sblocca puntamento';
+
+  @override
+  String get mfDetailSave => 'Salva cima';
+
+  @override
+  String get mfDetailSaved => 'Salvata';
+
+  @override
+  String get mfDetailSaveAdded => 'Cima salvata nei preferiti';
+
+  @override
+  String get mfDetailSaveRemoved => 'Cima rimossa dai preferiti';
+
+  @override
+  String get mfDetailSaveError => 'Operazione non riuscita';
+
+  @override
+  String get mfDetailViewOnMap => 'Apri sulla mappa';
+
+  @override
+  String get mapStyleTooltip => 'Stile mappa';
+
+  @override
+  String get savedPeaksTitle => 'Le mie cime';
+
+  @override
+  String savedPeaksCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cime salvate',
+      one: '1 cima salvata',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedPeaksEmptyTitle => 'Nessuna cima salvata';
+
+  @override
+  String get savedPeaksEmptyBody =>
+      'Apri il Mountain Finder, riconosci una cima e tocca \"Salva\" nei dettagli.';
+
+  @override
+  String get savedPeaksOpenFinder => 'Apri Mountain Finder';
+
+  @override
+  String get discoverySavePeakTitle => 'Salva la tua prima cima';
+
+  @override
+  String get discoverySavePeakDesc =>
+      'Apri il Mountain Finder, punta verso una cima e salvala nei preferiti per ritrovarla qui.';
+
+  @override
+  String get discoverySavePeakCta => 'Riconosci cime';
+
+  @override
+  String get discoveryMountainTitle => 'Punta verso le montagne';
+
+  @override
+  String get discoveryMountainDesc =>
+      'Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.';
+
+  @override
+  String get discoveryMountainCta => 'Apri Mountain Finder';
+
+  @override
+  String get autoPauseTriggered =>
+      'Pausa automatica: sei fermo da oltre 5 minuti';
+
+  @override
+  String get autoPauseResumed => 'Registrazione ripresa automaticamente';
+
+  @override
+  String get hrZonesTitle => 'Zone Cardio';
+
+  @override
+  String hrZonesAvgPeak(int avg, int peak) {
+    return 'Media $avg · Max $peak';
+  }
+
+  @override
+  String hrZonesMaxHR(int bpm) {
+    return 'FC Max: $bpm';
+  }
+
+  @override
+  String get hrZonesEstimated => 'STIMATA';
+
+  @override
+  String get hrZonesSetCta => 'Imposta';
+
+  @override
+  String get settingsNews => 'Novità';
+
+  @override
+  String get settingsHrTraining => 'Allenamento HR';
+
+  @override
+  String genericErrorWith(String message) {
+    return 'Errore: $message';
+  }
+
+  @override
+  String get stravaSignInRequired => 'Accedi per collegare Strava';
+
+  @override
+  String get stravaConnect => 'Collega Strava';
+
+  @override
+  String get stravaConnectSubtitle =>
+      'Carica le attività su Strava a fine sessione';
+
+  @override
+  String get stravaCannotOpen => 'Impossibile aprire Strava';
+
+  @override
+  String get stravaConnected => 'Strava collegato';
+
+  @override
+  String get stravaAuthorizedAccount => 'Account autorizzato';
+
+  @override
+  String get stravaDisconnectQuestion => 'Disconnetti Strava?';
+
+  @override
+  String get stravaDisconnectBody =>
+      'Le attività future non verranno più caricate. Le attività già caricate restano su Strava.';
+
+  @override
+  String get stravaDisconnect => 'Disconnetti';
+
+  @override
+  String get stravaDisconnectedOk => 'Strava disconnesso';
+
+  @override
+  String get stravaDisconnectError => 'Errore disconnessione';
+
+  @override
+  String get stravaAutoUpload => 'Carica su Strava al termine';
+
+  @override
+  String get stravaAutoUploadSubtitle =>
+      'Upload automatico GPX a fine attività';
+
+  @override
+  String get stravaImport => 'Importa attività da Strava';
+
+  @override
+  String get stravaImportSubtitle =>
+      'Le attività registrate con Garmin/altri device sincronizzate su Strava verranno importate qui automaticamente';
+
+  @override
+  String get stravaUploading => 'Caricamento su Strava…';
+
+  @override
+  String get stravaUploadingSubtitle => 'Strava sta elaborando il file GPX';
+
+  @override
+  String get stravaUploadFailed => 'Upload Strava fallito';
+
+  @override
+  String get stravaUploadPending => 'Upload in attesa';
+
+  @override
+  String get stravaUploadPendingSubtitle =>
+      'Strava non ha ancora confermato l\'attività';
+
+  @override
+  String get stravaUnknownError => 'Errore sconosciuto';
+
+  @override
+  String get stravaUploadedOk => 'Caricato su Strava ✓';
+
+  @override
+  String get stravaUploadTitle => 'Carica su Strava';
+
+  @override
+  String get stravaTrackImported => 'Importata da Strava';
+
+  @override
+  String get stravaTrackUploaded => 'Caricato su Strava';
+
+  @override
+  String get stravaTrackImportedSubtitle =>
+      'Registrata su un altro device, sincronizzata via Strava';
+
+  @override
+  String get stravaTrackUploadedSubtitle => 'Tocca per aprire l\'attività';
+
+  @override
+  String get noContacts => 'Nessun contatto';
+
+  @override
+  String get deleteContactQuestion => 'Eliminare contatto?';
+
+  @override
+  String get cannotOpenTos => 'Impossibile aprire i Termini di Servizio';
+
+  @override
+  String get trackTooShortToFollow => 'Traccia troppo corta per essere seguita';
+
+  @override
+  String get trackTooShortToSplit =>
+      'La traccia è troppo corta per essere spezzata.';
+
+  @override
+  String get trackSplitError => 'Errore nello split della traccia.';
+
+  @override
+  String get trackSplitOk => 'Traccia spezzata in 2 nuove tracce';
+
+  @override
+  String get trackMergeNoOther => 'Nessuna altra traccia da unire.';
+
+  @override
+  String get trackMergeError => 'Errore nell\'unione delle tracce.';
+
+  @override
+  String lifelineCannotStart(String error) {
+    return 'Impossibile avviare Lifeline: $error';
+  }
+
+  @override
+  String get lifelineHowItWorks => 'Come funziona Lifeline';
+
+  @override
+  String get callCannotOpen =>
+      'Impossibile aprire la chiamata. Compone manualmente 112.';
+
+  @override
+  String get noAppAvailable => 'Nessuna app disponibile';
+
+  @override
+  String get imOkContinue => 'Sono OK, continuo';
+
+  @override
+  String get imOkSaveStop => 'Sono OK, termina e salva';
+
+  @override
+  String get trackNoPointsForSegment =>
+      'Traccia senza punti: impossibile creare un segmento';
+
+  @override
+  String get deleteSegmentQuestion => 'Eliminare segmento?';
+
+  @override
+  String get deleteError => 'Errore durante l\'eliminazione';
+
+  @override
+  String get searchingDevices => 'Ricerca dispositivi...';
+
+  @override
+  String get noDeviceFound => 'Nessun dispositivo trovato';
+
+  @override
+  String get noDataAvailable => 'Nessun dato disponibile';
+
+  @override
+  String get chartElevation => 'Elevazione';
+
+  @override
+  String get chartSpeed => 'Velocità';
+
+  @override
+  String get noElevationData => 'Nessun dato altimetrico';
+
+  @override
+  String get noSpeedData => 'Nessun dato velocità';
+
+  @override
+  String get noHeartRateData => 'Nessun dato battito cardiaco';
+
+  @override
+  String get createSegment => 'Crea segmento';
+
+  @override
+  String get noSegmentsOnTrack => 'Nessun segmento su questa traccia.';
+
+  @override
+  String get noSegmentsCreatedTapPlus =>
+      'Nessun segmento creato da questa traccia. Tocca \"+\" per crearne uno.';
+
+  @override
+  String get noSegmentsCreated => 'Nessun segmento creato da questa traccia.';
+
+  @override
+  String get poiAlongRoute => 'POI lungo il percorso';
+
+  @override
+  String get noPoiReported => 'Nessun POI segnalato al momento.';
+
+  @override
+  String get noPoiReportedRoute =>
+      'Nessun POI segnalato dalla community su questo percorso.';
+
+  @override
+  String get addPoi => 'Aggiungi POI';
+
+  @override
+  String get addPoiHere => 'Aggiungi POI qui';
+
+  @override
+  String get alsoInArea => 'Anche nella zona';
+
+  @override
+  String byAuthor(String name) {
+    return 'di: $name';
+  }
+
+  @override
+  String get paywallNoActivePurchase =>
+      'Nessun acquisto attivo trovato per questo account.';
+
+  @override
+  String get paywallAllFutureProFeatures => 'Tutte le funzioni Pro future';
+
+  @override
+  String get andThe => ' e la ';
+
+  @override
+  String get paywallAnnotatedPeakPhotosLong =>
+      'Foto panoramiche con i nomi delle cime annotati.';
+
+  @override
+  String get paywallUpgradePending => 'Upgrade in attesa di conferma.';
+
+  @override
+  String get paywallAnnotatedPeakPhotos =>
+      'Foto annotate con i nomi delle cime.';
+
+  @override
+  String get paywallUnlimitedSavedPeaks => 'Cime salvate illimitate';
+
+  @override
+  String contactNoMoreLifelineNotif(String name) {
+    return '$name non riceverà più notifiche Lifeline.';
+  }
+
+  @override
+  String get settingsAddBusinessProfileSub =>
+      'Aggiungi un nuovo profilo business (rifugio, noleggio, ecc.)';
+
+  @override
+  String get settingsEnterBusinessId =>
+      'Inserisci ID business per testare il profilo';
+
+  @override
+  String get trackFollowAndRecord => 'Segui e registra';
+
+  @override
+  String get gpsServiceDisabled =>
+      'Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.';
+
+  @override
+  String get locationPermissionDenied =>
+      'Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.';
+
+  @override
+  String get filterOnlyCircular => 'Solo sentieri circolari';
+
+  @override
+  String get noReviewsYet => 'Nessuna recensione ancora';
+
+  @override
+  String get thanksForReview => 'Grazie per la tua recensione!';
+
+  @override
+  String get deleteYourReviewQuestion => 'Elimina la tua recensione?';
+
+  @override
+  String get tapStarsToRate => 'Tocca le stelle per dare una valutazione';
+
+  @override
+  String get reviewPlaceholder =>
+      'Cosa ti è piaciuto? Cosa miglioreresti? (opzionale)';
+
+  @override
+  String get city => 'Città';
+
+  @override
+  String get profileUpdated => 'Profilo aggiornato';
+
+  @override
+  String get shortDescriptionForCards => 'Descrizione breve (per le card)';
+
+  @override
+  String get streetLocation => 'Via / Località';
+
+  @override
+  String get positionUpdatedSaveToApply =>
+      'Posizione aggiornata. Salva per applicare.';
+
+  @override
+  String get notSet => 'Non impostato';
+
+  @override
+  String get loadingStats => 'Caricamento statistiche...';
+
+  @override
+  String get publicTrails => 'Sentieri Pubblici';
+
+  @override
+  String get registeredUsers => 'Utenti Registrati';
+
+  @override
+  String get recordedTracks => 'Tracce Registrate';
+
+  @override
+  String get cheersPerTrack => 'Cheers/Traccia';
+
+  @override
+  String get trailElevation => 'Elevazione Sentieri';
+
+  @override
+  String get noPublishedTrack => 'Nessuna traccia pubblicata';
+
+  @override
+  String get noRegisteredUser => 'Nessun utente registrato';
+
+  @override
+  String get updateAlreadyImported => 'Aggiorna trail già importati';
+
+  @override
+  String get colorSaveError => 'Errore nel salvataggio del colore';
+
+  @override
+  String get removeLogoQuestion => 'Rimuovere il logo?';
+
+  @override
+  String get removeCoverQuestion => 'Rimuovere la copertina?';
+
+  @override
+  String get exportMembers => 'Esporta membri';
+
+  @override
+  String get saveErrorGeneric => 'Errore nel salvataggio';
+
+  @override
+  String get loginRequiredToReport => 'Devi effettuare il login per segnalare';
+
+  @override
+  String get deleteReportQuestion => 'Eliminare segnalazione?';
+
+  @override
+  String get reportWillBeRemoved => 'La tua segnalazione verrà rimossa.';
+
+  @override
+  String get reportCondition => 'Segnala una condizione';
+
+  @override
+  String get deletePoiQuestion => 'Eliminare POI?';
+
+  @override
+  String get deletePhotoQuestion => 'Eliminare foto?';
+
+  @override
+  String get mfViewshedOnTooltip =>
+      'Filtro visibilità ON — tocca per disattivare';
+
+  @override
+  String get mfViewshedOffTooltip =>
+      'Filtro visibilità OFF — mostra solo cime non occluse';
+
+  @override
+  String get locationTimeout =>
+      'Impossibile ottenere la posizione (timeout GPS). Riprova all\'aperto.';
+
+  @override
+  String get stravaSyncNow => 'Sincronizza ora';
+
+  @override
+  String get stravaSyncNowSubtitle =>
+      'Pulla le ultime 10 attività da Strava se il webhook è in delay';
+
+  @override
+  String get stravaSyncing => 'Sincronizzazione Strava in corso…';
+
+  @override
+  String get stravaSyncDone => 'Sincronizzazione completata.';
 }

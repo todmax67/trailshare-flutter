@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/utils/business_caps.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_event_page.dart';
 import 'event_detail_page.dart';
@@ -50,6 +51,20 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
+          // Cap check (Sprint B): gruppi Free (owner non Pro) sono limitati
+          // a [BusinessCaps.freeEventCap] eventi attivi (futuri o in corso).
+          // Owner Consumer Pro → eventi illimitati.
+          final group = await _repo.getGroup(widget.groupId);
+          if (group != null && await BusinessCaps.appliesAsync(group)) {
+            final upcoming =
+                await _repo.getEvents(widget.groupId, upcomingOnly: true);
+            if (upcoming.length >= BusinessCaps.freeEventCap) {
+              if (!context.mounted) return;
+              await showEventsCapReached(context, group);
+              return;
+            }
+          }
+          if (!context.mounted) return;
           final created = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
@@ -77,7 +92,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                     setState(() => _showPast = false);
                     _loadEvents();
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
@@ -87,7 +102,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                     setState(() => _showPast = true);
                     _loadEvents();
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
               ],
             ),
@@ -166,7 +181,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
                   decoration: BoxDecoration(
                     color: isPast
                         ? Colors.grey[200]
-                        : AppColors.primary.withOpacity(0.1),
+                        : AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(

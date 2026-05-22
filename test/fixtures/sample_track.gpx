@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="TrailShare-test"
+  xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Sentiero del Test</name>
+    <time>2026-05-01T08:00:00Z</time>
+  </metadata>
+  <trk>
+    <name>Sentiero del Test</name>
+    <trkseg>
+      <trkpt lat="46.0000" lon="9.0000">
+        <ele>1000.0</ele>
+        <time>2026-05-01T08:00:00Z</time>
+      </trkpt>
+      <trkpt lat="46.0010" lon="9.0010">
+        <ele>1050.0</ele>
+        <time>2026-05-01T08:05:00Z</time>
+      </trkpt>
+      <trkpt lat="46.0020" lon="9.0020">
+        <ele>1100.0</ele>
+        <time>2026-05-01T08:10:00Z</time>
+      </trkpt>
+      <trkpt lat="46.0030" lon="9.0030">
+        <ele>1080.0</ele>
+        <time>2026-05-01T08:15:00Z</time>
+      </trkpt>
+      <trkpt lat="46.0040" lon="9.0040">
+        <ele>1020.0</ele>
+        <time>2026-05-01T08:20:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

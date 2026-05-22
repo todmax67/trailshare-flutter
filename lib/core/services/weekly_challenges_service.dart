@@ -140,7 +140,10 @@ class WeeklyChallengesService {
 
     final now = DateTime.now();
     final eightWeeksAgo = now.subtract(const Duration(days: 56));
-    final tracks = await _tracksRepo.getMyTracks();
+    // Lightweight: questo flow somma distance/elevationGain/duration
+    // dalle ultime 8 settimane di tracce. Non legge i GPS points,
+    // quindi evitiamo di caricarli per non saturare l'heap.
+    final tracks = await _tracksRepo.getMyTracksLightweight();
     final recent = tracks.where((t) {
       final d = t.recordedAt ?? t.createdAt;
       return d.isAfter(eightWeeksAgo) && d.isBefore(now);

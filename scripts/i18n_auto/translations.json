@@ -1,0 +1,1013 @@
+{
+  "lib/presentation/widgets/paywall_sheet.dart": [
+    {
+      "line": 296,
+      "original": "Nessun acquisto attivo trovato per questo account.",
+      "key": "paywallNoActivePurchase",
+      "en": "No active purchase found for this account.",
+      "wrapper": "Text",
+      "has_interp": false
+    },
+    {
+      "line": 478,
+      "original": "Tutte le funzioni Pro future",
+      "key": "paywallAllFutureProFeatures",
+      "en": "All future Pro features",
+      "wrapper": "title",
+      "has_interp": false
+    },
+    {
+      "line": 845,
+      "original": " e la ",
+      "key": "andThe",
+      "en": " and the ",
+      "wrapper": "Text",
+      "has_interp": false
+    },
+    {
+      "line": 1042,
+      "original": "Foto panoramiche con i nomi delle cime annotati.",
+      "key": "paywallAnnotatedPeakPhotosLong",
+      "en": "Panoramic photos with peak names labeled.",
+      "wrapper": "subtitle",
+      "has_interp": false
+    },
+    {
+      "line": 1266,
+      "original": "Upgrade in attesa di conferma.",
+      "key": "paywallUpgradePending",
+      "en": "Upgrade pending confirmation.",
+      "wrapper": "Text",
+      "has_interp": false
+    },
+    {
+      "line": 1605,
+      "original": "Foto annotate con i nomi delle cime.",
+      "key": "paywallAnnotatedPeakPhotos",
+      "en": "Photos labeled with peak names.",
+      "wrapper": "subtitle",
+      "has_interp": false
+    },
+    {
+      "line": 1610,
+      "original": "Cime salvate illimitate",
+      "key": "paywallUnlimitedSavedPeaks",
+      "en": "Unlimited saved peaks",
+      "wrapper": "title",
+      "has_interp": false
+    }
+  ],
+  "lib/presentation/pages/settings/emergency_contacts_page.dart": [
+    {
+      "line": 359,
+      "original": "${c.name} non riceverà più notifiche Lifeline.",
+      "key": "contactNoMoreLifelineNotif",
+      "en": "{name} will no longer receive Lifeline notifications.",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "c.name"
+      ]
+    }
+  ],
+  "lib/presentation/pages/settings/settings_page.dart": [
+    {
+      "line": 486,
+      "original": "Aggiungi un nuovo profilo business (rifugio, noleggio, ecc.)",
+      "key": "settingsAddBusinessProfileSub",
+      "en": "Add a new business profile (hut, rental, etc.)",
+      "wrapper": "subtitle",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 497,
+      "original": "Inserisci ID business per testare il profilo",
+      "key": "settingsEnterBusinessId",
+      "en": "Enter business ID to test the profile",
+      "wrapper": "subtitle",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 630,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/discover/community_track_detail_page.dart": [
+    {
+      "line": 590,
+      "original": "Segui e registra",
+      "key": "trackFollowAndRecord",
+      "en": "Follow and record",
+      "wrapper": "label",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 815,
+      "original": "Traccia troppo corta per essere seguita",
+      "key": "trackTooShortToFollow",
+      "en": "Track too short to be followed",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/discover/discover_page.dart": [
+    {
+      "line": 100,
+      "original": "Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.",
+      "key": "gpsServiceDisabled",
+      "en": "GPS service is off. Enable it in your phone settings.",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 116,
+      "original": "Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.",
+      "key": "locationPermissionDenied",
+      "en": "Location permission denied. Enable it in Settings to center the map.",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/discover/widgets/discover_filter_sheet.dart": [
+    {
+      "line": 196,
+      "original": "Solo sentieri circolari",
+      "key": "filterOnlyCircular",
+      "en": "Only circular trails",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/business/business_community_sheet.dart": [
+    {
+      "line": 147,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/business/business_profile_page.dart": [
+    {
+      "line": 647,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/business/business_discovery_page.dart": [
+    {
+      "line": 273,
+      "original": "Errore: $_error",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "_error.toString()"
+      ]
+    },
+    {
+      "line": 275,
+      "original": "Riprova",
+      "key": "retry",
+      "en": "Retry",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/business/business_post_composer_page.dart": [
+    {
+      "line": 68,
+      "original": "Errore: $e",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "e.toString()"
+      ]
+    }
+  ],
+  "lib/presentation/pages/business/business_reviews_page.dart": [
+    {
+      "line": 193,
+      "original": "Nessuna recensione ancora",
+      "key": "noReviewsYet",
+      "en": "No reviews yet",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 259,
+      "original": "Grazie per la tua recensione!",
+      "key": "thanksForReview",
+      "en": "Thanks for your review!",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 264,
+      "original": "Errore: $e",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "e.toString()"
+      ]
+    },
+    {
+      "line": 273,
+      "original": "Elimina la tua recensione?",
+      "key": "deleteYourReviewQuestion",
+      "en": "Delete your review?",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 279,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 285,
+      "original": "Elimina",
+      "key": "delete",
+      "en": "Delete",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 534,
+      "original": "Tocca le stelle per dare una valutazione",
+      "key": "tapStarsToRate",
+      "en": "Tap stars to rate",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 579,
+      "original": "Cosa ti è piaciuto? Cosa miglioreresti? (opzionale)",
+      "key": "reviewPlaceholder",
+      "en": "What did you like? What could be improved? (optional)",
+      "wrapper": "hintText",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/business/business_recommended_tracks_picker_page.dart": [
+    {
+      "line": 176,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/business/business_create_page.dart": [
+    {
+      "line": 137,
+      "original": "Errore: $e",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "e.toString()"
+      ]
+    },
+    {
+      "line": 294,
+      "original": "Città",
+      "key": "city",
+      "en": "City",
+      "wrapper": "labelText",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/business/business_services_manager_page.dart": [
+    {
+      "line": 323,
+      "original": "Elimina",
+      "key": "delete",
+      "en": "Delete",
+      "wrapper": "label",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 329,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 334,
+      "original": "Salva",
+      "key": "save",
+      "en": "Save",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/business/business_recommended_tracks_manager_page.dart": [
+    {
+      "line": 176,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 180,
+      "original": "Salva",
+      "key": "save",
+      "en": "Save",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/business/business_edit_page.dart": [
+    {
+      "line": 152,
+      "original": "Profilo aggiornato",
+      "key": "profileUpdated",
+      "en": "Profile updated",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 158,
+      "original": "Errore: $e",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "e.toString()"
+      ]
+    },
+    {
+      "line": 173,
+      "original": "Modifica profilo",
+      "key": "editProfile",
+      "en": "Edit profile",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 181,
+      "original": "Salva",
+      "key": "save",
+      "en": "Save",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 226,
+      "original": "Descrizione breve (per le card)",
+      "key": "shortDescriptionForCards",
+      "en": "Short description (for cards)",
+      "wrapper": "labelText",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 293,
+      "original": "Via / Località",
+      "key": "streetLocation",
+      "en": "Street / Location",
+      "wrapper": "labelText",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 301,
+      "original": "Città",
+      "key": "city",
+      "en": "City",
+      "wrapper": "labelText",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 418,
+      "original": "Posizione aggiornata. Salva per applicare.",
+      "key": "positionUpdatedSaveToApply",
+      "en": "Position updated. Save to apply.",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 691,
+      "original": "Non impostato",
+      "key": "notSet",
+      "en": "Not set",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 700,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/admin/database_stats_page.dart": [
+    {
+      "line": 228,
+      "original": "Caricamento statistiche...",
+      "key": "loadingStats",
+      "en": "Loading stats...",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 239,
+      "original": "Errore: $_error",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "_error.toString()"
+      ]
+    },
+    {
+      "line": 241,
+      "original": "Riprova",
+      "key": "retry",
+      "en": "Retry",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 272,
+      "original": "Sentieri Pubblici",
+      "key": "publicTrails",
+      "en": "Public Trails",
+      "wrapper": "label",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 278,
+      "original": "Utenti Registrati",
+      "key": "registeredUsers",
+      "en": "Registered Users",
+      "wrapper": "label",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 284,
+      "original": "Tracce Registrate",
+      "key": "recordedTracks",
+      "en": "Recorded Tracks",
+      "wrapper": "label",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 323,
+      "original": "Cheers/Traccia",
+      "key": "cheersPerTrack",
+      "en": "Cheers/Track",
+      "wrapper": "label",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 383,
+      "original": "Elevazione Sentieri",
+      "key": "trailElevation",
+      "en": "Trail Elevation",
+      "wrapper": "label",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 399,
+      "original": "Nessuna traccia pubblicata",
+      "key": "noPublishedTrack",
+      "en": "No published track",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 450,
+      "original": "Nessun utente registrato",
+      "key": "noRegisteredUser",
+      "en": "No registered user",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/admin/trail_import_page.dart": [
+    {
+      "line": 479,
+      "original": "Aggiorna trail già importati",
+      "key": "updateAlreadyImported",
+      "en": "Update already imported trails",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/admin/admin_panel_page.dart": [
+    {
+      "line": 527,
+      "original": "Chiudi",
+      "key": "close",
+      "en": "Close",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 794,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/admin/recalculate_stats_page.dart": [
+    {
+      "line": 216,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/groups/group_members_page.dart": [
+    {
+      "line": 263,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 267,
+      "original": "Conferma",
+      "key": "confirm",
+      "en": "Confirm",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/groups/group_customize_page.dart": [
+    {
+      "line": 64,
+      "original": "Errore nel salvataggio del colore",
+      "key": "colorSaveError",
+      "en": "Error saving color",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 94,
+      "original": "Errore durante il caricamento",
+      "key": "uploadError",
+      "en": "Error during upload",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 103,
+      "original": "Rimuovere il logo?",
+      "key": "removeLogoQuestion",
+      "en": "Remove logo?",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 110,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 164,
+      "original": "Rimuovere la copertina?",
+      "key": "removeCoverQuestion",
+      "en": "Remove cover?",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 475,
+      "original": "Errore export: $e",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "e.toString()"
+      ]
+    },
+    {
+      "line": 492,
+      "original": "Esporta membri",
+      "key": "exportMembers",
+      "en": "Export members",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 633,
+      "original": "Errore nel salvataggio",
+      "key": "saveErrorGeneric",
+      "en": "Error during save",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/groups/group_detail_page.dart": [
+    {
+      "line": 639,
+      "original": "Errore: $e",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "e.toString()"
+      ]
+    }
+  ],
+  "lib/presentation/pages/poi/poi_location_picker_page.dart": [
+    {
+      "line": 215,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/pages/segments/segment_detail_page.dart": [
+    {
+      "line": 70,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 74,
+      "original": "Elimina",
+      "key": "delete",
+      "en": "Delete",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/live_track_button.dart": [
+    {
+      "line": 127,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/trail_conditions_section.dart": [
+    {
+      "line": 71,
+      "original": "Devi effettuare il login per segnalare",
+      "key": "loginRequiredToReport",
+      "en": "You must sign in to report",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 87,
+      "original": "Eliminare segnalazione?",
+      "key": "deleteReportQuestion",
+      "en": "Delete report?",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 88,
+      "original": "La tua segnalazione verrà rimossa.",
+      "key": "reportWillBeRemoved",
+      "en": "Your report will be removed.",
+      "wrapper": "content",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 90,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 94,
+      "original": "Elimina",
+      "key": "delete",
+      "en": "Delete",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 146,
+      "original": "Segnala una condizione",
+      "key": "reportCondition",
+      "en": "Report a condition",
+      "wrapper": "label",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 210,
+      "original": "Riprova",
+      "key": "retry",
+      "en": "Retry",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/report_condition_sheet.dart": [
+    {
+      "line": 134,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/trail_photos_section.dart": [
+    {
+      "line": 129,
+      "original": "Errore: $e",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "e.toString()"
+      ]
+    },
+    {
+      "line": 263,
+      "original": "Riprova",
+      "key": "retry",
+      "en": "Retry",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/trail_conditions_ai_card.dart": [
+    {
+      "line": 309,
+      "original": "Riprova",
+      "key": "retry",
+      "en": "Retry",
+      "wrapper": "label",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/poi_editor_sheet.dart": [
+    {
+      "line": 328,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/weather_forecast_card.dart": [
+    {
+      "line": 134,
+      "original": "Riprova",
+      "key": "retry",
+      "en": "Retry",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/trail_reviews_section.dart": [
+    {
+      "line": 203,
+      "original": "Riprova",
+      "key": "retry",
+      "en": "Retry",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/review_editor_sheet.dart": [
+    {
+      "line": 84,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 89,
+      "original": "Elimina",
+      "key": "delete",
+      "en": "Delete",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 209,
+      "original": "Salva",
+      "key": "save",
+      "en": "Save",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/share_track_to_group_sheet.dart": [
+    {
+      "line": 135,
+      "original": "Errore: $e",
+      "key": "genericErrorWith",
+      "en": "Error: {message}",
+      "wrapper": "Text",
+      "has_interp": true,
+      "placeholders": [
+        "e.toString()"
+      ]
+    }
+  ],
+  "lib/presentation/widgets/poi_detail_sheet.dart": [
+    {
+      "line": 117,
+      "original": "Eliminare POI?",
+      "key": "deletePoiQuestion",
+      "en": "Delete POI?",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 122,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 127,
+      "original": "Elimina",
+      "key": "delete",
+      "en": "Delete",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/trail_photo_viewer.dart": [
+    {
+      "line": 54,
+      "original": "Eliminare foto?",
+      "key": "deletePhotoQuestion",
+      "en": "Delete photo?",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 59,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    },
+    {
+      "line": 64,
+      "original": "Elimina",
+      "key": "delete",
+      "en": "Delete",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/photo_gallery_widget.dart": [
+    {
+      "line": 391,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "title",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ],
+  "lib/presentation/widgets/track_tags_editor.dart": [
+    {
+      "line": 226,
+      "original": "Annulla",
+      "key": "cancel",
+      "en": "Cancel",
+      "wrapper": "Text",
+      "has_interp": false,
+      "placeholders": []
+    }
+  ]
+}

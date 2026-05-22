@@ -65,7 +65,7 @@ class _PoiPin extends StatelessWidget {
         border: Border.all(color: Colors.white, width: 2.5),
         boxShadow: [
           BoxShadow(
-            color: poi.type.pinColor.withOpacity(0.35),
+            color: poi.type.pinColor.withValues(alpha: 0.35),
             blurRadius: 6,
             spreadRadius: 1,
           ),

@@ -1,20 +1,29 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import '../../../core/utils/difficulty_calculator.dart';
+import '../../../core/utils/text_search.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/tour.dart';
+import '../../../data/models/business.dart';
+import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
+import '../business/business_profile_page.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../tours/community_tour_detail_page.dart';
 import '../../widgets/discovery_carousel.dart';
+import '../../widgets/business_group_card_decorations.dart';
+import '../../../core/utils/group_brand.dart';
 import '../../../presentation/widgets/following_feed_item.dart';
 import '../discover/community_track_detail_page.dart';
 import '../../../presentation/widgets/community_track_card.dart';
+import '../business/business_discovery_page.dart';
 import '../groups/create_group_page.dart';
 import '../groups/group_detail_page.dart';
 import '../follow/search_users_page.dart';
@@ -38,19 +47,25 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // ═══════════════════════════════════════════════════════════════════════
   final CommunityTracksRepository _communityRepo = CommunityTracksRepository();
   final GroupsRepository _groupsRepo = GroupsRepository();
+  final BusinessRepository _businessRepo = BusinessRepository();
 
   // ═══════════════════════════════════════════════════════════════════════
   // STATO: TRACCE COMMUNITY
   // ═══════════════════════════════════════════════════════════════════════
   final MapController _mapController = MapController();
   LatLng? _userPosition;
-  bool _isLoadingLocation = true;
+  // Spazi Pro nelle vicinanze (caricati 1x dopo geolocalizzazione,
+  // poi al pull-to-refresh). Auto-nascosti se vuoti.
+  List<Business> _nearbyBusinesses = const [];
   List<CommunityTrack> _communityTracks = [];
   bool _isLoadingCommunity = true;
   CommunityTrack? _selectedCommunityTrack;
   bool _showMap = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  // Komoot K1a Step 2 — filtro difficoltà computata. Null = "Tutte".
+  // Logica "T3+" = include T3, T4, T5 (≥ livello selezionato).
+  ComputedDifficulty? _filterMinDifficulty;
   // Paginazione
   QueryDocumentSnapshot? _lastDocument;
   bool _hasMoreTracks = true;
@@ -92,12 +107,33 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   List<Tour> _publicTours = [];
   bool _isLoadingPublicTours = false;
   bool _publicToursLoaded = false;
+  // Filtri community tour
+  final TextEditingController _tourSearchCtrl = TextEditingController();
+  String _tourSearchQuery = '';
+  String? _tourFilterDifficulty;
+  // Komoot K2-light — filtro tipo tour: null = tutti, consecutive
+  // = solo cammini, collection = solo collezioni tematiche.
+  TourType? _tourFilterType;
+
+  // Discovery carousel: aperto al primo ingresso alla tab Tracce,
+  // collassato quando l'utente cambia tab (= non interessato a
+  // restare a guardare i consigli). Tap sulla pill collassata lo
+  // riapre.
+  bool _discoveryCollapsed = false;
+  bool _discoveryEverOpened = false; // primo apertura tab tracce
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(() {
+      // Discovery carousel: se l'utente cambia tab significa che
+      // non sta guardando i consigli → li collassiamo per dare più
+      // spazio al contenuto. Tornando sulla tab Tracce restano
+      // collassati finché l'utente non riapre col tap sulla pill.
+      if (_tabController.index != 0 && !_discoveryCollapsed) {
+        setState(() => _discoveryCollapsed = true);
+      }
       // Carica lazy i dati quando si cambia tab
       if (_tabController.index == 1 && _myGroups.isEmpty && !_isLoadingMyGroups) {
         _loadMyGroups();
@@ -128,6 +164,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   @override
   void dispose() {
     _tabController.dispose();
+    _tourSearchCtrl.dispose();
     _searchController.dispose();
     super.dispose();
     _scrollController.dispose();
@@ -138,20 +175,16 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<void> _initializeLocation() async {
-    setState(() => _isLoadingLocation = true);
-
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!mounted) return;
       if (!serviceEnabled) {
-        setState(() => _isLoadingLocation = false);
         return;
       }
 
       final hasPermission = await LocationService().checkAndRequestPermission(context: context);
       if (!mounted) return;
       if (!hasPermission) {
-        setState(() => _isLoadingLocation = false);
         return;
       }
 
@@ -165,11 +198,31 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
       setState(() {
         _userPosition = LatLng(position.latitude, position.longitude);
-        _isLoadingLocation = false;
       });
+      // Carica Spazi Pro intorno alla posizione utente (non bloccante).
+      _loadNearbyBusinesses();
     } catch (e) {
       debugPrint('[CommunityPage] Errore geolocalizzazione: $e');
-      if (mounted) setState(() => _isLoadingLocation = false);
+    }
+  }
+
+  /// Carica gli Spazi Pro attivi entro 50 km dall'utente.
+  /// Non bloccante: se fallisce, la mappa funziona uguale senza
+  /// marker business. Volumi attesi: decine di spazi per area.
+  Future<void> _loadNearbyBusinesses() async {
+    final pos = _userPosition;
+    if (pos == null) return;
+    try {
+      final list = await _businessRepo.getNearby(
+        lat: pos.latitude,
+        lng: pos.longitude,
+        radiusKm: 50,
+        limit: 100,
+      );
+      if (!mounted) return;
+      setState(() => _nearbyBusinesses = list);
+    } catch (e) {
+      debugPrint('[CommunityPage] Errore Spazi Pro vicini: $e');
     }
   }
 
@@ -223,11 +276,25 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   }
 
   List<CommunityTrack> get _filteredCommunity {
-    if (_searchQuery.isEmpty) return _communityTracks;
-    return _communityTracks.where((track) =>
-        track.name.toLowerCase().contains(_searchQuery) ||
-        track.ownerUsername.toLowerCase().contains(_searchQuery)
-    ).toList();
+    var list = _communityTracks;
+    if (_searchQuery.isNotEmpty) {
+      // 4.4 — Ricerca accent-insensitive (allineata a Discover).
+      // Esempio: "perù" matcha "Peru'", "città" matcha "Citta'".
+      list = list.where((track) {
+        return TextSearch.matchesAny(_searchQuery, [
+          track.name,
+          track.ownerUsername,
+        ]);
+      }).toList();
+    }
+    if (_filterMinDifficulty != null) {
+      final minIdx = _filterMinDifficulty!.index;
+      list = list.where((t) {
+        final level = ComputedDifficulty.fromKey(t.computedDifficulty);
+        return level != null && level.index >= minIdx;
+      }).toList();
+    }
+    return list;
   }
 
   void _onSearchChanged(String query) {
@@ -265,9 +332,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // CARICAMENTO: GRUPPI
   // ═══════════════════════════════════════════════════════════════════════
 
-  Future<void> _loadMyGroups() async {
+  Future<void> _loadMyGroups({bool forceServer = false}) async {
     setState(() => _isLoadingMyGroups = true);
-    final groups = await _groupsRepo.getMyGroups();
+    final groups = await _groupsRepo.getMyGroups(forceServer: forceServer);
     if (mounted) {
       setState(() {
         _myGroups = groups;
@@ -530,6 +597,18 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.business_center_outlined),
+            tooltip: 'Spazi Pro',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const BusinessDiscoveryPage(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.person_search),
             onPressed: () {
               Navigator.push(
@@ -619,44 +698,200 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     if (_isLoadingPublicTours && _publicTours.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_publicTours.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _loadPublicTours,
-        child: ListView(
-          children: [
-            const SizedBox(height: 100),
-            Center(
-              child: Column(
-                children: [
-                  Icon(Icons.map_outlined, size: 80, color: AppColors.primary.withOpacity(0.3)),
-                  const SizedBox(height: 16),
-                  Text(
-                    context.l10n.noTours,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                  ),
-                ],
+
+    // Filtro in-memory: search query (titolo, autore, città di
+    // partenza approssimata) + filtro difficoltà.
+    final query = _tourSearchQuery.toLowerCase();
+    final filtered = _publicTours.where((t) {
+      if (_tourFilterType != null && t.type != _tourFilterType) {
+        return false;
+      }
+      if (_tourFilterDifficulty != null &&
+          t.difficultyGrade != _tourFilterDifficulty) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return t.title.toLowerCase().contains(query) ||
+          t.ownerName.toLowerCase().contains(query) ||
+          (t.description?.toLowerCase().contains(query) ?? false);
+    }).toList();
+
+    // Conteggi rapidi per badge nei chip "Cammini"/"Collezioni".
+    final consecutiveCount =
+        _publicTours.where((t) => t.type == TourType.consecutive).length;
+    final collectionCount =
+        _publicTours.where((t) => t.type == TourType.collection).length;
+
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: TextField(
+            controller: _tourSearchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Cerca tour, autore, regione...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _tourSearchCtrl.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        _tourSearchCtrl.clear();
+                        setState(() => _tourSearchQuery = '');
+                      },
+                    ),
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-          ],
+            onChanged: (v) => setState(() => _tourSearchQuery = v.trim()),
+          ),
         ),
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: _loadPublicTours,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _publicTours.length,
-        itemBuilder: (ctx, i) {
-          final t = _publicTours[i];
-          return _PublicTourCard(
-            tour: t,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CommunityTourDetailPage(tourId: t.id),
+        // Komoot K2-light — filter chip tipo tour: tutti / cammini /
+        // collezioni. Mostra il count come badge sui chip.
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            children: [
+              _typeChip(null, 'Tutti'),
+              _typeChip(TourType.consecutive,
+                  '🥾 Cammini ($consecutiveCount)'),
+              _typeChip(TourType.collection,
+                  '📚 Collezioni ($collectionCount)'),
+            ],
+          ),
+        ),
+        // Filter chip difficoltà
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            children: [
+              _diffChip(null, 'Tutte difficoltà'),
+              _diffChip('T (Turistico)', '🚶 T'),
+              _diffChip('E (Escursionistico)', '⛰️ E'),
+              _diffChip('EE (Escursionisti Esperti)', '⛰️ EE'),
+              _diffChip(
+                  'EEA (Esperti con Attrezzatura)', '🧗 EEA'),
+            ],
+          ),
+        ),
+        // Counter
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${filtered.length} di ${_publicTours.length} tour',
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w500,
               ),
             ),
-          );
+          ),
+        ),
+        // Lista (o empty/no-match state)
+        Expanded(
+          child: filtered.isEmpty
+              ? RefreshIndicator(
+                  onRefresh: _loadPublicTours,
+                  child: ListView(
+                    children: [
+                      const SizedBox(height: 80),
+                      Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.map_outlined,
+                                size: 64,
+                                color: AppColors.primary
+                                    .withValues(alpha: 0.3)),
+                            const SizedBox(height: 12),
+                            Text(
+                              _publicTours.isEmpty
+                                  ? context.l10n.noTours
+                                  : 'Nessun tour per i filtri attivi',
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500),
+                            ),
+                            if (_publicTours.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Prova a togliere un filtro',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadPublicTours,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    itemCount: filtered.length,
+                    itemBuilder: (ctx, i) {
+                      final t = filtered[i];
+                      return _PublicTourCard(
+                        tour: t,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                CommunityTourDetailPage(tourId: t.id),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _diffChip(String? value, String label) {
+    final selected = _tourFilterDifficulty == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        selected: selected,
+        onSelected: (_) {
+          setState(() => _tourFilterDifficulty = value);
+        },
+      ),
+    );
+  }
+
+  /// Komoot K2-light — chip filtro tipo tour (Cammini/Collezioni).
+  Widget _typeChip(TourType? value, String label) {
+    final selected = _tourFilterType == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+        selected: selected,
+        selectedColor: AppColors.primary.withValues(alpha: 0.18),
+        onSelected: (_) {
+          setState(() => _tourFilterType = value);
         },
       ),
     );
@@ -666,16 +901,97 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // TAB 1: TRACCE COMMUNITY
   // ═══════════════════════════════════════════════════════════════════════
 
-  Widget _buildTracksTab() {
-    return Column(
+  /// Wrapper attorno al DiscoveryCarousel con stato collassabile.
+  /// Quando collassato, mostra una pill compatta tappabile per
+  /// riaprirlo. Auto-collassato quando l'utente cambia tab (gestito
+  /// dal listener _tabController in initState).
+  Widget _buildCollapsibleDiscovery() {
+    if (_discoveryCollapsed) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => setState(() => _discoveryCollapsed = false),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.3),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lightbulb_outline,
+                    size: 14, color: AppColors.primary),
+                const SizedBox(width: 6),
+                const Text(
+                  'Consigli per te',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.keyboard_arrow_down,
+                    size: 16, color: AppColors.primary),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    // Aperto: carousel completo + bottoncino X in overlay per
+    // collassare manualmente.
+    if (!_discoveryEverOpened) {
+      _discoveryEverOpened = true;
+    }
+    return Stack(
       children: [
-        // Discovery carousel: card informative sulle funzionalita meno
-        // scoperte (Lifeline, Tour, Export FIT, etc). Si auto-collassa se
-        // non ci sono prompt attivi o l'utente li ha tutti dismissati.
         const Padding(
           padding: EdgeInsets.only(top: 8),
           child: DiscoveryCarousel(),
         ),
+        Positioned(
+          top: 4,
+          right: 8,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => setState(() => _discoveryCollapsed = true),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.keyboard_arrow_up,
+                  size: 18,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTracksTab() {
+    return Column(
+      children: [
+        // Discovery carousel: card informative sulle funzionalita meno
+        // scoperte (Lifeline, Tour, Export FIT, etc). Aperto al primo
+        // ingresso → collassato quando l'utente cambia tab (=non
+        // interessato a restare). Tap sulla pill compatta lo riapre.
+        _buildCollapsibleDiscovery(),
 
         // Barra di ricerca
         Padding(
@@ -703,6 +1019,11 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           ),
         ),
 
+        // Komoot K1a Step 2 — filtro per difficoltà computata.
+        // "Tutte" disattiva il filtro. T1+/T2+/T3+/T4+/T5 = livello
+        // minimo (es. T3+ mostra T3, T4 e T5).
+        _buildDifficultyFilterStrip(),
+
         // Contenuto
         Expanded(
           child: _isLoadingCommunity
@@ -710,6 +1031,47 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               : _buildTracksContent(),
         ),
       ],
+    );
+  }
+
+  Widget _buildDifficultyFilterStrip() {
+    final levels = ComputedDifficulty.values;
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          ChoiceChip(
+            label: const Text('Tutte', style: TextStyle(fontSize: 12)),
+            selected: _filterMinDifficulty == null,
+            onSelected: (_) => setState(() => _filterMinDifficulty = null),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          const SizedBox(width: 6),
+          for (final lvl in levels) ...[
+            ChoiceChip(
+              label: Text(
+                '${lvl.code}+',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _filterMinDifficulty == lvl ? Colors.white : lvl.color,
+                ),
+              ),
+              selected: _filterMinDifficulty == lvl,
+              selectedColor: lvl.color,
+              backgroundColor: lvl.color.withValues(alpha: 0.10),
+              side: BorderSide(color: lvl.color.withValues(alpha: 0.5)),
+              onSelected: (_) => setState(() => _filterMinDifficulty = lvl),
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            const SizedBox(width: 6),
+          ],
+        ],
+      ),
     );
   }
 
@@ -742,7 +1104,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             initialZoom: 11,
             minZoom: 8,
             maxZoom: 18,
-            onTap: (_, __) => setState(() => _selectedCommunityTrack = null),
+            onTap: (_, _) => setState(() => _selectedCommunityTrack = null),
           ),
           children: [
             TileLayer(
@@ -758,7 +1120,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 return Polyline(
                   points: track.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
                   strokeWidth: isSelected ? 5 : 3,
-                  color: isSelected ? AppColors.primary : AppColors.success.withOpacity(0.7),
+                  color: isSelected ? AppColors.primary : AppColors.success.withValues(alpha: 0.7),
                 );
               }).toList(),
             ),
@@ -782,7 +1144,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
                         ],
                       ),
                       child: Center(
@@ -796,6 +1158,56 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 );
               }).whereType<Marker>().toList(),
             ),
+
+            // 🏔️ Marker Spazi Pro nelle vicinanze
+            if (_nearbyBusinesses.isNotEmpty)
+              MarkerLayer(
+                markers: _nearbyBusinesses.map((b) {
+                  return Marker(
+                    point: LatLng(b.location.lat, b.location.lng),
+                    width: 36,
+                    height: 36,
+                    child: GestureDetector(
+                      onTap: () {
+                        final id = b.id;
+                        if (id == null) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                BusinessProfilePage(businessId: id),
+                          ),
+                        );
+                      },
+                      child: Tooltip(
+                        message: '${b.name} · ${b.type.displayName}',
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.primary,
+                              width: 2.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              b.type.icon,
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
 
             // Marker posizione utente
             if (_userPosition != null)
@@ -812,7 +1224,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.4),
+                            color: AppColors.primary.withValues(alpha: 0.4),
                             blurRadius: 10,
                             spreadRadius: 2,
                           ),
@@ -927,6 +1339,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             cheerCount: track.cheerCount,
             sharedAt: track.sharedAt,
             difficulty: track.difficulty,
+            computedDifficulty: track.computedDifficulty,
             photoUrls: track.photoUrls,
             points: track.points,
             onTap: () => _openCommunityTrackDetail(track),
@@ -973,7 +1386,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   onSelected: (value) {
                     setState(() => _showPublicGroups = false);
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
@@ -983,7 +1396,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     setState(() => _showPublicGroups = true);
                     if (_discoverableGroups.isEmpty) _loadDiscoverableGroups();
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 ),
                 const Spacer(),
                 // ⭐ NUOVO: Bottone unisciti con codice
@@ -1042,7 +1455,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     }
 
     return RefreshIndicator(
-      onRefresh: _loadMyGroups,
+      onRefresh: () => _loadMyGroups(forceServer: true),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _myGroups.length,
@@ -1094,6 +1507,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   Widget _buildGroupCard(Group group, {required bool isMember}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      shape: businessCardShape(group),
+      color: businessCardSurface(context, group),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: isMember
             ? () async {
@@ -1103,37 +1519,20 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     builder: (_) => GroupDetailPage(groupId: group.id, groupName: group.name),
                   ),
                 );
-                _loadMyGroups();
+                // forceServer per intercettare upload logo / Business flag
+                _loadMyGroups(forceServer: true);
               }
             : null,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            BusinessCoverHeader(group: group),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
             children: [
-              // Avatar gruppo
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppColors.primary, AppColors.primary.withOpacity(0.6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(
-                    group.name.isNotEmpty ? group.name[0].toUpperCase() : 'G',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+              // Avatar gruppo: logo Business o lettera iniziale
+              _CommunityGroupAvatar(group: group),
               const SizedBox(width: 16),
 
               // Info
@@ -1141,10 +1540,29 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      group.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            group.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (group.isBusinessGroup) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.verified,
+                            size: 16,
+                            color: groupAccentColor(group),
+                          ),
+                        ],
+                      ],
                     ),
+                    if (group.isBusinessGroup) ...[
+                      const SizedBox(height: 4),
+                      BusinessPill(group: group),
+                    ],
                     if (group.description != null && group.description!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
@@ -1240,6 +1658,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 ),
             ],
           ),
+            ),
+          ],
         ),
       ),
     );
@@ -1263,7 +1683,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 onSelected: (value) {
                   setState(() => _showPublicEvents = false);
                 },
-                selectedColor: AppColors.primary.withOpacity(0.2),
+                selectedColor: AppColors.primary.withValues(alpha: 0.2),
               ),
               const SizedBox(width: 8),
               FilterChip(
@@ -1273,7 +1693,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   setState(() => _showPublicEvents = true);
                   if (_publicEvents.isEmpty) _loadPublicEvents();
                 },
-                selectedColor: AppColors.primary.withOpacity(0.2),
+                selectedColor: AppColors.primary.withValues(alpha: 0.2),
               ),
             ],
           ),
@@ -1298,9 +1718,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.warning.withOpacity(0.1),
+        color: AppColors.warning.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1344,7 +1764,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -1484,7 +1904,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     decoration: BoxDecoration(
                       color: isPast
                           ? Colors.grey[200]
-                          : AppColors.primary.withOpacity(0.1),
+                          : AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -1538,7 +1958,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -1573,7 +1993,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.success.withOpacity(0.1),
+                        color: AppColors.success.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -1720,7 +2140,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: context.textMuted.withOpacity(0.5)),
+          Icon(icon, size: 64, color: context.textMuted.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             message,
@@ -1770,7 +2190,7 @@ class _CounterBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
       ),
       child: Text('$count $label', style: const TextStyle(fontWeight: FontWeight.bold)),
     );
@@ -1791,7 +2211,7 @@ class _CommunityTrackInfoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, spreadRadius: 2)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 10, spreadRadius: 2)],
       ),
       child: Material(
         color: Colors.transparent,
@@ -1806,7 +2226,7 @@ class _CommunityTrackInfoCard extends StatelessWidget {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.1),
+                    color: AppColors.success.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(child: Text(track.activityIcon, style: const TextStyle(fontSize: 24))),
@@ -1857,73 +2277,319 @@ class _PublicTourCard extends StatelessWidget {
     final durStr = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Hero photo o fallback gradient. Titolo overlay con
+            // gradient nero sotto per leggibilità.
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                  if (tour.coverPhotoUrl != null)
+                    CachedNetworkImage(
+                      imageUrl: tour.coverPhotoUrl!,
+                      fit: BoxFit.cover,
+                      placeholder: (c, _) =>
+                          Container(color: AppColors.surface),
+                    )
+                  else
+                    // Fallback: gradient brand + icona mappa centrata.
+                    // Se in futuro la card userà mini-map polyline,
+                    // sostituisci questo blocco con un widget
+                    // che disegna le tappe (TourBounds + downsampled
+                    // points del primo stage, ad esempio).
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFFE07B4C),
+                            Color(0xFFFFA726),
+                          ],
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.map,
+                            color: Colors.white, size: 56),
+                      ),
                     ),
-                    child: Icon(Icons.map, color: AppColors.primary),
+                  // Gradient nero per leggibilità titolo
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.0),
+                          Colors.black.withValues(alpha: 0.75),
+                        ],
+                        stops: const [0.0, 0.45, 1.0],
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
+                  // Top-left chip "TOUR" + giorni
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                              tour.type == TourType.consecutive
+                                  ? Icons.calendar_month
+                                  : Icons.collections_bookmark_outlined,
+                              size: 12,
+                              color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(
+                            tour.type == TourType.consecutive
+                                ? context.l10n.tourDays(tour.daysCount)
+                                : '${tour.trackIds.length} tracce',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Titolo + autore in basso
+                  Positioned(
+                    left: 14,
+                    right: 14,
+                    bottom: 12,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           tour.title,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                          maxLines: 1,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            height: 1.15,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black54,
+                                blurRadius: 6,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${tour.ownerName} · ${context.l10n.tourDays(tour.daysCount)} · ${context.l10n.tourStages(tour.trackIds.length)}',
-                          style: TextStyle(color: context.textSecondary, fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const CircleAvatar(
+                              radius: 8,
+                              backgroundColor: Colors.white24,
+                              child: Icon(Icons.person,
+                                  size: 10, color: Colors.white),
+                            ),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                tour.ownerName,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white70,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+            ),
+            // Body: stats + meta chips
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _chip(context, Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
-                  _chip(context, Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
-                  if (tour.totalDuration.inMinutes > 0)
-                    _chip(context, Icons.schedule, durStr),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 6,
+                    children: [
+                      _stat(context, Icons.straighten,
+                          '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
+                      _stat(
+                        context,
+                        Icons.trending_up,
+                        '+${tour.totalElevationGain.toStringAsFixed(0)} m',
+                        AppColors.success,
+                      ),
+                      _stat(
+                          context,
+                          tour.type == TourType.consecutive
+                              ? Icons.format_list_numbered
+                              : Icons.collections_bookmark_outlined,
+                          '${tour.trackIds.length} ${tour.type == TourType.consecutive ? "tappe" : "tracce"}'),
+                      if (tour.totalDuration.inMinutes > 0)
+                        _stat(context, Icons.schedule, durStr),
+                    ],
+                  ),
+                  if (tour.difficultyGrade != null ||
+                      tour.bestPeriod != null) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (tour.difficultyGrade != null)
+                          _metaPill(
+                            icon: Icons.hiking,
+                            label: tour.difficultyGrade!,
+                            color: AppColors.danger,
+                          ),
+                        if (tour.bestPeriod != null)
+                          _metaPill(
+                            icon: Icons.event_available_outlined,
+                            label: tour.bestPeriod!,
+                            color: AppColors.success,
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _chip(BuildContext context, IconData icon, String value, [Color? color]) {
+  Widget _stat(BuildContext context, IconData icon, String value,
+      [Color? color]) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 16, color: color ?? context.textSecondary),
         const SizedBox(width: 4),
-        Text(value, style: TextStyle(fontSize: 13, color: color ?? context.textPrimary, fontWeight: FontWeight.w500)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            color: color ?? context.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _metaPill({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Avatar nella lista community gruppi: per i Business mostra il logo
+/// se presente, altrimenti la lettera iniziale come prima.
+class _CommunityGroupAvatar extends StatelessWidget {
+  final Group group;
+
+  const _CommunityGroupAvatar({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLogo = group.hasCustomLogo;
+    debugPrint(
+      '[CommunityGroupAvatar] ${group.name}: isBusiness=${group.isBusinessGroup} '
+      'avatarUrl=${group.avatarUrl} hasLogo=$hasLogo',
+    );
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: hasLogo
+            ? null
+            : LinearGradient(
+                colors: [
+                  AppColors.primary,
+                  AppColors.primary.withValues(alpha: 0.6),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: hasLogo ? Colors.white : null,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasLogo
+          ? CachedNetworkImage(
+              imageUrl: group.avatarUrl!,
+              fit: BoxFit.cover,
+              placeholder: (_, _) => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              errorWidget: (_, _, _) => _initialFallback(group.name),
+            )
+          : _initialFallback(group.name),
+    );
+  }
+
+  Widget _initialFallback(String name) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'G',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }

@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/elevation_processor.dart';
 import '../../../data/models/track.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina admin per ricalcolare le statistiche di tutte le tracce
 /// dai punti GPS salvati in Firestore.
@@ -47,9 +47,9 @@ class _RecalculateStatsPageState extends State<RecalculateStatsPage> {
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.info.withOpacity(0.1),
+              color: AppColors.info.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.info.withOpacity(0.3)),
+              border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,7 +214,7 @@ class _RecalculateStatsPageState extends State<RecalculateStatsPage> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annulla')),
+              child: Text(context.l10n.cancel)),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(

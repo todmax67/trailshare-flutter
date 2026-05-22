@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../data/models/trail_photo.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Viewer full-screen per sfogliare una lista di [TrailPhoto] con pinch-to-zoom.
 ///
@@ -51,17 +52,17 @@ class _TrailPhotoViewerState extends State<TrailPhotoViewer> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminare foto?'),
-        content: const Text('Questa azione non può essere annullata.'),
+        title: Text(context.l10n.deletePhotoQuestion),
+        content: Text('Questa azione non può essere annullata.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),

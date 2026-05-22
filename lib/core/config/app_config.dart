@@ -1,4 +1,5 @@
 /// Configurazione dell'app
+library;
 
 class AppConfig {
   /// URL del proxy ORS tramite Cloud Function

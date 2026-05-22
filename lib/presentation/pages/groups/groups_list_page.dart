@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'create_group_page.dart';
 import 'group_detail_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/owner_pro_status_cache.dart';
+import '../../../core/utils/group_brand.dart';
+import '../../widgets/business_group_card_decorations.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class GroupsListPage extends StatefulWidget {
   const GroupsListPage({super.key});
@@ -40,9 +43,13 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
     super.dispose();
   }
 
-  Future<void> _loadMyGroups() async {
+  Future<void> _loadMyGroups({bool forceServer = false}) async {
     setState(() => _isLoadingMy = true);
-    final groups = await _repo.getMyGroups();
+    final groups = await _repo.getMyGroups(forceServer: forceServer);
+    // Sprint B.2: pre-fetch flag Pro degli owner per evitare flicker
+    // del branding al primo render della lista.
+    await OwnerProStatusCache()
+        .primeOwners(groups.map((g) => g.createdBy));
     if (mounted) {
       setState(() {
         _myGroups = groups;
@@ -54,6 +61,8 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
   Future<void> _loadPublicGroups() async {
     setState(() => _isLoadingPublic = true);
     final groups = await _repo.getDiscoverableGroups();
+    await OwnerProStatusCache()
+        .primeOwners(groups.map((g) => g.createdBy));
     if (mounted) {
       setState(() {
         _publicGroups = groups;
@@ -106,7 +115,8 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
               : _myGroups.isEmpty
                   ? _buildEmptyState()
                   : RefreshIndicator(
-                      onRefresh: _loadMyGroups,
+                      // Pull-to-refresh esplicito = forza fetch server-side
+                      onRefresh: () => _loadMyGroups(forceServer: true),
                       child: ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: _myGroups.length,
@@ -202,6 +212,9 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
   Widget _buildGroupCard(Group group, {required bool isMember}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      shape: businessCardShape(group),
+      color: businessCardSurface(context, group),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: isMember
             ? () async {
@@ -211,37 +224,23 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                     builder: (_) => GroupDetailPage(groupId: group.id, groupName: group.name),
                   ),
                 );
-                _loadMyGroups();
+                // forceServer=true: bypass cache Firestore per intercettare
+                // eventuali modifiche al gruppo fatte dentro il detail
+                // (upload logo, marca Business, rinomina, ecc.)
+                _loadMyGroups(forceServer: true);
               }
             : null,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Hero cover banner: solo Business con cover caricata.
+            BusinessCoverHeader(group: group),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
             children: [
-              // Avatar gruppo
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppColors.primary, AppColors.primary.withOpacity(0.6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(
-                    group.name.isNotEmpty ? group.name[0].toUpperCase() : 'G',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+              // Avatar gruppo: logo Business o lettera iniziale
+              _GroupListAvatar(group: group),
               const SizedBox(width: 16),
 
               // Info
@@ -249,13 +248,32 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      group.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            group.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (group.isBusinessGroup) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.verified,
+                            size: 16,
+                            color: groupAccentColor(group),
+                          ),
+                        ],
+                      ],
                     ),
+                    if (group.isBusinessGroup) ...[
+                      const SizedBox(height: 4),
+                      BusinessPill(group: group),
+                    ],
                     if (group.description != null && group.description!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
@@ -320,6 +338,68 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                 ),
             ],
           ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Avatar nella lista gruppi: per i Business mostra il logo se
+/// presente, altrimenti la lettera iniziale come prima.
+class _GroupListAvatar extends StatelessWidget {
+  final Group group;
+
+  const _GroupListAvatar({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLogo = group.hasCustomLogo;
+    // Diagnostica: aiuta a capire perche' il logo non si vede
+    debugPrint(
+      '[GroupListAvatar] ${group.name}: isBusiness=${group.isBusinessGroup} '
+      'avatarUrl=${group.avatarUrl} hasLogo=$hasLogo',
+    );
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: hasLogo
+            ? null
+            : LinearGradient(
+                colors: [
+                  AppColors.primary,
+                  AppColors.primary.withValues(alpha: 0.6),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: hasLogo ? Colors.white : null,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasLogo
+          ? CachedNetworkImage(
+              imageUrl: group.avatarUrl!,
+              fit: BoxFit.cover,
+              placeholder: (_, _) => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              errorWidget: (_, _, _) => _initialFallback(group.name),
+            )
+          : _initialFallback(group.name),
+    );
+  }
+
+  Widget _initialFallback(String name) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'G',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

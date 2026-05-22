@@ -1,0 +1,710 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- FUNZIONI HELPER ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+             get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.admin == true;
+    }
+
+    // ✅ Single source of truth: il claim 'admin' nel JWT token
+    // dell'utente. Settato server-side dalla Cloud Function
+    // `setAdminClaim` (vedi functions/index.js).
+    //
+    // Vantaggi vs il vecchio hardcoded list `isAdminByEmail`:
+    //   - Niente piu' liste duplicate tra rules e functions
+    //   - Aggiungere/rimuovere un admin = 1 chiamata function
+    //   - Le rules si propagano immediate al prossimo refresh token
+    //
+    // Il client deve chiamare `user.getIdToken(true)` per refresh
+    // immediato dopo che gli viene assegnato il claim; altrimenti
+    // il claim si propaga entro 1 ora.
+    function isAdminByClaim() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // 🔄 LEGACY: hardcoded list mantenuta come fallback durante
+    // la transizione al sistema custom claims. Rimuovere dopo che
+    // bootstrapAdminClaims e' stato eseguito e tutti gli admin
+    // storici hanno il claim attivo.
+    //
+    // ⚠️ Se aggiungi qualcosa qui, aggiungilo ANCHE in
+    // functions/index.js → const ADMIN_EMAILS (idem dietro). Ma
+    // preferibilmente non aggiungerne piu' qui: usa setAdminClaim.
+    function isAdminByEmail() {
+      return isSignedIn() &&
+             request.auth.token.email in [
+               'admin@trailshare.app',
+               'info@trailshare.app',
+               'todde.massimiliano@gmail.com',
+               'info@bluspose.it'
+             ];
+    }
+
+    // ✨ Helper unificato: ammette claim O email (transizione safe).
+    // Tutte le rules da ora in poi dovrebbero usare questa.
+    function isPlatformAdmin() {
+      return isAdminByClaim() || isAdminByEmail();
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+             request.auth.uid == 'g4uPvD3VQcMiYb4dDTWs7kJgm4u1';
+    }
+
+    // --- REGOLE SENTIERI PUBBLICI OSM ---
+    match /public_trails/{trailId} {
+      allow read: if true;
+      allow create, update: if isAdminByEmail();
+      allow delete: if isAdminByEmail();
+    }
+
+    // --- Geometry pesanti (split da public_trails per ridurre payload Discover) ---
+    // 1 doc per trail con coordinatesJson completo. Read pubblico (la mappa
+    // dettaglio lo fa lazy-load); write solo admin.
+    match /public_trail_geometries/{trailId} {
+      allow read: if true;
+      allow create, update, delete: if isAdminByEmail();
+    }
+
+    // --- Storico import sentieri (admin only, A4) ---
+    // Solo admin-by-email può scrivere; read aperto a admin (per UI
+    // pannello). Niente PII, solo conteggi + regione + timestamp.
+    match /trail_imports/{importId} {
+      allow read: if isSignedIn() && isAdminByEmail();
+      allow create: if isSignedIn() && isAdminByEmail();
+      allow update, delete: if false;
+    }
+
+    // --- Heatmap trail popolari (Epic 3.4) ---
+    // Aggregato weekly da Cloud Function `aggregateHeatmapWeekly` su
+    // base published_tracks. Read pubblico (no PII); write solo admin
+    // SDK (Cloud Function bypassa rules).
+    match /heatmap_cells/{geohash} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // --- REGOLE PROFILI UTENTE ---
+    match /user_profiles/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if
+        isSuperAdmin()
+        ||
+        (isOwner(userId) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['bio', 'username', 'avatarUrl', 'wishlist',
+                      'totalTracks', 'totalDistance', 'totalElevationGain', 'earnedBadges',
+                      'fcmTokens', 'following', 'email', 'createdAt', 'lastActive',
+                      'socialFeaturingOptIn',
+                      'region', 'regionSetAt',
+                      // Gamification: XP / level / data ultimo grant.
+                      // Scritti dal client GamificationService.grantXp
+                      // dopo ogni track save / cheer / follow / ecc.
+                      'xp', 'level', 'lastXpGrant']))
+        ||
+        (isSignedIn() && !isOwner(userId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers']));
+      allow delete: if isOwner(userId) || isAdmin() || isSuperAdmin();
+    }
+
+    // ─── Emergency contacts (Lifeline) ──────────────────────────────────
+    match /user_profiles/{uid}/emergency_contacts/{contactId} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create, update: if isSignedIn()
+                            && request.auth.uid == uid
+                            && request.resource.data.name is string
+                            && request.resource.data.name.size() > 0
+                            && request.resource.data.name.size() < 80;
+      allow delete: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /live_sessions/{sid}/access_tokens/{token} {
+      allow create, read, delete: if isSignedIn()
+        && request.auth.uid == get(/databases/$(database)/documents/live_sessions/$(sid)).data.userId;
+    }
+
+    // ─── POI / Points of Interest ────────────────────────────────────────
+    match /poi_points/{poiId} {
+      allow read: if isSignedIn()
+        && (resource.data.isPublic == true
+            || resource.data.createdBy == request.auth.uid
+            || isAdminByEmail());
+
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() < 120
+        && request.resource.data.type is string
+        && request.resource.data.latitude is number
+        && request.resource.data.longitude is number
+        && request.resource.data.geohash is string
+        && (request.resource.data.isPublic == false || isAdminByEmail());
+
+      allow update: if isSignedIn()
+        && (
+          (resource.data.createdBy == request.auth.uid
+           && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['createdBy', 'createdAt', 'verifiedByAdmin']))
+          || isAdminByEmail()
+        );
+
+      allow delete: if isSignedIn()
+        && (resource.data.createdBy == request.auth.uid || isAdminByEmail());
+
+      match /votes/{uid} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isSignedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // ─── BUSINESS / SPAZIO PRO ─────────────────────────────────────
+    // Profili pubblici (rifugi, noleggi, guide, ecc). Read pubblico per
+    // SEO + landing senza login. La sub-collection followers resta privata.
+    match /businesses/{businessId} {
+      allow read: if true;
+
+      // MVP: creazione SOLO da super-admin (B-flow). Quando aggiungeremo
+      // self-serve, allargheremo a isSignedIn() con check su nome+slug+location.
+      allow create: if isAdminByEmail()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() < 120
+        && request.resource.data.slug is string
+        && request.resource.data.slug.size() > 0
+        && request.resource.data.type is string
+        && request.resource.data.location is map
+        && request.resource.data.location.lat is number
+        && request.resource.data.location.lng is number
+        && request.resource.data.followerCount == 0
+        && request.resource.data.postsCount == 0
+        && request.resource.data.reviewCount == 0;
+
+      // Update: owner del business, co-admin del business, OPPURE
+      // platform admin TrailShare (team interno che gestisce schede
+      // per conto di rifugi/noleggi non tech-savvy — vedi Epic 7.H
+      // pre-seeding & support).
+      //
+      // I counter (followerCount, postsCount, reviewCount) NON sono
+      // modificabili dal client — gestiti via transaction su
+      // sotto-collection (con FieldValue.increment). Anche
+      // ownerId/createdAt/tier/status sono campi system-only:
+      // platform admin puo' aggiornarli via altra rule sotto.
+      allow update: if isSignedIn()
+        && (resource.data.ownerId == request.auth.uid
+            || (resource.data.adminUserIds is list
+                && request.auth.uid in resource.data.adminUserIds)
+            || isPlatformAdmin())
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['followerCount', 'postsCount', 'reviewCount', 'rating',
+                     'ownerId', 'createdAt', 'tier', 'status']);
+
+      // Update riservato platform admin: campi system-only
+      // (ownerId, tier, status). Es. claim flow: admin trasferisce
+      // ownership a un nuovo gestore; o cambio tier dopo
+      // attivazione pagamento.
+      // 7.H1 — `pendingSelfManagement` rientra qui: lo settano admin
+      // (creazione scheda per conto di rifugio) o le Cloud Function
+      // di self-claim. Il token vive in `business_self_claims/{token}`
+      // — collection separata non leggibile dal client (sotto).
+      allow update: if isSignedIn() && isPlatformAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['ownerId', 'tier', 'status', 'adminUserIds',
+                      'updatedAt', 'claimedAt', 'claimedByUid',
+                      'disclaimerVisible', 'pendingSelfManagement',
+                      'outreachEmailSentAt', 'outreachStatus']);
+
+      // Update dei contatori: SOLO via transaction che modifica anche
+      // la sub-collection (Firestore non lo verifica direttamente, ma
+      // limitiamo affectedKeys ai soli counter/rating).
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['followerCount', 'postsCount', 'reviewCount',
+                      'rating', 'updatedAt']);
+
+      // Delete: owner, super admin, OPPURE platform admin
+      // (es. rimozione GDPR opt-out di scheda unclaimed).
+      allow delete: if isSignedIn()
+        && (resource.data.ownerId == request.auth.uid
+            || isSuperAdmin()
+            || isPlatformAdmin());
+
+      // ─── Followers (signed-in only, identità protetta) ─────────
+      match /followers/{userId} {
+        allow read: if isSignedIn();
+        allow create, delete: if isSignedIn() && request.auth.uid == userId;
+        allow update: if false;
+      }
+
+      // ─── Posts (SEO/landing → public read) ─────────────────────
+      match /posts/{postId} {
+        allow read: if true;
+        allow create: if isSignedIn()
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() < 5000;
+        allow update: if isSignedIn()
+          && (resource.data.authorId == request.auth.uid
+              || isPlatformAdmin());
+        allow delete: if isSignedIn()
+          && (resource.data.authorId == request.auth.uid
+              || isSuperAdmin()
+              || isPlatformAdmin());
+      }
+
+      // ─── Services (listino) — public read per SEO ───────────────
+      match /services/{serviceId} {
+        allow read: if true;
+        // Owner check via UI gating + audit; verifica vera richiede get()
+        // che è costoso a runtime. Mitigazione: rules sul business doc
+        // bloccano impersonificazioni grazie a ownerId immutabile.
+        allow create, update, delete: if isSignedIn();
+      }
+
+      // ─── Analytics aggregate (profile views, contact clicks) ─────
+      // Counter aggregate: scritti dal client su tap (no PII, no userId).
+      // Read pubblico così l'owner del business vede le sue stats anche
+      // dal web admin senza Cloud Function. MVP: write libero per
+      // signed-in (può falsare aprendo profilo 100x). Cloud Function
+      // dedup per produzione, rinviato.
+      match /analytics/{docId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn();
+      }
+      match /analytics_daily/{dateKey} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn();
+      }
+
+      // ─── Recommended tracks (percorsi consigliati dal business) ───
+      // Read pubblico (parte del profilo business). Write client-side
+      // gating: vero owner check via UI (verifica owner del business
+      // doc richiederebbe get() costoso).
+      match /recommended_tracks/{trackId} {
+        allow read: if true;
+        allow create, update, delete: if isSignedIn();
+      }
+
+      // ─── Reviews (Sprint 2) ─────────────────────────────────────
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isSignedIn()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.rating is number
+          && request.resource.data.rating >= 1
+          && request.resource.data.rating <= 5;
+        allow update: if isSignedIn()
+          && resource.data.userId == request.auth.uid;
+        allow delete: if isSignedIn()
+          && (resource.data.userId == request.auth.uid || isSuperAdmin());
+      }
+    }
+
+    // --- CLAIM REQUESTS (Epic 7.H5 — claim pubblico) ---
+    //
+    // Quando un utente arriva su una scheda `unclaimed` e clicca
+    // "Rivendica la scheda", compila il form e submitta una request
+    // che finisce qui. Il team admin la review da admin panel web e
+    // Approve/Reject via Cloud Function.
+    //
+    // - Create: signed-in only. Validazione base sui campi (no PII
+    //   inventata, businessId obbligatorio, status iniziale = pending).
+    // - Read/update/delete: NO client. Lo fa solo l'admin via Cloud
+    //   Function (approveClaimRequest / rejectClaimRequest che
+    //   girano in Admin SDK).
+    match /business_claim_requests/{requestId} {
+      // Read: solo platform admin (admin panel review).
+      allow read: if isSignedIn() && isPlatformAdmin();
+      // Update / delete: NO client (admin processa via Cloud Function
+      // approveClaimRequest / rejectClaimRequest che gira in Admin SDK).
+      allow update, delete: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.businessId is string
+        && request.resource.data.businessId.size() > 0
+        && request.resource.data.requesterUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requesterName is string
+        && request.resource.data.requesterName.size() > 0
+        && request.resource.data.requesterName.size() < 200
+        && request.resource.data.requesterEmail is string
+        && request.resource.data.requesterEmail.size() > 0
+        && request.resource.data.requesterEmail.size() < 320;
+    }
+
+    // --- QUALITY FLAGS (Epic 7.H11) ---
+    //
+    // Community-driven: chiunque vede una scheda unclaimed con info
+    // sbagliate può segnalare. Doc = { businessId, reporterUid,
+    // category, message, status: 'pending', createdAt }.
+    // Admin panel li revisiona e corregge la scheda o marca come
+    // risolto.
+    match /business_quality_flags/{flagId} {
+      allow read: if isSignedIn() && isPlatformAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.businessId is string
+        && request.resource.data.businessId.size() > 0
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.category is string
+        && request.resource.data.category.size() > 0
+        && (!('message' in request.resource.data)
+            || (request.resource.data.message is string
+                && request.resource.data.message.size() < 500));
+      // Update solo admin (per cambiare status pending → resolved/ignored).
+      allow update: if isSignedIn() && isPlatformAdmin();
+      allow delete: if false;
+    }
+
+    // --- FUNNEL TELEMETRY (Epic 7.H12) ---
+    //
+    // Eventi del flow claim (view → start → complete → approve).
+    // Scritti SOLO dalla Cloud Function `trackFunnelEvent` (callable
+    // che gira in Admin SDK). Niente write client diretto: evita
+    // event injection da finti utenti che inflano i counter.
+    //
+    // Read: platform admin per audit + admin panel funnel dashboard.
+    // (L'analytics owner-side legge invece aggregati su businesses/{id}/funnel_totals
+    // — collection figlia con rule più aperta sotto.)
+    match /business_funnel_events/{eventId} {
+      allow read: if isSignedIn() && isPlatformAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // --- SELF-CLAIM TOKEN STORE (Epic 7.H1) ---
+    // I doc qui sono `{ businessId, expiresAt, createdAt, createdByUid }`
+    // con doc ID = token random 32 char. Sono SECRET: chiunque possa
+    // leggere un doc può rivendicare la scheda corrispondente. Quindi
+    // niente accesso dal client — generateSelfClaimToken e
+    // acceptSelfClaim girano via Admin SDK che bypassa le rules.
+    match /business_self_claims/{token} {
+      allow read, write: if false;
+    }
+
+    // --- DOC ROOT /users/{uid} ---
+    // Contiene metadati cross-utente: proStatus (scritto da Cloud
+    // Function receipt-validation), FCM token, integrationsSummary
+    // ecc. Owner read+write. Senza questa rule ProGate.syncFromFirestore
+    // andava in 'permission-denied' bloccando il check dello stato Pro.
+    //
+    // NB: il client può scrivere `proStatus` ma non può manipolare
+    // l'expiry — il check di legittimità avviene server-side via
+    // receipt validation (Apple/Play) e il valore corretto sovrascrive
+    // quello locale via admin SDK alla prossima ricezione webhook.
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && isOwner(userId);
+    }
+
+    // --- REGOLE TRACCE PRIVATE (incluse pianificate) ---
+    // Cross-leggibili da tutti gli autenticati (necessario per feed, gruppi,
+    // tour). Continua a funzionare anche con il wildcard più stretto sotto.
+    match /users/{userId}/tracks/{trackId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
+    }
+
+    // --- INTEGRAZIONI ESTERNE (Strava, ecc.) ---
+    // Token OAuth scritti SOLO dalle Cloud Functions (admin SDK bypassa rules).
+    // Il client può solo leggere i propri e aggiornare il flag autoUploadEnabled.
+    match /users/{userId}/integrations/{platform} {
+      allow read: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['autoUploadEnabled', 'importFromStravaEnabled']);
+      allow create, delete: if false;
+    }
+
+    // --- ALTRE COLLEZIONI PRIVATE SOTTO /users/{uid} ---
+    // Default chiuso: solo l'owner legge/scrive. Le sottocollection che devono
+    // essere cross-leggibili hanno rule esplicite più sopra (tracks) o sotto
+    // (collection group sui tracks per i gruppi).
+    //
+    // ⚠️  Le rules in Firestore sono additive: questa wildcard NON deve
+    // coprire `integrations/*` altrimenti override la rule più stretta sopra
+    // e l'owner potrebbe sovrascrivere i token OAuth.
+    //
+    // NB: `{collectionName}` (single segment, String) supporta nativamente
+    // `!=` per il match. Path object (`{document=**}`) NON supporta
+    // indexing/.matches() in modo affidabile — usare String. `{docId=**}`
+    // dopo cattura il resto (sub-sub-docs eventuali).
+    match /users/{userId}/{collectionName}/{docId=**} {
+      allow read: if isSignedIn() && isOwner(userId)
+                  && collectionName != 'integrations';
+      allow write: if isSignedIn() && isOwner(userId)
+                   && collectionName != 'integrations';
+    }
+
+    // --- REGOLE TRACCE COMMUNITY ---
+    match /community_tracks/{trackId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isSuperAdmin());
+
+      match /cheers/{userId} {
+        allow read: if isSignedIn();
+        allow create, delete: if isSignedIn() && isOwner(userId);
+      }
+    }
+
+    // --- REGOLE TRACCE AGGREGATE (top-level per query count) ---
+    match /tracks/{trackId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isSuperAdmin());
+    }
+
+    // --- REGOLE TRACCE PUBBLICHE E SOTTO-COLLEZIONI ---
+    match /published_tracks/{trackId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isEmailVerified()
+                      && request.resource.data.originalOwnerId == request.auth.uid;
+      allow update: if isSignedIn() && isOwner(resource.data.originalOwnerId);
+      allow delete: if isSignedIn() && (isOwner(resource.data.originalOwnerId) || isAdmin() || isSuperAdmin());
+
+      match /cheers/{userId} {
+        allow read: if isSignedIn();
+        allow create, delete: if isSignedIn() && isOwner(userId);
+      }
+
+      match /reports/{reportId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isEmailVerified()
+                        && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isSignedIn() && isOwner(resource.data.userId);
+      }
+
+      match /conditions/{conditionId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isEmailVerified()
+                        && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isSignedIn() && isOwner(resource.data.userId);
+      }
+
+      match /ratings/{ratingId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isEmailVerified()
+                        && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isSignedIn() && isOwner(resource.data.userId);
+      }
+    }
+
+    // Tour privati: solo il proprietario
+    // NB: la rule generica /users/{uid}/{document=**} ora è owner-only,
+    // quindi questa rule resta solo per i vincoli di shape su create/update.
+    match /users/{userId}/tours/{tourId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.ownerId == userId
+        && request.resource.data.trackIds is list
+        && request.resource.data.trackIds.size() > 0;
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Tour pubblici (mirror): chiunque autenticato legge, solo l'owner scrive
+    match /community_tours/{tourId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.isPublic == true;
+      allow update: if request.auth != null
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    // ─── Segments (v1.6) ─────
+    match /segments/{segmentId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() < 120
+        && (
+          (isAdmin() && request.resource.data.isOfficial == true)
+          ||
+          (request.resource.data.isOfficial == false)
+        );
+
+      allow update, delete: if isSignedIn()
+        && (resource.data.createdBy == request.auth.uid || isAdmin());
+
+      match /efforts/{effortId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isSignedIn()
+          && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // Segnalazioni
+    match /trail_conditions/{trailId}/reports/{reportId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null
+                    && resource.data.userId == request.auth.uid;
+    }
+
+    // Regole commenti
+    match /published_tracks/{trackId}/comments/{commentId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() < 1000;
+      allow delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid
+        || get(/databases/$(database)/documents/published_tracks/$(trackId)).data.originalOwnerId == request.auth.uid
+      );
+      allow update: if false;
+    }
+
+    // --- REGOLE SESSIONI LIVE TRACKING ---
+    match /live_sessions/{sessionId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // --- REGOLE NOTIFICHE ---
+    // create stretto: senderId deve combaciare con l'utente autenticato
+    // (evita spam con recipientId arbitrario da parte di terzi).
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.senderId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+    }
+
+    // --- REGOLE LEADERBOARD ---
+    match /leaderboards/{userId} {
+      allow read: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
+      allow write: if false;
+    }
+
+    // --- REGOLE CHALLENGES ---
+    match /challenges/{challengeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isEmailVerified()
+                      && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.createdBy == request.auth.uid || isAdmin() || isSuperAdmin());
+
+      match /participants/{participantId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && isOwner(participantId);
+        allow update: if isSignedIn() && isOwner(participantId);
+        allow delete: if isSignedIn() && isOwner(participantId);
+      }
+    }
+
+    // --- REGOLE REVIEWS ---
+    match /trail_reviews/{trailId}/items/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // --- REGOLE TRAIL PHOTOS ---
+    match /trail_photos/{trailId}/items/{photoId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null
+                    && resource.data.userId == request.auth.uid;
+    }
+
+    // Collection group query per il tab "Percorsi" dei gruppi.
+    match /{path=**}/tracks/{trackId} {
+      allow read: if request.auth != null;
+    }
+
+    // --- REGOLE GRUPPI ---
+    match /groups/{groupId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (
+        request.auth.uid in resource.data.memberIds ||
+        resource.data.isPublic == true ||
+        isSuperAdmin() ||
+        request.auth.uid in request.resource.data.memberIds
+      );
+      allow delete: if request.auth != null && (request.auth.uid == resource.data.createdBy || isSuperAdmin());
+
+      match /members/{memberId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null && request.auth.uid == resource.data.senderId;
+      }
+
+      match /events/{eventId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null && (request.auth.uid == resource.data.createdBy || isSuperAdmin());
+
+        match /posts/{postId} {
+          allow read: if request.auth != null;
+          allow create: if request.auth != null;
+          allow update, delete: if request.auth != null && (request.auth.uid == resource.data.authorId || isSuperAdmin());
+        }
+      }
+
+      match /challenges/{challengeId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null && (request.auth.uid == resource.data.createdBy || isSuperAdmin());
+
+        match /standings/{userId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null;
+        }
+      }
+
+      match /shared_tracks/{trackId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      match /join_requests/{userId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null;
+      }
+    }
+  }
+}

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/utils/business_caps.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../profile/public_profile_page.dart';
 import '../../../data/repositories/follow_repository.dart';
@@ -26,7 +27,15 @@ class GroupMembersPage extends StatefulWidget {
 class _GroupMembersPageState extends State<GroupMembersPage> {
   final _repo = GroupsRepository();
   List<GroupMember> _members = [];
+  Group? _group;
   bool _isLoading = true;
+
+  /// True se l'utente loggato è il founder (createdBy del gruppo).
+  /// Solo il founder può gestire i ruoli admin (no coup tra co-admin).
+  bool get _isFounder {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    return uid != null && _group?.createdBy == uid;
+  }
 
   @override
   void initState() {
@@ -36,13 +45,16 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
 
   Future<void> _loadMembers() async {
     setState(() => _isLoading = true);
-    final members = await _repo.getMembers(widget.groupId);
-    if (mounted) {
-      setState(() {
-        _members = members;
-        _isLoading = false;
-      });
-    }
+    final results = await Future.wait([
+      _repo.getMembers(widget.groupId),
+      _repo.getGroup(widget.groupId),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _members = results[0] as List<GroupMember>;
+      _group = results[1] as Group?;
+      _isLoading = false;
+    });
   }
 
   @override
@@ -56,7 +68,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
         actions: [
           if (widget.isAdmin)
             IconButton(
-              icon: const Icon(Icons.person_add),
+              icon: Icon(Icons.person_add),
               tooltip: context.l10n.inviteTooltip,
               onPressed: _showInviteDialog,
             ),
@@ -78,6 +90,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
   Widget _buildMemberTile(GroupMember member) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final isMe = member.userId == currentUserId;
+    final isFounderTarget = _group?.createdBy == member.userId;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -97,8 +110,8 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
         },
         leading: CircleAvatar(
           backgroundColor: member.isAdmin
-              ? AppColors.warning.withOpacity(0.2)
-              : AppColors.primary.withOpacity(0.1),
+              ? AppColors.warning.withValues(alpha: 0.2)
+              : AppColors.primary.withValues(alpha: 0.1),
           backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
           child: member.avatarUrl == null
               ? Text(
@@ -124,17 +137,152 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
           ],
         ),
         subtitle: Text(
-          member.isAdmin ? context.l10n.adminWithCrown : context.l10n.memberRole,
+          isFounderTarget
+              ? '👑 Founder'
+              : member.isAdmin
+                  ? context.l10n.adminWithCrown
+                  : context.l10n.memberRole,
           style: const TextStyle(fontSize: 12),
         ),
-        trailing: widget.isAdmin && !isMe && !member.isAdmin
-            ? IconButton(
-                icon: const Icon(Icons.remove_circle_outline, color: AppColors.danger),
-                onPressed: () => _confirmRemoveMember(member),
-              )
-            : null,
+        trailing: _buildTrailing(member, isMe, isFounderTarget),
       ),
     );
+  }
+
+  Widget? _buildTrailing(
+    GroupMember member,
+    bool isMe,
+    bool isFounderTarget,
+  ) {
+    // Founder visualizza azioni amministrative su tutti tranne se stesso.
+    if (_isFounder && !isMe && !isFounderTarget) {
+      return PopupMenuButton<String>(
+        icon: Icon(Icons.more_vert, color: context.textMuted),
+        onSelected: (value) {
+          switch (value) {
+            case 'promote':
+              _promote(member);
+              break;
+            case 'demote':
+              _demote(member);
+              break;
+            case 'remove':
+              _confirmRemoveMember(member);
+              break;
+          }
+        },
+        itemBuilder: (_) => [
+          if (member.isAdmin)
+            const PopupMenuItem(
+              value: 'demote',
+              child: Row(
+                children: [
+                  Icon(Icons.arrow_downward, size: 18),
+                  SizedBox(width: 8),
+                  Text('Rimuovi da admin'),
+                ],
+              ),
+            )
+          else
+            const PopupMenuItem(
+              value: 'promote',
+              child: Row(
+                children: [
+                  Icon(Icons.admin_panel_settings, size: 18),
+                  SizedBox(width: 8),
+                  Text('Promuovi ad admin'),
+                ],
+              ),
+            ),
+          const PopupMenuDivider(),
+          const PopupMenuItem(
+            value: 'remove',
+            child: Row(
+              children: [
+                Icon(Icons.remove_circle_outline,
+                    size: 18, color: AppColors.danger),
+                SizedBox(width: 8),
+                Text('Rimuovi dal gruppo',
+                    style: TextStyle(color: AppColors.danger)),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    // Co-admin (non founder) può ancora rimuovere membri normali, come prima.
+    if (widget.isAdmin && !isMe && !member.isAdmin && !_isFounder) {
+      return IconButton(
+        icon: const Icon(Icons.remove_circle_outline, color: AppColors.danger),
+        onPressed: () => _confirmRemoveMember(member),
+      );
+    }
+    return null;
+  }
+
+  Future<void> _promote(GroupMember member) async {
+    final group = _group;
+    if (group == null) return;
+    // Cap pre-check lato UI (Sprint B: deriva da owner Pro status).
+    // null = illimitato (riservato Enterprise futuro).
+    final maxAdditional = await BusinessCaps.additionalAdminCapAsync(group);
+    if (maxAdditional != null) {
+      final currentAdmins =
+          _members.where((m) => m.isAdmin && m.userId != group.createdBy).length;
+      if (currentAdmins >= maxAdditional) {
+        if (!mounted) return;
+        await showAdminsCapReached(context, group);
+        return;
+      }
+    }
+    final result =
+        await _repo.promoteToAdmin(widget.groupId, member.userId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${member.username} promosso ad admin')),
+      );
+      _loadMembers();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error']?.toString() ?? 'Errore')),
+      );
+    }
+  }
+
+  Future<void> _demote(GroupMember member) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rimuovi da admin?'),
+        content: Text(
+            '${member.username} tornerà a essere un membro normale e perderà i privilegi di admin.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(context.l10n.confirm),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final result =
+        await _repo.demoteToMember(widget.groupId, member.userId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${member.username} non è più admin')),
+      );
+      _loadMembers();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error']?.toString() ?? 'Errore')),
+      );
+    }
   }
 
   Future<void> _confirmRemoveMember(GroupMember member) async {
@@ -220,7 +368,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                   final profile = invitable[index];
                   return ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                       backgroundImage: profile.avatarUrl != null
                           ? NetworkImage(profile.avatarUrl!)
                           : null,
@@ -237,11 +385,11 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                           : null,
                     ),
                     title: Text(profile.username),
-                    subtitle: Text(context.l10n.levelLabel(profile.level), style: const TextStyle(fontSize: 12)),
+                    subtitle: Text(context.l10n.levelLabel(profile.level), style: TextStyle(fontSize: 12)),
                     trailing: ElevatedButton(
                       onPressed: () async {
                         final success = await _repo.addMember(widget.groupId, profile.id);
-                        if (success && mounted) {
+                        if (success && context.mounted) {
                           Navigator.pop(context);
                           _loadMembers();
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -258,7 +406,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: Text(context.l10n.inviteAction, style: const TextStyle(fontSize: 13)),
+                      child: Text(context.l10n.inviteAction, style: TextStyle(fontSize: 13)),
                     ),
                   );
                 },

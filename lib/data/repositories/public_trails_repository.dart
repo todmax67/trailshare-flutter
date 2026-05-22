@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:latlong2/latlong.dart';
+import '../models/terrain_segment.dart';
 import '../models/track.dart';
 import '../../core/utils/geohash_util.dart';
 import '../../core/services/trails_cache_service.dart';
@@ -20,7 +21,12 @@ class PublicTrailsRepository {
   final TrailsCacheService _cache = trailsCacheService;
   
   // Soglie zoom per clustering
-  static const double _clusterZoomThreshold = 9.0;
+  /// Soglia zoom sotto la quale ritornavamo cluster aggregati invece dei
+  /// trail veri. Disabilitata (0.0) perché rompeva la ricerca (i singoli
+  /// sentieri non erano visibili / selezionabili). Manteniamo solo il
+  /// limit=200 + `metadataOnly` quando zoom basso per evitare di scaricare
+  /// payload enormi.
+  static const double _clusterZoomThreshold = 0.0;
   static const double _simplifiedZoomThreshold = 14.0;
 
   CollectionReference<Map<String, dynamic>> get _trailsCollection {
@@ -94,15 +100,93 @@ class PublicTrailsRepository {
     return TrailsResult(clusters: [], trails: trails, fromCache: false);
   }
 
+  /// Komoot K1b — statistiche progresso dell'arricchimento terrain.
+  /// Ritorna {total, enriched} dove total è il count dei
+  /// public_trail_geometries con id wmt_relation_* e enriched è il
+  /// sottoinsieme di quelli che hanno terrainEnrichedAt impostato.
+  ///
+  /// Usa Firestore COUNT() aggregation: 1 read per metric, server-side,
+  /// no fetch dei doc. Veloce anche su DB con migliaia di trail.
+  Future<({int total, int enriched})> getTerrainEnrichmentStatus() async {
+    try {
+      final col = _firestore.collection('public_trail_geometries');
+      final idPath = FieldPath.documentId;
+      final totalSnap = await col
+          .orderBy(idPath)
+          .startAt(['wmt_relation_'])
+          .endAt(['wmt_relation_'])
+          .count()
+          .get();
+      final enrichedSnap = await col
+          .where('terrainEnrichedAt', isNull: false)
+          .count()
+          .get();
+      return (
+        total: totalSnap.count ?? 0,
+        enriched: enrichedSnap.count ?? 0,
+      );
+    } catch (e) {
+      debugPrint('[PublicTrails] getTerrainEnrichmentStatus error: $e');
+      return (total: 0, enriched: 0);
+    }
+  }
+
+  /// Komoot K1b — carica i terrainSegments denormalizzati da
+  /// public_trail_geometries/{trailId}.terrainSegments[]. Ritorna
+  /// null o lista vuota se il trail non è ancora stato arricchito
+  /// (campo terrainEnrichedAt assente).
+  Future<List<TerrainSegment>> getTerrainSegments(String trailId) async {
+    try {
+      final geoDoc = await _firestore
+          .collection('public_trail_geometries')
+          .doc(trailId)
+          .get();
+      if (!geoDoc.exists) return const [];
+      return TerrainSegment.listFromFirestore(
+        geoDoc.data()?['terrainSegments'],
+      );
+    } catch (e) {
+      debugPrint('[PublicTrails] getTerrainSegments error: $e');
+      return const [];
+    }
+  }
+
   /// Carica geometria completa per un sentiero (per pagina dettaglio)
   Future<List<TrackPoint>?> getFullGeometry(String trailId) async {
     try {
+      // NUOVO SCHEMA: geometry pesante in public_trail_geometries/{id}.
+      // Provo prima qui per evitare di scaricare il doc index (più pesante
+      // del solito con i metadati).
+      final geoDoc = await _firestore
+          .collection('public_trail_geometries')
+          .doc(trailId)
+          .get();
+      if (geoDoc.exists) {
+        final coordsJsonStr = geoDoc.data()?['coordinatesJson'];
+        if (coordsJsonStr is String && coordsJsonStr.isNotEmpty) {
+          final List<dynamic> coordsList = jsonDecode(coordsJsonStr);
+          final out = <TrackPoint>[];
+          for (final p in coordsList) {
+            if (p is List && p.length >= 2) {
+              out.add(TrackPoint(
+                longitude: (p[0] as num).toDouble(),
+                latitude: (p[1] as num).toDouble(),
+                elevation: p.length > 2 ? (p[2] as num?)?.toDouble() : null,
+                timestamp: DateTime.now(),
+              ));
+            }
+          }
+          if (out.isNotEmpty) return out;
+        }
+      }
+
+      // FALLBACK LEGACY: geometry.coordinatesJson inline nel doc trail.
       final doc = await _trailsCollection.doc(trailId).get();
       if (!doc.exists) return null;
-      
+
       final data = doc.data()!;
       final geometry = data['geometry'];
-      
+
       if (geometry != null && geometry is Map) {
         final coordsJsonStr = geometry['coordinatesJson'];
         if (coordsJsonStr != null && coordsJsonStr is String) {
@@ -234,7 +318,7 @@ class PublicTrailsRepository {
       });
       
       final counts = await Future.wait(countFutures);
-      totalCount = counts.fold(0, (sum, c) => sum + c);
+      totalCount = counts.fold(0, (acc, c) => acc + c);
       
       if (totalCount > 0) {
         final centerLat = (minLat + maxLat) / 2;
@@ -285,22 +369,31 @@ class PublicTrailsRepository {
       final trails = <PublicTrail>[];
       final seenIds = <String>{};
       
-      // Query parallele
-      final futures = ranges.take(10).map((range) async {
+      // Query parallele. Per-range cap = limit complessivo / range usati,
+      // moltiplicato ×2 per non castrare zone dense (i doc index pesano
+      // ~2KB dopo lo split geometry, possiamo permettercelo).
+      final rangesToUse = ranges.take(10).toList();
+      final perRangeLimit = (limit / rangesToUse.length).ceil() * 2 + 20;
+      final futures = rangesToUse.map((range) async {
         try {
+          // Source.server: la cache locale può essere satura dai vecchi
+          // doc legacy con coordinatesJson inline (fino a 800KB l'uno) →
+          // le query con cache si bloccano. Bypassiamo finché la cache
+          // non si è ripulita dopo la migrazione.
           final snapshot = await _trailsCollection
               .where('geoHash', isGreaterThanOrEqualTo: range.start)
               .where('geoHash', isLessThan: range.end)
-              .limit(limit ~/ ranges.length + 10)
-              .get();
+              .limit(perRangeLimit)
+              .get(const GetOptions(source: Source.server));
           return snapshot.docs;
         } catch (e) {
+          debugPrint('[PublicTrails] range query error: $e');
           return <QueryDocumentSnapshot<Map<String, dynamic>>>[];
         }
       });
       
       final results = await Future.wait(futures);
-      final totalDocs = results.fold<int>(0, (sum, docs) => sum + docs.length);
+      final totalDocs = results.fold<int>(0, (acc, docs) => acc + docs.length);
       debugPrint('[PublicTrails] 📦 Risultati: $totalDocs documenti da ${results.length} query');
       
       for (final docs in results) {
@@ -395,12 +488,31 @@ class PublicTrailsRepository {
       if (metadataOnly) {
         // Solo metadati: skip parsing coordinate per velocità
       } else {
-      final geometry = data['geometry'];
-      if (geometry != null && geometry is Map) {
+      // PREFERITO (nuovo schema): simplifiedPoints inline nel doc index.
+      // Lista di {lng, lat}, max ~30 pt — basta per render mappa.
+      final simplifiedPointsRaw = data['simplifiedPoints'];
+      if (simplifiedPointsRaw is List && simplifiedPointsRaw.isNotEmpty) {
+        for (final p in simplifiedPointsRaw) {
+          if (p is Map) {
+            final lon = (p['lng'] as num?)?.toDouble();
+            final lat = (p['lat'] as num?)?.toDouble();
+            if (lon != null && lat != null &&
+                lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+              points.add(TrackPoint(latitude: lat, longitude: lon, timestamp: DateTime.now()));
+            }
+          }
+        }
+      }
+
+      // LEGACY (pre-split): geometry.coordinatesJson inline. Mantenuto per
+      // backward-compat finché la migrazione non sposta tutto in
+      // public_trail_geometries/.
+      final dynamic geometry = data['geometry'];
+      if (points.isEmpty && geometry != null && geometry is Map) {
         final coordsJsonStr = geometry['coordinatesJson'];
         if (coordsJsonStr != null && coordsJsonStr is String) {
           final List<dynamic> coordsList = jsonDecode(coordsJsonStr);
-          
+
           // Converti a LatLng per semplificazione
           final latLngPoints = <LatLng>[];
           for (var p in coordsList) {
@@ -412,12 +524,12 @@ class PublicTrailsRepository {
               }
             }
           }
-          
+
           // Semplifica se richiesto
-          final finalPoints = simplified 
+          final finalPoints = simplified
               ? GeometrySimplifier.simplify(latLngPoints, maxPoints: 30)
               : latLngPoints;
-          
+
           points = finalPoints.map((ll) => TrackPoint(
             latitude: ll.latitude,
             longitude: ll.longitude,
@@ -696,29 +808,6 @@ class PublicTrailsRepository {
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 
-  /// Codifica GeoHash
-  String _encodeGeohash(double lat, double lng, int precision) {
-    const base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
-    var minLat = -90.0, maxLat = 90.0;
-    var minLng = -180.0, maxLng = 180.0;
-    var isEven = true;
-    var bit = 0, ch = 0;
-    var hash = '';
-
-    while (hash.length < precision) {
-      if (isEven) {
-        final mid = (minLng + maxLng) / 2;
-        if (lng > mid) { ch |= (1 << (4 - bit)); minLng = mid; } else { maxLng = mid; }
-      } else {
-        final mid = (minLat + maxLat) / 2;
-        if (lat > mid) { ch |= (1 << (4 - bit)); minLat = mid; } else { maxLat = mid; }
-      }
-      isEven = !isEven;
-      bit++;
-      if (bit == 5) { hash += base32[ch]; bit = 0; ch = 0; }
-    }
-    return hash;
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -740,7 +829,7 @@ class TrailsResult {
   bool get hasClusters => clusters.isNotEmpty;
   bool get hasTrails => trails.isNotEmpty;
   int get totalCount => hasClusters 
-      ? clusters.fold(0, (sum, c) => sum + c.count)
+      ? clusters.fold(0, (acc, c) => acc + c.count)
       : trails.length;
 }
 

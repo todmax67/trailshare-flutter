@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina admin per visualizzare statistiche del database Firestore
 class DatabaseStatsPage extends StatefulWidget {
@@ -31,8 +31,10 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
   // Dettagli community
   int _totalCheers = 0;
 
-  // Utenti attivi (con almeno 1 traccia)
-  int _activeUsers = 0;
+  // Utenti attivi: stat secondaria, disabilitata per evitare il
+  // pattern N+1 query che causava OOM su DB cresciuto.
+  // Da reintrodurre con un denormalized counter su user_profiles
+  // (es. tracksCount aggiornato da Cloud Function on track_create).
 
   // Ultime tracce pubblicate
   List<Map<String, dynamic>> _recentPublished = [];
@@ -47,25 +49,39 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
   }
 
   Future<void> _loadAllStats() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
-    try {
-      await Future.wait([
-        _loadCollectionCounts(),
-        _loadTrailDetails(),
-        _loadCommunityDetails(),
-        _loadRecentPublished(),
-        _loadRecentUsers(),
-      ]);
-    } catch (e) {
-      debugPrint('[DBStats] Errore: $e');
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    // Eseguiamo gli step indipendenti separatamente: se uno fallisce
+    // (es. count() di una collection vuota o permessi), gli altri
+    // continuano e mostriamo i dati che siamo riusciti a recuperare,
+    // invece di far crashare l'intera pagina.
+    final errors = <String>[];
+    Future<void> safeRun(String name, Future<void> Function() fn) async {
+      try {
+        await fn();
+      } catch (e, st) {
+        debugPrint('[DBStats] $name failed: $e\n$st');
+        errors.add('$name: $e');
+      }
     }
+
+    await Future.wait([
+      safeRun('counts', _loadCollectionCounts),
+      safeRun('trailDetails', _loadTrailDetails),
+      safeRun('community', _loadCommunityDetails),
+      safeRun('recentPub', _loadRecentPublished),
+      safeRun('recentUsers', _loadRecentUsers),
+    ]);
+
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _error = errors.isEmpty ? null : errors.join('\n');
+    });
   }
 
   Future<void> _loadCollectionCounts() async {
@@ -101,45 +117,45 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
   }
 
   Future<void> _loadCommunityDetails() async {
-    // Prendi gli ID utenti dai profili
-    final profilesSnap = await _firestore
-        .collection('user_profiles')
-        .get();
+    // Riscritto con aggregation queries server-side per evitare OOM:
+    // la versione precedente scaricava 1000 user_profiles + 500
+    // published_tracks (ognuna con migliaia di GPS points = decine
+    // di MB) → heap esplodeva su DB cresciuto.
+    //
+    // Ora:
+    //  - totalTracks: collectionGroup('tracks').count() — conta in 1
+    //    chiamata su tutti i sub-collection 'tracks' di tutti gli
+    //    utenti, ZERO documenti scaricati al client.
+    //  - totalCheers: aggregate(sum('cheerCount')) — la somma è
+    //    calcolata server-side, restituisce un solo numero.
+    //  - activeUsers (con ≥1 traccia): non più calcolato qui per
+    //    risparmiare cost/perf. Stat secondaria, può tornare in una
+    //    pagina dedicata "Top contributors" più avanti.
 
     int totalTracks = 0;
-    int usersWithTracks = 0;
     int totalCheers = 0;
 
-    // Conta tracce per ogni utente IN PARALLELO (batch da 10 per non sovraccaricare)
-    final userIds = profilesSnap.docs.map((d) => d.id).toList();
-    for (int i = 0; i < userIds.length; i += 10) {
-      final batch = userIds.skip(i).take(10).toList();
-      final futures = batch.map((uid) => _firestore
-          .collection('users')
-          .doc(uid)
-          .collection('tracks')
+    try {
+      final tracksAgg = await _firestore
+          .collectionGroup('tracks')
           .count()
-          .get());
-      
-      final results = await Future.wait(futures);
-      for (final result in results) {
-        final count = result.count ?? 0;
-        totalTracks += count;
-        if (count > 0) usersWithTracks++;
-      }
+          .get();
+      totalTracks = tracksAgg.count ?? 0;
+    } catch (e) {
+      debugPrint('[DBStats] collectionGroup tracks count failed: $e');
     }
 
-    // Conta cheers totali dalle tracce pubblicate (solo il campo cheerCount)
-    final publishedSnap = await _firestore
-        .collection('published_tracks')
-        .get();
-    for (final doc in publishedSnap.docs) {
-      final cheerCount = (doc.data()['cheerCount'] as num?)?.toInt() ?? 0;
-      totalCheers += cheerCount;
+    try {
+      final cheersAgg = await _firestore
+          .collection('published_tracks')
+          .aggregate(sum('cheerCount'))
+          .get();
+      totalCheers = (cheersAgg.getSum('cheerCount') ?? 0).toInt();
+    } catch (e) {
+      debugPrint('[DBStats] sum cheerCount failed: $e');
     }
 
     _totalUserTracks = totalTracks;
-    _activeUsers = usersWithTracks;
     _totalCheers = totalCheers;
   }
 
@@ -172,12 +188,20 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
 
     _recentUsers = snap.docs.map((doc) {
       final data = doc.data();
+      // I campi followers/following potrebbero essere Lista, Mappa,
+      // num (cached count), o assenti. Wrap difensivo: se non List,
+      // tratta come 0 — un crash qui rendeva la pagina inutilizzabile.
+      int safeListLen(dynamic v) {
+        if (v is List) return v.length;
+        if (v is num) return v.toInt(); // schema con cached count
+        return 0;
+      }
       return {
         'id': doc.id,
         'username': data['username'] ?? data['displayName'] ?? 'Utente',
         'createdAt': (data['createdAt'] as Timestamp?)?.toDate(),
-        'followers': (data['followers'] as List?)?.length ?? 0,
-        'following': (data['following'] as List?)?.length ?? 0,
+        'followers': safeListLen(data['followers']),
+        'following': safeListLen(data['following']),
       };
     }).toList();
   }
@@ -196,13 +220,13 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Caricamento statistiche...'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(context.l10n.loadingStats),
                 ],
               ),
             )
@@ -212,10 +236,10 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
-                      const SizedBox(height: 12),
-                      Text('Errore: $_error'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(onPressed: _loadAllStats, child: const Text('Riprova')),
+                      SizedBox(height: 12),
+                      Text(context.l10n.genericErrorWith(_error.toString())),
+                      SizedBox(height: 16),
+                      ElevatedButton(onPressed: _loadAllStats, child: Text(context.l10n.retry)),
                     ],
                   ),
                 )
@@ -242,23 +266,23 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
             physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 1.5,
+            childAspectRatio: 1.3,
             children: [
               _StatCard(
                 icon: Icons.hiking,
-                label: 'Sentieri Pubblici',
+                label: context.l10n.publicTrails,
                 value: '$_publicTrails',
                 color: AppColors.primary,
               ),
               _StatCard(
                 icon: Icons.people,
-                label: 'Utenti Registrati',
+                label: context.l10n.registeredUsers,
                 value: '$_userProfiles',
                 color: AppColors.info,
               ),
               _StatCard(
                 icon: Icons.route,
-                label: 'Tracce Registrate',
+                label: context.l10n.recordedTracks,
                 value: '$_totalUserTracks',
                 color: AppColors.success,
               ),
@@ -284,13 +308,10 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
             childAspectRatio: 0.85,
             children: [
               _StatCard(
-                icon: Icons.person_pin,
-                label: 'Utenti Attivi',
-                value: '$_activeUsers',
+                icon: Icons.route,
+                label: 'Tracce Totali',
+                value: '$_totalUserTracks',
                 color: AppColors.success,
-                subtitle: _userProfiles > 0
-                    ? '${(_activeUsers / _userProfiles * 100).toStringAsFixed(0)}%'
-                    : null,
               ),
               _StatCard(
                 icon: Icons.celebration,
@@ -300,9 +321,9 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
               ),
               _StatCard(
                 icon: Icons.calculate,
-                label: 'Tracce/Utente',
-                value: _activeUsers > 0
-                    ? (_totalUserTracks / _activeUsers).toStringAsFixed(1)
+                label: context.l10n.cheersPerTrack,
+                value: _publishedTracks > 0
+                    ? (_totalCheers / _publishedTracks).toStringAsFixed(1)
                     : '0',
                 color: AppColors.info,
               ),
@@ -358,19 +379,12 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
               percentage: geoPct,
               color: geoPct > 90 ? AppColors.success : geoPct > 50 ? AppColors.warning : AppColors.danger,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             _HealthRow(
-              label: 'Elevazione Sentieri',
+              label: context.l10n.trailElevation,
               value: '$_trailsWithElevation / $_publicTrails',
               percentage: elePct,
               color: elePct > 80 ? AppColors.success : elePct > 40 ? AppColors.warning : AppColors.danger,
-            ),
-            const SizedBox(height: 12),
-            _HealthRow(
-              label: 'Utenti Attivi',
-              value: '$_activeUsers / $_userProfiles',
-              percentage: _userProfiles > 0 ? (_activeUsers / _userProfiles * 100) : 0,
-              color: AppColors.info,
             ),
           ],
         ),
@@ -380,10 +394,10 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
 
   Widget _buildRecentPublished() {
     if (_recentPublished.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('Nessuna traccia pubblicata'),
+          child: Text(context.l10n.noPublishedTrack),
         ),
       );
     }
@@ -393,7 +407,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: _recentPublished.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final track = _recentPublished[index];
           final date = track['sharedAt'] as DateTime?;
@@ -403,7 +417,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
 
           return ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               child: const Icon(Icons.route, color: AppColors.primary, size: 20),
             ),
             title: Text(
@@ -431,10 +445,10 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
 
   Widget _buildRecentUsers() {
     if (_recentUsers.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
           padding: EdgeInsets.all(16),
-          child: Text('Nessun utente registrato'),
+          child: Text(context.l10n.noRegisteredUser),
         ),
       );
     }
@@ -444,7 +458,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: _recentUsers.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final user = _recentUsers[index];
           final date = user['createdAt'] as DateTime?;
@@ -454,7 +468,7 @@ class _DatabaseStatsPageState extends State<DatabaseStatsPage> {
 
           return ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.info.withOpacity(0.1),
+              backgroundColor: AppColors.info.withValues(alpha: 0.1),
               child: Text(
                 (user['username'] as String).substring(0, 1).toUpperCase(),
                 style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.info),
@@ -485,45 +499,49 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  final String? subtitle;
 
   const _StatCard({
     required this.icon,
     required this.label,
     required this.value,
     required this.color,
-    this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: color,
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            // FittedBox: scala automaticamente se il valore è
+            // numeri grossi (es. "12345") o se la card è piccola.
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
               ),
             ),
-            if (subtitle != null)
-              Text(
-                subtitle!,
-                style: TextStyle(fontSize: 11, color: color.withOpacity(0.7)),
-              ),
             const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(fontSize: 11, color: context.textMuted),
-              textAlign: TextAlign.center,
-              maxLines: 2,
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 11, color: context.textMuted),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),

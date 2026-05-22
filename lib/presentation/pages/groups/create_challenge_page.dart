@@ -117,7 +117,7 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: AppColors.warning.withOpacity(0.1),
+                    color: AppColors.warning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: const Center(
@@ -190,7 +190,7 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
                     onSelected: (selected) {
                       if (selected) setState(() => _durationDays = days);
                     },
-                    selectedColor: AppColors.primary.withOpacity(0.2),
+                    selectedColor: AppColors.primary.withValues(alpha: 0.2),
                   );
                 }).toList(),
               ),
@@ -198,7 +198,7 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.05),
+                  color: AppColors.primary.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -265,7 +265,7 @@ class _CreateChallengePageState extends State<CreateChallengePage> {
               width: isSelected ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(12),
-            color: isSelected ? AppColors.primary.withOpacity(0.05) : null,
+            color: isSelected ? AppColors.primary.withValues(alpha: 0.05) : null,
           ),
           child: ListTile(
             onTap: () => setState(() => _type = t['type'] as String),

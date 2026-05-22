@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/utils/text_search.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../track_detail/track_detail_page.dart';
@@ -22,6 +23,10 @@ class TracksPage extends StatefulWidget {
 
 class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  // 5.6 — Search bar nella lista tracce: filtra in-memory per nome,
+  // activityType e tag personalizzati (5.5). Vuoto = mostra tutto.
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
   final TracksRepository _repository = TracksRepository();
   
   // ⭐ PAGINAZIONE
@@ -46,60 +51,22 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
   void dispose() {
     _tabController.dispose();
     _scrollController.dispose(); // ⭐ Dispose del controller
+    _searchController.dispose();
     super.dispose();
   }
 
-  /// Helper per ottenere il colore dell'attività
-  Color _getActivityColor(ActivityType type) {
-    switch (type) {
-      case ActivityType.trekking:
-      case ActivityType.skiTouring:
-      case ActivityType.snowshoeing:
-        return AppColors.success;
-      case ActivityType.trailRunning:
-      case ActivityType.running:
-        return AppColors.warning;
-      case ActivityType.cycling:
-      case ActivityType.mountainBiking:
-      case ActivityType.gravelBiking:
-      case ActivityType.eBike:
-      case ActivityType.eMountainBike:
-        return AppColors.info;
-      case ActivityType.walking:
-      case ActivityType.nordicSkiing:
-        return AppColors.primary;
-      case ActivityType.alpineSkiing:
-      case ActivityType.snowboarding:
-        return Colors.blue;
-    }
-  }
-
-  /// Helper per ottenere l'icona dell'attività
-  IconData _getActivityIconData(ActivityType type) {
-    switch (type) {
-      case ActivityType.trekking:
-        return Icons.hiking;
-      case ActivityType.trailRunning:
-      case ActivityType.running:
-        return Icons.directions_run;
-      case ActivityType.cycling:
-      case ActivityType.gravelBiking:
-      case ActivityType.eBike:
-        return Icons.directions_bike;
-      case ActivityType.mountainBiking:
-      case ActivityType.eMountainBike:
-        return Icons.terrain;
-      case ActivityType.walking:
-        return Icons.directions_walk;
-      case ActivityType.alpineSkiing:
-      case ActivityType.snowboarding:
-        return Icons.downhill_skiing;
-      case ActivityType.skiTouring:
-      case ActivityType.nordicSkiing:
-        return Icons.downhill_skiing;
-      case ActivityType.snowshoeing:
-        return Icons.ac_unit;
-    }
+  /// 5.6 — Tracce dopo applicazione del search query. Cerca in nome,
+  /// activityType displayName e tags (5.5) accent-insensitive.
+  List<Track> get _filteredTracks {
+    final all = _tracks ?? const <Track>[];
+    if (_searchQuery.isEmpty) return all;
+    return all.where((t) {
+      return TextSearch.matchesAny(_searchQuery, [
+        t.name,
+        t.activityType.displayName,
+        ...t.tags,
+      ]);
+    }).toList();
   }
 
   /// ⭐ Listener per caricare più tracce quando si raggiunge il fondo
@@ -318,7 +285,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: AppColors.danger.withOpacity(0.5)),
+            Icon(Icons.error_outline, size: 64, color: AppColors.danger.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             Text(_error!, textAlign: TextAlign.center),
             const SizedBox(height: 16),
@@ -350,31 +317,80 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
       );
     }
 
+    final filtered = _filteredTracks;
+    final isFiltering = _searchQuery.isNotEmpty;
     return RefreshIndicator(
       onRefresh: _loadTracks,
-      child: ListView.builder(
-        controller: _scrollController, // ⭐ Controller per scroll
-        padding: const EdgeInsets.all(16),
-        itemCount: _tracks!.length + (_hasMore ? 1 : 0), // ⭐ +1 per il loader
-        itemBuilder: (context, index) {
-          // ⭐ Se siamo all'ultimo item e ci sono altre pagine, mostra loader
-          if (index >= _tracks!.length) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(
-                child: CircularProgressIndicator(),
+      child: Column(
+        children: [
+          // 5.6 — Search bar (sticky in cima)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _searchQuery = v),
+              decoration: InputDecoration(
+                hintText: 'Cerca per nome, attività o tag…',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      ),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
               ),
-            );
-          }
-          
-          final track = _tracks![index];
-          return _TrackCard(
-            track: track,
-            onTap: () => _openTrackDetail(track),
-            onMapTap: () => _openTrackOnMap(track),
-            onDelete: () => _deleteTrack(track),
-          );
-        },
+            ),
+          ),
+          if (isFiltering && filtered.isEmpty)
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Nessuna traccia trova per "$_searchQuery"',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                // Quando filtra non mostriamo il loader paginazione: il filtro è
+                // sulla porzione già caricata. L'utente può continuare scroll
+                // per caricare ancora (paginazione resta attiva tra ricerche).
+                itemCount: filtered.length +
+                    (_hasMore && !isFiltering ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (!isFiltering && index >= filtered.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  final track = filtered[index];
+                  return _TrackCard(
+                    track: track,
+                    onTap: () => _openTrackDetail(track),
+                    onMapTap: () => _openTrackOnMap(track),
+                    onDelete: () => _deleteTrack(track),
+                  );
+                },
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -469,7 +485,7 @@ class _TrackCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
+                      color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -508,7 +524,7 @@ class _TrackCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.info.withOpacity(0.1),
+                        color: AppColors.info.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -529,7 +545,7 @@ class _TrackCard extends StatelessWidget {
                       margin: const EdgeInsets.only(left: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.warning.withOpacity(0.1),
+                        color: AppColors.warning.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(

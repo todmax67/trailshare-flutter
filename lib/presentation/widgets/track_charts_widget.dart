@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/extensions/l10n_extension.dart';
 import '../../core/utils/elevation_processor.dart';
 import '../../data/models/track.dart';
 import '../../core/extensions/theme_colors_extension.dart';
@@ -58,8 +59,7 @@ class TrackChartsWidget extends StatefulWidget {
 
 class _TrackChartsWidgetState extends State<TrackChartsWidget> {
   ChartType _selectedChart = ChartType.elevation;
-  int? _touchedIndex;
-  
+
   // Dati calcolati
   List<double> _distances = [];
   List<double?> _elevations = [];
@@ -281,8 +281,8 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
     if (widget.points.isEmpty) {
       return SizedBox(
         height: widget.height,
-        child: const Center(
-          child: Text('Nessun dato disponibile'),
+        child: Center(
+          child: Text(context.l10n.noDataAvailable),
         ),
       );
     }
@@ -322,7 +322,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
           if (_hasElevationData)
             _ChartTypeButton(
               icon: Icons.terrain,
-              label: 'Elevazione',
+              label: context.l10n.chartElevation,
               isSelected: _selectedChart == ChartType.elevation,
               color: AppColors.success,
               onTap: () => setState(() => _selectedChart = ChartType.elevation),
@@ -331,7 +331,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
             const SizedBox(width: 8),
             _ChartTypeButton(
               icon: Icons.speed,
-              label: 'Velocità',
+              label: context.l10n.chartSpeed,
               isSelected: _selectedChart == ChartType.speed,
               color: AppColors.info,
               onTap: () => setState(() => _selectedChart = ChartType.speed),
@@ -391,7 +391,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
     }
 
     if (spots.isEmpty) {
-      return const Center(child: Text('Nessun dato altimetrico'));
+      return Center(child: Text(context.l10n.noElevationData));
     }
 
     return LineChart(
@@ -401,7 +401,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
           drawVerticalLine: false,
           horizontalInterval: _calculateInterval(_maxElevation - _minElevation, 5),
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             strokeWidth: 1,
           ),
         ),
@@ -421,7 +421,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
             dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
-              color: AppColors.success.withOpacity(0.2),
+              color: AppColors.success.withValues(alpha: 0.2),
             ),
           ),
         ],
@@ -442,7 +442,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
     }
 
     if (spots.isEmpty) {
-      return const Center(child: Text('Nessun dato velocità'));
+      return Center(child: Text(context.l10n.noSpeedData));
     }
 
     return LineChart(
@@ -452,7 +452,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
           drawVerticalLine: false,
           horizontalInterval: _calculateInterval(_maxSpeed, 5),
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             strokeWidth: 1,
           ),
         ),
@@ -472,7 +472,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
             dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
-              color: AppColors.info.withOpacity(0.2),
+              color: AppColors.info.withValues(alpha: 0.2),
             ),
           ),
         ],
@@ -493,7 +493,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
     }
 
     if (spots.isEmpty) {
-      return const Center(child: Text('Nessun dato battito cardiaco'));
+      return Center(child: Text(context.l10n.noHeartRateData));
     }
 
     return LineChart(
@@ -503,7 +503,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
           drawVerticalLine: false,
           horizontalInterval: 20,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             strokeWidth: 1,
           ),
         ),
@@ -527,8 +527,8 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.danger.withOpacity(0.4),
-                  AppColors.danger.withOpacity(0.0),
+                  AppColors.danger.withValues(alpha: 0.4),
+                  AppColors.danger.withValues(alpha: 0.0),
                 ],
               ),
             ),
@@ -570,7 +570,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
           show: true,
           drawVerticalLine: false,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             strokeWidth: 1,
           ),
         ),
@@ -584,7 +584,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    '${value.toStringAsFixed(1)}',
+                    value.toStringAsFixed(1),
                     style: TextStyle(fontSize: 10, color: context.textMuted),
                   ),
                 );
@@ -610,7 +610,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
             dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
-              color: AppColors.success.withOpacity(0.15),
+              color: AppColors.success.withValues(alpha: 0.15),
             ),
           ),
           // Velocità
@@ -639,7 +639,7 @@ class _TrackChartsWidgetState extends State<TrackChartsWidget> {
             return Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                '${value.toStringAsFixed(1)}',
+                value.toStringAsFixed(1),
                 style: TextStyle(fontSize: 10, color: context.textMuted),
               ),
             );
@@ -792,10 +792,10 @@ class _ChartTypeButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.15) : Colors.transparent,
+          color: isSelected ? color.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? color : context.textMuted.withOpacity(0.3),
+            color: isSelected ? color : context.textMuted.withValues(alpha: 0.3),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -845,7 +845,7 @@ class _StatBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -859,7 +859,7 @@ class _StatBadge extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(fontSize: 9, color: color.withOpacity(0.7)),
+                style: TextStyle(fontSize: 9, color: color.withValues(alpha: 0.7)),
               ),
               Text(
                 value,

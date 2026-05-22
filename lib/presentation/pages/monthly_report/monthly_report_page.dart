@@ -663,6 +663,15 @@ class _DeltaChip extends StatelessWidget {
     final iconSize = small ? 12.0 : 14.0;
     final pad = small ? 6.0 : 10.0;
 
+    // Nelle stat card "small" la stringa completa "X% vs mese scorso"
+    // crea overflow (3 card affiancate → ognuna troppo stretta).
+    // Mostriamo solo "↓ X%": il "vs mese scorso" è implicito dal
+    // contesto della pagina monthly report. Per il chip grande
+    // (DISTANZA TOTALE in cima) lasciamo invece la stringa completa.
+    final label = small
+        ? '${percent.abs().toStringAsFixed(0)}%'
+        : '${percent.abs().toStringAsFixed(0)}% ${context.l10n.monthlyReportVsPrevious}';
+
     return Container(
       padding: EdgeInsets.symmetric(horizontal: pad, vertical: 4),
       decoration: BoxDecoration(
@@ -678,12 +687,16 @@ class _DeltaChip extends StatelessWidget {
             color: color,
           ),
           const SizedBox(width: 2),
-          Text(
-            '${percent.abs().toStringAsFixed(0)}% ${context.l10n.monthlyReportVsPrevious}',
-            style: TextStyle(
-              fontSize: fontSize,
-              fontWeight: FontWeight.w700,
-              color: color,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: fontSize,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
             ),
           ),
         ],

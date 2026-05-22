@@ -7,6 +7,7 @@ import '../../../data/models/segment.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/segments_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina dettaglio segmento con classifica Top 10 + tempo personale.
 class SegmentDetailPage extends StatefulWidget {
@@ -65,13 +66,13 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminare segmento?'),
-        content: const Text('Classifica e tentativi verranno persi. Questa azione non può essere annullata.'),
+        content: Text('Classifica e tentativi verranno persi. Questa azione non può essere annullata.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -265,7 +266,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
                     shape: BoxShape.circle,
                   ),
                   child: Text(
-                    _myRank != null ? '${_myRank}°' : '–',
+                    _myRank != null ? '$_myRank°' : '–',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -338,9 +339,13 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
     final isChampion = rank == 1;
 
     Color? rankBg;
-    if (isChampion) rankBg = Colors.amber;
-    else if (rank == 2) rankBg = Colors.grey;
-    else if (rank == 3) rankBg = const Color(0xFFCD7F32);
+    if (isChampion) {
+      rankBg = Colors.amber;
+    } else if (rank == 2) {
+      rankBg = Colors.grey;
+    } else if (rank == 3) {
+      rankBg = const Color(0xFFCD7F32);
+    }
 
     return Container(
       color: isMe ? AppColors.primary.withValues(alpha: 0.08) : null,

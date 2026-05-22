@@ -3,10 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../data/models/osm_poi.dart';
+import '../../../data/models/terrain_segment.dart';
 import '../../../data/models/track.dart';
+import '../../../data/models/trail_poi.dart';
+import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
+import '../../../data/repositories/public_trails_repository.dart';
+import '../../../data/repositories/osm_pois_repository.dart';
+import '../business/business_profile_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/osm_attribution.dart';
+import '../../widgets/osm_poi_detail_sheet.dart';
+import '../../widgets/poi_detail_sheet.dart';
+import '../../widgets/poi_marker_layer.dart';
 
 /// Pagina mappa a schermo intero per visualizzare una traccia
 /// Supporta sia Track (tracce private) che CommunityTrack (tracce community)
@@ -16,26 +27,96 @@ class TrackMapPage extends StatefulWidget {
   
   /// Track community (opzionale)
   final CommunityTrack? communityTrack;
-  
+
   /// Mostra colori pendenza sulla traccia
   final bool showGradientColors;
+
+  /// POI community pre-caricati dalla pagina chiamante (non li
+  /// ri-fetchamo dal repo). Se null o vuoto → niente marker POI
+  /// community su questa mappa.
+  final List<TrailPoi>? communityPois;
+
+  /// Se true, carica e renderizza anche i POI OSM (rifugi, sorgenti,
+  /// fontane, ecc.) entro [osmRadiusMeters] dalla traccia.
+  final bool loadOsmPois;
+  final double osmRadiusMeters;
+
+  /// Komoot K1b — id del trail pubblico (wmt_relation_*) per fetchare
+  /// i terrainSegments denormalizzati da public_trail_geometries.
+  /// Solo quando non-null appare il toggle "Terreno" sulla mappa.
+  final String? publicTrailId;
 
   const TrackMapPage({
     super.key,
     this.track,
     this.communityTrack,
     this.showGradientColors = true,
+    this.communityPois,
+    this.loadOsmPois = false,
+    this.osmRadiusMeters = 500,
+    this.publicTrailId,
   }) : assert(track != null || communityTrack != null, 'Deve essere fornita una track o communityTrack');
 
   @override
   State<TrackMapPage> createState() => _TrackMapPageState();
 }
 
+/// Komoot K1b — modalità di colorazione della polyline.
+enum _ColorMode { gradient, terrain }
+
 class _TrackMapPageState extends State<TrackMapPage> {
   final MapController _mapController = MapController();
   bool _showElevation = true;
   bool _showGradientColors = true;
   int _selectedPointIndex = -1;
+
+  // Komoot K1b — modalità colorazione corrente + dati terrain
+  _ColorMode _colorMode = _ColorMode.gradient;
+  List<TerrainSegment> _terrainSegments = const [];
+
+  // POI OSM caricati dalla polyline corrente. Riempito async
+  // dall'OsmPoisRepository in initState (se loadOsmPois=true).
+  List<OsmPoi> _osmPois = const [];
+
+  // 🏔️ Spazi Pro lungo il percorso. Caricati una volta in initState,
+  // mostrati come marker sulla mappa. Auto-nascosti se nessuno in zona.
+  List<NearPolylineBusiness> _nearbyBusinesses = const [];
+
+  Future<void> _loadOsmPois() async {
+    if (!widget.loadOsmPois || _trackPoints.isEmpty) return;
+    final repo = OsmPoisRepository();
+    await repo.ensureLoaded();
+    if (!mounted) return;
+    final found = repo.findNearPolyline(
+      _trackPoints,
+      radiusMeters: widget.osmRadiusMeters,
+    );
+    if (mounted) setState(() => _osmPois = found);
+  }
+
+  Future<void> _loadNearbyBusinesses() async {
+    if (_trackPoints.isEmpty) return;
+    try {
+      final list = await BusinessRepository().getNearPolyline(
+        _trackPoints
+            .map((p) => (lat: p.latitude, lng: p.longitude))
+            .toList(),
+        radiusKm: 2,
+      );
+      if (!mounted) return;
+      setState(() => _nearbyBusinesses = list);
+    } catch (e) {
+      // Niente — la mappa funziona uguale senza spazi business.
+    }
+  }
+
+  void _onCommunityPoiTap(TrailPoi poi) {
+    showPoiDetailSheet(context, poi: poi);
+  }
+
+  void _onOsmPoiTap(OsmPoi poi) {
+    showOsmPoiDetailSheet(context, poi: poi);
+  }
 
   int _currentLayer = 0;
   final List<_MapLayer> _layers = [
@@ -159,9 +240,25 @@ class _TrackMapPageState extends State<TrackMapPage> {
   void initState() {
     super.initState();
     _showGradientColors = widget.showGradientColors;
+    _loadOsmPois();
+    _loadNearbyBusinesses();
+    _loadTerrainSegments();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fitBounds();
     });
+  }
+
+  /// Komoot K1b — fetch dei segmenti terreno se la mappa è di un
+  /// public_trail (publicTrailId fornito). Niente errore se il
+  /// trail non è ancora stato arricchito: array vuoto e toggle
+  /// nascosto.
+  Future<void> _loadTerrainSegments() async {
+    final id = widget.publicTrailId;
+    if (id == null || id.isEmpty) return;
+    final segments = await PublicTrailsRepository().getTerrainSegments(id);
+    if (mounted) {
+      setState(() => _terrainSegments = segments);
+    }
   }
 
   void _fitBounds() {
@@ -275,8 +372,57 @@ class _TrackMapPageState extends State<TrackMapPage> {
         startIndex = i;
       }
     }
-    
+
     return polylines;
+  }
+
+  /// Komoot K1b — costruisce polyline a tratti coi colori del terreno.
+  /// Ogni TerrainSegment ha startPointIdx/endPointIdx riferiti alla
+  /// geometria salvata (gli stessi indici dei _trackPoints).
+  /// Fallback: se i terrainSegments sono vuoti o gli indici non
+  /// matchano, ritorna polyline singola di default.
+  List<Polyline> _buildTerrainPolylines() {
+    if (_terrainSegments.isEmpty || _trackPoints.length < 2) {
+      return [
+        Polyline(
+          points: _trackPoints,
+          strokeWidth: 5,
+          color: TerrainType.unknown.color,
+        ),
+      ];
+    }
+    final polylines = <Polyline>[];
+    for (final seg in _terrainSegments) {
+      final start = seg.startPointIdx.clamp(0, _trackPoints.length - 1);
+      // endIdx inclusivo, ma sublist è esclusivo → +1
+      final end =
+          (seg.endPointIdx + 1).clamp(start + 1, _trackPoints.length);
+      if (end - start < 2) continue;
+      polylines.add(
+        Polyline(
+          points: _trackPoints.sublist(start, end),
+          strokeWidth: 5,
+          color: seg.type.color,
+        ),
+      );
+    }
+    return polylines.isEmpty
+        ? [
+            Polyline(
+              points: _trackPoints,
+              strokeWidth: 5,
+              color: TerrainType.unknown.color,
+            )
+          ]
+        : polylines;
+  }
+
+  /// Selettore unico: ritorna le polyline secondo la modalità corrente.
+  List<Polyline> _buildPolylines() {
+    if (_colorMode == _ColorMode.terrain && _terrainSegments.isNotEmpty) {
+      return _buildTerrainPolylines();
+    }
+    return _buildGradientPolylines();
   }
 
   @override
@@ -294,7 +440,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8)],
           ),
           child: IconButton(
             icon: Icon(Icons.arrow_back, color: context.textPrimary),
@@ -308,7 +454,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             decoration: BoxDecoration(
               color: _showGradientColors ? AppColors.primary : Colors.white,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8)],
             ),
             child: IconButton(
               icon: Icon(
@@ -325,7 +471,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8)],
             ),
             child: IconButton(
               icon: Icon(Icons.layers, color: context.textPrimary),
@@ -339,7 +485,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8)],
             ),
             child: IconButton(
               icon: Icon(Icons.fit_screen, color: context.textPrimary),
@@ -370,8 +516,107 @@ class _TrackMapPageState extends State<TrackMapPage> {
 
               // Polyline con colori pendenza
               PolylineLayer(
-                polylines: _buildGradientPolylines(),
+                polylines: _buildPolylines(),
               ),
+
+              // POI OSM (rifugi, sorgenti, fontane, panorami…) — sotto i
+              // POI community e gli start/end markers per non coprirli.
+              if (_osmPois.isNotEmpty)
+                MarkerLayer(
+                  markers: _osmPois.map((poi) => Marker(
+                        point: LatLng(poi.latitude, poi.longitude),
+                        width: 30,
+                        height: 30,
+                        child: GestureDetector(
+                          onTap: () => _onOsmPoiTap(poi),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.info,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              poi.type.icon,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      )).toList(),
+                ),
+
+              // POI community (sopra OSM perché più rilevanti per
+              // l'utente: contengono segnalazioni recenti)
+              if (widget.communityPois != null &&
+                  widget.communityPois!.isNotEmpty)
+                PoiMarkerLayer(
+                  pois: widget.communityPois!,
+                  onTap: _onCommunityPoiTap,
+                  markerSize: 36,
+                ),
+
+              // 🏔️ Spazi Pro lungo il percorso (rifugi, noleggi,
+              // guide). Marker bianco con icona tipo, distintivo dai
+              // POI standard. Tap → BusinessProfilePage.
+              if (_nearbyBusinesses.isNotEmpty)
+                MarkerLayer(
+                  markers: _nearbyBusinesses.map((item) {
+                    final b = item.business;
+                    return Marker(
+                      point: LatLng(b.location.lat, b.location.lng),
+                      width: 38,
+                      height: 38,
+                      child: GestureDetector(
+                        onTap: () {
+                          final id = b.id;
+                          if (id == null) return;
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => BusinessProfilePage(
+                                businessId: id,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Tooltip(
+                          message:
+                              '${b.name} · ${b.type.displayName} · '
+                              '${item.kmFromStart.toStringAsFixed(1)} km',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.primary,
+                                width: 2.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black
+                                      .withValues(alpha: 0.25),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                b.type.icon,
+                                style:
+                                    const TextStyle(fontSize: 18),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
 
               // Markers
               if (_trackPoints.isNotEmpty)
@@ -388,7 +633,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 6),
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 6),
                           ],
                         ),
                         child: const Center(
@@ -408,7 +653,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 6),
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 6),
                             ],
                           ),
                           child: const Center(
@@ -428,7 +673,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                             shape: BoxShape.circle,
                             border: Border.all(color: AppColors.primary, width: 3),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 4),
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
                             ],
                           ),
                         ),
@@ -446,6 +691,13 @@ class _TrackMapPageState extends State<TrackMapPage> {
             child: _buildInfoPanel(elevations),
           ),
 
+          // Attribuzione OSM (ODbL)
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 4,
+            right: 8,
+            child: const OsmAttribution(darkBackground: true),
+          ),
+
           // Layer indicator
           Positioned(
             top: MediaQuery.of(context).padding.top + 60,
@@ -455,7 +707,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
               ),
               child: Text(
                 layer.name,
@@ -464,12 +716,106 @@ class _TrackMapPageState extends State<TrackMapPage> {
             ),
           ),
 
-          // Legenda colori (se attiva)
-          if (_showGradientColors)
+          // Komoot K1b — Toggle Pendenza/Terreno (solo se ci sono
+          // terrainSegments caricati per questo trail pubblico).
+          if (_terrainSegments.isNotEmpty)
             Positioned(
               top: MediaQuery.of(context).padding.top + 100,
               right: 12,
-              child: _buildGradientLegend(),
+              child: _buildColorModeToggle(),
+            ),
+
+          // Legenda colori (se attiva): gradient O terrain in base alla
+          // modalità scelta.
+          if (_showGradientColors)
+            Positioned(
+              top: MediaQuery.of(context).padding.top +
+                  (_terrainSegments.isNotEmpty ? 150 : 100),
+              right: 12,
+              child: _colorMode == _ColorMode.terrain
+                  ? _buildTerrainLegend()
+                  : _buildGradientLegend(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Toggle pill "Pendenza" / "Terreno" — Komoot K1b.
+  Widget _buildColorModeToggle() {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ToggleSegment(
+            label: 'Pendenza',
+            selected: _colorMode == _ColorMode.gradient,
+            onTap: () => setState(() => _colorMode = _ColorMode.gradient),
+          ),
+          _ToggleSegment(
+            label: 'Terreno',
+            selected: _colorMode == _ColorMode.terrain,
+            onTap: () => setState(() => _colorMode = _ColorMode.terrain),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Legenda dei tipi di terreno presenti nella traccia corrente.
+  /// Mostra solo i tipi effettivamente trovati (non tutti i 6).
+  Widget _buildTerrainLegend() {
+    final typesInUse = <TerrainType>{
+      for (final s in _terrainSegments) s.type,
+    }.toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Terreno',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          for (final t in typesInUse)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 14,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: t.color,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    t.label,
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
             ),
         ],
       ),
@@ -482,7 +828,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -538,7 +884,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -776,7 +1122,7 @@ class _ElevationPainter extends CustomPainter {
     fillPath.close();
 
     final fillPaint = Paint()
-      ..color = baseColor.withOpacity(0.15)
+      ..color = baseColor.withValues(alpha: 0.15)
       ..style = PaintingStyle.fill;
     canvas.drawPath(fillPath, fillPaint);
 
@@ -847,7 +1193,7 @@ class _ElevationPainter extends CustomPainter {
         Offset(x, 0),
         Offset(x, size.height),
         Paint()
-          ..color = baseColor.withOpacity(0.5)
+          ..color = baseColor.withValues(alpha: 0.5)
           ..strokeWidth = 1,
       );
 
@@ -882,9 +1228,48 @@ class _ElevationPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ElevationPainter oldDelegate) {
-    return elevations != oldDelegate.elevations || 
+    return elevations != oldDelegate.elevations ||
            showGradientColors != oldDelegate.showGradientColors ||
-           baseColor != oldDelegate.baseColor || 
+           baseColor != oldDelegate.baseColor ||
            selectedIndex != oldDelegate.selectedIndex;
+  }
+}
+
+/// Komoot K1b — pill di un toggle binario (Pendenza/Terreno).
+class _ToggleSegment extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ToggleSegment({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: selected
+                ? Colors.white
+                : Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      ),
+    );
   }
 }

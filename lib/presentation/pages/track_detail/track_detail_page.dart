@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/discovery_prompt_service.dart';
+import '../../../core/services/pro_gate_service.dart';
+import '../../../core/services/strava_service.dart';
+import '../../../data/models/recording_reference.dart';
+import '../record/record_page.dart';
 import '../../../core/services/track_export_service.dart';
+import '../../../core/services/track_photos_service.dart';
+import '../../widgets/difficulty_badge.dart';
+import '../../widgets/expandable_description.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -14,12 +22,15 @@ import '../../../data/repositories/community_tracks_repository.dart';
 import '../../widgets/interactive_track_map.dart';
 import '../../widgets/track_charts_widget.dart';
 import '../../widgets/lap_splits_widget.dart';
+import '../../widgets/personal_records_card.dart';
+import '../../widgets/track_tags_editor.dart';
+import '../../widgets/nearby_businesses_section.dart';
 import '../../widgets/track_segments_section.dart';
-import '../../../data/repositories/tracks_repository.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../../widgets/share_card_widget.dart';
+import '../../widgets/share_track_to_group_sheet.dart';
 import '../../../presentation/widgets/heart_rate_zones_widget.dart';
 import '../../../core/services/health_service.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -27,7 +38,25 @@ import '../../../core/extensions/theme_colors_extension.dart';
 class TrackDetailPage extends StatefulWidget {
   final Track track;
 
-  const TrackDetailPage({super.key, required this.track});
+  /// Modalità "percorso illustrativo / da seguire": la traccia viene
+  /// presentata come documentazione di un sentiero, non come diario
+  /// personale dell'autore.
+  ///
+  /// Quando true (es. aperta dal tab Percorsi di un gruppo Business)
+  /// si nascondono:
+  /// - Heart rate (chart battito, zone cardio, refresh HR button)
+  /// - Personal Records confronto
+  ///
+  /// E si forza la visibilità del pulsante "Segui questa traccia".
+  /// Le sezioni utili al fruitore (mappa, lap splits con dislivelli
+  /// per km, foto, segmenti, POI, commenti) restano visibili.
+  final bool illustrative;
+
+  const TrackDetailPage({
+    super.key,
+    required this.track,
+    this.illustrative = false,
+  });
 
   @override
   State<TrackDetailPage> createState() => _TrackDetailPageState();
@@ -37,8 +66,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   late Track _track;
   final TracksRepository _tracksRepository = TracksRepository();
   final CommunityTracksRepository _communityRepository = CommunityTracksRepository();
+  final TrackPhotosService _photosService = TrackPhotosService();
   final GlobalKey _mapKey = GlobalKey();
-  
+  bool _isRetryingStrava = false;
+
   @override
   void initState() {
     super.initState();
@@ -78,26 +109,66 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(_track.name, style: const TextStyle(fontSize: 16)),
-              background: Padding(
-                padding: const EdgeInsets.only(bottom: 48),
-                child: RepaintBoundary(
-                  key: _mapKey,
-                  child: InteractiveTrackMap(
-                  points: _track.points,
-                  height: 300,
-                  photoMarkers: _buildPhotoMarkers(),
-                  onPhotoMarkerTap: _onPhotoMarkerTap,
-                  title: _track.name,
-                  showUserLocation: true,
-                  highlightedPointIndex: _selectedPointIndex,
-                  onPointTap: (index) {
-                    setState(() => _selectedPointIndex = index);
-                  },
-                  track: _track, // ⭐ Per fullscreen con TrackMapPage
+              titlePadding: const EdgeInsetsDirectional.only(
+                  start: 56, bottom: 14, end: 16),
+              title: Text(
+                _track.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black87,
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
-                ),
+              ),
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  RepaintBoundary(
+                    key: _mapKey,
+                    child: InteractiveTrackMap(
+                      points: _track.points,
+                      height: 300,
+                      photoMarkers: _buildPhotoMarkers(),
+                      onPhotoMarkerTap: _onPhotoMarkerTap,
+                      title: _track.name,
+                      showUserLocation: true,
+                      highlightedPointIndex: _selectedPointIndex,
+                      onPointTap: (index) {
+                        setState(() => _selectedPointIndex = index);
+                      },
+                      track: _track, // ⭐ Per fullscreen con TrackMapPage
+                    ),
+                  ),
+                  // Gradient nero in basso per leggibilità titolo +
+                  // separazione netta dal contenuto bianco sottostante.
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.center,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.55),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             actions: [
@@ -132,6 +203,15 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     case 'unpublish':
                       _showUnpublishDialog();
                       break;
+                    case 'shareToGroup':
+                      showShareTrackToGroupSheet(context, track: _track);
+                      break;
+                    case 'split':
+                      _showSplitDialog();
+                      break;
+                    case 'merge':
+                      _showMergeDialog();
+                      break;
                     case 'delete':
                       _showDeleteDialog();
                       break;
@@ -154,6 +234,36 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
+                  const PopupMenuItem(
+                    value: 'shareToGroup',
+                    child: ListTile(
+                      leading: Icon(Icons.group_add),
+                      title: Text('Condividi nel gruppo'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  // 5.4 — Split / Merge solo se sei l'owner
+                  if (_track.userId != null &&
+                      _track.userId ==
+                          FirebaseAuth.instance.currentUser?.uid) ...[
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'split',
+                      child: ListTile(
+                        leading: Icon(Icons.content_cut),
+                        title: Text('Spezza in due tracce'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'merge',
+                      child: ListTile(
+                        leading: Icon(Icons.merge_type),
+                        title: Text("Unisci con un'altra traccia"),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
                   const PopupMenuDivider(),
                   PopupMenuItem(
                     value: 'delete',
@@ -174,19 +284,68 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildMainStats(),
-                  
-                  // ⭐ Galleria foto
-                  if (_track.photos.isNotEmpty) ...[
+
+                  // Komoot K1a Step 2 — badge difficoltà computata.
+                  if (_track.computedDifficulty != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        DifficultyBadge(
+                          difficultyKey: _track.computedDifficulty,
+                          compact: false,
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // ⭐ Galleria foto — visibile sempre al proprietario
+                  // (anche se vuota) per permettere add post-import
+                  // (Garmin / Strava / Health / planner).
+                  if (_track.photos.isNotEmpty || _isOwner) ...[
                     const SizedBox(height: 24),
                     _buildPhotoGallery(),
                   ],
                   
-                  // ⭐ Grafici (elevazione, velocità, battito)
+                  // ⭐ Pulsante "Segui questa traccia" — visibile per
+                  // tracce pianificate (anche del proprietario, è il
+                  // loro scopo), per tracce di altri condivise in un
+                  // gruppo (utente non-owner), e per qualsiasi traccia
+                  // aperta come percorso illustrativo del gruppo.
+                  if (_track.points.length >= 2 &&
+                      (_track.isPlanned ||
+                          !_isOwner ||
+                          widget.illustrative)) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _followTrack,
+                        icon: const Icon(Icons.navigation),
+                        label: const Text('Segui questa traccia'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.info,
+                          foregroundColor: Colors.white,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  // ⭐ Grafici (elevazione, velocità, battito).
+                  // PRIVACY: il battito è personale → passato al chart
+                  // solo se l'utente è il proprietario AND la pagina
+                  // non è in modalità illustrativa (percorso di
+                  // gruppo: anche al proprietario non interessa
+                  // mostrare il proprio HR in un contesto di
+                  // documentazione del trail).
                   if (_track.points.length > 1) ...[
                     const SizedBox(height: 24),
                     TrackChartsWidget(
                       points: _track.points,
-                      heartRateData: _track.heartRateData,
+                      heartRateData: (_isOwner && !widget.illustrative)
+                          ? _track.heartRateData
+                          : null,
                       height: 180,
                       totalDuration: _track.stats.duration,
                       onPointTap: (index, distance) {
@@ -196,16 +355,24 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     ),
                   ],
 
-                  // ❤️ Zone Cardio
-                  if (_track.heartRateData != null && _track.heartRateData!.isNotEmpty) ...[
+                  // ❤️ Zone Cardio (solo proprietario, non illustrative)
+                  if (_isOwner &&
+                      !widget.illustrative &&
+                      _track.heartRateData != null &&
+                      _track.heartRateData!.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     HeartRateZonesWidget(
                       heartRateData: _track.heartRateData!,
                     ),
                   ],
 
-                  // ❤️ Pulsante aggiorna HR (se non ci sono dati HR)
-                  if ((_track.heartRateData == null || _track.heartRateData!.isEmpty) &&
+                  // ❤️ Pulsante aggiorna HR (solo proprietario, non
+                  // illustrative — in vista percorso non si gestisce
+                  // il dato personale)
+                  if (_isOwner &&
+                      !widget.illustrative &&
+                      (_track.heartRateData == null ||
+                          _track.heartRateData!.isEmpty) &&
                       _track.id != null) ...[
                     const SizedBox(height: 16),
                     _buildRefreshHRButton(),
@@ -224,6 +391,33 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     ),
                   ],
 
+                  // Epic 4.7 — Confronto con Personal Records (stesso
+                  // activityType). Mostrata solo se l'utente è owner
+                  // della traccia AND non in modalità illustrativa
+                  // (un percorso "da seguire" non è un risultato
+                  // personale da confrontare con PR — è
+                  // documentazione del trail).
+                  if (_isOwner && !widget.illustrative) ...[
+                    const SizedBox(height: 16),
+                    PersonalRecordsCard(current: _track),
+                    // 5.5 — Editor tag personalizzati (solo owner)
+                    if (_track.id != null) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: TrackTagsEditor(
+                          trackId: _track.id!,
+                          initialTags: _track.tags,
+                          onChanged: (tags) {
+                            setState(() {
+                              _track = _track.copyWith(tags: tags);
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+
                   // Segmenti creati da questa traccia
                   if (_track.id != null && _track.points.length > 1) ...[
                     const SizedBox(height: 16),
@@ -235,8 +429,27 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     ),
                   ],
 
+                  // 🏔️ Spazi Pro lungo il percorso — discovery
+                  // contestuale di rifugi/noleggi/guide visibile per
+                  // QUALSIASI traccia con polyline, anche le proprie.
+                  // Anche su una propria traccia gia' percorsa e' utile
+                  // sapere che spazi commerciali ci sono in zona (es.
+                  // "c'e' un noleggio bici 2 km dal mio punto di
+                  // partenza prossima volta ci passo"). Auto-hide se
+                  // nessuno in zona.
+                  if (_track.points.length >= 2) ...[
+                    const SizedBox(height: 16),
+                    NearbyBusinessesSection(
+                      polyline: _track.points
+                          .map((p) =>
+                              LatLng(p.latitude, p.longitude))
+                          .toList(),
+                    ),
+                  ],
+
                   const SizedBox(height: 24),
                   _buildDetails(),
+                  _buildStravaBadge(),
                 ],
               ),
             ),
@@ -246,11 +459,131 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     );
   }
 
+  /// Badge Strava: visibile solo all'owner della traccia. Mostra lo stato
+  /// di upload (processing → done con link / error). I campi
+  /// `stravaActivityId` / `stravaUploadStatus` sono scritti dalla Cloud
+  /// Function `stravaUploadActivity` dopo il salvataggio.
+  Widget _buildStravaBadge() {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null || _track.id == null) return const SizedBox.shrink();
+    if (_track.userId != currentUid) return const SizedBox.shrink();
+
+    final docRef = FirebaseFirestore.instance
+        .collection('users').doc(currentUid)
+        .collection('tracks').doc(_track.id);
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: docRef.snapshots(),
+      builder: (context, snap) {
+        final data = snap.data?.data();
+        if (data == null) return const SizedBox.shrink();
+        final activityId = data['stravaActivityId']?.toString();
+        final status = data['stravaUploadStatus']?.toString();
+        if (activityId == null && status == null) return const SizedBox.shrink();
+
+        const stravaOrange = Color(0xFFFC4C02);
+        Widget tile;
+
+        if (activityId != null) {
+          final url = 'https://www.strava.com/activities/$activityId';
+          final imported = data['importedFromStrava'] == true;
+          tile = ListTile(
+            leading: const Icon(Icons.directions_run, color: stravaOrange),
+            title: Text(imported ? context.l10n.stravaTrackImported : context.l10n.stravaTrackUploaded),
+            subtitle: Text(imported
+                ? context.l10n.stravaTrackImportedSubtitle
+                : context.l10n.stravaTrackUploadedSubtitle),
+            trailing: const Icon(Icons.open_in_new, size: 18, color: stravaOrange),
+            onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          );
+        } else if (status == 'processing' || status == 'pending') {
+          tile = ListTile(
+            leading: const SizedBox(
+              width: 24, height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2, color: stravaOrange),
+            ),
+            title: Text(context.l10n.stravaUploading),
+            subtitle: Text(context.l10n.stravaUploadingSubtitle),
+          );
+        } else if (status == 'error' || status == 'pending') {
+          final isError = status == 'error';
+          final err = data['stravaError']?.toString();
+          tile = ListTile(
+            leading: Icon(
+              isError ? Icons.error_outline : Icons.schedule,
+              color: isError ? AppColors.danger : Colors.orange,
+            ),
+            title: Text(isError ? context.l10n.stravaUploadFailed : context.l10n.stravaUploadPending),
+            subtitle: Text(
+              isError
+                  ? (err ?? context.l10n.stravaUnknownError)
+                  : context.l10n.stravaUploadPendingSubtitle,
+            ),
+            trailing: _isRetryingStrava
+                ? const SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : TextButton.icon(
+                    onPressed: () => _retryStravaUpload(_track.id!),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: Text(context.l10n.retry),
+                  ),
+          );
+        } else {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Card(child: tile),
+        );
+      },
+    );
+  }
+
+  Future<void> _retryStravaUpload(String trackId) async {
+    if (_isRetryingStrava) return;
+    setState(() => _isRetryingStrava = true);
+
+    // Pulisci lo stato di errore prima del retry: la function controlla
+    // `stravaActivityId` per idempotenza, gli altri campi servono solo all'UI.
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('users').doc(uid)
+            .collection('tracks').doc(trackId)
+            .update({
+          'stravaUploadStatus': 'processing',
+          'stravaError': FieldValue.delete(),
+        });
+      } catch (_) {}
+    }
+
+    final activityId = await StravaService().uploadTrack(trackId);
+    if (!mounted) return;
+    setState(() => _isRetryingStrava = false);
+
+    final messenger = ScaffoldMessenger.of(context);
+    if (activityId != null) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(context.l10n.stravaUploadedOk),
+        backgroundColor: AppColors.success,
+      ));
+    } else {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Upload non riuscito. Riprova più tardi.'),
+        backgroundColor: AppColors.danger,
+      ));
+    }
+  }
+
   Widget _buildMainStats() {
     final stats = _track.stats;
     return Row(
       children: [
-        _StatCard(icon: Icons.straighten, value: '${(stats.distance / 1000).toStringAsFixed(1)}', unit: 'km', label: context.l10n.distanceLabel, color: AppColors.primary),
+        _StatCard(icon: Icons.straighten, value: (stats.distance / 1000).toStringAsFixed(1), unit: 'km', label: context.l10n.distanceLabel, color: AppColors.primary),
         const SizedBox(width: 8),
         _StatCard(icon: Icons.trending_up, value: '+${stats.elevationGain.toStringAsFixed(0)}', unit: 'm', label: context.l10n.elevationGainLabel, color: AppColors.success),
         const SizedBox(width: 8),
@@ -263,47 +596,382 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   // ⭐ GALLERIA FOTO
   // ═══════════════════════════════════════════════════════════════════════════
 
+  bool get _isOwner =>
+      _track.userId != null &&
+      _track.userId == FirebaseAuth.instance.currentUser?.uid;
+
+  bool _addingPhotos = false;
+
   Widget _buildPhotoGallery() {
+    final hasPhotos = _track.photos.isNotEmpty;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Header con bottone aggiungi (solo proprietario)
             Row(
               children: [
-                Icon(Icons.photo_library, size: 20, color: context.textSecondary),
+                Icon(Icons.photo_library,
+                    size: 20, color: context.textSecondary),
                 const SizedBox(width: 8),
-                Text(
-                  context.l10n.photosCount(_track.photos.length),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    context.l10n.photosCount(_track.photos.length),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
+                if (_isOwner)
+                  TextButton.icon(
+                    onPressed: _addingPhotos ? null : _addPhotos,
+                    icon: _addingPhotos
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_a_photo, size: 18),
+                    label: Text(
+                      _addingPhotos ? 'Caricamento…' : 'Aggiungi',
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
-            
-            // Galleria orizzontale scrollabile
-            SizedBox(
-              height: 140,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _track.photos.length,
-                itemBuilder: (context, index) {
-                  final photo = _track.photos[index];
-                  return _PhotoThumbnail(
-                    url: photo.url,
-                    elevation: photo.elevation,
-                    onTap: () => _openPhotoViewer(index),
-                  );
-                },
+
+            if (hasPhotos)
+              SizedBox(
+                height: 140,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _track.photos.length,
+                  itemBuilder: (context, index) {
+                    final photo = _track.photos[index];
+                    return _PhotoThumbnail(
+                      url: photo.url,
+                      elevation: photo.elevation,
+                      onTap: () => _openPhotoViewer(index),
+                      onLongPress: _isOwner
+                          ? () => _showPhotoActions(index)
+                          : null,
+                    );
+                  },
+                ),
+              )
+            else
+              // Empty state per proprietario — guida l'uso post-import
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.image_outlined,
+                        size: 28,
+                        color: context.textSecondary.withValues(alpha: 0.5)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Aggiungi foto del percorso. Utile per tracce '
+                        'importate da Garmin/Strava o pianificate, '
+                        'dove non hai scattato durante la registrazione.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: context.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Limite foto per traccia per utenti **free** (non-Pro).
+  /// Pro: illimitato.
+  static const int _freePhotosPerTrack = 3;
+
+  /// Aggiunge foto da galleria a una traccia esistente.
+  ///
+  /// Usa `pickFromGalleryWithExif`: legge i tag EXIF di ogni foto
+  /// (GPS lat/lng/altitude + DateTimeOriginal) così le foto si
+  /// posizionano automaticamente al punto giusto sulla mappa, senza
+  /// che l'utente debba taggarle a mano.
+  ///
+  /// **Gating Pro:** utenti free hanno cap a [_freePhotosPerTrack].
+  /// Se superato → dialog upgrade.
+  Future<void> _addPhotos() async {
+    final trackId = _track.id;
+    if (trackId == null) return;
+
+    final isPro = ProGateService().isPro;
+    final current = _track.photos.length;
+    if (!isPro && current >= _freePhotosPerTrack) {
+      _showPhotoLimitDialog();
+      return;
+    }
+
+    final picked = await _photosService.pickFromGalleryWithExif(
+      maxImages: 10,
+    );
+    if (picked.isEmpty) return;
+
+    // Gating: tronca alle prime N che entrano nel cap free.
+    List<TrackPhoto> toUpload = picked;
+    if (!isPro) {
+      final remaining = _freePhotosPerTrack - current;
+      if (picked.length > remaining) {
+        toUpload = picked.take(remaining).toList();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Limite gratuito: solo le prime $remaining foto verranno '
+              'caricate. Passa a Pro per illimitate.',
+            ),
+            backgroundColor: Colors.orange.shade700,
+          ),
+        );
+      }
+    }
+
+    setState(() => _addingPhotos = true);
+    try {
+      final result = await _photosService.uploadPhotos(
+        photos: toUpload,
+        trackId: trackId,
+      );
+      if (!mounted) return;
+
+      if (result.uploaded.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Upload fallito (${result.failed.length} foto)'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+        return;
+      }
+
+      final newMetadata = result.uploaded.map((u) => TrackPhotoMetadata(
+            url: u.url,
+            latitude: u.latitude,
+            longitude: u.longitude,
+            elevation: u.elevation,
+            timestamp: u.timestamp,
+          ));
+      final merged = [..._track.photos, ...newMetadata];
+
+      await _tracksRepository.updateTrackPhotos(trackId, merged);
+      if (!mounted) return;
+      setState(() {
+        _track = _track.copyWith(photos: merged);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${result.uploaded.length} foto aggiunte'
+            '${result.hasFailures ? " (${result.failed.length} fallite)" : ""}',
+          ),
+          backgroundColor: const Color(0xFF2E7D5B),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _addingPhotos = false);
+    }
+  }
+
+  /// Mostra azioni su una foto esistente: edit caption / delete.
+  void _showPhotoActions(int index) {
+    final photo = _track.photos[index];
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_note),
+              title: const Text('Modifica didascalia'),
+              subtitle: photo.caption != null && photo.caption!.isNotEmpty
+                  ? Text(photo.caption!,
+                      maxLines: 1, overflow: TextOverflow.ellipsis)
+                  : null,
+              onTap: () {
+                Navigator.pop(ctx);
+                _editCaption(index);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: Colors.red.shade700),
+              title: Text('Elimina foto',
+                  style: TextStyle(color: Colors.red.shade700)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _deletePhoto(index);
+              },
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _editCaption(int index) async {
+    final trackId = _track.id;
+    if (trackId == null) return;
+    final photo = _track.photos[index];
+    final ctrl = TextEditingController(text: photo.caption ?? '');
+    final newCaption = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Didascalia'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 140,
+          decoration: const InputDecoration(
+            hintText: 'Es. "Bivio per il rifugio"',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+    if (newCaption == null) return;
+    final trimmed = newCaption.trim();
+    final updated = [..._track.photos];
+    updated[index] = TrackPhotoMetadata(
+      url: photo.url,
+      latitude: photo.latitude,
+      longitude: photo.longitude,
+      elevation: photo.elevation,
+      timestamp: photo.timestamp,
+      caption: trimmed.isEmpty ? null : trimmed,
+    );
+    await _tracksRepository.updateTrackPhotos(trackId, updated);
+    if (!mounted) return;
+    setState(() => _track = _track.copyWith(photos: updated));
+  }
+
+  Future<void> _deletePhoto(int index) async {
+    final trackId = _track.id;
+    if (trackId == null) return;
+    final photo = _track.photos[index];
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Elimina foto'),
+        content:
+            const Text('Vuoi eliminare definitivamente questa foto?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton.tonal(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.withValues(alpha: 0.12),
+              foregroundColor: Colors.red,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    // Best-effort delete dello Storage poi update Firestore.
+    await _photosService.deletePhoto(photo.url);
+    final updated = [..._track.photos]..removeAt(index);
+    await _tracksRepository.updateTrackPhotos(trackId, updated);
+    if (!mounted) return;
+    setState(() => _track = _track.copyWith(photos: updated));
+  }
+
+  /// Apre RecordPage in modalità guidata con la traccia corrente
+  /// come riferimento (polyline + alert off-trail + voce TTS svolte).
+  ///
+  /// Disponibile per tracce pianificate (anche dell'utente: il loro
+  /// scopo è essere seguite) e per tracce condivise da altri utenti
+  /// in un gruppo (l'utente non è owner ma vuole percorrerle).
+  void _followTrack() {
+    final points = _track.points;
+    if (points.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Traccia troppo corta da seguire')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecordPage(
+          reference: RecordingReference.fromTrail(
+            trailPoints: points
+                .map((p) => LatLng(p.latitude, p.longitude))
+                .toList(),
+            trailName: _track.name,
+            totalDistance: _track.stats.distance,
+            totalElevationGain: _track.stats.elevationGain,
+          ),
+          initialActivityType: _track.activityType,
+        ),
+      ),
+    );
+  }
+
+  /// Dialog mostrato quando un utente free raggiunge il cap foto.
+  /// Spiega il limite e linka all'upgrade Pro. Niente push diretto al
+  /// paywall qui per non interrompere il flow — l'utente può aprirlo
+  /// dal tab Pro nelle Impostazioni.
+  void _showPhotoLimitDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Limite foto raggiunto'),
+        content: Text(
+          'Le tracce gratuite supportano fino a $_freePhotosPerTrack '
+          'foto. Passa a TrailShare Pro per foto illimitate per '
+          'traccia e altre feature avanzate.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Capito'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              // Navigazione al paywall: la rotta '/pro' è registrata
+              // dal main mobile. Se non esiste cade nel default
+              // unknown route handler.
+              Navigator.of(context).pushNamed('/pro');
+            },
+            icon: const Icon(Icons.workspace_premium, size: 18),
+            label: const Text('Scopri Pro'),
+          ),
+        ],
       ),
     );
   }
@@ -339,9 +1007,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withOpacity(0.1),
+                      color: AppColors.success.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                      border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -364,8 +1032,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  _track.description!,
+                child: ExpandableDescription(
+                  text: _track.description!,
                   style: const TextStyle(fontSize: 14, height: 1.4),
                 ),
               ),
@@ -536,7 +1204,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                               );
                             });
                             
-                            if (mounted) {
+                            if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(context.l10n.activityChangedTo(type.displayName)),
@@ -611,7 +1279,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       if (format == ExportFormat.fit) {
         await DiscoveryPromptService.markFitExported();
       }
-      await Share.shareXFiles([XFile(filePath)], subject: _track.name);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(filePath)],
+        subject: _track.name,
+      ));
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -627,7 +1298,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     if (_track.id == null) return;
     final url = 'https://trailshare.app/track/${_track.id}';
     final message = '${_track.name}\n$url';
-    await Share.share(message, subject: _track.name);
+    await SharePlus.instance.share(ShareParams(
+      text: message,
+      subject: _track.name,
+    ));
   }
 
   String _formatDuration(Duration d) {
@@ -727,13 +1401,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   );
                 });
                 
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(context.l10n.trackUpdated), backgroundColor: AppColors.success),
                   );
                 }
               } catch (e) {
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
                   );
@@ -753,18 +1427,33 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.publishToCommunity),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(context.l10n.publishDialogContent),
-            const SizedBox(height: 16),
-            _buildSummaryRow(context.l10n.nameLabel, _track.name),
-            _buildSummaryRow(context.l10n.distanceLabel, '${_track.stats.distanceKm.toStringAsFixed(1)} km'),
-            _buildSummaryRow(context.l10n.elevationGainLabel, '+${_track.stats.elevationGain.toStringAsFixed(0)} m'),
-            if (_track.description != null && _track.description!.isNotEmpty)
-              _buildSummaryRow(context.l10n.descriptionLabel, _track.description!),
-          ],
+        // Wrap in SingleChildScrollView: senza, una descrizione lunga
+        // sforava verticalmente il dialog (overflow). Constrain max
+        // height per evitare di "schiacciare" gli action buttons.
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+            maxWidth: 400,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.l10n.publishDialogContent),
+                const SizedBox(height: 16),
+                _buildSummaryRow(context.l10n.nameLabel, _track.name),
+                _buildSummaryRow(context.l10n.distanceLabel,
+                    '${_track.stats.distanceKm.toStringAsFixed(1)} km'),
+                _buildSummaryRow(context.l10n.elevationGainLabel,
+                    '+${_track.stats.elevationGain.toStringAsFixed(0)} m'),
+                if (_track.description != null &&
+                    _track.description!.isNotEmpty)
+                  _buildSummaryRow(
+                      context.l10n.descriptionLabel, _track.description!),
+              ],
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -791,7 +1480,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Icon(Icons.favorite_outline, color: AppColors.danger.withOpacity(0.7)),
+              Icon(Icons.favorite_outline, color: AppColors.danger.withValues(alpha: 0.7)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -929,6 +1618,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         ownerId: user.uid,
         ownerUsername: await _getUsername(user.uid),
         photoUrls: _track.photos.map((p) => p.url).toList(),
+        computedDifficulty: _track.computedDifficulty,
       );
 
       if (success) {
@@ -943,6 +1633,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           );
         }
       } else {
+        if (!mounted) throw Exception('Publish failed');
         throw Exception(context.l10n.publishFailed);
       }
     } catch (e) {
@@ -1002,6 +1693,214 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     }
   }
 
+  /// 5.4 — Dialog Spezza traccia. Slider sceglie il punto di split,
+  /// con preview live km/% del primo segmento. Conferma → 2 nuove
+  /// tracce + delete originale → torna alla lista.
+  void _showSplitDialog() {
+    final total = _track.points.length;
+    if (total < 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(context.l10n.trackTooShortToSplit)),
+      );
+      return;
+    }
+    double sliderValue = 0.5;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSt) {
+            final splitIndex =
+                (total * sliderValue).round().clamp(2, total - 2);
+            // Approssimazione veloce: la frazione del distance totale è
+            // ragionevolmente vicina alla split-distance reale per UX.
+            final firstDistKm =
+                (_track.stats.distance / 1000) * sliderValue;
+            final secondDistKm =
+                (_track.stats.distance / 1000) - firstDistKm;
+            return AlertDialog(
+              title: const Text('Spezza traccia'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Scegli dove dividere la traccia in due. Le due parti '
+                    'verranno salvate come tracce separate e questa verrà '
+                    'cancellata.',
+                    style: TextStyle(
+                        fontSize: 12, color: context.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
+                  Slider(
+                    value: sliderValue,
+                    min: 0.1,
+                    max: 0.9,
+                    divisions: 16,
+                    label: '${(sliderValue * 100).toStringAsFixed(0)}%',
+                    onChanged: (v) => setSt(() => sliderValue = v),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${firstDistKm.toStringAsFixed(2)} km',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        '${secondDistKm.toStringAsFixed(2)} km',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Punto $splitIndex / $total',
+                    style: TextStyle(
+                        fontSize: 11, color: context.textMuted),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(context.l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await _doSplit(splitIndex);
+                  },
+                  child: const Text('Spezza'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _doSplit(int splitIndex) async {
+    final repo = TracksRepository();
+    final result = await repo.splitTrack(_track, splitIndex);
+    if (!mounted) return;
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(context.l10n.trackSplitError)),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.trackSplitOk)),
+    );
+    Navigator.pop(context); // torna alla lista
+  }
+
+  /// 5.4 — Dialog Unisci tracce. Mostra picker con le altre tracce
+  /// dell'utente; selezionata una, esegue il merge e chiude verso la
+  /// lista (la nuova traccia compare in cima per `createdAt`).
+  Future<void> _showMergeDialog() async {
+    final repo = TracksRepository();
+    final all = await repo.getMyTracksLightweight(limit: 100);
+    if (!mounted) return;
+    final candidates = all
+        .where((t) => t.id != null && t.id != _track.id)
+        .toList();
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(context.l10n.trackMergeNoOther)),
+      );
+      return;
+    }
+    final picked = await showModalBottomSheet<Track>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Scegli la traccia da unire',
+                    style: TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: candidates.length,
+                  itemBuilder: (_, i) {
+                    final t = candidates[i];
+                    final d = t.recordedAt ?? t.createdAt;
+                    return ListTile(
+                      leading: const Icon(Icons.route),
+                      title: Text(t.name),
+                      subtitle: Text(
+                          '${(t.stats.distance / 1000).toStringAsFixed(2)} km · '
+                          '${d.day}/${d.month}/${d.year}'),
+                      onTap: () => Navigator.pop(ctx, t),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unire le tracce?'),
+        content: Text(
+            'Verrà creata una nuova traccia con i punti concatenati di '
+            '"${_track.name}" e "${picked.name}". Le due originali '
+            'verranno cancellate.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Unisci'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final newId = await repo.mergeTracks(_track, picked);
+    if (!mounted) return;
+    if (newId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.trackMergeError)),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Tracce unite con successo')),
+    );
+    Navigator.pop(context); // torna alla lista
+  }
+
   void _showDeleteDialog() {
     showDialog(
       context: context,
@@ -1055,8 +1954,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
           .collection('user_profiles')
           .doc(uid)
           .get();
+      if (!mounted) return 'User';
       return doc.data()?['username'] ?? context.l10n.userLabel;
     } catch (_) {
+      if (!mounted) return 'User';
       return context.l10n.userLabel;
     }
   }
@@ -1088,7 +1989,7 @@ class _StatCard extends StatelessWidget {
               RichText(
                 text: TextSpan(children: [
                   TextSpan(text: value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-                  if (unit.isNotEmpty) TextSpan(text: ' $unit', style: TextStyle(fontSize: 11, color: color.withOpacity(0.7))),
+                  if (unit.isNotEmpty) TextSpan(text: ' $unit', style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.7))),
                 ]),
               ),
               Text(label, style: TextStyle(fontSize: 10, color: context.textMuted)),
@@ -1108,17 +2009,20 @@ class _PhotoThumbnail extends StatelessWidget {
   final String url;
   final double? elevation;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const _PhotoThumbnail({
     required this.url,
     this.elevation,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         width: 140,
         margin: const EdgeInsets.only(right: 12),
@@ -1126,7 +2030,7 @@ class _PhotoThumbnail extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1182,7 +2086,7 @@ class _PhotoThumbnail extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.6),
+                      Colors.black.withValues(alpha: 0.6),
                     ],
                   ),
                 ),
@@ -1218,7 +2122,7 @@ class _PhotoThumbnail extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Icon(Icons.fullscreen, size: 16, color: Colors.white),
@@ -1311,7 +2215,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                         child: CircularProgressIndicator(color: Colors.white),
                       );
                     },
-                    errorBuilder: (_, error, __) {
+                    errorBuilder: (_, error, _) {
                       return const Icon(
                         Icons.broken_image,
                         color: Colors.white54,
@@ -1341,7 +2245,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                     decoration: BoxDecoration(
                       color: index == _currentIndex
                           ? Colors.white
-                          : Colors.white.withOpacity(0.4),
+                          : Colors.white.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -1365,7 +2269,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
+        color: Colors.black.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -1397,61 +2301,6 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
     );
   }
 
-  void _showPhotoInfo(TrackPhotoMetadata photo) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.l10n.photoInfoTitle,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _infoRow(context.l10n.dateInfoLabel, '${photo.timestamp.day}/${photo.timestamp.month}/${photo.timestamp.year}'),
-            _infoRow(context.l10n.timeInfoLabel, '${photo.timestamp.hour.toString().padLeft(2, '0')}:${photo.timestamp.minute.toString().padLeft(2, '0')}'),
-            if (photo.latitude != null)
-              _infoRow(context.l10n.latitudeLabel, photo.latitude!.toStringAsFixed(6)),
-            if (photo.longitude != null)
-              _infoRow(context.l10n.longitudeLabel, photo.longitude!.toStringAsFixed(6)),
-            if (photo.elevation != null)
-              _infoRow(context.l10n.elevationQuotaLabel, '${photo.elevation!.toStringAsFixed(0)} m'),
-            if (photo.caption != null && photo.caption!.isNotEmpty)
-              _infoRow(context.l10n.captionLabel, photo.caption!),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(label, style: const TextStyle(color: Colors.white54)),
-          ),
-          Expanded(
-            child: Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
   Future<void> _downloadPhoto(String url) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1459,7 +2308,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
       );
 
       final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) throw Exception(context.l10n.downloadError);
+      if (response.statusCode != 200) {
+        if (!mounted) throw Exception('Download error');
+        throw Exception(context.l10n.downloadError);
+      }
 
       final tempDir = await getTemporaryDirectory();
       final fileName = 'trailshare_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -1468,10 +2320,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
 
       if (!mounted) return;
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
         text: context.l10n.photoFrom(widget.trackName),
-      );
+      ));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -9,8 +9,8 @@ class HeartRateService {
   HeartRateService._internal();
 
   // UUID standard BLE Heart Rate Service
-  static const String HEART_RATE_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
-  static const String HEART_RATE_MEASUREMENT_UUID = '00002a37-0000-1000-8000-00805f9b34fb';
+  static const String heartRateServiceUuid = '0000180d-0000-1000-8000-00805f9b34fb';
+  static const String heartRateMeasurementUuid = '00002a37-0000-1000-8000-00805f9b34fb';
 
   BluetoothDevice? _connectedDevice;
   BluetoothCharacteristic? _heartRateCharacteristic;
@@ -56,7 +56,7 @@ class HeartRateService {
       await FlutterBluePlus.stopScan();
 
       await FlutterBluePlus.startScan(
-        withServices: [Guid(HEART_RATE_SERVICE_UUID)],
+        withServices: [Guid(heartRateServiceUuid)],
         timeout: timeout,
       );
 
@@ -109,7 +109,7 @@ class HeartRateService {
 
       BluetoothService? hrService;
       for (final service in services) {
-        if (service.uuid.toString().toLowerCase() == HEART_RATE_SERVICE_UUID) {
+        if (service.uuid.toString().toLowerCase() == heartRateServiceUuid) {
           hrService = service;
           break;
         }
@@ -122,7 +122,7 @@ class HeartRateService {
       }
 
       for (final char in hrService.characteristics) {
-        if (char.uuid.toString().toLowerCase() == HEART_RATE_MEASUREMENT_UUID) {
+        if (char.uuid.toString().toLowerCase() == heartRateMeasurementUuid) {
           _heartRateCharacteristic = char;
           break;
         }
@@ -166,7 +166,9 @@ class HeartRateService {
       if (_heartRateCharacteristic != null) {
         try {
           await _heartRateCharacteristic!.setNotifyValue(false);
-        } catch (e) {}
+        } catch (_) {
+          // ignore: errore non bloccante
+        }
       }
       _heartRateCharacteristic = null;
 

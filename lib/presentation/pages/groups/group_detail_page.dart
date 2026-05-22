@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/owner_pro_status_cache.dart';
+import '../../../core/utils/group_brand.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/repositories/groups_repository.dart';
 import 'group_chat_tab.dart';
 import 'group_events_tab.dart';
 import 'group_challenges_tab.dart';
+import 'group_tracks_tab.dart';
 import 'group_members_page.dart';
+import 'group_customize_page.dart';
+import '../../widgets/paywall_sheet.dart';
+import '../business/business_profile_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -37,7 +44,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadGroup();
   }
 
@@ -52,6 +59,12 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
 
     final group = await _repo.getGroup(widget.groupId);
     final isAdmin = await _repo.isAdmin(widget.groupId);
+
+    // Sprint B.2: pre-fetch del flag Pro dell'owner per renderizzare il
+    // branding (logo/cover/color) al primo build senza flicker.
+    if (group != null && group.createdBy.isNotEmpty) {
+      await OwnerProStatusCache().isOwnerPro(group.createdBy);
+    }
 
     if (mounted) {
       setState(() {
@@ -148,16 +161,22 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final accent = groupAccentColor(_group);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_group?.name ?? widget.groupName),
+        title: _GroupTitle(
+          name: _group?.name ?? widget.groupName,
+          logoUrl: _group?.hasCustomLogo == true ? _group!.avatarUrl : null,
+          isVerifiedBusiness: _group?.isBusinessGroup == true,
+          accent: accent,
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: context.textPrimary,
         actions: [
           // Membri
           IconButton(
-            icon: const Icon(Icons.people),
+            icon: Icon(Icons.people),
             tooltip: context.l10n.membersLabel,
             onPressed: () {
               Navigator.push(
@@ -176,6 +195,38 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
+                case 'customize':
+                  if (_group != null) {
+                    // Sprint B.2: gate accesso dietro Pro dell'owner.
+                    // Se l'owner del gruppo non è Consumer Pro, mostriamo
+                    // il paywall invece di aprire la pagina.
+                    () async {
+                      // "Personalizza" accessibile se il gruppo è
+                      // Pro-equivalent: owner Consumer Pro OR override
+                      // admin isBusinessGroup=true (seed clients).
+                      final ownerIsPro = await OwnerProStatusCache()
+                          .isOwnerPro(_group!.createdBy);
+                      final canCustomize =
+                          ownerIsPro || _group!.isBusinessGroup;
+                      if (!context.mounted) return;
+                      if (!canCustomize) {
+                        await showPaywallSheet(
+                          context,
+                          trigger: PaywallTrigger.generic,
+                        );
+                        return;
+                      }
+                      if (!context.mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              GroupCustomizePage(group: _group!),
+                        ),
+                      ).then((_) => _loadGroup());
+                    }();
+                  }
+                  break;
                 case 'leave':
                   _leaveGroup();
                   break;
@@ -185,12 +236,27 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               }
             },
             itemBuilder: (context) => [
+              // "Personalizza" visibile a tutti gli admin (Sprint B): se
+              // il gruppo non è Pro-equivalent, il tap apre il paywall
+              // Consumer Pro come upsell. Per gruppi Pro o
+              // isBusinessGroup=true apre direttamente la pagina.
+              if (_isAdmin)
+                const PopupMenuItem(
+                  value: 'customize',
+                  child: Row(
+                    children: [
+                      Icon(Icons.brush, size: 20),
+                      SizedBox(width: 8),
+                      Text('Personalizza gruppo'),
+                    ],
+                  ),
+                ),
               PopupMenuItem(
                 value: 'leave',
                 child: Row(
                   children: [
                     const Icon(Icons.exit_to_app, color: AppColors.danger, size: 20),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(context.l10n.leaveGroupTitle),
                   ],
                 ),
@@ -202,7 +268,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     children: [
                       const Icon(Icons.delete, color: AppColors.danger, size: 20),
                       const SizedBox(width: 8),
-                      Text(context.l10n.deleteGroupMenu, style: const TextStyle(color: AppColors.danger)),
+                      Text(context.l10n.deleteGroupMenu, style: TextStyle(color: AppColors.danger)),
                     ],
                   ),
                 ),
@@ -211,14 +277,18 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         ],
         bottom: TabBar(
           controller: _tabController,
-          labelColor: AppColors.primary,
+          labelColor: accent,
           unselectedLabelColor: context.textMuted,
-          indicatorColor: AppColors.primary,
+          indicatorColor: accent,
+          // Tab non scrollabile: con 5 tab Flutter divide equamente lo
+          // schermo. Le label sono tutte corte (max 8 char) quindi il
+          // testo non viene troncato sui device standard.
           tabs: [
-            Tab(icon: const Icon(Icons.chat_bubble_outline), text: context.l10n.chatTab),
-            Tab(icon: const Icon(Icons.event), text: context.l10n.eventsTab),
-            Tab(icon: const Icon(Icons.emoji_events), text: context.l10n.challengesTab),
-            Tab(icon: const Icon(Icons.info_outline), text: context.l10n.infoTab),
+            Tab(icon: Icon(Icons.chat_bubble_outline), text: context.l10n.chatTab),
+            Tab(icon: Icon(Icons.event), text: context.l10n.eventsTab),
+            const Tab(icon: Icon(Icons.route), text: 'Percorsi'),
+            Tab(icon: Icon(Icons.emoji_events), text: context.l10n.challengesTab),
+            Tab(icon: Icon(Icons.info_outline), text: context.l10n.infoTab),
           ],
         ),
       ),
@@ -228,10 +298,16 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               controller: _tabController,
               children: [
                 // Tab Chat
-                GroupChatTab(groupId: widget.groupId),
+                GroupChatTab(groupId: widget.groupId, group: _group),
 
                 // Tab Eventi
                 GroupEventsTab(
+                  groupId: widget.groupId,
+                  isAdmin: _isAdmin,
+                ),
+
+                // Tab Percorsi (B2B groups feature)
+                GroupTracksTab(
                   groupId: widget.groupId,
                   isAdmin: _isAdmin,
                 ),
@@ -255,9 +331,9 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
+        color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,7 +341,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           Row(
             children: [
               const Icon(Icons.vpn_key, size: 20, color: AppColors.primary),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 context.l10n.inviteCodeTitle,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -273,7 +349,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               const Spacer(),
               if (_isAdmin)
                 IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
+                  icon: Icon(Icons.refresh, size: 20),
                   color: context.textMuted,
                   tooltip: context.l10n.regenerateCode,
                   onPressed: _regenerateInviteCode,
@@ -291,7 +367,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -307,7 +383,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Icon(Icons.copy, size: 20, color: AppColors.primary.withOpacity(0.6)),
+                  Icon(Icons.copy, size: 20, color: AppColors.primary.withValues(alpha: 0.6)),
                 ],
               ),
             ),
@@ -321,7 +397,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _copyInviteCode(code),
-                  icon: const Icon(Icons.copy, size: 18),
+                  icon: Icon(Icons.copy, size: 18),
                   label: Text(context.l10n.copy),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
@@ -334,7 +410,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () => _shareInviteCode(code),
-                  icon: const Icon(Icons.share, size: 18),
+                  icon: Icon(Icons.share, size: 18),
                   label: Text(context.l10n.share),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -346,7 +422,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             ],
           ),
           
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             context.l10n.shareInviteCodeDesc,
             style: TextStyle(fontSize: 12, color: context.textMuted),
@@ -364,7 +440,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           context.l10n.groupVisibility,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         _buildVisibilityTile(
           group: group,
           value: 'public',
@@ -373,7 +449,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           subtitle: context.l10n.publicVisibilityDesc,
           color: AppColors.success,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         _buildVisibilityTile(
           group: group,
           value: 'private',
@@ -382,7 +458,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           subtitle: context.l10n.privateVisibilityDesc,
           color: AppColors.primary,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         _buildVisibilityTile(
           group: group,
           value: 'secret',
@@ -402,7 +478,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
         Row(
           children: [
             const Icon(Icons.person_add, size: 20, color: Colors.orange),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Text(
               context.l10n.accessRequests,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -426,7 +502,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               backgroundImage: req['avatarUrl'] != null && req['avatarUrl'].toString().isNotEmpty
                   ? NetworkImage(req['avatarUrl'])
                   : null,
@@ -437,7 +513,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                     )
                   : null,
             ),
-            title: Text(req['username'] ?? context.l10n.userLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(req['username'] ?? context.l10n.userLabel, style: TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(
               req['requestedAt'] != null
                   ? context.l10n.requestedOnDate(_formatDate((req['requestedAt'] as Timestamp).toDate()))
@@ -506,7 +582,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             color: isSelected ? color : Colors.grey[300]!,
             width: isSelected ? 2 : 1,
           ),
-          color: isSelected ? color.withOpacity(0.05) : null,
+          color: isSelected ? color.withValues(alpha: 0.05) : null,
         ),
         child: Row(
           children: [
@@ -560,7 +636,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text(context.l10n.genericErrorWith(e.toString())), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -579,10 +655,10 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
 
   void _shareInviteCode(String code) {
     final groupName = _group?.name ?? widget.groupName;
-    Share.share(
-      context.l10n.inviteShareText(groupName, code),
+    SharePlus.instance.share(ShareParams(
+      text: context.l10n.inviteShareText(groupName, code),
       subject: context.l10n.inviteShareSubject,
-    );
+    ));
   }
 
   Future<void> _regenerateInviteCode() async {
@@ -635,38 +711,86 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Badge "Community di [BusinessName]" se il gruppo è linkato a
+          // uno Spazio Pro. Tap apre il profilo business.
+          if (group.isLinkedToBusiness) ...[
+            _LinkedBusinessBadge(
+              businessId: group.linkedBusinessId!,
+              businessName:
+                  group.linkedBusinessName ?? 'Spazio Pro',
+            ),
+            const SizedBox(height: 12),
+          ],
+          // Cover banner 16:9 (Business con cover caricata)
+          if (group.hasCustomCover) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: CachedNetworkImage(
+                  imageUrl: group.coverUrl!,
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => Container(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                  ),
+                  errorWidget: (_, _, _) => Container(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    child: const Center(
+                      child: Icon(Icons.broken_image_outlined, size: 40),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           // Header gruppo
           Center(
             child: Column(
               children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.primary, AppColors.primary.withOpacity(0.6)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                // Avatar/logo grande: usa il logo Business se presente,
+                // altrimenti il classico container con lettera iniziale.
+                _InfoTabAvatar(group: group),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        group.name,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Center(
+                    if (group.isBusinessGroup) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.verified,
+                        color: groupAccentColor(group),
+                        size: 22,
+                      ),
+                    ],
+                  ],
+                ),
+                if (group.isBusinessGroup) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: groupAccentColor(group).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     child: Text(
-                      group.name.isNotEmpty ? group.name[0].toUpperCase() : 'G',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
+                      'BUSINESS VERIFICATO',
+                      style: TextStyle(
+                        color: groupAccentColor(group),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  group.name,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
+                ],
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -676,14 +800,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                       size: 16,
                       color: context.textMuted,
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       group.isPublic ? context.l10n.publicLabel : group.isPrivate ? context.l10n.privateLabel : context.l10n.secretLabel,
                       style: TextStyle(color: context.textMuted),
                     ),
                     const SizedBox(width: 16),
                     Icon(Icons.people, size: 16, color: context.textMuted),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       context.l10n.memberCountPlural(group.memberCount),
                       style: TextStyle(color: context.textMuted),
@@ -694,7 +818,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             ),
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -704,14 +828,14 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               ),
               if (_isAdmin)
                 IconButton(
-                  icon: const Icon(Icons.edit, size: 20),
+                  icon: Icon(Icons.edit, size: 20),
                   color: AppColors.primary,
                   tooltip: context.l10n.editAction,
                   onPressed: () => _showEditGroupDialog(group),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             (group.description != null && group.description!.isNotEmpty)
                 ? group.description!
@@ -753,19 +877,19 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
             const SizedBox(height: 16),
             _buildVisibilitySelector(group),
             const SizedBox(height: 16),
-            const Divider(),
+            Divider(),
           ],
 
           // Info dettagli
           _buildInfoRow(Icons.calendar_today, context.l10n.createdOnLabel, _formatDate(group.createdAt)),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _buildInfoRow(
             Icons.admin_panel_settings,
             context.l10n.yourRole,
             _isAdmin ? context.l10n.administratorRole : context.l10n.memberRole,
           ),
           if (currentUserId == group.createdBy) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             _buildInfoRow(Icons.star, context.l10n.founderLabel, context.l10n.youCreatedThisGroup),
           ],
         ],
@@ -792,7 +916,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               ),
               maxLength: 30,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             TextField(
               controller: descController,
               decoration: InputDecoration(
@@ -867,5 +991,193 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
       context.l10n.monthLowerOtt, context.l10n.monthLowerNov, context.l10n.monthLowerDic,
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+}
+
+
+/// Titolo dell'AppBar per i gruppi: include logo (se Business+presente)
+/// e badge "verificato" accanto al nome.
+///
+/// L'AppBar di Material non da' constraint di larghezza ai title widget
+/// custom; serve avvolgere in LayoutBuilder per riempire la riga e
+/// dare un constraint Width al Text che lo fa renderare con ellipsis.
+class _GroupTitle extends StatelessWidget {
+  final String name;
+  final String? logoUrl;
+  final bool isVerifiedBusiness;
+  final Color accent;
+
+  const _GroupTitle({
+    required this.name,
+    required this.logoUrl,
+    required this.isVerifiedBusiness,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Row(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            if (logoUrl != null) ...[
+              ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: logoUrl!,
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => const SizedBox(
+                    width: 28,
+                    height: 28,
+                  ),
+                  errorWidget: (_, _, _) =>
+                      const SizedBox(width: 28, height: 28),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Text(
+                name,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+            if (isVerifiedBusiness) ...[
+              const SizedBox(width: 6),
+              Icon(
+                Icons.verified,
+                size: 18,
+                color: accent,
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Avatar grande del tab Info: 80x80 con logo Business se presente,
+/// altrimenti il classico container gradient con lettera iniziale.
+class _InfoTabAvatar extends StatelessWidget {
+  final Group group;
+
+  const _InfoTabAvatar({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLogo = group.hasCustomLogo;
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        gradient: hasLogo
+            ? null
+            : LinearGradient(
+                colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: hasLogo ? Colors.white : null,
+        borderRadius: BorderRadius.circular(24),
+        border: hasLogo
+            ? Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 2)
+            : null,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasLogo
+          ? CachedNetworkImage(
+              imageUrl: group.avatarUrl!,
+              fit: BoxFit.cover,
+              placeholder: (_, _) => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              errorWidget: (_, _, _) => _initialFallback(group.name),
+            )
+          : _initialFallback(group.name),
+    );
+  }
+
+  Widget _initialFallback(String name) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'G',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 36,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// Badge "Community di [BusinessName]" mostrato in cima al tab Info
+/// quando il gruppo è linkato a uno Spazio Pro. Tap apre il profilo del
+/// business.
+class _LinkedBusinessBadge extends StatelessWidget {
+  final String businessId;
+  final String businessName;
+  const _LinkedBusinessBadge({
+    required this.businessId,
+    required this.businessName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BusinessProfilePage(businessId: businessId),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(Icons.business, color: AppColors.primary, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'COMMUNITY VIP DI',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    Text(
+                      businessName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

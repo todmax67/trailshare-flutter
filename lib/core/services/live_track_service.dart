@@ -23,7 +23,7 @@ class LiveTrackService {
   DateTime? _lastUpdate;
   
   // Configurazione
-  static const Duration UPDATE_INTERVAL = Duration(seconds: 30);
+  static const Duration updateInterval = Duration(seconds: 30);
 
   // Stream
   final _stateController = StreamController<LiveTrackState>.broadcast();
@@ -80,9 +80,9 @@ class LiveTrackService {
   Future<void> updatePosition(double latitude, double longitude) async {
     if (!_isActive || _sessionId == null) return;
 
-    // Throttle: aggiorna solo ogni UPDATE_INTERVAL
+    // Throttle: aggiorna solo ogni updateInterval
     final now = DateTime.now();
-    if (_lastUpdate != null && now.difference(_lastUpdate!) < UPDATE_INTERVAL) {
+    if (_lastUpdate != null && now.difference(_lastUpdate!) < updateInterval) {
       return;
     }
 

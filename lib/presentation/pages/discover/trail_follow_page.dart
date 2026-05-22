@@ -11,7 +11,9 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/api_keys.dart';
 import '../../../core/constants/map_styles.dart';
+import '../../widgets/map_layer_button.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
@@ -289,6 +291,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
         return;
       }
 
+      if (!mounted) return;
       final hasPermission = await LocationService().checkAndRequestPermission(context: context);
       if (!hasPermission) {
         setState(() => _gpsError = context.l10n.gpsPermDenied);
@@ -338,7 +341,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
         latitude: pos.latitude,
         longitude: pos.longitude,
         elevation: pos.altitude > 0 ? pos.altitude : null,
-        timestamp: pos.timestamp ?? DateTime.now(),
+        timestamp: pos.timestamp,
         speed: pos.speed > 0 ? pos.speed : null,
         accuracy: pos.accuracy,
         heading: pos.heading > 0 ? pos.heading : null,
@@ -535,6 +538,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
 
     if (result == null) {
       // Utente ha annullato - chiedi se scartare
+      if (!mounted) return;
       final discard = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -754,7 +758,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
         TileLayer(
           urlTemplate: mapStyles[_currentMapStyle].urlTemplate,
           subdomains: mapStyles[_currentMapStyle].subdomains,
-          userAgentPackageName: 'com.trailshare.app',
+          userAgentPackageName: ApiKeys.mapTilerUserAgent,
           tileProvider: OfflineFallbackTileProvider(),
           tileBuilder: mapStyles[_currentMapStyle].tileColorFilter != null
               ? (context, tileWidget, tile) => ColorFiltered(
@@ -803,7 +807,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                   border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                       blurRadius: 4,
                     ),
                   ],
@@ -824,7 +828,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                   border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                       blurRadius: 4,
                     ),
                   ],
@@ -856,7 +860,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                 height: 36,
                 child: ListenableBuilder(
                   listenable: HeadingService(),
-                  builder: (_, __) {
+                  builder: (_, _) {
                     final h = HeadingService().currentHeading ?? _userHeading ?? 0;
                     return Container(
                       decoration: BoxDecoration(
@@ -866,7 +870,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                         boxShadow: [
                           BoxShadow(
                             color: (_isOffTrail ? AppColors.danger : Colors.blue)
-                                .withOpacity(0.4),
+                                .withValues(alpha: 0.4),
                             blurRadius: 12,
                             spreadRadius: 4,
                           ),
@@ -898,7 +902,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               blurRadius: 8,
             ),
           ],
@@ -986,7 +990,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
           boxShadow: [
             BoxShadow(
               color: (isSevere ? AppColors.danger : AppColors.warning)
-                  .withOpacity(0.4),
+                  .withValues(alpha: 0.4),
               blurRadius: 8,
             ),
           ],
@@ -1029,7 +1033,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: AppColors.success.withOpacity(0.4),
+              color: AppColors.success.withValues(alpha: 0.4),
               blurRadius: 8,
             ),
           ],
@@ -1062,7 +1066,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.danger.withOpacity(0.9),
+          color: AppColors.danger.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -1104,7 +1108,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                 boxShadow: [
                   BoxShadow(
                     color: (_isRecording ? AppColors.danger : Colors.black)
-                        .withOpacity(0.3),
+                        .withValues(alpha: 0.3),
                     blurRadius: 8,
                     spreadRadius: _isRecording ? 2 : 0,
                   ),
@@ -1126,7 +1130,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.danger.withOpacity(0.4),
+                    color: AppColors.danger.withValues(alpha: 0.4),
                     blurRadius: 6,
                   ),
                 ],
@@ -1166,16 +1170,11 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Stile mappa
-          _MapBtn(
-            icon: Icons.layers,
-            onTap: () {
-              setState(() {
-                _currentMapStyle =
-                    (_currentMapStyle + 1) % mapStyles.length;
-              });
-            },
-            tooltip: mapStyles[_currentMapStyle].name,
+          // Stile mappa (apre bottom sheet con tutti gli stili,
+          // gestendo il gating Pro per stili premium)
+          MapLayerButton(
+            currentIndex: _currentMapStyle,
+            onChanged: (i) => setState(() => _currentMapStyle = i),
           ),
           const SizedBox(height: 8),
           // Centra su traccia
@@ -1211,7 +1210,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               blurRadius: 12,
               offset: const Offset(0, -2),
             ),
@@ -1440,10 +1439,15 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
     final maxDiff = math.max(maxLat - minLat, maxLng - minLng);
 
     double zoom = 14.0;
-    if (maxDiff > 0.5) zoom = 10;
-    else if (maxDiff > 0.2) zoom = 11;
-    else if (maxDiff > 0.1) zoom = 12;
-    else if (maxDiff > 0.05) zoom = 13;
+    if (maxDiff > 0.5) {
+      zoom = 10;
+    } else if (maxDiff > 0.2) {
+      zoom = 11;
+    } else if (maxDiff > 0.1) {
+      zoom = 12;
+    } else if (maxDiff > 0.05) {
+      zoom = 13;
+    }
 
     return (center, zoom);
   }
@@ -1648,7 +1652,7 @@ class _MiniElevationPainter extends CustomPainter {
           Offset(px, 0),
           Offset(px, h),
           Paint()
-            ..color = AppColors.primary.withOpacity(0.3)
+            ..color = AppColors.primary.withValues(alpha: 0.3)
             ..strokeWidth = 1,
         );
 
@@ -1744,7 +1748,7 @@ class _SaveRecordingDialogState extends State<_SaveRecordingDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.05),
+                color: AppColors.primary.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -1792,7 +1796,7 @@ class _SaveRecordingDialogState extends State<_SaveRecordingDialog> {
                   onSelected: (v) {
                     if (v) setState(() => _activityType = type);
                   },
-                  selectedColor: AppColors.primary.withOpacity(0.2),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
                 );
               }).toList(),
             ),

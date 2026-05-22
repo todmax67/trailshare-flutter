@@ -105,7 +105,57 @@ class GeoHashUtil {
       longitude: (minLng + maxLng) / 2,
     );
   }
-  
+
+  /// Decodifica un geohash ritornando il bounding box della cella +
+  /// il centro. Versione "completa" di [decode] (che restituisce solo
+  /// il centro). Usato dal nearby query per costruire neighbors
+  /// precisi spostando di una cella intera anziché di un delta
+  /// approssimato.
+  static ({
+    double minLat,
+    double maxLat,
+    double minLng,
+    double maxLng,
+    double latitude,
+    double longitude,
+  }) decodeBounds(String geohash) {
+    double minLat = -90.0, maxLat = 90.0;
+    double minLng = -180.0, maxLng = 180.0;
+    bool isEven = true;
+
+    for (int i = 0; i < geohash.length; i++) {
+      final ch = _base32.indexOf(geohash[i].toLowerCase());
+      if (ch == -1) continue;
+      for (int bit = 4; bit >= 0; bit--) {
+        final mask = 1 << bit;
+        if (isEven) {
+          final mid = (minLng + maxLng) / 2;
+          if ((ch & mask) != 0) {
+            minLng = mid;
+          } else {
+            maxLng = mid;
+          }
+        } else {
+          final mid = (minLat + maxLat) / 2;
+          if ((ch & mask) != 0) {
+            minLat = mid;
+          } else {
+            maxLat = mid;
+          }
+        }
+        isEven = !isEven;
+      }
+    }
+    return (
+      minLat: minLat,
+      maxLat: maxLat,
+      minLng: minLng,
+      maxLng: maxLng,
+      latitude: (minLat + maxLat) / 2,
+      longitude: (minLng + maxLng) / 2,
+    );
+  }
+
   /// Calcola i geohash che coprono un bounding box
   /// 
   /// Restituisce una lista di prefissi geohash che coprono l'area.
@@ -215,7 +265,7 @@ class GeoHashUtil {
       final sorted = entry.value..sort();
       ranges.add((
         start: sorted.first,
-        end: sorted.last + '~', // ~ è dopo tutti i caratteri base32
+        end: '${sorted.last}~', // ~ è dopo tutti i caratteri base32
       ));
     }
     

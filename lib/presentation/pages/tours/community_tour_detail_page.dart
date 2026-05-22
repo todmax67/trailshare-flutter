@@ -11,6 +11,10 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../discover/community_track_detail_page.dart';
+import 'widgets/expandable_description.dart';
+import 'widgets/multi_stage_elevation_chart.dart';
+import 'widgets/tour_hero.dart';
+import 'widgets/tour_rich_sections.dart';
 
 /// Vista community (read-only) di un tour pubblico.
 ///
@@ -141,18 +145,26 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.share),
-            onPressed: () => Share.share(
-              '${tour.title}\nhttps://trailshare.app/tour/${tour.id}',
+            onPressed: () => SharePlus.instance.share(ShareParams(
+              text: '${tour.title}\nhttps://trailshare.app/tour/${tour.id}',
               subject: tour.title,
-            ),
+            )),
           ),
         ],
       ),
       body: ListView(
         children: [
-          SizedBox(height: 280, child: _buildMap(tour, stages)),
+          TourHero(
+            coverPhotoUrl: tour.coverPhotoUrl,
+            title: tour.title,
+            subtitle:
+                '${tour.type == TourType.consecutive ? "${tour.daysCount} giorni" : "${tour.trackIds.length} tracce"} · '
+                '${tour.totalDistanceKm.toStringAsFixed(1)} km · '
+                '+${tour.totalElevationGain.toStringAsFixed(0)} m',
+            map: _buildMap(tour, stages),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -178,7 +190,11 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
                 ),
                 const SizedBox(height: 16),
                 if (tour.description != null && tour.description!.isNotEmpty) ...[
-                  Text(tour.description!, style: TextStyle(color: context.textSecondary)),
+                  ExpandableDescription(
+                    text: tour.description!,
+                    style: TextStyle(
+                        color: context.textSecondary, height: 1.45),
+                  ),
                   const SizedBox(height: 16),
                 ],
                 Text(context.l10n.tourTotals, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
@@ -187,24 +203,62 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
                   spacing: 16,
                   runSpacing: 8,
                   children: [
-                    _stat(Icons.calendar_month, context.l10n.tourDays(tour.daysCount)),
-                    _stat(Icons.format_list_numbered, context.l10n.tourStages(tour.trackIds.length)),
+                    if (tour.type == TourType.consecutive)
+                      _stat(Icons.calendar_month, context.l10n.tourDays(tour.daysCount)),
+                    _stat(
+                      tour.type == TourType.consecutive
+                          ? Icons.format_list_numbered
+                          : Icons.collections_bookmark_outlined,
+                      tour.type == TourType.consecutive
+                          ? context.l10n.tourStages(tour.trackIds.length)
+                          : '${tour.trackIds.length} tracce',
+                    ),
                     _stat(Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
                     _stat(Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
                     if (tour.totalDuration.inMinutes > 0) _stat(Icons.schedule, durStr),
                   ],
                 ),
+                const SizedBox(height: 20),
+                // Grafico altimetrico cumulativo: solo per cammini
+                // consecutivi (per le collezioni le tracce sono
+                // indipendenti, sommarle sarebbe fuorviante).
+                if (tour.type == TourType.consecutive &&
+                    stages.isNotEmpty) ...[
+                  MultiStageElevationChart.fromStageSummaries(stages),
+                  const SizedBox(height: 20),
+                ],
+                // Epic 11 — sezioni ricche: chip difficoltà/periodo,
+                // gallery, equipaggiamento, note storiche.
+                TourRichHeaderSections(tour: tour),
                 if (stages.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Text(context.l10n.tourStagesTitle, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                   const SizedBox(height: 8),
-                  for (var i = 0; i < stages.length; i++)
+                  Text(
+                    tour.type == TourType.consecutive
+                        ? context.l10n.tourStagesTitle
+                        : 'Tracce',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  for (var i = 0; i < stages.length; i++) ...[
                     _StageTile(
                       index: i + 1,
                       stage: stages[i],
                       color: _stageColors[i % _stageColors.length],
                       onTap: _isStageTappable(stages[i]) ? () => _openStage(stages[i]) : null,
                     ),
+                    if (stages[i].accommodationBusinessId != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(60, 0, 0, 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: StageAccommodationBadge(
+                            businessId:
+                                stages[i].accommodationBusinessId!,
+                            businessName: stages[i].accommodationName,
+                          ),
+                        ),
+                      ),
+                  ],
                 ],
               ],
             ),

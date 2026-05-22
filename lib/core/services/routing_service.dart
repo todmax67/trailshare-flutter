@@ -59,61 +59,184 @@ enum RoutingProfile {
   cycling,
 }
 
+/// Esito dettagliato del calcolo routing. Sostituisce il pattern "ritorno
+/// null = errore" così la UI può mostrare messaggi mirati ("waypoint #3
+/// lontano dai sentieri") invece del generico "prova waypoint più vicini".
+///
+/// Compatibilità con i call sites attuali mantenuta via [calculateRoute]
+/// che continua a ritornare `RouteResult?` (null = errore generico). Per
+/// errori strutturati i caller possono usare [calculateRouteWithDetails].
+class RoutingFailure {
+  /// Codice errore ORS (es. 2010 = punto non raggiungibile).
+  final int code;
+  /// Messaggio originale ORS (utile per debug).
+  final String message;
+  /// Indice del waypoint problematico (0-based) se identificabile. null
+  /// se l'errore non riguarda uno specifico waypoint (es. rete down).
+  final int? waypointIndex;
+  /// Messaggio user-friendly localizzato in italiano.
+  final String userMessage;
+
+  const RoutingFailure({
+    required this.code,
+    required this.message,
+    this.waypointIndex,
+    required this.userMessage,
+  });
+}
+
+class RoutingOutcome {
+  final RouteResult? result;
+  final RoutingFailure? failure;
+
+  const RoutingOutcome.success(RouteResult this.result) : failure = null;
+  const RoutingOutcome.error(RoutingFailure this.failure) : result = null;
+
+  bool get isSuccess => result != null;
+}
+
 /// Servizio per calcolare percorsi tramite Cloud Function proxy ORS
 class RoutingService {
   final String proxyBaseUrl;
 
+  /// Raggio di snap per waypoint (metri). ORS cerca il punto routable più
+  /// vicino entro questo raggio. 5km copre praticamente ogni click in zona
+  /// montana italiana senza far calcolare percorsi assurdi su click oceano.
+  static const int _snapRadiusMeters = 5000;
+
   RoutingService({required this.proxyBaseUrl});
 
-  /// Calcola un percorso tra waypoint
-  /// [waypoints] - Lista di punti (minimo 2)
-  /// [profile] - Tipo di attività (hiking/cycling)
+  /// Calcola un percorso tra waypoint. Ritorna `null` su qualunque errore
+  /// (back-compat con i call sites pre-Sprint planner-fix). Per ottenere
+  /// dettagli strutturati usa [calculateRouteWithDetails].
   Future<RouteResult?> calculateRoute(
     List<LatLng> waypoints, {
     RoutingProfile profile = RoutingProfile.hiking,
   }) async {
+    final outcome =
+        await calculateRouteWithDetails(waypoints, profile: profile);
+    return outcome.result;
+  }
+
+  /// Versione dettagliata: ritorna [RoutingOutcome] con risultato o
+  /// failure strutturato (codice ORS, indice waypoint problematico,
+  /// messaggio user-friendly).
+  ///
+  /// Fix 8.B1.3: invia `radiuses` per ogni waypoint così ORS prova a
+  /// snappare al sentiero più vicino entro [_snapRadiusMeters] invece di
+  /// rifiutare ogni click off-network. Quando snap fallisce comunque,
+  /// parsa l'errore ORS code 2010 per identificare quale waypoint l'utente
+  /// deve spostare.
+  Future<RoutingOutcome> calculateRouteWithDetails(
+    List<LatLng> waypoints, {
+    RoutingProfile profile = RoutingProfile.hiking,
+  }) async {
     if (waypoints.length < 2) {
-      debugPrint('[RoutingService] Servono almeno 2 waypoint');
-      return null;
+      return RoutingOutcome.error(const RoutingFailure(
+        code: -1,
+        message: 'Servono almeno 2 waypoint',
+        userMessage: 'Aggiungi almeno 2 punti sulla mappa.',
+      ));
     }
 
     try {
       final profileString = _getProfileString(profile);
-      final url = Uri.parse('$proxyBaseUrl/v2/directions/$profileString/geojson');
+      final url =
+          Uri.parse('$proxyBaseUrl/v2/directions/$profileString/geojson');
 
-      // Costruisci il body della richiesta
       final coordinates = waypoints
           .map((p) => [p.longitude, p.latitude])
           .toList();
+      final radiuses =
+          List<int>.filled(waypoints.length, _snapRadiusMeters);
 
       final body = jsonEncode({
         'coordinates': coordinates,
+        'radiuses': radiuses,
         'elevation': true,
         'instructions': true,
         'geometry_simplify': false,
       });
 
-      debugPrint('[RoutingService] Richiesta routing: ${waypoints.length} waypoint, profilo: $profileString');
+      debugPrint(
+          '[RoutingService] Richiesta routing: ${waypoints.length} waypoint, profilo: $profileString, snap=${_snapRadiusMeters}m');
 
       final response = await http.post(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: body,
       );
 
       if (response.statusCode != 200) {
-        debugPrint('[RoutingService] Errore API: ${response.statusCode} - ${response.body}');
-        return null;
+        debugPrint(
+            '[RoutingService] Errore API: ${response.statusCode} - ${response.body}');
+        return RoutingOutcome.error(_parseErrorBody(response.body, waypoints));
       }
 
       final data = jsonDecode(response.body);
-      return _parseRouteResponse(data);
+      final parsed = _parseRouteResponse(data);
+      if (parsed == null) {
+        return RoutingOutcome.error(const RoutingFailure(
+          code: -2,
+          message: 'Empty geometry from ORS',
+          userMessage:
+              'Routing fallito: la risposta del server è incompleta. Riprova.',
+        ));
+      }
+      return RoutingOutcome.success(parsed);
     } catch (e) {
       debugPrint('[RoutingService] Errore: $e');
-      return null;
+      return RoutingOutcome.error(RoutingFailure(
+        code: -3,
+        message: e.toString(),
+        userMessage: 'Errore di rete: $e',
+      ));
     }
+  }
+
+  /// Parsa il body di errore ORS. Code 2010 = "Could not find routable
+  /// point within X meters of coordinate N" → estraiamo l'indice N.
+  RoutingFailure _parseErrorBody(String body, List<LatLng> waypoints) {
+    try {
+      final data = jsonDecode(body);
+      final err = data['error'];
+      if (err is Map<String, dynamic>) {
+        final code = (err['code'] as num?)?.toInt() ?? -1;
+        final message = err['message']?.toString() ?? body;
+        if (code == 2010) {
+          // ORS message: "Could not find routable point within a radius
+          // of 5000.0 meters of specified coordinate 2: 9.65, 45.83."
+          final match = RegExp(r'coordinate\s+(\d+)').firstMatch(message);
+          final wpIndex = match != null ? int.tryParse(match.group(1)!) : null;
+          final humanIdx = wpIndex != null ? wpIndex + 1 : null;
+          return RoutingFailure(
+            code: code,
+            message: message,
+            waypointIndex: wpIndex,
+            userMessage: humanIdx != null
+                ? 'Il waypoint #$humanIdx è troppo lontano dai sentieri '
+                    '(oltre ${_snapRadiusMeters ~/ 1000} km). Spostalo più '
+                    'vicino a una mulattiera o sentiero conosciuto.'
+                : 'Uno dei waypoint è lontano da qualsiasi sentiero. '
+                    'Avvicinalo a una mulattiera o sentiero conosciuto.',
+          );
+        }
+        return RoutingFailure(
+          code: code,
+          message: message,
+          userMessage: 'Routing fallito (codice $code). $message',
+        );
+      }
+    } catch (_) {
+      // body non JSON o struttura inattesa, cade nel fallback
+    }
+    return RoutingFailure(
+      code: -1,
+      message: body,
+      userMessage:
+          'Routing fallito: il server non ha trovato un percorso. '
+          'Prova waypoint più vicini fra loro o cambia attività.',
+    );
   }
 
   String _getProfileString(RoutingProfile profile) {
@@ -177,10 +300,15 @@ class RoutingService {
       double elevationLoss = 0;
 
       if (elevationProfile.length > 2) {
+        // Parametri tarati per dati ORS routing: i profili da DEM
+        // (SRTM/EU-DEM) hanno accuratezza ±5-10m e punti molto densi
+        // (~5-15m tra l'uno e l'altro). Senza filtraggio aggressivo le
+        // micro-oscillazioni si sommano gonfiando totalGain di 3-4×
+        // (es. 500m reali → 1900m).
         final processor = const ElevationProcessor(
-          hysteresisThreshold: 3.0,
-          smoothingWindow: 5,
-          medianWindow: 0,  // non serve per dati routing (già puliti)
+          hysteresisThreshold: 8.0,   // era 3.0: ignora variazioni < 8m
+          smoothingWindow: 15,         // era 5: smussa oscillazioni dense
+          medianWindow: 7,             // era 0: rimuove outlier puntuali
         );
         final rawElevations = elevationProfile
             .map((e) => e)

@@ -3407,7 +3407,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyLastUpdated.
   ///
   /// In it, this message translates to:
-  /// **'Ultimo aggiornamento: Febbraio 2026'**
+  /// **'Ultimo aggiornamento: Maggio 2026'**
   String get privacyLastUpdated;
 
   /// No description provided for @privacyIntroTitle.
@@ -3419,7 +3419,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyIntroContent.
   ///
   /// In it, this message translates to:
-  /// **'TrailShare (\"noi\", \"nostro\" o \"app\") rispetta la tua privacy. Questa informativa descrive quali dati raccogliamo, come li utilizziamo e i tuoi diritti in merito.'**
+  /// **'TrailShare (\"noi\", \"nostro\" o \"app\") rispetta la tua privacy. Questa informativa descrive quali dati raccogliamo, come li utilizziamo e i tuoi diritti in merito. La versione completa è disponibile su trailshare.app/privacy.'**
   String get privacyIntroContent;
 
   /// No description provided for @privacyDataCollectedTitle.
@@ -3431,7 +3431,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyDataCollectedContent.
   ///
   /// In it, this message translates to:
-  /// **'• **Dati di registrazione**: email, nome utente, foto profilo (opzionale)\n• **Dati di posizione**: coordinate GPS durante la registrazione delle tracce\n• **Dati delle attività**: tracce registrate, statistiche, dislivello, distanza\n• **Dati social**: follower, following, \"cheers\" (like)\n• **Dati del dispositivo**: modello, sistema operativo, per migliorare l\'app'**
+  /// **'• Dati di registrazione: email, nome utente, foto profilo (opzionale)\n• Dati di posizione: coordinate GPS durante la registrazione delle tracce\n• Dati delle attività: distanza, velocità, dislivello, durata, frequenza cardiaca dalla fascia BLE se collegata\n• Contenuti: foto, commenti e descrizioni che aggiungi alle tracce\n• Dati del dispositivo: modello, sistema operativo, log di errore\n• Contatti di emergenza: se configuri Lifeline, salviamo nome, telefono e/o email dei contatti scelti (max 3)\n• Posizione live: se attivi LiveTrack o Lifeline, la posizione viene pubblicata in tempo reale (~30 secondi)'**
   String get privacyDataCollectedContent;
 
   /// No description provided for @privacyDataUsageTitle.
@@ -3443,7 +3443,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyDataUsageContent.
   ///
   /// In it, this message translates to:
-  /// **'• Fornire e migliorare i servizi dell\'app\n• Salvare e sincronizzare le tue tracce\n• Abilitare funzionalità social (follow, cheers, classifica)\n• Funzionalità LiveTrack per condividere la posizione in tempo reale\n• Analisi aggregate per migliorare l\'esperienza utente'**
+  /// **'• Fornire il servizio di tracking GPS e analisi delle attività\n• Mostrare le tracce pubblicate nella sezione Esplora\n• Calcolare classifiche, badge e statistiche\n• Inviare notifiche relative all\'app (nuovi follower, cheers, ecc.)\n• Migliorare l\'app e correggere bug\n\nNon vendiamo i tuoi dati a terze parti. Non utilizziamo i tuoi dati per pubblicità.'**
   String get privacyDataUsageContent;
 
   /// No description provided for @privacyDataSharingTitle.
@@ -3455,8 +3455,68 @@ abstract class AppLocalizations {
   /// No description provided for @privacyDataSharingContent.
   ///
   /// In it, this message translates to:
-  /// **'• **Non vendiamo** i tuoi dati personali a terzi\n• Le tracce pubblicate sono visibili ad altri utenti\n• LiveTrack condivide la posizione solo con chi ha il link\n• Utilizziamo Firebase (Google) per l\'archiviazione sicura dei dati'**
+  /// **'Le tue tracce sono private di default. Solo le tracce che pubblichi esplicitamente saranno visibili nella sezione Esplora e agli altri utenti. Il tuo profilo mostra solo le informazioni che scegli di rendere pubbliche.'**
   String get privacyDataSharingContent;
+
+  /// No description provided for @privacyThirdPartiesTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Servizi di terze parti'**
+  String get privacyThirdPartiesTitle;
+
+  /// No description provided for @privacyThirdPartiesContent.
+  ///
+  /// In it, this message translates to:
+  /// **'Utilizziamo i seguenti servizi:\n\n• Firebase (Google): autenticazione, database, storage, Cloud Functions. Server in area UE\n• OpenStreetMap: tile mappe, dataset cime e POI bundlati nell\'app come asset statici. Licenza ODbL — © OpenStreetMap contributors\n• MapTiler: stili mappa premium per abbonati Pro\n• Open-Meteo: previsioni meteo (richiesta con coordinate del trail, nessun dato personale)\n• OpenRouteService: calcolo percorsi nel pianificatore (waypoints, no PII)\n• Apple App Store / Google Play: pagamenti per gli abbonamenti Pro\n• Anthropic (Claude AI): generazione del riassunto delle condizioni sentiero (Pro)\n\nQuesti servizi hanno proprie privacy policy che ti invitiamo a consultare.'**
+  String get privacyThirdPartiesContent;
+
+  /// No description provided for @privacyAiSummaryTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Riassunto AI delle condizioni sentiero'**
+  String get privacyAiSummaryTitle;
+
+  /// No description provided for @privacyAiSummaryContent.
+  ///
+  /// In it, this message translates to:
+  /// **'Per gli abbonati Pro, l\'app può generare un riassunto in linguaggio naturale delle segnalazioni community su un sentiero, prodotto dal modello Claude di Anthropic.\n\nCosa inviamo all\'API:\n• Nome del sentiero (pubblico, da OpenStreetMap)\n• Testo delle segnalazioni community pubbliche degli ultimi 60 giorni (max 20)\n• Età relativa di ogni segnalazione (es. \"3h fa\")\n\nCosa NON inviamo:\n• Username, ID utente o identificativi personali\n• Coordinate GPS, tracce o dati di localizzazione\n• Foto, dati salute, contatti di emergenza\n\nI riassunti sono memorizzati in cache 24h. Anthropic non utilizza i dati inviati per addestrare i propri modelli. La feature è disattivata di default.'**
+  String get privacyAiSummaryContent;
+
+  /// No description provided for @privacyProSubsTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Abbonamenti TrailShare Pro'**
+  String get privacyProSubsTitle;
+
+  /// No description provided for @privacyProSubsContent.
+  ///
+  /// In it, this message translates to:
+  /// **'TrailShare Pro è un abbonamento opzionale che sblocca funzioni avanzate. I pagamenti sono elaborati esclusivamente da Apple App Store o Google Play Store.\n\n• TrailShare non riceve né conserva dati di pagamento (carta, conto): le transazioni avvengono interamente sui sistemi degli store\n• Per verificare lo stato del tuo abbonamento, le receipt vengono validate sui nostri server (Firebase Cloud Functions) tramite le API ufficiali. Salviamo solo lo stato (attivo/scaduto), il prodotto attivo e la data di scadenza\n• Puoi gestire o annullare l\'abbonamento dalle impostazioni del tuo account App Store o Google Play\n• Alla cancellazione del tuo account, eliminiamo lo stato dell\'abbonamento dai nostri server'**
+  String get privacyProSubsContent;
+
+  /// No description provided for @privacyArTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Mountain Recognition AR (fotocamera)'**
+  String get privacyArTitle;
+
+  /// No description provided for @privacyArContent.
+  ///
+  /// In it, this message translates to:
+  /// **'La funzione \"Riconosci le cime\" usa la fotocamera e i sensori (bussola, accelerometro, GPS) per sovrapporre i nomi delle cime al viewfinder live.\n\n• L\'elaborazione avviene interamente sul tuo dispositivo: nessun frame video, foto o dato di sensore viene inviato ai nostri server o a terze parti\n• Il dataset delle cime italiane (37.000+) è bundlato nell\'app come file statico\n• AR Photo Mode (Pro) salva la foto annotata solo localmente finché non scegli di condividerla\n• L\'accesso alla fotocamera può essere revocato dalle impostazioni del sistema operativo'**
+  String get privacyArContent;
+
+  /// No description provided for @privacyLifelineTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Lifeline e Live Tracking (sicurezza)'**
+  String get privacyLifelineTitle;
+
+  /// No description provided for @privacyLifelineContent.
+  ///
+  /// In it, this message translates to:
+  /// **'LiveTrack (condivisione pubblica manuale) e Lifeline (sicurezza con contatti d\'emergenza) sono entrambe disattivate per impostazione predefinita.\n\nDati trattati:\n• Posizione GPS in tempo reale (~30s) mentre la sessione è attiva\n• Nome utente e livello batteria, per informare chi segue il link\n• Contatti di emergenza salvati (solo per Lifeline): nome + telefono e/o email\n\nCondivisione:\n• LiveTrack: chi ha il link pubblico vede la posizione live\n• Lifeline: solo i contatti emergenza configurati ricevono link con token univoco\n• I messaggi (SMS/WhatsApp/Email) sono precompilati ma richiedono la tua conferma manuale\n\nLa sessione live è archiviata 24h dopo la chiusura, poi eliminata automaticamente.\n\nLifeline non è un servizio di emergenza: non contatta autonomamente Soccorso Alpino o 112. Vedi i Termini per i limiti completi.'**
+  String get privacyLifelineContent;
 
   /// No description provided for @privacyHealthDataTitle.
   ///
@@ -3467,7 +3527,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyHealthDataContent.
   ///
   /// In it, this message translates to:
-  /// **'Se attivi la sincronizzazione con Health Connect (Android) o Apple Salute (iOS), TrailShare accede ai seguenti dati dal tuo dispositivo wearable:\n\n• **Frequenza cardiaca**: per mostrare il battito durante le attività e calcolare le zone cardio\n• **Passi**: per contare i passi durante le attività e mostrare il totale giornaliero nella Dashboard Salute\n• **Calorie bruciate**: per mostrare il dispendio energetico durante le attività e il riepilogo settimanale\n• **Allenamenti**: per sincronizzare le attività registrate con TrailShare su Health Connect/Apple Salute\n\nQuesti dati vengono:\n• Utilizzati esclusivamente per le funzionalità dell\'app descritte sopra\n• Salvati nel tuo account personale su Firebase (Google Cloud)\n• Mostrati solo a te, l\'utente autenticato\n• Mai venduti, condivisi con terze parti o utilizzati per pubblicità\n• Eliminati dal nostro server quando elimini il tuo account\n\nLa sincronizzazione è disattivata per impostazione predefinita. Puoi attivarla o disattivarla in qualsiasi momento dalle Impostazioni.'**
+  /// **'Se attivi la sincronizzazione con Health Connect (Android) o Apple Salute (iOS), TrailShare accede ai seguenti dati dal tuo dispositivo wearable:\n\n• Frequenza cardiaca: per mostrare il battito durante le attività e calcolare le zone cardio\n• Passi: per contare i passi durante le attività e mostrare il totale giornaliero\n• Calorie bruciate: per mostrare il dispendio energetico\n• Allenamenti: per sincronizzare le attività registrate\n\nQuesti dati vengono:\n• Utilizzati esclusivamente per le funzionalità dell\'app\n• Salvati nel tuo account personale su Firebase\n• Mostrati solo a te, l\'utente autenticato\n• Mai venduti, condivisi con terze parti o usati per pubblicità\n• Eliminati dal nostro server quando elimini il tuo account\n\nLa sincronizzazione è disattivata per impostazione predefinita.'**
   String get privacyHealthDataContent;
 
   /// No description provided for @privacyRetentionTitle.
@@ -3491,7 +3551,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyRightsContent.
   ///
   /// In it, this message translates to:
-  /// **'• **Accesso**: puoi visualizzare tutti i tuoi dati nell\'app\n• **Modifica**: puoi modificare il tuo profilo in qualsiasi momento\n• **Eliminazione**: puoi eliminare il tuo account e tutti i dati associati\n• **Esportazione**: puoi esportare le tue tracce in formato GPX'**
+  /// **'• Accesso: puoi visualizzare tutti i tuoi dati nell\'app\n• Modifica: puoi modificare il tuo profilo in qualsiasi momento\n• Eliminazione: puoi eliminare il tuo account e tutti i dati associati\n• Esportazione: puoi esportare le tue tracce in formato GPX\n• Revoca del consenso al trattamento dei dati'**
   String get privacyRightsContent;
 
   /// No description provided for @privacySecurityTitle.
@@ -7711,6 +7771,1116 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Imposta regione'**
   String get discoveryRegionCta;
+
+  /// No description provided for @preStartReadyToGo.
+  ///
+  /// In it, this message translates to:
+  /// **'PRONTO A PARTIRE'**
+  String get preStartReadyToGo;
+
+  /// No description provided for @preStartDistance.
+  ///
+  /// In it, this message translates to:
+  /// **'DISTANZA'**
+  String get preStartDistance;
+
+  /// No description provided for @preStartElevation.
+  ///
+  /// In it, this message translates to:
+  /// **'DISLIVELLO'**
+  String get preStartElevation;
+
+  /// No description provided for @preStartEta.
+  ///
+  /// In it, this message translates to:
+  /// **'TEMPO STIMATO'**
+  String get preStartEta;
+
+  /// No description provided for @preStartStartButton.
+  ///
+  /// In it, this message translates to:
+  /// **'Inizia'**
+  String get preStartStartButton;
+
+  /// No description provided for @preStartEtaDisclaimer.
+  ///
+  /// In it, this message translates to:
+  /// **'Stima basata sul tuo passo medio e sul dislivello. Cambia in base al tuo ritmo reale.'**
+  String get preStartEtaDisclaimer;
+
+  /// No description provided for @preStartLifelineLabel.
+  ///
+  /// In it, this message translates to:
+  /// **'Lifeline'**
+  String get preStartLifelineLabel;
+
+  /// No description provided for @preStartLifelineOff.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca per attivare la condivisione sicura'**
+  String get preStartLifelineOff;
+
+  /// No description provided for @preStartLifelineOn.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{Attiva · 1 contatto} other{Attiva · {count} contatti}}'**
+  String preStartLifelineOn(int count);
+
+  /// No description provided for @preStartLifelineNoContacts.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi un contatto di emergenza per usarla'**
+  String get preStartLifelineNoContacts;
+
+  /// No description provided for @mfTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosci le cime'**
+  String get mfTitle;
+
+  /// No description provided for @mfCameraNotAvailable.
+  ///
+  /// In it, this message translates to:
+  /// **'Fotocamera non disponibile su questo dispositivo'**
+  String get mfCameraNotAvailable;
+
+  /// No description provided for @mfDebugTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'DEBUG · 5 CIME PIÙ VICINE'**
+  String get mfDebugTitle;
+
+  /// No description provided for @mfDebugWaitingGps.
+  ///
+  /// In it, this message translates to:
+  /// **'In attesa del GPS…'**
+  String get mfDebugWaitingGps;
+
+  /// No description provided for @mfNoPeaksInView.
+  ///
+  /// In it, this message translates to:
+  /// **'Ruota il telefono per cercare le cime'**
+  String get mfNoPeaksInView;
+
+  /// No description provided for @mfPeaksInView.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{1 cima riconosciuta} other{{count} cime riconosciute}}'**
+  String mfPeaksInView(int count);
+
+  /// No description provided for @mfDetailElevation.
+  ///
+  /// In it, this message translates to:
+  /// **'ALTITUDINE'**
+  String get mfDetailElevation;
+
+  /// No description provided for @mfDetailDistance.
+  ///
+  /// In it, this message translates to:
+  /// **'DISTANZA'**
+  String get mfDetailDistance;
+
+  /// No description provided for @mfDetailBearing.
+  ///
+  /// In it, this message translates to:
+  /// **'DIREZIONE'**
+  String get mfDetailBearing;
+
+  /// No description provided for @mfDetailOpenOsm.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri su OpenStreetMap'**
+  String get mfDetailOpenOsm;
+
+  /// No description provided for @mfDetailOpenError.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire il link. Verifica di avere un browser predefinito.'**
+  String get mfDetailOpenError;
+
+  /// No description provided for @mfDetailDataSource.
+  ///
+  /// In it, this message translates to:
+  /// **'Dati da OpenStreetMap (ODbL 1.0)'**
+  String get mfDetailDataSource;
+
+  /// No description provided for @mfCalibrationTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Calibra Mountain Finder'**
+  String get mfCalibrationTitle;
+
+  /// No description provided for @mfCalibrationHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Punta verso una cima nota e regola finché il pin si centra sulla cima reale.'**
+  String get mfCalibrationHelp;
+
+  /// No description provided for @mfCalibrationHorizontalFov.
+  ///
+  /// In it, this message translates to:
+  /// **'FOV orizzontale'**
+  String get mfCalibrationHorizontalFov;
+
+  /// No description provided for @mfCalibrationVerticalFov.
+  ///
+  /// In it, this message translates to:
+  /// **'FOV verticale'**
+  String get mfCalibrationVerticalFov;
+
+  /// No description provided for @mfCalibrationReset.
+  ///
+  /// In it, this message translates to:
+  /// **'Predefinito'**
+  String get mfCalibrationReset;
+
+  /// No description provided for @mfCalibrationDone.
+  ///
+  /// In it, this message translates to:
+  /// **'Fatto'**
+  String get mfCalibrationDone;
+
+  /// No description provided for @mfDistanceFilterTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Distanza massima'**
+  String get mfDistanceFilterTitle;
+
+  /// No description provided for @mfDistanceFilterHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Limita le cime mostrate a questa distanza dalla tua posizione.'**
+  String get mfDistanceFilterHelp;
+
+  /// No description provided for @mfPhotoProcessing.
+  ///
+  /// In it, this message translates to:
+  /// **'Identificazione cime in corso…'**
+  String get mfPhotoProcessing;
+
+  /// No description provided for @mfPhotoNoSensors.
+  ///
+  /// In it, this message translates to:
+  /// **'Sensori non pronti, aspetta qualche secondo'**
+  String get mfPhotoNoSensors;
+
+  /// No description provided for @mfPhotoProUpsell.
+  ///
+  /// In it, this message translates to:
+  /// **'Photo Mode è una funzione TrailShare Pro'**
+  String get mfPhotoProUpsell;
+
+  /// No description provided for @mfPhotoResultTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Cime identificate'**
+  String get mfPhotoResultTitle;
+
+  /// No description provided for @mfPhotoIdentifiedCount.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =0{Nessuna cima identificata} =1{1 cima identificata} other{{count} cime identificate}}'**
+  String mfPhotoIdentifiedCount(int count);
+
+  /// No description provided for @mfPhotoShareButton.
+  ///
+  /// In it, this message translates to:
+  /// **'Condividi foto annotata'**
+  String get mfPhotoShareButton;
+
+  /// No description provided for @mfPhotoShareSubject.
+  ///
+  /// In it, this message translates to:
+  /// **'Cime identificate con TrailShare'**
+  String get mfPhotoShareSubject;
+
+  /// No description provided for @mfPhotoShareText.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{Ho identificato 1 cima con TrailShare} other{Ho identificato {count} cime con TrailShare}}'**
+  String mfPhotoShareText(int count);
+
+  /// No description provided for @mfPhotoShareError.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile condividere la foto'**
+  String get mfPhotoShareError;
+
+  /// No description provided for @mfArLock.
+  ///
+  /// In it, this message translates to:
+  /// **'Blocca puntamento'**
+  String get mfArLock;
+
+  /// No description provided for @mfArUnlock.
+  ///
+  /// In it, this message translates to:
+  /// **'Sblocca puntamento'**
+  String get mfArUnlock;
+
+  /// No description provided for @mfDetailSave.
+  ///
+  /// In it, this message translates to:
+  /// **'Salva cima'**
+  String get mfDetailSave;
+
+  /// No description provided for @mfDetailSaved.
+  ///
+  /// In it, this message translates to:
+  /// **'Salvata'**
+  String get mfDetailSaved;
+
+  /// No description provided for @mfDetailSaveAdded.
+  ///
+  /// In it, this message translates to:
+  /// **'Cima salvata nei preferiti'**
+  String get mfDetailSaveAdded;
+
+  /// No description provided for @mfDetailSaveRemoved.
+  ///
+  /// In it, this message translates to:
+  /// **'Cima rimossa dai preferiti'**
+  String get mfDetailSaveRemoved;
+
+  /// No description provided for @mfDetailSaveError.
+  ///
+  /// In it, this message translates to:
+  /// **'Operazione non riuscita'**
+  String get mfDetailSaveError;
+
+  /// No description provided for @mfDetailViewOnMap.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri sulla mappa'**
+  String get mfDetailViewOnMap;
+
+  /// No description provided for @mapStyleTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Stile mappa'**
+  String get mapStyleTooltip;
+
+  /// No description provided for @savedPeaksTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Le mie cime'**
+  String get savedPeaksTitle;
+
+  /// No description provided for @savedPeaksCount.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =1{1 cima salvata} other{{count} cime salvate}}'**
+  String savedPeaksCount(int count);
+
+  /// No description provided for @savedPeaksEmptyTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna cima salvata'**
+  String get savedPeaksEmptyTitle;
+
+  /// No description provided for @savedPeaksEmptyBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri il Mountain Finder, riconosci una cima e tocca \"Salva\" nei dettagli.'**
+  String get savedPeaksEmptyBody;
+
+  /// No description provided for @savedPeaksOpenFinder.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri Mountain Finder'**
+  String get savedPeaksOpenFinder;
+
+  /// No description provided for @discoverySavePeakTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Salva la tua prima cima'**
+  String get discoverySavePeakTitle;
+
+  /// No description provided for @discoverySavePeakDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri il Mountain Finder, punta verso una cima e salvala nei preferiti per ritrovarla qui.'**
+  String get discoverySavePeakDesc;
+
+  /// No description provided for @discoverySavePeakCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosci cime'**
+  String get discoverySavePeakCta;
+
+  /// No description provided for @discoveryMountainTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Punta verso le montagne'**
+  String get discoveryMountainTitle;
+
+  /// No description provided for @discoveryMountainDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri la fotocamera e scopri il nome delle cime intorno a te. Funziona ovunque in Italia.'**
+  String get discoveryMountainDesc;
+
+  /// No description provided for @discoveryMountainCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri Mountain Finder'**
+  String get discoveryMountainCta;
+
+  /// No description provided for @autoPauseTriggered.
+  ///
+  /// In it, this message translates to:
+  /// **'Pausa automatica: sei fermo da oltre 5 minuti'**
+  String get autoPauseTriggered;
+
+  /// No description provided for @autoPauseResumed.
+  ///
+  /// In it, this message translates to:
+  /// **'Registrazione ripresa automaticamente'**
+  String get autoPauseResumed;
+
+  /// No description provided for @hrZonesTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Zone Cardio'**
+  String get hrZonesTitle;
+
+  /// No description provided for @hrZonesAvgPeak.
+  ///
+  /// In it, this message translates to:
+  /// **'Media {avg} · Max {peak}'**
+  String hrZonesAvgPeak(int avg, int peak);
+
+  /// No description provided for @hrZonesMaxHR.
+  ///
+  /// In it, this message translates to:
+  /// **'FC Max: {bpm}'**
+  String hrZonesMaxHR(int bpm);
+
+  /// No description provided for @hrZonesEstimated.
+  ///
+  /// In it, this message translates to:
+  /// **'STIMATA'**
+  String get hrZonesEstimated;
+
+  /// No description provided for @hrZonesSetCta.
+  ///
+  /// In it, this message translates to:
+  /// **'Imposta'**
+  String get hrZonesSetCta;
+
+  /// No description provided for @settingsNews.
+  ///
+  /// In it, this message translates to:
+  /// **'Novità'**
+  String get settingsNews;
+
+  /// No description provided for @settingsHrTraining.
+  ///
+  /// In it, this message translates to:
+  /// **'Allenamento HR'**
+  String get settingsHrTraining;
+
+  /// No description provided for @genericErrorWith.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore: {message}'**
+  String genericErrorWith(String message);
+
+  /// No description provided for @stravaSignInRequired.
+  ///
+  /// In it, this message translates to:
+  /// **'Accedi per collegare Strava'**
+  String get stravaSignInRequired;
+
+  /// No description provided for @stravaConnect.
+  ///
+  /// In it, this message translates to:
+  /// **'Collega Strava'**
+  String get stravaConnect;
+
+  /// No description provided for @stravaConnectSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Carica le attività su Strava a fine sessione'**
+  String get stravaConnectSubtitle;
+
+  /// No description provided for @stravaCannotOpen.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire Strava'**
+  String get stravaCannotOpen;
+
+  /// No description provided for @stravaConnected.
+  ///
+  /// In it, this message translates to:
+  /// **'Strava collegato'**
+  String get stravaConnected;
+
+  /// No description provided for @stravaAuthorizedAccount.
+  ///
+  /// In it, this message translates to:
+  /// **'Account autorizzato'**
+  String get stravaAuthorizedAccount;
+
+  /// No description provided for @stravaDisconnectQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Disconnetti Strava?'**
+  String get stravaDisconnectQuestion;
+
+  /// No description provided for @stravaDisconnectBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Le attività future non verranno più caricate. Le attività già caricate restano su Strava.'**
+  String get stravaDisconnectBody;
+
+  /// No description provided for @stravaDisconnect.
+  ///
+  /// In it, this message translates to:
+  /// **'Disconnetti'**
+  String get stravaDisconnect;
+
+  /// No description provided for @stravaDisconnectedOk.
+  ///
+  /// In it, this message translates to:
+  /// **'Strava disconnesso'**
+  String get stravaDisconnectedOk;
+
+  /// No description provided for @stravaDisconnectError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore disconnessione'**
+  String get stravaDisconnectError;
+
+  /// No description provided for @stravaAutoUpload.
+  ///
+  /// In it, this message translates to:
+  /// **'Carica su Strava al termine'**
+  String get stravaAutoUpload;
+
+  /// No description provided for @stravaAutoUploadSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Upload automatico GPX a fine attività'**
+  String get stravaAutoUploadSubtitle;
+
+  /// No description provided for @stravaImport.
+  ///
+  /// In it, this message translates to:
+  /// **'Importa attività da Strava'**
+  String get stravaImport;
+
+  /// No description provided for @stravaImportSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Le attività registrate con Garmin/altri device sincronizzate su Strava verranno importate qui automaticamente'**
+  String get stravaImportSubtitle;
+
+  /// No description provided for @stravaUploading.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricamento su Strava…'**
+  String get stravaUploading;
+
+  /// No description provided for @stravaUploadingSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Strava sta elaborando il file GPX'**
+  String get stravaUploadingSubtitle;
+
+  /// No description provided for @stravaUploadFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'Upload Strava fallito'**
+  String get stravaUploadFailed;
+
+  /// No description provided for @stravaUploadPending.
+  ///
+  /// In it, this message translates to:
+  /// **'Upload in attesa'**
+  String get stravaUploadPending;
+
+  /// No description provided for @stravaUploadPendingSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Strava non ha ancora confermato l\'attività'**
+  String get stravaUploadPendingSubtitle;
+
+  /// No description provided for @stravaUnknownError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore sconosciuto'**
+  String get stravaUnknownError;
+
+  /// No description provided for @stravaUploadedOk.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricato su Strava ✓'**
+  String get stravaUploadedOk;
+
+  /// No description provided for @stravaUploadTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Carica su Strava'**
+  String get stravaUploadTitle;
+
+  /// No description provided for @stravaTrackImported.
+  ///
+  /// In it, this message translates to:
+  /// **'Importata da Strava'**
+  String get stravaTrackImported;
+
+  /// No description provided for @stravaTrackUploaded.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricato su Strava'**
+  String get stravaTrackUploaded;
+
+  /// No description provided for @stravaTrackImportedSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Registrata su un altro device, sincronizzata via Strava'**
+  String get stravaTrackImportedSubtitle;
+
+  /// No description provided for @stravaTrackUploadedSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca per aprire l\'attività'**
+  String get stravaTrackUploadedSubtitle;
+
+  /// No description provided for @noContacts.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun contatto'**
+  String get noContacts;
+
+  /// No description provided for @deleteContactQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare contatto?'**
+  String get deleteContactQuestion;
+
+  /// No description provided for @cannotOpenTos.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire i Termini di Servizio'**
+  String get cannotOpenTos;
+
+  /// No description provided for @trackTooShortToFollow.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia troppo corta per essere seguita'**
+  String get trackTooShortToFollow;
+
+  /// No description provided for @trackTooShortToSplit.
+  ///
+  /// In it, this message translates to:
+  /// **'La traccia è troppo corta per essere spezzata.'**
+  String get trackTooShortToSplit;
+
+  /// No description provided for @trackSplitError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore nello split della traccia.'**
+  String get trackSplitError;
+
+  /// No description provided for @trackSplitOk.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia spezzata in 2 nuove tracce'**
+  String get trackSplitOk;
+
+  /// No description provided for @trackMergeNoOther.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna altra traccia da unire.'**
+  String get trackMergeNoOther;
+
+  /// No description provided for @trackMergeError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore nell\'unione delle tracce.'**
+  String get trackMergeError;
+
+  /// No description provided for @lifelineCannotStart.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile avviare Lifeline: {error}'**
+  String lifelineCannotStart(String error);
+
+  /// No description provided for @lifelineHowItWorks.
+  ///
+  /// In it, this message translates to:
+  /// **'Come funziona Lifeline'**
+  String get lifelineHowItWorks;
+
+  /// No description provided for @callCannotOpen.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire la chiamata. Compone manualmente 112.'**
+  String get callCannotOpen;
+
+  /// No description provided for @noAppAvailable.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna app disponibile'**
+  String get noAppAvailable;
+
+  /// No description provided for @imOkContinue.
+  ///
+  /// In it, this message translates to:
+  /// **'Sono OK, continuo'**
+  String get imOkContinue;
+
+  /// No description provided for @imOkSaveStop.
+  ///
+  /// In it, this message translates to:
+  /// **'Sono OK, termina e salva'**
+  String get imOkSaveStop;
+
+  /// No description provided for @trackNoPointsForSegment.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia senza punti: impossibile creare un segmento'**
+  String get trackNoPointsForSegment;
+
+  /// No description provided for @deleteSegmentQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare segmento?'**
+  String get deleteSegmentQuestion;
+
+  /// No description provided for @deleteError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore durante l\'eliminazione'**
+  String get deleteError;
+
+  /// No description provided for @searchingDevices.
+  ///
+  /// In it, this message translates to:
+  /// **'Ricerca dispositivi...'**
+  String get searchingDevices;
+
+  /// No description provided for @noDeviceFound.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dispositivo trovato'**
+  String get noDeviceFound;
+
+  /// No description provided for @noDataAvailable.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dato disponibile'**
+  String get noDataAvailable;
+
+  /// No description provided for @chartElevation.
+  ///
+  /// In it, this message translates to:
+  /// **'Elevazione'**
+  String get chartElevation;
+
+  /// No description provided for @chartSpeed.
+  ///
+  /// In it, this message translates to:
+  /// **'Velocità'**
+  String get chartSpeed;
+
+  /// No description provided for @noElevationData.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dato altimetrico'**
+  String get noElevationData;
+
+  /// No description provided for @noSpeedData.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dato velocità'**
+  String get noSpeedData;
+
+  /// No description provided for @noHeartRateData.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun dato battito cardiaco'**
+  String get noHeartRateData;
+
+  /// No description provided for @createSegment.
+  ///
+  /// In it, this message translates to:
+  /// **'Crea segmento'**
+  String get createSegment;
+
+  /// No description provided for @noSegmentsOnTrack.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun segmento su questa traccia.'**
+  String get noSegmentsOnTrack;
+
+  /// No description provided for @noSegmentsCreatedTapPlus.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun segmento creato da questa traccia. Tocca \"+\" per crearne uno.'**
+  String get noSegmentsCreatedTapPlus;
+
+  /// No description provided for @noSegmentsCreated.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun segmento creato da questa traccia.'**
+  String get noSegmentsCreated;
+
+  /// No description provided for @poiAlongRoute.
+  ///
+  /// In it, this message translates to:
+  /// **'POI lungo il percorso'**
+  String get poiAlongRoute;
+
+  /// No description provided for @noPoiReported.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun POI segnalato al momento.'**
+  String get noPoiReported;
+
+  /// No description provided for @noPoiReportedRoute.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun POI segnalato dalla community su questo percorso.'**
+  String get noPoiReportedRoute;
+
+  /// No description provided for @addPoi.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi POI'**
+  String get addPoi;
+
+  /// No description provided for @addPoiHere.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi POI qui'**
+  String get addPoiHere;
+
+  /// No description provided for @alsoInArea.
+  ///
+  /// In it, this message translates to:
+  /// **'Anche nella zona'**
+  String get alsoInArea;
+
+  /// No description provided for @byAuthor.
+  ///
+  /// In it, this message translates to:
+  /// **'di: {name}'**
+  String byAuthor(String name);
+
+  /// No description provided for @paywallNoActivePurchase.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun acquisto attivo trovato per questo account.'**
+  String get paywallNoActivePurchase;
+
+  /// No description provided for @paywallAllFutureProFeatures.
+  ///
+  /// In it, this message translates to:
+  /// **'Tutte le funzioni Pro future'**
+  String get paywallAllFutureProFeatures;
+
+  /// No description provided for @andThe.
+  ///
+  /// In it, this message translates to:
+  /// **' e la '**
+  String get andThe;
+
+  /// No description provided for @paywallAnnotatedPeakPhotosLong.
+  ///
+  /// In it, this message translates to:
+  /// **'Foto panoramiche con i nomi delle cime annotati.'**
+  String get paywallAnnotatedPeakPhotosLong;
+
+  /// No description provided for @paywallUpgradePending.
+  ///
+  /// In it, this message translates to:
+  /// **'Upgrade in attesa di conferma.'**
+  String get paywallUpgradePending;
+
+  /// No description provided for @paywallAnnotatedPeakPhotos.
+  ///
+  /// In it, this message translates to:
+  /// **'Foto annotate con i nomi delle cime.'**
+  String get paywallAnnotatedPeakPhotos;
+
+  /// No description provided for @paywallUnlimitedSavedPeaks.
+  ///
+  /// In it, this message translates to:
+  /// **'Cime salvate illimitate'**
+  String get paywallUnlimitedSavedPeaks;
+
+  /// No description provided for @contactNoMoreLifelineNotif.
+  ///
+  /// In it, this message translates to:
+  /// **'{name} non riceverà più notifiche Lifeline.'**
+  String contactNoMoreLifelineNotif(String name);
+
+  /// No description provided for @settingsAddBusinessProfileSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi un nuovo profilo business (rifugio, noleggio, ecc.)'**
+  String get settingsAddBusinessProfileSub;
+
+  /// No description provided for @settingsEnterBusinessId.
+  ///
+  /// In it, this message translates to:
+  /// **'Inserisci ID business per testare il profilo'**
+  String get settingsEnterBusinessId;
+
+  /// No description provided for @trackFollowAndRecord.
+  ///
+  /// In it, this message translates to:
+  /// **'Segui e registra'**
+  String get trackFollowAndRecord;
+
+  /// No description provided for @gpsServiceDisabled.
+  ///
+  /// In it, this message translates to:
+  /// **'Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.'**
+  String get gpsServiceDisabled;
+
+  /// No description provided for @locationPermissionDenied.
+  ///
+  /// In it, this message translates to:
+  /// **'Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.'**
+  String get locationPermissionDenied;
+
+  /// No description provided for @filterOnlyCircular.
+  ///
+  /// In it, this message translates to:
+  /// **'Solo sentieri circolari'**
+  String get filterOnlyCircular;
+
+  /// No description provided for @noReviewsYet.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna recensione ancora'**
+  String get noReviewsYet;
+
+  /// No description provided for @thanksForReview.
+  ///
+  /// In it, this message translates to:
+  /// **'Grazie per la tua recensione!'**
+  String get thanksForReview;
+
+  /// No description provided for @deleteYourReviewQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Elimina la tua recensione?'**
+  String get deleteYourReviewQuestion;
+
+  /// No description provided for @tapStarsToRate.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca le stelle per dare una valutazione'**
+  String get tapStarsToRate;
+
+  /// No description provided for @reviewPlaceholder.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa ti è piaciuto? Cosa miglioreresti? (opzionale)'**
+  String get reviewPlaceholder;
+
+  /// No description provided for @city.
+  ///
+  /// In it, this message translates to:
+  /// **'Città'**
+  String get city;
+
+  /// No description provided for @profileUpdated.
+  ///
+  /// In it, this message translates to:
+  /// **'Profilo aggiornato'**
+  String get profileUpdated;
+
+  /// No description provided for @shortDescriptionForCards.
+  ///
+  /// In it, this message translates to:
+  /// **'Descrizione breve (per le card)'**
+  String get shortDescriptionForCards;
+
+  /// No description provided for @streetLocation.
+  ///
+  /// In it, this message translates to:
+  /// **'Via / Località'**
+  String get streetLocation;
+
+  /// No description provided for @positionUpdatedSaveToApply.
+  ///
+  /// In it, this message translates to:
+  /// **'Posizione aggiornata. Salva per applicare.'**
+  String get positionUpdatedSaveToApply;
+
+  /// No description provided for @notSet.
+  ///
+  /// In it, this message translates to:
+  /// **'Non impostato'**
+  String get notSet;
+
+  /// No description provided for @loadingStats.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricamento statistiche...'**
+  String get loadingStats;
+
+  /// No description provided for @publicTrails.
+  ///
+  /// In it, this message translates to:
+  /// **'Sentieri Pubblici'**
+  String get publicTrails;
+
+  /// No description provided for @registeredUsers.
+  ///
+  /// In it, this message translates to:
+  /// **'Utenti Registrati'**
+  String get registeredUsers;
+
+  /// No description provided for @recordedTracks.
+  ///
+  /// In it, this message translates to:
+  /// **'Tracce Registrate'**
+  String get recordedTracks;
+
+  /// No description provided for @cheersPerTrack.
+  ///
+  /// In it, this message translates to:
+  /// **'Cheers/Traccia'**
+  String get cheersPerTrack;
+
+  /// No description provided for @trailElevation.
+  ///
+  /// In it, this message translates to:
+  /// **'Elevazione Sentieri'**
+  String get trailElevation;
+
+  /// No description provided for @noPublishedTrack.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna traccia pubblicata'**
+  String get noPublishedTrack;
+
+  /// No description provided for @noRegisteredUser.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun utente registrato'**
+  String get noRegisteredUser;
+
+  /// No description provided for @updateAlreadyImported.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiorna trail già importati'**
+  String get updateAlreadyImported;
+
+  /// No description provided for @colorSaveError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore nel salvataggio del colore'**
+  String get colorSaveError;
+
+  /// No description provided for @removeLogoQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Rimuovere il logo?'**
+  String get removeLogoQuestion;
+
+  /// No description provided for @removeCoverQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Rimuovere la copertina?'**
+  String get removeCoverQuestion;
+
+  /// No description provided for @exportMembers.
+  ///
+  /// In it, this message translates to:
+  /// **'Esporta membri'**
+  String get exportMembers;
+
+  /// No description provided for @saveErrorGeneric.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore nel salvataggio'**
+  String get saveErrorGeneric;
+
+  /// No description provided for @loginRequiredToReport.
+  ///
+  /// In it, this message translates to:
+  /// **'Devi effettuare il login per segnalare'**
+  String get loginRequiredToReport;
+
+  /// No description provided for @deleteReportQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare segnalazione?'**
+  String get deleteReportQuestion;
+
+  /// No description provided for @reportWillBeRemoved.
+  ///
+  /// In it, this message translates to:
+  /// **'La tua segnalazione verrà rimossa.'**
+  String get reportWillBeRemoved;
+
+  /// No description provided for @reportCondition.
+  ///
+  /// In it, this message translates to:
+  /// **'Segnala una condizione'**
+  String get reportCondition;
+
+  /// No description provided for @deletePoiQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare POI?'**
+  String get deletePoiQuestion;
+
+  /// No description provided for @deletePhotoQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Eliminare foto?'**
+  String get deletePhotoQuestion;
+
+  /// No description provided for @mfViewshedOnTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Filtro visibilità ON — tocca per disattivare'**
+  String get mfViewshedOnTooltip;
+
+  /// No description provided for @mfViewshedOffTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Filtro visibilità OFF — mostra solo cime non occluse'**
+  String get mfViewshedOffTooltip;
+
+  /// No description provided for @locationTimeout.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile ottenere la posizione (timeout GPS). Riprova all\'aperto.'**
+  String get locationTimeout;
+
+  /// No description provided for @stravaSyncNow.
+  ///
+  /// In it, this message translates to:
+  /// **'Sincronizza ora'**
+  String get stravaSyncNow;
+
+  /// No description provided for @stravaSyncNowSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Pulla le ultime 10 attività da Strava se il webhook è in delay'**
+  String get stravaSyncNowSubtitle;
+
+  /// No description provided for @stravaSyncing.
+  ///
+  /// In it, this message translates to:
+  /// **'Sincronizzazione Strava in corso…'**
+  String get stravaSyncing;
+
+  /// No description provided for @stravaSyncDone.
+  ///
+  /// In it, this message translates to:
+  /// **'Sincronizzazione completata.'**
+  String get stravaSyncDone;
 }
 
 class _AppLocalizationsDelegate

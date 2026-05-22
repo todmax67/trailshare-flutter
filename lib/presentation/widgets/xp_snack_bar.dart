@@ -23,7 +23,7 @@ class XpSnackBar {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.2),
+                color: Colors.amber.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: const Text(
@@ -49,7 +49,7 @@ class XpSnackBar {
                     message,
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white.withOpacity(0.85),
+                      color: Colors.white.withValues(alpha: 0.85),
                     ),
                   ),
                 ],

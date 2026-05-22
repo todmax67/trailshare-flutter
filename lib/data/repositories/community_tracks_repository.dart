@@ -1,6 +1,74 @@
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/track.dart';
+
+/// Modello lightweight per liste/picker: solo metadati, **senza** GPS points.
+/// Da usare ovunque non serva la traccia disegnata (cards, picker, search results).
+/// Riduce memoria di ~500KB→~1KB per item.
+class CommunityTrackPreview {
+  final String id;
+  final String name;
+  final String? description;
+  final String activityType;
+  final String? difficulty;
+  final String? computedDifficulty; // Komoot K1a Step 2
+  final double distance;
+  final double elevationGain;
+  final int duration;
+  final String ownerId;
+  final String ownerUsername;
+  final DateTime? sharedAt;
+  final int cheerCount;
+  final List<String> photoUrls;
+  final double? startLat;
+  final double? startLng;
+
+  const CommunityTrackPreview({
+    required this.id,
+    required this.name,
+    this.description,
+    required this.activityType,
+    this.difficulty,
+    this.computedDifficulty,
+    required this.distance,
+    required this.elevationGain,
+    required this.duration,
+    required this.ownerId,
+    required this.ownerUsername,
+    this.sharedAt,
+    this.cheerCount = 0,
+    this.photoUrls = const [],
+    this.startLat,
+    this.startLng,
+  });
+
+  double get distanceKm => distance / 1000;
+
+  String get activityIcon {
+    switch (activityType.toLowerCase()) {
+      case 'trekking':
+      case 'hiking':
+        return '🥾';
+      case 'trailrunning':
+      case 'running':
+      case 'run':
+        return '🏃';
+      case 'cycling':
+      case 'bike':
+        return '🚴';
+      case 'walking':
+      case 'walk':
+        return '🚶';
+      case 'mountainbiking':
+      case 'mountain_biking':
+        return '🚵';
+      default:
+        return '🥾';
+    }
+  }
+}
 
 /// Modello per traccia della community
 class CommunityTrack {
@@ -9,6 +77,7 @@ class CommunityTrack {
   final String? description;
   final String activityType;
   final String? difficulty;
+  final String? computedDifficulty; // Komoot K1a Step 2
   final double distance;
   final double elevationGain;
   final int duration;
@@ -25,6 +94,7 @@ class CommunityTrack {
     this.description,
     required this.activityType,
     this.difficulty,
+    this.computedDifficulty,
     required this.distance,
     required this.elevationGain,
     required this.duration,
@@ -227,6 +297,109 @@ class CommunityTracksRepository {
     return _firestore.collection('published_tracks');
   }
 
+  /// Versione lightweight: solo metadati per preview/picker, SENZA parsing
+  /// dei GPS points (che possono essere migliaia per track).
+  ///
+  /// Se [nearLat]+[nearLng]+[radiusKm] sono passati, filtra server-side per
+  /// `startLat` in range, poi rifiltra client-side per longitudine + Haversine.
+  /// Riduce drasticamente memoria/dati per liste pubbliche.
+  Future<List<CommunityTrackPreview>> getRecentTracksPreview({
+    int limit = 50,
+    double? nearLat,
+    double? nearLng,
+    double? radiusKm,
+    bool bypassCache = false,
+  }) async {
+    try {
+      Query<Map<String, dynamic>> query = _tracksCollection
+          .orderBy('sharedAt', descending: true);
+      // Geo prefiltro: range su startLat (1°≈111 km)
+      if (nearLat != null && radiusKm != null) {
+        final dLat = radiusKm / 111.0;
+        // NB: orderBy must match the inequality field; usiamo orderBy
+        // separato. Per ora skippa orderBy sharedAt quando filtriamo geo
+        // (compromesso: non strict order by recency, ma risultato accettabile
+        // perché filtra forte).
+        query = _tracksCollection
+            .where('startLat', isGreaterThanOrEqualTo: nearLat - dLat)
+            .where('startLat', isLessThanOrEqualTo: nearLat + dLat);
+      }
+      final qLimited = query.limit(limit);
+      final snapshot = await (bypassCache
+          ? qLimited.get(const GetOptions(source: Source.server))
+          : qLimited.get());
+
+      final out = <CommunityTrackPreview>[];
+      for (final doc in snapshot.docs) {
+        final p = _docToPreview(doc);
+        if (p == null) continue;
+        // Filtro lng + radiusKm preciso (Haversine)
+        if (nearLat != null && nearLng != null && radiusKm != null) {
+          if (p.startLat == null || p.startLng == null) continue;
+          final d = _haversineKm(nearLat, nearLng, p.startLat!, p.startLng!);
+          if (d > radiusKm) continue;
+        }
+        out.add(p);
+      }
+      debugPrint('[CommunityTracks] Preview: ${out.length} tracce '
+          '${nearLat != null ? "(filtro geo r=${radiusKm}km)" : ""}');
+      return out;
+    } catch (e) {
+      debugPrint('[CommunityTracks] Errore preview: $e');
+      return [];
+    }
+  }
+
+  CommunityTrackPreview? _docToPreview(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
+    try {
+      final data = doc.data();
+      if (data == null) return null;
+      DateTime? sharedAt;
+      final sharedAtData = data['sharedAt'];
+      if (sharedAtData is Timestamp) sharedAt = sharedAtData.toDate();
+      List<String> photoUrls = [];
+      final photos = data['photoUrls'];
+      if (photos is List) {
+        photoUrls = photos.whereType<String>().toList();
+      }
+      return CommunityTrackPreview(
+        id: doc.id,
+        name: data['name']?.toString() ?? 'Traccia senza nome',
+        description: data['description']?.toString(),
+        activityType: data['activityType']?.toString() ?? 'trekking',
+        difficulty: data['difficulty']?.toString(),
+        computedDifficulty: data['computedDifficulty']?.toString(),
+        distance: (data['distance'] as num?)?.toDouble() ?? 0,
+        elevationGain: (data['elevationGain'] as num?)?.toDouble() ?? 0,
+        duration: (data['duration'] as num?)?.toInt() ?? 0,
+        ownerId: data['originalOwnerId']?.toString() ?? '',
+        ownerUsername: data['ownerUsername']?.toString() ?? 'Utente',
+        sharedAt: sharedAt,
+        cheerCount: (data['cheerCount'] as num?)?.toInt() ?? 0,
+        photoUrls: photoUrls,
+        startLat: (data['startLat'] as num?)?.toDouble(),
+        startLng: (data['startLng'] as num?)?.toDouble(),
+      );
+    } catch (e) {
+      debugPrint('[CommunityTracks] Errore preview parsing ${doc.id}: $e');
+      return null;
+    }
+  }
+
+  static double _haversineKm(
+      double lat1, double lon1, double lat2, double lon2) {
+    const r = 6371.0;
+    final dLat = (lat2 - lat1) * math.pi / 180;
+    final dLon = (lon2 - lon1) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) *
+            math.cos(lat2 * math.pi / 180) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
   /// Ottieni tracce recenti della community
   Future<List<CommunityTrack>> getRecentTracks({int limit = 30}) async {
     try {
@@ -253,7 +426,11 @@ class CommunityTracksRepository {
 
   /// Tracce recenti con paginazione
   Future<PaginatedCommunityTracks> getRecentTracksPaginated({
-    int limit = 20,
+    // 2.4.6 — Default abbassato 20 → 8 per evitare OOM su platform
+    // channel Firestore Android (serializza doc completi con GPS
+    // points embedded in ByteArrayOutputStream, esplode a 19MB+).
+    // L'utente può scrollare per caricare pagine successive.
+    int limit = 8,
     QueryDocumentSnapshot? startAfterDoc,
   }) async {
     try {
@@ -291,7 +468,8 @@ class CommunityTracksRepository {
   /// Risultati uniti e riordinati client-side per `sharedAt` desc.
   Future<List<CommunityTrack>> getFollowingActivityFeed(
     List<String> followingIds, {
-    int limit = 30,
+    // 2.4.6 — limit ridotto 30 → 12 per OOM platform channel.
+    int limit = 12,
   }) async {
     if (followingIds.isEmpty) return [];
     try {
@@ -324,7 +502,7 @@ class CommunityTracksRepository {
   }
 
   /// Ottieni tracce più apprezzate
-  Future<List<CommunityTrack>> getPopularTracks({int limit = 30}) async {
+  Future<List<CommunityTrack>> getPopularTracks({int limit = 10}) async {
     try {
       final snapshot = await _tracksCollection
           .orderBy('cheerCount', descending: true)
@@ -345,9 +523,13 @@ class CommunityTracksRepository {
   /// Cerca tracce per nome
   Future<List<CommunityTrack>> searchTracks(String query, {int limit = 20}) async {
     try {
+      // 2.4.6 — limit drastico 100 → 30. Era ridicolo caricare 100
+      // tracce con GPS points solo per filtrare client-side: search
+      // text full su Firestore richiederebbe indici dedicati (TODO),
+      // per ora 30 doc bastano + meno OOM su platform channel.
       final snapshot = await _tracksCollection
           .orderBy('sharedAt', descending: true)
-          .limit(100)
+          .limit(30)
           .get();
 
       final queryLower = query.toLowerCase();
@@ -478,6 +660,7 @@ class CommunityTracksRepository {
         description: data['description']?.toString(),
         activityType: data['activityType']?.toString() ?? 'trekking',
         difficulty: data['difficulty']?.toString(),
+        computedDifficulty: data['computedDifficulty']?.toString(),
         distance: (data['distance'] as num?)?.toDouble() ?? 0,
         elevationGain: (data['elevationGain'] as num?)?.toDouble() ?? 0,
         duration: (data['duration'] as num?)?.toInt() ?? 0,
@@ -508,6 +691,7 @@ class CommunityTracksRepository {
     required String ownerUsername,
     List<String>? photoUrls,
     String? difficulty,
+    String? computedDifficulty, // Komoot K1a Step 2
   }) async {
     try {
       // Converti punti in formato Firestore
@@ -533,6 +717,7 @@ class CommunityTracksRepository {
         'cheerCount': 0,
         'photoUrls': photoUrls ?? [],
         'difficulty': difficulty,
+        if (computedDifficulty != null) 'computedDifficulty': computedDifficulty,
         'startLat': points.isNotEmpty ? points.first.latitude : null,
         'startLng': points.isNotEmpty ? points.first.longitude : null,
       });

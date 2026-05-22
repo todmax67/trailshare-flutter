@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/track.dart';
 import '../models/dashboard_stats.dart';
 
 /// Repository per calcolare statistiche dashboard
@@ -28,11 +27,17 @@ class DashboardRepository {
         return const DashboardStats();
       }
 
-      // Parsing tracce
-      final tracks = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return _parseTrackData(doc.id, data);
-      }).toList();
+      // Parsing tracce: ESCLUDIAMO le tracce pianificate (isPlanned=true).
+      // Sono percorsi creati dal Planner ma non ancora registrati,
+      // quindi non rappresentano un'attività realmente svolta e non
+      // devono concorrere a totali, record e time series.
+      final tracks = snapshot.docs
+          .where((doc) => doc.data()['isPlanned'] != true)
+          .map((doc) {
+            final data = doc.data();
+            return _parseTrackData(doc.id, data);
+          })
+          .toList();
 
       // Calcola totali
       double totalDistance = 0;

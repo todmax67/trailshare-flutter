@@ -31,4 +31,12 @@ extension ThemeColorsExtension on BuildContext {
 
   /// Bordo default / separatore sottile.
   Color get themedBorder => _cs.outlineVariant;
+
+  /// Sfondo "card secondaria" — bubble messaggi altrui, input chat,
+  /// placeholder immagini, ecc. Tonalità intermedia tra surface e bg.
+  Color get themedSurfaceVariant => _cs.surfaceContainerHighest;
+
+  /// Sfondo "elevato" leggermente — utile per input field fillColor
+  /// dentro card già su superficie.
+  Color get themedFieldFill => _cs.surfaceContainerHigh;
 }

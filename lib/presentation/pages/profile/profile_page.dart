@@ -3,17 +3,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
-import '../../../data/repositories/follow_repository.dart';
 import '../dashboard/dashboard_page.dart';
 import '../wishlist/wishlist_page.dart';
 import '../follow/follow_list_page.dart';
 import '../leaderboard/leaderboard_page.dart';
 import '../leaderboard/regional_leaderboard_page.dart';
+import '../mountain_finder/saved_peaks_page.dart';
+import '../../../data/repositories/saved_peaks_repository.dart';
+import '../../../data/models/mountain_peak.dart';
 import '../settings/settings_page.dart';
 import '../badges/badges_page.dart';
 import '../challenges/challenges_page.dart';
 import '../groups/groups_list_page.dart';
 import '../../../data/repositories/admin_repository.dart';
+import '../../../data/repositories/tracks_repository.dart';
 import '../admin/admin_panel_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 
@@ -26,8 +29,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FollowRepository _followRepo = FollowRepository();
-  
+
   // Profile data
   String? _username;
   String? _bio;
@@ -105,21 +107,27 @@ class _ProfilePageState extends State<ProfilePage> {
       // Calcola XP per prossimo livello
       _xpForNextLevel = _calculateXpForLevel(_level + 1);
 
-      // Carica stats dalle tracce
-      final tracksSnapshot = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('tracks')
-          .get();
-
-      _totalTracks = tracksSnapshot.docs.length;
+      // Carica stats dalle tracce.
+      //
+      // CRITICO: in passato si faceva .get() su tutta la subcollection
+      // e si iterava — ma scaricava l'intero doc di ogni traccia coi
+      // GPS points embedded (24MB+, OOM su Android cap 256MB).
+      //
+      // Tentativo intermedio con aggregate(count,sum,sum) server-side:
+      // azzerava OOM ma getSum() ritornava null silenziosamente per
+      // alcuni utenti (tracce vecchie senza il campo, edge case
+      // Firestore sum). Tracce/Distanza/D+ apparivano = 0.
+      //
+      // Soluzione attuale: TracksRepository.getMyTracksLightweight
+      // toglie 'points' prima del parse → niente OOM E loop client
+      // affidabile.
+      final tracks = await TracksRepository().getMyTracksLightweight();
+      _totalTracks = tracks.length;
       _totalDistance = 0;
       _totalElevation = 0;
-
-      for (final doc in tracksSnapshot.docs) {
-        final data = doc.data();
-        _totalDistance += (data['distance'] as num?)?.toDouble() ?? 0;
-        _totalElevation += (data['elevationGain'] as num?)?.toDouble() ?? 0;
+      for (final t in tracks) {
+        _totalDistance += t.stats.distance;
+        _totalElevation += t.stats.elevationGain;
       }
 
       // Fallback username
@@ -395,6 +403,17 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
                           _buildActionTile(
+                            icon: Icons.terrain,
+                            label: context.l10n.savedPeaksTitle,
+                            trailing: _buildSavedPeaksBadge(),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SavedPeaksPage(),
+                              ),
+                            ),
+                          ),
+                          _buildActionTile(
                             icon: Icons.flag_outlined,
                             label: context.l10n.challenges,
                             onTap: () => Navigator.push(
@@ -458,7 +477,7 @@ class _ProfilePageState extends State<ProfilePage> {
       children: [
         CircleAvatar(
           radius: 50,
-          backgroundColor: AppColors.primary.withOpacity(0.1),
+          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
           backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
           child: _avatarUrl == null
               ? Text(
@@ -599,9 +618,9 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
+        color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -780,7 +799,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: color, size: 20),
@@ -809,7 +828,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.12),
+        color: AppColors.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
@@ -820,6 +839,36 @@ class _ProfilePageState extends State<ProfilePage> {
           color: AppColors.primary,
         ),
       ),
+    );
+  }
+
+  /// Badge inline col conteggio delle cime salvate. StreamBuilder
+  /// realtime così si aggiorna se l'utente salva/rimuove una cima
+  /// senza dover refreshare il profilo.
+  Widget _buildSavedPeaksBadge() {
+    return StreamBuilder<List<MountainPeak>>(
+      stream: SavedPeaksRepository().watchAll(),
+      builder: (context, snap) {
+        final count = snap.data?.length ?? 0;
+        if (count == 0) return const SizedBox.shrink();
+        return Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -13,6 +13,13 @@ class TrackComment {
   final String text;
   final DateTime createdAt;
 
+  /// Epic 3.6 — mappa `username → uid` per le menzioni `@username` presenti
+  /// in [text]. Risolto dal repository al salvataggio e usato dalla UI
+  /// per rendere tappabili gli span (apre PublicProfilePage) e dalla
+  /// Cloud Function `onCommentCreated` per inviare FCM ai menzionati.
+  /// Vuota se nessuna menzione o se nessuno username è stato risolto.
+  final Map<String, String> mentions;
+
   const TrackComment({
     required this.id,
     required this.userId,
@@ -20,6 +27,7 @@ class TrackComment {
     this.avatarUrl,
     required this.text,
     required this.createdAt,
+    this.mentions = const {},
   });
 
   Map<String, dynamic> toFirestore() {
@@ -29,6 +37,7 @@ class TrackComment {
       if (avatarUrl != null && avatarUrl!.isNotEmpty) 'avatarUrl': avatarUrl,
       'text': text,
       'createdAt': Timestamp.fromDate(createdAt),
+      if (mentions.isNotEmpty) 'mentions': mentions,
     };
   }
 
@@ -39,6 +48,11 @@ class TrackComment {
       return DateTime.now();
     }
 
+    final rawMentions = data['mentions'];
+    final Map<String, String> mentions = rawMentions is Map
+        ? rawMentions.map((k, v) => MapEntry(k.toString(), v.toString()))
+        : const {};
+
     return TrackComment(
       id: id,
       userId: data['userId']?.toString() ?? '',
@@ -46,6 +60,7 @@ class TrackComment {
       avatarUrl: data['avatarUrl']?.toString(),
       text: data['text']?.toString() ?? '',
       createdAt: parseTs(data['createdAt']),
+      mentions: mentions,
     );
   }
 }

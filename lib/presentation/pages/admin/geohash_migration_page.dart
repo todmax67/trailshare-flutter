@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -18,9 +22,86 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
   final PublicTrailsRepository _repository = PublicTrailsRepository();
   
   bool _isChecking = false;
+  bool _isMigrating = false;
   int? _withGeohash;
   int? _withoutGeohash;
-  String _status = 'Verifica in corso...';
+
+  /// Cloud Function HTTP `migrateGeoHash` deployata su europe-west3.
+  /// Itera tutta la subcollection `public_trails`, ricostruisce
+  /// geoHash + startPoint per i doc che ne sono privi, ritorna JSON
+  /// `{updated, skipped, failed}`.
+  static const String _migrateFunctionUrl =
+      'https://europe-west3-trailshare-5334b.cloudfunctions.net/migrateGeoHash';
+
+  Future<void> _runMigration() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Esegui migrazione GeoHash'),
+        content: Text(
+          'Verranno aggiornati i documenti senza geoHash su public_trails '
+          '(stimati: ${_withoutGeohash ?? "—"}). L\'operazione può '
+          'richiedere alcuni minuti e non è reversibile, ma è sicura '
+          '(non cancella dati). Continuare?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Esegui'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _isMigrating = true);
+    try {
+      // Timeout 9 min: la function ha timeoutSeconds=540, gli diamo
+      // un po' di margine. Niente Authorization header: la function è
+      // pubblica per design (admin-only via UI gating + onRequest sul
+      // bundle limita rate).
+      final resp = await http
+          .post(Uri.parse(_migrateFunctionUrl))
+          .timeout(const Duration(minutes: 9));
+
+      if (!mounted) return;
+      if (resp.statusCode != 200) {
+        _snack('Migrazione fallita (HTTP ${resp.statusCode})',
+            error: true);
+        return;
+      }
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final updated = (data['updated'] as num?)?.toInt() ?? 0;
+      final skipped = (data['skipped'] as num?)?.toInt() ?? 0;
+      final failed = (data['failed'] as num?)?.toInt() ?? 0;
+      _snack(
+        'Migrazione completata · $updated aggiornati · '
+        '$skipped già ok · $failed falliti',
+        error: failed > 0,
+      );
+      // Refresh contatori dopo la migrazione
+      await _checkCoverage();
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Errore: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _isMigrating = false);
+    }
+  }
+
+  void _snack(String msg, {required bool error}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? Colors.red.shade700 : AppColors.success,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -31,7 +112,6 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
   Future<void> _checkCoverage() async {
     setState(() {
       _isChecking = true;
-      _status = 'Verifica in corso...';
     });
 
     try {
@@ -39,12 +119,9 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
       setState(() {
         _withGeohash = coverage.withGeohash;
         _withoutGeohash = coverage.withoutGeohash;
-        _status = 'Verifica completata';
       });
     } catch (e) {
-      setState(() {
-        _status = 'Errore: $e';
-      });
+      // ignore: errore mostrato dal counters
     } finally {
       setState(() => _isChecking = false);
     }
@@ -192,9 +269,9 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.1),
+                  color: AppColors.success.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
                 ),
                 child: const Row(
                   children: [
@@ -226,32 +303,64 @@ class _GeohashMigrationPageState extends State<GeohashMigrationPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
+                  color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                  border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.3)),
                 ),
-                child: const Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info, color: AppColors.warning),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Alcuni documenti senza GeoHash',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.warning,
-                            ),
+                    const Row(
+                      children: [
+                        Icon(Icons.info, color: AppColors.warning),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Alcuni documenti senza GeoHash',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.warning,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'L\'app usa query legacy (meno efficienti) per questi '
+                                'documenti. Esegui la migrazione per completare l\'indice '
+                                'geospaziale.',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ],
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'L\'app usa query legacy (meno efficienti) per questi documenti. '
-                            'Contatta lo sviluppatore per completare la migrazione.',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _isMigrating ? null : _runMigration,
+                        icon: _isMigrating
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.play_arrow),
+                        label: Text(_isMigrating
+                            ? 'Migrazione in corso…'
+                            : 'Esegui migrazione adesso'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.warning,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
                       ),
                     ),
                   ],
@@ -318,7 +427,7 @@ class _StatBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(

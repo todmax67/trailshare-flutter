@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="TrailShare-test"
+  xmlns="http://www.topografix.com/GPX/1/1">
+  <rte>
+    <name>Itinerario pianificato</name>
+    <rtept lat="45.5000" lon="9.5000">
+      <ele>500.0</ele>
+    </rtept>
+    <rtept lat="45.5100" lon="9.5100">
+      <ele>600.0</ele>
+    </rtept>
+    <rtept lat="45.5200" lon="9.5200">
+      <ele>550.0</ele>
+    </rtept>
+  </rte>
+</gpx>

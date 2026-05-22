@@ -36,17 +36,21 @@ class _WishlistPageState extends State<WishlistPage> {
   Future<void> _loadWishlistTracks() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _isLoading = false;
         _error = 'login_required';
       });
+      }
       return;
     }
 
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _isLoading = true;
       _error = null;
     });
+    }
 
     try {
       // 1. Ottieni gli ID dalla wishlist
@@ -82,16 +86,20 @@ class _WishlistPageState extends State<WishlistPage> {
         }
       }
 
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _tracks = loadedTracks;
         _isLoading = false;
       });
+      }
     } catch (e) {
       debugPrint('[WishlistPage] Errore: $e');
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _error = e.toString();
         _isLoading = false;
       });
+      }
     }
   }
 
@@ -312,6 +320,8 @@ class _WishlistPageState extends State<WishlistPage> {
               durationFormatted: track.durationFormatted,
               cheerCount: track.cheerCount,
               sharedAt: track.sharedAt,
+              difficulty: track.difficulty,
+              computedDifficulty: track.computedDifficulty,
               onTap: () => _openTrackDetail(track),
             ),
           );

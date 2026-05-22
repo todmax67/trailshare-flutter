@@ -17,6 +17,12 @@ class TourStageSummary {
   /// Polyline overview — punti downsamplati.
   final List<LatLng> points;
 
+  /// Epic 11 / K1 fix — array di elevation samples downsamplato (~50 pt)
+  /// per renderizzare il grafico altimetrico cumulativo nella community
+  /// detail (mirror community_tours) senza accedere alle tracce private.
+  /// Vuoto = grafico non disponibile (tracce legacy o senza elevation).
+  final List<double> elevationSamples;
+
   /// true se la traccia sottostante è pubblicata in `community_tracks`
   /// (permette il tap-through alla detail community ricca).
   final bool isTrackPublic;
@@ -25,6 +31,14 @@ class TourStageSummary {
   /// pubblica. Può differire da [trackId] se la traccia è stata pubblicata
   /// dalla vecchia app JS con uno schema di id diverso.
   final String? communityTrackId;
+
+  /// Epic 11 — rifugio/B&B/locale dove si pernotta a FINE tappa.
+  /// Link a uno Spazio Pro (collection `businesses`). Denormalizzato
+  /// name+slug per permettere al community_tours mirror di mostrare
+  /// la card pernottamento senza fetch extra (1 sola read).
+  final String? accommodationBusinessId;
+  final String? accommodationName;
+  final String? accommodationSlug;
 
   const TourStageSummary({
     required this.trackId,
@@ -35,7 +49,11 @@ class TourStageSummary {
     required this.duration,
     required this.points,
     required this.isTrackPublic,
+    this.elevationSamples = const [],
     this.communityTrackId,
+    this.accommodationBusinessId,
+    this.accommodationName,
+    this.accommodationSlug,
   });
 
   double get distanceKm => distance / 1000;
@@ -51,7 +69,12 @@ class TourStageSummary {
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList(),
         'isTrackPublic': isTrackPublic,
+        if (elevationSamples.isNotEmpty) 'elevationSamples': elevationSamples,
         if (communityTrackId != null) 'communityTrackId': communityTrackId,
+        if (accommodationBusinessId != null)
+          'accommodationBusinessId': accommodationBusinessId,
+        if (accommodationName != null) 'accommodationName': accommodationName,
+        if (accommodationSlug != null) 'accommodationSlug': accommodationSlug,
       };
 
   static TourStageSummary fromMap(Map<String, dynamic> map) {
@@ -73,9 +96,43 @@ class TourStageSummary {
       duration: Duration(seconds: (map['durationSeconds'] as num?)?.toInt() ?? 0),
       points: points,
       isTrackPublic: map['isTrackPublic'] == true,
+      elevationSamples: (map['elevationSamples'] as List?)
+              ?.whereType<num>()
+              .map((e) => e.toDouble())
+              .toList() ??
+          const [],
       communityTrackId: map['communityTrackId']?.toString(),
+      accommodationBusinessId: map['accommodationBusinessId']?.toString(),
+      accommodationName: map['accommodationName']?.toString(),
+      accommodationSlug: map['accommodationSlug']?.toString(),
     );
   }
+}
+
+/// Tipologia di tour. Differenzia un cammino/trek consecutivo (le tappe si
+/// concatenano in sequenza temporale e geografica) da una collezione tematica
+/// di tracce indipendenti (es. "Le più belle della Valle Seriana").
+///
+/// Determina:
+/// - Se il grafico altimetrico cumulativo ha senso (consecutive) o è
+///   fuorviante (collection: tracce a sé).
+/// - Le label dei chip stats: "N giorni" per i cammini, "N tracce" per le
+///   collezioni.
+enum TourType {
+  consecutive,
+  collection;
+
+  static TourType fromString(String? s) {
+    switch (s) {
+      case 'collection':
+        return TourType.collection;
+      case 'consecutive':
+      default:
+        return TourType.consecutive;
+    }
+  }
+
+  String get asString => name;
 }
 
 /// Bounding box geografico di un tour (aggregato dai punti delle tracce).
@@ -125,8 +182,30 @@ class Tour {
   final String? description;
   final String? coverPhotoUrl;
 
+  /// Cammino consecutivo vs collezione tematica. Default `consecutive` per
+  /// retrocompatibilità coi tour esistenti.
+  final TourType type;
+
+  /// Epic 11 — Gallery foto extra (oltre la cover). 5-10 foto per
+  /// raccontare il tour. Memorizzate come URL Firebase Storage
+  /// (caricate via BusinessPhotosService o helper analogo).
+  final List<String> galleryUrls;
+
+  /// Epic 11 — Sezioni descrizione strutturate. Tutti opzionali; il
+  /// detail page renderizza solo quelle popolate.
+  final String? bestPeriod; // es. "Giugno - Settembre"
+  final String? difficultyGrade; // T/E/EE/EEA o "Facile/Medio/Difficile"
+  final String? equipment; // testo libero "scarponi, picozza, ramponi..."
+  final String? naturalNotes; // cenni storici / naturalistici / culturali
+
   /// trackIds ordinati = sequenza delle tappe.
   final List<String> trackIds;
+
+  /// Epic 11 — accommodations per tappa: chiave = trackId, valore =
+  /// businessId Spazio Pro (rifugio/B&B dove pernottare a fine tappa).
+  /// Optional: una tappa può non avere accommodation (return-to-base,
+  /// bivacco free, etc).
+  final Map<String, String> stageAccommodations;
 
   final double totalDistance; // metri
   final double totalElevationGain; // metri
@@ -151,7 +230,14 @@ class Tour {
     required this.title,
     this.description,
     this.coverPhotoUrl,
+    this.type = TourType.consecutive,
+    this.galleryUrls = const [],
+    this.bestPeriod,
+    this.difficultyGrade,
+    this.equipment,
+    this.naturalNotes,
     required this.trackIds,
+    this.stageAccommodations = const {},
     required this.totalDistance,
     required this.totalElevationGain,
     required this.totalDuration,
@@ -169,7 +255,14 @@ class Tour {
     String? title,
     String? description,
     String? coverPhotoUrl,
+    TourType? type,
+    List<String>? galleryUrls,
+    String? bestPeriod,
+    String? difficultyGrade,
+    String? equipment,
+    String? naturalNotes,
     List<String>? trackIds,
+    Map<String, String>? stageAccommodations,
     double? totalDistance,
     double? totalElevationGain,
     Duration? totalDuration,
@@ -186,7 +279,14 @@ class Tour {
       title: title ?? this.title,
       description: description ?? this.description,
       coverPhotoUrl: coverPhotoUrl ?? this.coverPhotoUrl,
+      type: type ?? this.type,
+      galleryUrls: galleryUrls ?? this.galleryUrls,
+      bestPeriod: bestPeriod ?? this.bestPeriod,
+      difficultyGrade: difficultyGrade ?? this.difficultyGrade,
+      equipment: equipment ?? this.equipment,
+      naturalNotes: naturalNotes ?? this.naturalNotes,
       trackIds: trackIds ?? this.trackIds,
+      stageAccommodations: stageAccommodations ?? this.stageAccommodations,
       totalDistance: totalDistance ?? this.totalDistance,
       totalElevationGain: totalElevationGain ?? this.totalElevationGain,
       totalDuration: totalDuration ?? this.totalDuration,
@@ -208,7 +308,15 @@ class Tour {
       'title': title,
       if (description != null) 'description': description,
       if (coverPhotoUrl != null) 'coverPhotoUrl': coverPhotoUrl,
+      'type': type.asString,
+      if (galleryUrls.isNotEmpty) 'galleryUrls': galleryUrls,
+      if (bestPeriod != null) 'bestPeriod': bestPeriod,
+      if (difficultyGrade != null) 'difficultyGrade': difficultyGrade,
+      if (equipment != null) 'equipment': equipment,
+      if (naturalNotes != null) 'naturalNotes': naturalNotes,
       'trackIds': trackIds,
+      if (stageAccommodations.isNotEmpty)
+        'stageAccommodations': stageAccommodations,
       'totalDistance': totalDistance,
       'totalElevationGain': totalElevationGain,
       'totalDurationSeconds': totalDuration.inSeconds,
@@ -247,7 +355,20 @@ class Tour {
       title: data['title']?.toString() ?? '',
       description: data['description']?.toString(),
       coverPhotoUrl: data['coverPhotoUrl']?.toString(),
+      type: TourType.fromString(data['type']?.toString()),
+      galleryUrls: (data['galleryUrls'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      bestPeriod: data['bestPeriod']?.toString(),
+      difficultyGrade: data['difficultyGrade']?.toString(),
+      equipment: data['equipment']?.toString(),
+      naturalNotes: data['naturalNotes']?.toString(),
       trackIds: (data['trackIds'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      stageAccommodations: (data['stageAccommodations'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), v.toString()),
+          ) ??
+          const {},
       totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0,
       totalElevationGain: (data['totalElevationGain'] as num?)?.toDouble() ?? 0,
       totalDuration: Duration(seconds: (data['totalDurationSeconds'] as num?)?.toInt() ?? 0),
@@ -283,11 +404,19 @@ class TourAggregates {
   });
 
   /// [tracks] deve essere nell'ordine delle tappe.
+  ///
+  /// `daysCount` convenzione escursionistica: **1 tappa = 1 giorno**.
+  /// Storicamente lo calcolavamo dalle date di registrazione delle
+  /// tracce, ma generava un bug semantico: se l'autore aveva
+  /// registrato 8 tappe in 2 weekend distinti il count diventava 2,
+  /// non riflettendo il "tour è fattibile in 8 giorni di cammino".
+  /// L'autore può comunque override il valore dal form Edit
+  /// (utile per tour che si fanno in più giorni di una singola tappa
+  /// es. avvicinamento + vetta in 2 giorni, o accorpare tappe corte).
   static TourAggregates fromTracks(List<Track> tracks) {
     double dist = 0;
     double elev = 0;
     Duration dur = Duration.zero;
-    final days = <String>{};
 
     double? n, s, e, w;
 
@@ -295,9 +424,6 @@ class TourAggregates {
       dist += t.stats.distance;
       elev += t.stats.elevationGain;
       dur += t.stats.duration;
-
-      final refDate = t.recordedAt ?? t.createdAt;
-      days.add('${refDate.year}-${refDate.month}-${refDate.day}');
 
       for (final p in t.points) {
         n = (n == null || p.latitude > n) ? p.latitude : n;
@@ -315,7 +441,7 @@ class TourAggregates {
       totalDistance: dist,
       totalElevationGain: elev,
       totalDuration: dur,
-      daysCount: days.length,
+      daysCount: tracks.length, // default: 1 tappa = 1 giorno
       bounds: bounds,
     );
   }

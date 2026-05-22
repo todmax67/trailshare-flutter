@@ -44,7 +44,15 @@ class ToursRepository {
     required String title,
     String? description,
     String? coverPhotoUrl,
+    TourType type = TourType.consecutive,
+    List<String> galleryUrls = const [],
+    String? bestPeriod,
+    String? difficultyGrade,
+    String? equipment,
+    String? naturalNotes,
     required List<String> trackIds,
+    Map<String, String> stageAccommodations = const {},
+    int? daysCount, // override manuale; default = trackIds.length
     bool isPublic = false,
   }) async {
     final uid = _requireUid;
@@ -66,11 +74,18 @@ class ToursRepository {
       title: title,
       description: description,
       coverPhotoUrl: coverPhotoUrl,
+      type: type,
+      galleryUrls: galleryUrls,
+      bestPeriod: bestPeriod,
+      difficultyGrade: difficultyGrade,
+      equipment: equipment,
+      naturalNotes: naturalNotes,
       trackIds: trackIds,
+      stageAccommodations: stageAccommodations,
       totalDistance: agg.totalDistance,
       totalElevationGain: agg.totalElevationGain,
       totalDuration: agg.totalDuration,
-      daysCount: agg.daysCount,
+      daysCount: daysCount ?? agg.daysCount,
       bounds: agg.bounds,
       isPublic: isPublic,
       createdAt: DateTime.now(),
@@ -78,12 +93,36 @@ class ToursRepository {
 
     await docRef.set(tour.toFirestore());
     if (isPublic) {
-      final stages = await _buildStageSummaries(tracks, uid);
+      final stages =
+          await _buildStageSummaries(tracks, uid, stageAccommodations);
       await _communityTours.doc(docRef.id).set(tour.toCommunityFirestore(stages));
     }
 
     debugPrint('[ToursRepository] Tour creato: ${docRef.id}');
     return docRef.id;
+  }
+
+  /// Downsample uniforme delle elevazioni a max [maxSamples] valori.
+  /// Punti senza elevation vengono skippati (l'array risultante può
+  /// essere più corto se la traccia ha lacune). Se nessun punto ha
+  /// elevation, ritorna vuoto → il chart fa fallback "no data".
+  List<double> _downsampleElevations(List<TrackPoint> points,
+      {int maxSamples = 60}) {
+    if (points.isEmpty) return const [];
+    final withElev = <double>[];
+    for (final p in points) {
+      if (p.elevation != null) withElev.add(p.elevation!);
+    }
+    if (withElev.isEmpty) return const [];
+    if (withElev.length <= maxSamples) return withElev;
+    final result = <double>[withElev.first];
+    final step = withElev.length / (maxSamples - 2);
+    for (var i = 1; i < maxSamples - 1; i++) {
+      final idx = (i * step).round();
+      if (idx < withElev.length - 1) result.add(withElev[idx]);
+    }
+    result.add(withElev.last);
+    return result;
   }
 
   /// Downsample uniforme di [points] a max [maxPoints] preservando primo/ultimo.
@@ -107,23 +146,58 @@ class ToursRepository {
   /// Costruisce le stage summary denormalizzate + mapping pubblico.
   Future<List<TourStageSummary>> _buildStageSummaries(
     List<Track> tracks,
-    String ownerId,
-  ) async {
+    String ownerId, [
+    Map<String, String> stageAccommodations = const {},
+  ]) async {
     final publicMap = await _resolvePublicTrackMap(tracks, ownerId);
+
+    // Fetch denormalizzato dei business accommodation: 1 read per
+    // ogni businessId distinto referenziato. Risultato cachato per
+    // questa build call (i tour pluri-giorno tipici hanno 3-7
+    // accommodation distinti).
+    final accommodationById = <String, ({String name, String slug})>{};
+    final distinctBusinessIds = stageAccommodations.values.toSet();
+    if (distinctBusinessIds.isNotEmpty) {
+      for (final bizId in distinctBusinessIds) {
+        try {
+          final snap = await _firestore
+              .collection('businesses')
+              .doc(bizId)
+              .get();
+          if (snap.exists) {
+            final data = snap.data();
+            accommodationById[bizId] = (
+              name: data?['name']?.toString() ?? 'Spazio Pro',
+              slug: data?['slug']?.toString() ?? '',
+            );
+          }
+        } catch (_) {
+          // Best-effort: se il business è cancellato, skippa silenziosamente
+        }
+      }
+    }
 
     return [
       for (final t in tracks)
-        TourStageSummary(
-          trackId: t.id ?? '',
-          name: t.name,
-          activityType: t.activityType.name,
-          distance: t.stats.distance,
-          elevationGain: t.stats.elevationGain,
-          duration: t.stats.duration,
-          points: _downsamplePolyline(t.points),
-          isTrackPublic: t.id != null && publicMap.containsKey(t.id),
-          communityTrackId: t.id != null ? publicMap[t.id] : null,
-        ),
+        () {
+          final bizId = stageAccommodations[t.id ?? ''];
+          final acc = bizId != null ? accommodationById[bizId] : null;
+          return TourStageSummary(
+            trackId: t.id ?? '',
+            name: t.name,
+            activityType: t.activityType.name,
+            distance: t.stats.distance,
+            elevationGain: t.stats.elevationGain,
+            duration: t.stats.duration,
+            points: _downsamplePolyline(t.points),
+            elevationSamples: _downsampleElevations(t.points),
+            isTrackPublic: t.id != null && publicMap.containsKey(t.id),
+            communityTrackId: t.id != null ? publicMap[t.id] : null,
+            accommodationBusinessId: bizId,
+            accommodationName: acc?.name,
+            accommodationSlug: acc?.slug,
+          );
+        }(),
     ];
   }
 
@@ -291,7 +365,15 @@ class ToursRepository {
     String? title,
     String? description,
     String? coverPhotoUrl,
+    TourType? type,
+    List<String>? galleryUrls,
+    String? bestPeriod,
+    String? difficultyGrade,
+    String? equipment,
+    String? naturalNotes,
     List<String>? trackIds,
+    Map<String, String>? stageAccommodations,
+    int? daysCount, // override manuale dell'auto-calcolo da numero tappe
     bool? isPublic,
   }) async {
     final uid = _requireUid;
@@ -306,6 +388,13 @@ class ToursRepository {
       title: title,
       description: description,
       coverPhotoUrl: coverPhotoUrl,
+      type: type,
+      galleryUrls: galleryUrls,
+      bestPeriod: bestPeriod,
+      difficultyGrade: difficultyGrade,
+      equipment: equipment,
+      naturalNotes: naturalNotes,
+      stageAccommodations: stageAccommodations,
       isPublic: isPublic,
       updatedAt: DateTime.now(),
     );
@@ -323,20 +412,31 @@ class ToursRepository {
         totalDistance: agg.totalDistance,
         totalElevationGain: agg.totalElevationGain,
         totalDuration: agg.totalDuration,
-        daysCount: agg.daysCount,
+        // Quando l'utente passa daysCount esplicito ha priorità,
+        // altrimenti ricalcoliamo dal numero tappe (auto-default).
+        daysCount: daysCount ?? agg.daysCount,
         bounds: agg.bounds,
       );
+    } else if (daysCount != null && daysCount != current.daysCount) {
+      // Solo daysCount modificato (no riassetto tappe).
+      updated = updated.copyWith(daysCount: daysCount);
     }
+
+    final accommodationsChanged = stageAccommodations != null &&
+        !_mapEquals(stageAccommodations, current.stageAccommodations);
 
     await docRef.set(updated.toFirestore());
 
     if (updated.isPublic) {
       // Rigenera le stage summary quando: va pubblico per la prima volta,
-      // oppure è già pubblico ma le tappe sono cambiate.
-      final needsRebuild = !current.isPublic || tracksChanged;
+      // tappe cambiate, oppure cambia l'assegnazione accommodation
+      // (le accommodation sono denormalizzate dentro le stages).
+      final needsRebuild =
+          !current.isPublic || tracksChanged || accommodationsChanged;
       if (needsRebuild) {
         final tracks = await _loadTracksInOrder(updated.trackIds);
-        final stages = await _buildStageSummaries(tracks, uid);
+        final stages = await _buildStageSummaries(
+            tracks, uid, updated.stageAccommodations);
         await _communityTours.doc(tourId).set(updated.toCommunityFirestore(stages));
       } else {
         // Solo metadati cambiati: merge per preservare le stage esistenti.
@@ -348,6 +448,14 @@ class ToursRepository {
     } else if (current.isPublic) {
       await _communityTours.doc(tourId).delete();
     }
+  }
+
+  bool _mapEquals(Map<String, String> a, Map<String, String> b) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
   }
 
   // ─── Eliminazione ──────────────────────────────────────────────────────────

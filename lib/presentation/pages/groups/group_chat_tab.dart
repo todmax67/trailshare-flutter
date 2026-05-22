@@ -5,13 +5,18 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/utils/group_brand.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 
 class GroupChatTab extends StatefulWidget {
   final String groupId;
 
-  const GroupChatTab({super.key, required this.groupId});
+  /// Group corrente (per il pinned post Pro). Nullable per il primo
+  /// frame prima che GroupDetailPage carichi il documento.
+  final Group? group;
+
+  const GroupChatTab({super.key, required this.groupId, this.group});
 
   @override
   State<GroupChatTab> createState() => _GroupChatTabState();
@@ -64,9 +69,11 @@ class _GroupChatTabState extends State<GroupChatTab> {
       await ref.putFile(File(picked.path));
       final url = await ref.getDownloadURL();
 
+      if (!mounted) return;
+      final emoji = context.l10n.photoEmoji;
       await _repo.sendMessage(
         widget.groupId,
-        context.l10n.photoEmoji,
+        emoji,
         type: 'image',
         imageUrl: url,
       );
@@ -91,6 +98,10 @@ class _GroupChatTabState extends State<GroupChatTab> {
 
     return Column(
       children: [
+        // Pinned post (Pro): banner sticky in cima alla chat
+        if (widget.group?.hasActivePinnedPost == true)
+          _PinnedPostBanner(group: widget.group!),
+
         // Messaggi
         Expanded(
           child: StreamBuilder<List<GroupMessage>>(
@@ -109,16 +120,22 @@ class _GroupChatTabState extends State<GroupChatTab> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[300]),
+                        Icon(Icons.chat_bubble_outline,
+                            size: 64,
+                            color: context.textMuted.withValues(alpha: 0.4)),
                         const SizedBox(height: 16),
                         Text(
                           context.l10n.noMessages,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: context.textPrimary,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           context.l10n.startConversation,
-                          style: TextStyle(color: Colors.grey[600]),
+                          style: TextStyle(color: context.textSecondary),
                         ),
                       ],
                     ),
@@ -177,7 +194,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Text(
@@ -211,7 +228,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primary.withOpacity(0.8),
+                  color: AppColors.primary.withValues(alpha: 0.8),
                 ),
               ),
             ),
@@ -222,7 +239,9 @@ class _GroupChatTabState extends State<GroupChatTab> {
                 maxWidth: MediaQuery.of(context).size.width * 0.75,
               ),
               decoration: BoxDecoration(
-                color: isImage ? Colors.transparent : (isMe ? AppColors.primary : Colors.grey[200]),
+                color: isImage
+                    ? Colors.transparent
+                    : (isMe ? AppColors.primary : context.themedSurfaceVariant),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -289,7 +308,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
                 return Container(
                   width: 250,
                   height: 200,
-                  color: Colors.grey[200],
+                  color: context.themedSurfaceVariant,
                   child: const Center(child: CircularProgressIndicator()),
                 );
               },
@@ -297,15 +316,15 @@ class _GroupChatTabState extends State<GroupChatTab> {
                 return Container(
                   width: 250,
                   height: 200,
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                  color: context.themedSurfaceVariant,
+                  child: Icon(Icons.broken_image, size: 48, color: context.textMuted),
                 );
               },
             ),
             Container(
               width: 250,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              color: isMe ? AppColors.primary : Colors.grey[200],
+              color: isMe ? AppColors.primary : context.themedSurfaceVariant,
               child: Text(
                 _formatTime(message.timestamp),
                 textAlign: TextAlign.right,
@@ -350,10 +369,10 @@ class _GroupChatTabState extends State<GroupChatTab> {
         bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.themedSurface,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -363,7 +382,7 @@ class _GroupChatTabState extends State<GroupChatTab> {
         children: [
           // Bottone immagine
           IconButton(
-            icon: Icon(Icons.image, color: Colors.grey[600]),
+            icon: Icon(Icons.image, color: context.textSecondary),
             onPressed: _isUploading ? null : _pickAndSendImage,
           ),
           // Campo testo
@@ -371,14 +390,16 @@ class _GroupChatTabState extends State<GroupChatTab> {
             child: TextField(
               controller: _messageController,
               textCapitalization: TextCapitalization.sentences,
+              style: TextStyle(color: context.textPrimary),
               decoration: InputDecoration(
                 hintText: context.l10n.writeMessage,
+                hintStyle: TextStyle(color: context.textMuted),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Colors.grey[100],
+                fillColor: context.themedFieldFill,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
               onSubmitted: (_) => _sendMessage(),
@@ -415,3 +436,84 @@ class _GroupChatTabState extends State<GroupChatTab> {
     }
   }
 }
+
+class _PinnedPostBanner extends StatefulWidget {
+  final Group group;
+  const _PinnedPostBanner({required this.group});
+
+  @override
+  State<_PinnedPostBanner> createState() => _PinnedPostBannerState();
+}
+
+class _PinnedPostBannerState extends State<_PinnedPostBanner> {
+  bool _expanded = false;
+
+  String _relativeUpdate(DateTime? when) {
+    if (when == null) return "";
+    final diff = DateTime.now().difference(when);
+    if (diff.inMinutes < 1) return "ora";
+    if (diff.inHours < 1) return "${diff.inMinutes} min fa";
+    if (diff.inDays < 1) return "${diff.inHours} h fa";
+    if (diff.inDays < 7) return "${diff.inDays} g fa";
+    return "${(diff.inDays / 7).floor()} sett fa";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = groupAccentColor(widget.group);
+    final text = widget.group.pinnedPostText ?? "";
+    final updated = widget.group.pinnedPostUpdatedAt;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => setState(() => _expanded = !_expanded),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.push_pin, size: 16, color: accent),
+                const SizedBox(width: 6),
+                Text(
+                  "Messaggio fisso",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                    color: accent,
+                  ),
+                ),
+                const Spacer(),
+                if (updated != null)
+                  Text(
+                    _relativeUpdate(updated),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              text,
+              maxLines: _expanded ? null : 3,
+              overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

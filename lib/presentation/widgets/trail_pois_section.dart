@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/extensions/l10n_extension.dart';
+import '../../data/models/osm_poi.dart';
 import '../../data/models/trail_poi.dart';
+import '../../data/repositories/osm_pois_repository.dart';
 import '../../data/repositories/poi_repository.dart';
+import '../pages/business/business_profile_page.dart';
 import '../pages/poi/poi_location_picker_page.dart';
+import 'osm_poi_detail_sheet.dart';
 import 'poi_detail_sheet.dart';
 import 'poi_editor_sheet.dart';
 import '../../core/extensions/theme_colors_extension.dart';
@@ -43,6 +48,20 @@ class TrailPoisSection extends StatefulWidget {
   /// il percorso.
   final List<LatLng>? polyline;
 
+  /// Se true (e [polyline] non vuoto), arricchisce la sezione con i POI
+  /// statici da OpenStreetMap che cadono entro [osmRadiusMeters] dalla
+  /// traccia: rifugi, bivacchi, fontane, sorgenti, panorami, croci.
+  /// Da abilitare sulle pagine dettaglio trail/track per "vedere subito
+  /// cosa trovi lungo il percorso" senza dipendere da segnalazioni
+  /// community.
+  final bool loadOsmPois;
+
+  /// Raggio (m) dalla polyline entro cui includere POI OSM. Default 500m
+  /// — i rifugi/sorgenti su OSM sono spesso mappati al punto edificio,
+  /// non lungo il sentiero, quindi un raggio stretto fa perdere POI
+  /// rilevanti. 500m cattura il "facilmente raggiungibile dal trail".
+  final double osmRadiusMeters;
+
   const TrailPoisSection({
     super.key,
     this.trailId,
@@ -52,6 +71,8 @@ class TrailPoisSection extends StatefulWidget {
     this.defaultLatitude,
     this.defaultLongitude,
     this.polyline,
+    this.loadOsmPois = false,
+    this.osmRadiusMeters = 500,
   }) : assert(trailId != null || trackId != null,
             'Passa almeno trailId o trackId');
 
@@ -61,7 +82,9 @@ class TrailPoisSection extends StatefulWidget {
 
 class _TrailPoisSectionState extends State<TrailPoisSection> {
   final _repo = PoiRepository();
+  final _osmRepo = OsmPoisRepository();
   List<TrailPoi> _pois = [];
+  List<OsmPoi> _osmPois = [];
   bool _loading = true;
 
   @override
@@ -70,9 +93,44 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant TrailPoisSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // La pagina chiamante (es. trail_detail) parte con polyline
+    // semplificata (~15-30 punti) e poi carica la geometria completa
+    // (~1000 punti). Quando arriva, dobbiamo ricalcolare i POI OSM
+    // perché la polyline grezza può saltare interi tratti dove ci
+    // sono rifugi/sorgenti rilevanti.
+    final old = oldWidget.polyline?.length ?? 0;
+    final cur = widget.polyline?.length ?? 0;
+    if (widget.loadOsmPois && cur > old + 50) {
+      // Soglia conservativa: ricarica solo se la polyline è cresciuta
+      // significativamente (oltre 50 punti) per evitare loop su update
+      // marginali.
+      debugPrint('[TrailPoisSection] polyline cresciuta da $old a $cur '
+          'punti, ricalcolo POI OSM');
+      _loadOsm().then((osm) {
+        if (mounted) setState(() => _osmPois = osm);
+      });
+    }
+  }
+
   Future<void> _load() async {
     if (!mounted) return;
     setState(() => _loading = true);
+    final results = await Future.wait([
+      _loadCommunity(),
+      _loadOsm(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _pois = results[0] as List<TrailPoi>;
+      _osmPois = results[1] as List<OsmPoi>;
+      _loading = false;
+    });
+  }
+
+  Future<List<TrailPoi>> _loadCommunity() async {
     List<TrailPoi> pois;
     if (widget.trailId != null) {
       pois = await _repo.getPoisForTrail(widget.trailId!);
@@ -82,18 +140,91 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
         includePrivate: widget.isOwner,
       );
     }
-    if (!mounted) return;
-    // Ordina per score discendente (top POI prima), poi per data recente
     pois.sort((a, b) {
       final scoreCmp = b.score.compareTo(a.score);
       if (scoreCmp != 0) return scoreCmp;
       return (b.createdAt ?? DateTime(2000))
           .compareTo(a.createdAt ?? DateTime(2000));
     });
-    setState(() {
-      _pois = pois;
-      _loading = false;
+    return pois;
+  }
+
+  Future<List<OsmPoi>> _loadOsm() async {
+    final poly = widget.polyline;
+    if (!widget.loadOsmPois) {
+      debugPrint('[TrailPoisSection] OSM disabled (loadOsmPois=false)');
+      return const [];
+    }
+    if (poly == null || poly.isEmpty) {
+      debugPrint('[TrailPoisSection] OSM skip: polyline vuoto');
+      return const [];
+    }
+    await _osmRepo.ensureLoaded();
+    debugPrint('[TrailPoisSection] OSM repo loaded=${_osmRepo.isLoaded} '
+        'count=${_osmRepo.count}, polyline=${poly.length} pts, '
+        'radius=${widget.osmRadiusMeters}m');
+    final found = _osmRepo.findNearPolyline(
+      poly,
+      radiusMeters: widget.osmRadiusMeters,
+    );
+    debugPrint('[TrailPoisSection] OSM POI trovati: ${found.length}');
+
+    // Diagnostic: se 0 POI in raggio, riporta il più vicino in raggio
+    // ampio così capisci se è scarsità OSM dell'area o radius stretto.
+    if (found.isEmpty) {
+      final mid = poly[poly.length ~/ 2];
+      final wide = _osmRepo.findNearby(
+        mid.latitude,
+        mid.longitude,
+        radiusMeters: 5000,
+      );
+      if (wide.isEmpty) {
+        debugPrint('[TrailPoisSection] DIAG: nessun POI OSM in 5km dal '
+            'centro polyline (${mid.latitude}, ${mid.longitude}) — '
+            'area mappata male su OSM');
+      } else {
+        final closest = wide.first;
+        final dist = OsmPoisRepository.haversine(
+          mid.latitude,
+          mid.longitude,
+          closest.latitude,
+          closest.longitude,
+        );
+        debugPrint('[TrailPoisSection] DIAG: il POI OSM più vicino al centro '
+            'polyline è "${closest.name}" (${closest.type.code}) a '
+            '${dist.round()}m. Raggio attuale: ${widget.osmRadiusMeters}m');
+      }
+    }
+    // Ordina: prima rifugi/bivacchi (alta utilità), poi water, poi resto
+    found.sort((a, b) {
+      int rank(OsmPoiType t) {
+        switch (t) {
+          case OsmPoiType.alpineHut:
+            return 0;
+          case OsmPoiType.wildernessHut:
+            return 1;
+          case OsmPoiType.shelter:
+            return 2;
+          case OsmPoiType.spring:
+            return 3;
+          case OsmPoiType.drinkingWater:
+            return 4;
+          case OsmPoiType.viewpoint:
+            return 5;
+          case OsmPoiType.picnicSite:
+            return 6;
+          case OsmPoiType.waysideCross:
+            return 7;
+          case OsmPoiType.cairn:
+            return 8;
+        }
+      }
+
+      final r = rank(a.type).compareTo(rank(b.type));
+      if (r != 0) return r;
+      return a.name.compareTo(b.name);
     });
+    return found;
   }
 
   Future<void> _openAddPoiSheet() async {
@@ -134,6 +265,10 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
     }
   }
 
+  Future<void> _openOsmPoiDetail(OsmPoi poi) async {
+    await showOsmPoiDetailSheet(context, poi: poi);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -142,7 +277,10 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    if (_pois.isEmpty && !widget.allowAdd) {
+    if (_pois.isEmpty &&
+        _osmPois.isEmpty &&
+        !widget.allowAdd &&
+        !widget.loadOsmPois) {
       return const SizedBox.shrink();
     }
 
@@ -165,7 +303,7 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
               const Icon(Icons.place, size: 18, color: AppColors.info),
               const SizedBox(width: 6),
               Text(
-                'POI lungo il percorso',
+                context.l10n.poiAlongRoute,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
@@ -187,7 +325,9 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                'Nessun POI segnalato al momento.',
+                _osmPois.isEmpty
+                    ? context.l10n.noPoiReported
+                    : context.l10n.noPoiReportedRoute,
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -203,7 +343,7 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
               child: OutlinedButton.icon(
                 onPressed: _openAddPoiSheet,
                 icon: const Icon(Icons.add_location_alt, size: 18),
-                label: const Text('Aggiungi POI'),
+                label: Text(context.l10n.addPoi),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.info,
                   side: const BorderSide(color: AppColors.info),
@@ -211,7 +351,128 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
               ),
             ),
           ],
+
+          // ── Subsection POI OpenStreetMap ──────────────────────────
+          if (_osmPois.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              height: 1,
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.public,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Text(
+                  context.l10n.alsoInArea,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${_osmPois.length}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ..._osmPois.take(8).map(_buildOsmPoiTile),
+            if (_osmPois.length > 8)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '+ ${_osmPois.length - 8} altri',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 6),
+            Text(
+              'Dati © OpenStreetMap contributors',
+              style: TextStyle(
+                fontSize: 10,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildOsmPoiTile(OsmPoi poi) {
+    return InkWell(
+      onTap: () => _openOsmPoiDetail(poi),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.info.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(poi.type.icon, color: AppColors.info, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    poi.name,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        poi.type.displayName,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (poi.elevation != null) ...[
+                        Text(
+                          ' · ${poi.elevation!.round()} m',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                size: 18, color: context.textMuted),
+          ],
+        ),
       ),
     );
   }
@@ -276,6 +537,15 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
                           Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  // Komoot K1a — pill highlight cliccabile se il POI è
+                  // linkato a uno Spazio Pro.
+                  if (poi.isHighlight) ...[
+                    const SizedBox(height: 4),
+                    _HighlightBusinessPill(
+                      businessId: poi.linkedBusinessId!,
+                      businessName: poi.linkedBusinessName ?? 'Spazio Pro',
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -286,10 +556,10 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
                     horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: poi.score > 0
-                      ? AppColors.success.withOpacity(0.15)
+                      ? AppColors.success.withValues(alpha: 0.15)
                       : poi.score < 0
-                          ? AppColors.danger.withOpacity(0.15)
-                          : Colors.grey.withOpacity(0.15),
+                          ? AppColors.danger.withValues(alpha: 0.15)
+                          : Colors.grey.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -315,6 +585,74 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
             Icon(Icons.chevron_right,
                 size: 18, color: context.textMuted),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// HIGHLIGHT BUSINESS PILL (Komoot K1a)
+// ─────────────────────────────────────────────────────────────────────
+/// Pill cliccabile mostrata sotto un POI quando è linkato a uno Spazio Pro.
+/// Tap → apre BusinessProfilePage del business.
+/// Usa un InkWell separato per intercettare il tap senza propagarlo al
+/// detail sheet del POI (gestureArena: il child Inkwell wins).
+class _HighlightBusinessPill extends StatelessWidget {
+  final String businessId;
+  final String businessName;
+
+  const _HighlightBusinessPill({
+    required this.businessId,
+    required this.businessName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BusinessProfilePage(businessId: businessId),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.4),
+              width: 0.8,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.storefront,
+                  size: 12, color: AppColors.primary),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  businessName,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(Icons.arrow_outward,
+                  size: 10,
+                  color: AppColors.primary.withValues(alpha: 0.8)),
+            ],
+          ),
         ),
       ),
     );

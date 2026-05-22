@@ -5,6 +5,7 @@ import '../../data/models/trail_poi.dart';
 import '../../data/repositories/poi_repository.dart';
 import 'poi_editor_sheet.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Risultato della sheet di dettaglio POI, utilizzato dal chiamante per
 /// sapere se deve ricaricare la lista/mappa.
@@ -114,17 +115,17 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminare POI?'),
+        title: Text(context.l10n.deletePoiQuestion),
         content: Text('"${_poi.title}" verrà rimosso definitivamente.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -192,7 +193,7 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: _poi.type.pinColor.withOpacity(0.3),
+                            color: _poi.type.pinColor.withValues(alpha: 0.3),
                             blurRadius: 6,
                           ),
                         ],
@@ -291,7 +292,7 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
                           child: const CircularProgressIndicator(),
                         );
                       },
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, _, _) => Container(
                         height: 180,
                         alignment: Alignment.center,
                         color: Colors.grey.shade200,
@@ -432,7 +433,7 @@ class _PoiDetailSheetState extends State<_PoiDetailSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? color : color.withOpacity(0.1),
+          color: selected ? color : color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: color, width: 1.2),
         ),

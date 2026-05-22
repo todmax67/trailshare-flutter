@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -31,10 +32,10 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         stream: _repo.watchContacts(),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
-            return Center(child: Text('Errore: ${snap.error}'));
+            return Center(child: Text(context.l10n.genericErrorWith(snap.error.toString())));
           }
           final contacts = snap.data ?? const [];
 
@@ -75,9 +76,9 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.info.withOpacity(0.08),
+        color: AppColors.info.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.info.withOpacity(0.3)),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,7 +143,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.contacts_outlined,
-              size: 64, color: context.textMuted.withOpacity(0.5)),
+              size: 64, color: context.textMuted.withValues(alpha: 0.5)),
           const SizedBox(height: 12),
           const Text(
             'Nessun contatto configurato',
@@ -169,7 +170,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
 
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: AppColors.info.withOpacity(0.15),
+        backgroundColor: AppColors.info.withValues(alpha: 0.15),
         child: Text(
           c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
           style: const TextStyle(
@@ -180,15 +181,15 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       ),
       title: Text(
         c.name,
-        style: const TextStyle(fontWeight: FontWeight.w600),
+        style: TextStyle(fontWeight: FontWeight.w600),
       ),
-      subtitle: Text(subtitle.isEmpty ? 'Nessun contatto' : subtitle),
+      subtitle: Text(subtitle.isEmpty ? context.l10n.noContacts : subtitle),
       trailing: PopupMenuButton<String>(
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: 'edit', child: Text('Modifica')),
+        itemBuilder: (_) => [
+          const PopupMenuItem(value: 'edit', child: Text('Modifica')),
           PopupMenuItem(
             value: 'delete',
-            child: Text('Elimina', style: TextStyle(color: AppColors.danger)),
+            child: Text(context.l10n.delete, style: TextStyle(color: AppColors.danger)),
           ),
         ],
         onSelected: (v) {
@@ -224,7 +225,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppColors.warning.withOpacity(0.1),
+          color: AppColors.warning.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -313,8 +314,8 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Impossibile aprire i Termini di Servizio'),
+          SnackBar(
+            content: Text(context.l10n.cannotOpenTos),
           ),
         );
       }
@@ -332,7 +333,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString())), backgroundColor: AppColors.danger),
       );
     }
   }
@@ -345,7 +346,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString())), backgroundColor: AppColors.danger),
       );
     }
   }
@@ -354,17 +355,17 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminare contatto?'),
-        content: Text('${c.name} non riceverà più notifiche Lifeline.'),
+        title: Text(context.l10n.deleteContactQuestion),
+        content: Text(context.l10n.contactNoMoreLifelineNotif(c.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annulla'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -375,7 +376,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text(context.l10n.genericErrorWith(e.toString())), backgroundColor: AppColors.danger),
       );
     }
   }
@@ -511,7 +512,7 @@ class _ContactEditorSheetState extends State<_ContactEditorSheet> {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Annulla'),
+                        child: Text(context.l10n.cancel),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -522,7 +523,7 @@ class _ContactEditorSheetState extends State<_ContactEditorSheet> {
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                         ),
-                        child: const Text('Salva'),
+                        child: Text(context.l10n.save),
                       ),
                     ),
                   ],
@@ -603,9 +604,9 @@ class _TemplateEditorState extends State<_TemplateEditor> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppColors.info.withOpacity(0.06),
+            color: AppColors.info.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.info.withOpacity(0.2)),
+            border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -653,8 +654,8 @@ class _TemplateEditorState extends State<_TemplateEditor> {
                 onPressed: _ctrl.text.trim().isEmpty
                     ? null
                     : () => widget.onSaved(_ctrl.text),
-                icon: const Icon(Icons.save, size: 16),
-                label: const Text('Salva'),
+                icon: Icon(Icons.save, size: 16),
+                label: Text(context.l10n.save),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,

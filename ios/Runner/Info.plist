@@ -86,6 +86,16 @@
 				<string>com.googleusercontent.apps.760969043040-lmk5n7t2v8o3j788jubdu87bqcll2jdl</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>app.trailshare.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>trailshare</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
@@ -98,7 +108,7 @@
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>TrailShare usa il Bluetooth per connettersi alla fascia cardio</string>
 	<key>NSCameraUsageDescription</key>
-	<string>TrailShare ha bisogno della fotocamera per scattare foto durante le escursioni</string>
+	<string>TrailShare usa la fotocamera per scattare foto delle tue escursioni e per riconoscere le cime intorno a te puntando il telefono</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>TrailShare legge i dati di salute per arricchire le tue attività con battito cardiaco, passi e calorie dal tuo smartwatch.</string>
 	<key>NSHealthUpdateUsageDescription</key>
@@ -155,13 +165,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 </dict>

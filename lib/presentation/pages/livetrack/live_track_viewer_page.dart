@@ -168,7 +168,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
               Polyline(
                 points: pathPoints,
                 strokeWidth: 4,
-                color: AppColors.danger.withOpacity(0.8),
+                color: AppColors.danger.withValues(alpha: 0.8),
                 pattern: const StrokePattern.dotted(),
       ),
             ],
@@ -225,7 +225,7 @@ class _LiveTrackViewerPageState extends State<LiveTrackViewerPage> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
             ),
           ],
@@ -432,7 +432,7 @@ class _PulsingMarkerState extends State<_PulsingMarker>
               border: Border.all(color: Colors.white, width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.danger.withOpacity(0.4),
+                  color: AppColors.danger.withValues(alpha: 0.4),
                   blurRadius: 10,
                   spreadRadius: 2,
                 ),

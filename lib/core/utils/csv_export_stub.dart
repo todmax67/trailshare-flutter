@@ -1,0 +1,22 @@
+/// Stub di fallback per piattaforme non supportate. Non dovrebbe mai
+/// essere effettivamente caricato (il pattern di conditional import
+/// risolve a `csv_export_web.dart` su web e `csv_export_io.dart` su
+/// mobile/desktop).
+Future<void> doExportCsv(String csv, String filename) async {
+  throw UnsupportedError('CSV export non supportato su questa piattaforma');
+}
+
+Future<void> doDownloadString(String content, String filename, String mime) async {
+  throw UnsupportedError('Download non supportato su questa piattaforma');
+}
+
+Future<void> doDownloadBytes(
+  Object bytes,
+  String filename,
+  String mime, {
+  String? shareSubject,
+  String? shareText,
+}) async {
+  throw UnsupportedError(
+      'Download bytes non supportato su questa piattaforma');
+}

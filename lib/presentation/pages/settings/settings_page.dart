@@ -1,5 +1,12 @@
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
+import 'package:in_app_review/in_app_review.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/services/hud_prefs_service.dart';
+import '../training/training_hr_page.dart';
+import '../../../core/services/strava_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/constants/app_colors.dart';
@@ -12,6 +19,8 @@ import '../../../core/services/delete_account_service.dart';
 import 'offline_maps_page.dart';
 import 'faq_page.dart';
 import '../admin/geohash_migration_page.dart';
+import '../business/business_create_page.dart';
+import '../business/business_profile_page.dart';
 import '../admin/trail_import_page.dart';
 import '../admin/database_stats_page.dart';
 import '../admin/recalculate_stats_page.dart';
@@ -23,6 +32,15 @@ import 'health_dashboard_page.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/services/push_notification_service.dart';
+import '../../../core/services/pro_gate_service.dart';
+import '../../widgets/paywall_sheet.dart';
+
+/// ID numerico dell'app su App Store Connect (necessario per
+/// `in_app_review.openStoreListing` come fallback su iOS quando il
+/// prompt nativo non è disponibile o è stato throttled da Apple).
+/// TODO: aggiornare con l'ID reale quando l'app sarà pubblicata su App
+/// Store (oggi è solo TestFlight beta).
+const String _kAppStoreId = '0000000000';
 
 /// Pagina Impostazioni
 class SettingsPage extends StatefulWidget {
@@ -76,12 +94,6 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) setState(() => _healthSyncEnabled = enabled);
   }
 
-  Future<void> _loadMaxHR() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getInt('user_max_hr') ?? 0;
-    if (mounted) setState(() => _maxHR = saved);
-  }
-
   Future<void> _showMaxHRDialog() async {
     final ageController = TextEditingController();
     final hrController = TextEditingController(
@@ -99,7 +111,7 @@ class _SettingsPageState extends State<SettingsPage> {
               context.l10n.maxHRDescription,
               style: TextStyle(fontSize: 13, color: context.textSecondary),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             TextField(
               controller: hrController,
               keyboardType: TextInputType.number,
@@ -109,9 +121,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 border: const OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(context.l10n.orLabel, style: TextStyle(color: context.textMuted)),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             TextField(
               controller: ageController,
               keyboardType: TextInputType.number,
@@ -140,6 +152,7 @@ class _SettingsPageState extends State<SettingsPage> {
               if (hr != null && hr > 100 && hr < 250) {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setInt('user_max_hr', hr);
+                if (!ctx.mounted) return;
                 setState(() => _maxHR = hr);
                 Navigator.pop(ctx);
               }
@@ -192,19 +205,38 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Ricevi notifiche quando aggiungiamo nuove funzionalita',
               ),
               value: _newsUpdatesEnabled,
-              activeColor: AppColors.primary,
+              activeThumbColor: AppColors.primary,
               onChanged: (value) async {
                 setState(() => _newsUpdatesEnabled = value);
                 await PushNotificationService().setNewsUpdatesEnabled(value);
               },
             ),
-            const Divider(height: 32),
+            Divider(height: 32),
           ],
 
           // Sezione Aspetto
           _buildSectionHeader(context.l10n.appearanceSection),
           _buildThemeTile(),
           const Divider(height: 32),
+
+          // ─── Sezione TrailShare Pro (mockup paywall) ─────────────────
+          _buildSectionHeader('TrailShare Pro'),
+          _buildProTile(),
+          // 6.5 — Entry alla pagina Allenamento HR personalizzato
+          _buildListTile(
+            icon: Icons.fitness_center,
+            title: context.l10n.settingsHrTraining,
+            subtitle: 'Zone cardio + suggerimenti settimanali (Pro)',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TrainingHrPage(),
+                ),
+              );
+            },
+          ),
+          Divider(height: 32),
 
           // Sezione Salute
           _buildSectionHeader(context.l10n.healthConnectionSection),
@@ -220,13 +252,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   : context.l10n.saveToHealthConnect,
             ),
             value: _healthSyncEnabled,
-            activeColor: AppColors.primary,
+            activeThumbColor: AppColors.primary,
             onChanged: (value) async {
               if (value) {
                 if (Platform.isAndroid) {
                   final available = await _healthService.isHealthConnectAvailable();
                   if (!available) {
-                    if (mounted) {
+                    if (context.mounted) {
                       showDialog(
                         context: context,
                         builder: (ctx) => AlertDialog(
@@ -255,7 +287,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 }
                 final granted = await _healthService.requestPermissions();
                 debugPrint('[Settings] Permessi concessi: $granted');
-                if (!granted && mounted) {
+                if (!granted && context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(context.l10n.permissionsNotGranted),
@@ -271,7 +303,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           if (_healthSyncEnabled) ...[
             ListTile(
-              leading: const Icon(Icons.monitor_heart, color: AppColors.danger),
+              leading: Icon(Icons.monitor_heart, color: AppColors.danger),
               title: Text(context.l10n.maxHeartRate),
               subtitle: Text(
                 _maxHR > 0 ? '$_maxHR BPM' : context.l10n.setForCardioZones,
@@ -280,7 +312,7 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => _showMaxHRDialog(),
             ),
             ListTile(
-              leading: const Icon(Icons.dashboard, color: AppColors.primary),
+              leading: Icon(Icons.dashboard, color: AppColors.primary),
               title: Text(context.l10n.healthDashboard),
               subtitle: Text(context.l10n.healthDashboardSubtitle),
               trailing: const Icon(Icons.chevron_right),
@@ -290,6 +322,16 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ],
+          const Divider(height: 32),
+
+          // Sezione Strava
+          _buildSectionHeader('Strava'),
+          _buildStravaSection(),
+          const Divider(height: 32),
+
+          // Sezione Registrazione (1.D4 — auto-hide HUD)
+          _buildSectionHeader('Registrazione'),
+          _buildHudAutoHideSection(),
           const Divider(height: 32),
 
           // Sezione Sicurezza
@@ -323,6 +365,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const Divider(height: 32),
 
+          // Sezione Privacy
+          _buildSectionHeader('Privacy'),
+          _buildSocialFeaturingToggle(),
+          Divider(height: 32),
+
           // Sezione Legale
           _buildSectionHeader(context.l10n.legalSection),
           _buildListTile(
@@ -343,7 +390,7 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: context.l10n.openSourceLicensesSubtitle,
             onTap: () => _openLicenses(context),
           ),
-          const Divider(height: 32),
+          Divider(height: 32),
 
           // Sezione Supporto
           _buildSectionHeader(context.l10n.supportSection),
@@ -361,7 +408,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildListTile(
             icon: Icons.email_outlined,
             title: context.l10n.contactUs,
-            subtitle: 'support@trailshare.app',
+            subtitle: 'info@trailshare.app',
             onTap: () => _openEmail(context),
           ),
           _buildListTile(
@@ -381,7 +428,7 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
-          const Divider(height: 32),
+          Divider(height: 32),
 
           // Sezione Info
           _buildSectionHeader(context.l10n.infoSection),
@@ -399,7 +446,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
           // Sezione Admin (solo per admin)
           if (_isAdminUser) ...[
-            const Divider(height: 32),
+            Divider(height: 32),
             _buildSectionHeader(context.l10n.adminSection, danger: false),
             _buildListTile(
               icon: Icons.download,
@@ -434,6 +481,23 @@ class _SettingsPageState extends State<SettingsPage> {
                 );
               },
             ),
+            _buildListTile(
+              icon: Icons.add_business,
+              title: 'Crea Spazio Pro',
+              subtitle: context.l10n.settingsAddBusinessProfileSub,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BusinessCreatePage()),
+                );
+              },
+            ),
+            _buildListTile(
+              icon: Icons.business_center_outlined,
+              title: 'Apri Spazio Pro (debug)',
+              subtitle: context.l10n.settingsEnterBusinessId,
+              onTap: () => _openBusinessByIdDialog(),
+            ),
           ],
 
           _buildListTile(
@@ -450,7 +514,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
           // Zona pericolosa (solo se loggato)
           if (user != null) ...[
-            const Divider(height: 32),
+            Divider(height: 32),
             _buildSectionHeader(context.l10n.dangerZone, danger: true),
             _buildListTile(
               icon: Icons.delete_forever,
@@ -471,7 +535,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   'assets/images/logo.png',
                   width: 48,
                   height: 48,
-                  errorBuilder: (_, __, ___) => Icon(
+                  errorBuilder: (_, _, _) => Icon(
                     Icons.terrain,
                     size: 48,
                     color: Theme.of(context).colorScheme.primary,
@@ -498,6 +562,283 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 32),
         ],
       ),
+    );
+  }
+
+  /// Toggle per consenso uso tracce dell'utente da parte del manager
+  /// social TrailShare (account ufficiali IG/FB/TikTok). Default OFF:
+  /// senza consenso esplicito, le tracce non vengono usate per post
+  /// promozionali anche se sono `isPublic=true` (la pubblicazione in
+  /// community è una cosa, l'uso a fini marketing un'altra).
+  Widget _buildSocialFeaturingToggle() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+    final docStream = FirebaseFirestore.instance
+        .collection('user_profiles')
+        .doc(uid)
+        .snapshots();
+    return StreamBuilder<DocumentSnapshot>(
+      stream: docStream,
+      builder: (context, snap) {
+        final data = snap.data?.data() as Map<String, dynamic>?;
+        final enabled = data?['socialFeaturingOptIn'] == true;
+        return SwitchListTile(
+          secondary: const Icon(Icons.share_outlined,
+              color: AppColors.primary),
+          title: const Text('Uso tracce sui canali social'),
+          subtitle: const Text(
+            'Permetti a TrailShare di pubblicare le tue tracce sugli '
+            'account ufficiali (Instagram, Facebook). Le tracce restano '
+            'tue, sempre attribuite con username.',
+          ),
+          value: enabled,
+          onChanged: (v) async {
+            final messenger = ScaffoldMessenger.of(context);
+            try {
+              await FirebaseFirestore.instance
+                  .collection('user_profiles')
+                  .doc(uid)
+                  .set({'socialFeaturingOptIn': v},
+                      SetOptions(merge: true));
+            } catch (e) {
+              messenger.showSnackBar(
+                SnackBar(content: Text(context.l10n.genericErrorWith(e.toString()))),
+              );
+            }
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openBusinessByIdDialog() async {
+    final ctrl = TextEditingController();
+    final id = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Apri Spazio Pro'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'ID business (Firestore doc id)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(context.l10n.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Apri'),
+          ),
+        ],
+      ),
+    );
+    if (id == null || id.isEmpty || !mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BusinessProfilePage(businessId: id),
+      ),
+    );
+  }
+
+  Widget _buildStravaSection() {
+    final stravaService = StravaService();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final l10n = context.l10n;
+
+    if (uid == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Text(l10n.stravaSignInRequired),
+      );
+    }
+    final docStream = FirebaseFirestore.instance
+        .collection('users').doc(uid)
+        .collection('integrations').doc('strava')
+        .snapshots();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: docStream,
+      builder: (context, snap) {
+        final data = snap.data?.data() as Map<String, dynamic>?;
+        final connected = data != null && data['accessToken'] != null;
+        final autoUpload = data?['autoUploadEnabled'] == true;
+        final athleteName = [data?['athleteFirstname'], data?['athleteLastname']]
+            .whereType<String>().where((s) => s.isNotEmpty).join(' ');
+
+        if (!connected) {
+          return ListTile(
+            leading: const Icon(Icons.directions_run, color: Color(0xFFFC4C02)),
+            title: Text(l10n.stravaConnect),
+            subtitle: Text(l10n.stravaConnectSubtitle),
+            trailing: const Icon(Icons.open_in_new, size: 18),
+            onTap: () async {
+              final ok = await stravaService.connect();
+              if (!ok && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.stravaCannotOpen)),
+                );
+              }
+            },
+          );
+        }
+
+        return Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.directions_run, color: Color(0xFFFC4C02)),
+              title: Text(l10n.stravaConnected),
+              subtitle: Text(athleteName.isNotEmpty ? athleteName : l10n.stravaAuthorizedAccount),
+              trailing: TextButton(
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: Text(l10n.stravaDisconnectQuestion),
+                      content: Text(l10n.stravaDisconnectBody),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
+                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l10n.stravaDisconnect)),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    final ok = await stravaService.disconnect();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(ok ? l10n.stravaDisconnectedOk : l10n.stravaDisconnectError),
+                      ));
+                    }
+                  }
+                },
+                child: Text(l10n.stravaDisconnect),
+              ),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.cloud_upload_outlined),
+              title: Text(l10n.stravaAutoUpload),
+              subtitle: Text(l10n.stravaAutoUploadSubtitle),
+              value: autoUpload,
+              onChanged: (v) => stravaService.setAutoUploadEnabled(v),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.cloud_download_outlined),
+              title: Text(l10n.stravaImport),
+              subtitle: Text(l10n.stravaImportSubtitle),
+              value: data['importFromStravaEnabled'] == true,
+              onChanged: (v) => stravaService.setImportFromStravaEnabled(v),
+            ),
+            // Force-sync manuale: utile quando il webhook Strava è in delay
+            // o non scatta. Pulla ultime 10 attività e importa le nuove.
+            if (data['importFromStravaEnabled'] == true)
+              ListTile(
+                leading: const Icon(Icons.sync, color: Color(0xFFFC4C02)),
+                title: Text(l10n.stravaSyncNow),
+                subtitle: Text(l10n.stravaSyncNowSubtitle),
+                onTap: () => _runStravaImportNow(context),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Chiama la Cloud Function `stravaImportRecent` per pullare le ultime
+  /// attività Strava e importarle. Bypass del webhook quando in delay.
+  Future<void> _runStravaImportNow(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(content: Text(context.l10n.stravaSyncing)),
+    );
+    try {
+      final fn = FirebaseFunctions.instanceFor(region: 'europe-west3')
+          .httpsCallable('stravaImportRecent');
+      final res = await fn.call({'limit': 10});
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final imported = (data['imported'] as List?)?.length ?? 0;
+      final skipped = (data['skipped'] as List?)?.length ?? 0;
+      final errors = (data['errors'] as List?)?.length ?? 0;
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('${context.l10n.stravaSyncDone} '
+            '✓$imported · ⏭$skipped · ⚠$errors'),
+        duration: const Duration(seconds: 5),
+      ));
+    } catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text(context.l10n.genericErrorWith(e.toString())),
+        backgroundColor: AppColors.danger,
+      ));
+    }
+  }
+
+  /// 1.D4 — Sezione "Registrazione": toggle auto-hide HUD + scelta
+  /// secondi (5/10/20). Listener su HudPrefsService così la UI si
+  /// aggiorna immediatamente al cambio.
+  Widget _buildHudAutoHideSection() {
+    return AnimatedBuilder(
+      animation: HudPrefsService(),
+      builder: (context, _) {
+        final prefs = HudPrefsService();
+        return Column(
+          children: [
+            SwitchListTile(
+              secondary: Icon(
+                Icons.visibility_off_outlined,
+                color: prefs.enabled
+                    ? AppColors.primary
+                    : context.textSecondary,
+              ),
+              title: const Text('Nascondi HUD automaticamente'),
+              subtitle: const Text(
+                'Durante la registrazione le statistiche scompaiono '
+                'dopo un periodo di inattività, lasciando più mappa visibile. '
+                'Tap su mappa o sul chip per rimostrarle.',
+              ),
+              value: prefs.enabled,
+              activeThumbColor: AppColors.primary,
+              onChanged: (v) => prefs.setEnabled(v),
+            ),
+            if (prefs.enabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.timer_outlined,
+                        color: context.textSecondary, size: 20),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Tempo prima del nascondimento',
+                        style: TextStyle(color: context.textPrimary),
+                      ),
+                    ),
+                    SegmentedButton<int>(
+                      segments: HudPrefsService.allowedSeconds
+                          .map((s) => ButtonSegment<int>(
+                                value: s,
+                                label: Text('${s}s'),
+                              ))
+                          .toList(),
+                      selected: {prefs.seconds},
+                      onSelectionChanged: (set) =>
+                          prefs.setSeconds(set.first),
+                      style: ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -540,7 +881,7 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle,
               style: TextStyle(
                 fontSize: 13,
-                color: danger ? AppColors.danger.withOpacity(0.7) : null,
+                color: danger ? AppColors.danger.withValues(alpha: 0.7) : null,
               ),
             )
           : null,
@@ -551,6 +892,103 @@ class _SettingsPageState extends State<SettingsPage> {
             )
           : null,
       onTap: onTap,
+    );
+  }
+
+  /// Tile TrailShare Pro: stato corrente + apertura paywall.
+  ///
+  /// Comportamento:
+  /// - **iOS** (monetizzazione attiva): mostra "Passa a Pro" → apre il
+  ///   paywall di acquisto reale.
+  /// - **Android** (monetizzazione disattivata in attesa P.IVA): subtitle
+  ///   spiega che Pro è gratis, tap apre la sheet informativa.
+  Widget _buildProTile() {
+    return AnimatedBuilder(
+      animation: ProGateService(),
+      builder: (context, _) {
+        final gate = ProGateService();
+        final isPro = gate.isPro;
+        final canMonetize = gate.isMonetizationActive;
+
+        // Testo dinamico in base a piattaforma + stato.
+        final String tileTitle;
+        final String tileSubtitle;
+        if (!canMonetize) {
+          // Android in attesa di P.IVA per attivare Play Billing: Pro
+          // non è ancora disponibile. Comunichiamo chiaramente lo
+          // stato "in arrivo" senza generare aspettativa di gratuità.
+          tileTitle = 'TrailShare Pro — in arrivo su Android';
+          tileSubtitle =
+              'A breve potrai sbloccare AR Photo Mode, mappe Pro e altro';
+        } else if (isPro) {
+          tileTitle = 'TrailShare Pro attivo';
+          tileSubtitle =
+              'Mountain Finder AR, Photo Mode Pro e tutte le novità';
+        } else {
+          tileTitle = 'Passa a TrailShare Pro';
+          tileSubtitle = 'Sblocca AR, photo annotate e funzioni avanzate';
+        }
+
+        return Column(
+          children: [
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6D4C41), Color(0xFFE07B4C)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.workspace_premium,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              title: Text(
+                tileTitle,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                tileSubtitle,
+                style: const TextStyle(fontSize: 13),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showPaywallSheet(
+                context,
+                trigger: PaywallTrigger.settingsManual,
+              ),
+            ),
+            // Toggle dev: visibile SOLO in build debug (kDebugMode) +
+            // su piattaforme con monetizzazione attiva (iOS) + se
+            // l'utente è Pro. In release non deve mai apparire — un
+            // utente che ha pagato non deve vedere un bottone per
+            // bloccarsi Pro.
+            if (kDebugMode && canMonetize && isPro)
+              Padding(
+                padding: const EdgeInsets.only(left: 72, right: 16, bottom: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => ProGateService().setUnlocked(false),
+                    icon: const Icon(Icons.lock_outline, size: 16),
+                    label: const Text('Dev: blocca Pro per test paywall'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textMuted,
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -575,7 +1013,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return ListTile(
       leading: Icon(icon),
-      title: Text(context.l10n.themeLabel, style: const TextStyle(fontWeight: FontWeight.w500)),
+      title: Text(context.l10n.themeLabel, style: TextStyle(fontWeight: FontWeight.w500)),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 13)),
       trailing: const Icon(Icons.chevron_right),
       onTap: _showThemeDialog,
@@ -701,26 +1139,23 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _openHelpCenter(BuildContext context) async {
-    final uri = Uri.parse('https://trailshare.app/help');
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.cannotOpenLink)),
-        );
-      }
-    }
-  }
-
   Future<void> _openEmail(BuildContext context) async {
-    final uri = Uri.parse('mailto:support@trailshare.app?subject=TrailShare%20Support');
+    // Su Android 11+ canLaunchUrl(mailto:) ritorna false anche con
+    // client mail installati, a meno che AndroidManifest non dichiari
+    // la query SENDTO (vedi android/app/src/main/AndroidManifest.xml).
+    // Per maggiore robustezza tentiamo launchUrl direttamente in
+    // externalApplication mode e gestiamo l'errore.
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'info@trailshare.app',
+      query: 'subject=TrailShare Support',
+    );
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.cannotOpenEmail)),
+        );
       }
     } catch (e) {
       if (context.mounted) {
@@ -731,42 +1166,232 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  /// Apre il prompt nativo "Valuta app". Su iOS usa
+  /// `SKStoreReviewController` (StoreKit), su Android la In-App Review API
+  /// di Google Play Services — entrambi mostrano la review sheet
+  /// IN-APP, l'utente non lascia TrailShare.
+  ///
+  /// Se il device non supporta il prompt nativo (es. Play Services
+  /// assenti, iOS < 10.3, oppure il prompt è stato già mostrato troppe
+  /// volte e Apple lo throttla), fallback su [openStoreListing] che
+  /// apre la pagina dello store nel browser/app store nativa.
   Future<void> _openAppStore(BuildContext context) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.l10n.appComingSoon)),
-    );
+    final InAppReview inAppReview = InAppReview.instance;
+    try {
+      if (await inAppReview.isAvailable()) {
+        await inAppReview.requestReview();
+        return;
+      }
+    } catch (e) {
+      debugPrint('[Settings] requestReview failed: $e');
+    }
+    // Fallback: apre la pagina store. appStoreId è l'ID numerico
+    // dell'app su App Store Connect (lo prendiamo da una const così
+    // resta facile da aggiornare quando l'app sarà pubblicata).
+    try {
+      await inAppReview.openStoreListing(
+        appStoreId: _kAppStoreId,
+        microsoftStoreId: null,
+      );
+    } catch (e) {
+      debugPrint('[Settings] openStoreListing failed: $e');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.appComingSoon)),
+      );
+    }
   }
 
   void _showChangelog(BuildContext context) {
+    // Changelog inline mantenibile: aggiungi qui le entry per ogni
+    // release. La versione corrente arriva in alto, in fondo le
+    // più vecchie. Aggiornato in coordinazione con pubspec.yaml
+    // version e ROADMAP.md.
+    const releases = <_ReleaseEntry>[
+      _ReleaseEntry(
+        version: '2.4.0',
+        title: 'Epic 3 + 4 chiuse, Community VIP, dark map, training HR',
+        bullets: [
+          'Auto-hide HUD configurabile durante registrazione',
+          'Pianificatore: snap automatico 5km + waypoint problematico evidenziato',
+          'Mentions @username nei commenti + notifica FCM',
+          'Heatmap trail popolari (toggle Discover, geohash p4 weekly)',
+          'Sfide gruppo: auto-progress su track save + FCM al vincitore',
+          'Spazi Pro: Community VIP linkata (gruppo dedicato clienti)',
+          'Navigazione guidata: ETA dinamico real-time + orario arrivo',
+          'Discover: filtro per regione amministrativa (20 bbox)',
+          'Ricerca testuale full-text accent-insensitive estesa',
+          'Track detail: confronto con Personal Records (PR)',
+          'Mappa "Notte Pro" MapTiler streets-v2-dark nativa',
+          'Discovery prompt "Scopri Pro" per utenti free attivi',
+          'Training HR personalizzato (4 settimane + suggerimento next session)',
+          'Benefit reminder mensile FCM per utenti Pro',
+          'Fix critico Firestore rules (Path.matches inesistente)',
+          'Fix cache Pro post-purchase + "Valuta app" prompt nativo',
+          '"Contattaci" ora funziona (mailto su Android 11+)',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.3.0',
+        title: 'POI OSM, Trail Conditions AI, AR Photo v2',
+        bullets: [
+          'AR Photo Mode v2: foto annotate con cime + rifugi + sorgenti',
+          '20.4k POI OSM bundlati (rifugi, bivacchi, fontane, panorami)',
+          'Trail Conditions AI: riassunto delle segnalazioni community (Pro)',
+          'Mappe inline e fullscreen mostrano marker POI con dettaglio',
+          'Pianificatore percorsi ridisegnato (sheet drag-to-collapse)',
+          'Fix overflow card admin / trail detail / dark theme chat',
+          '159 test unit aggiunti, 0 lint warning',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.2.0',
+        title: 'B2B Groups L1',
+        bullets: [
+          'Logo personalizzato e badge ✓ verificato per gruppi Business',
+          'Tracce condivise nei gruppi (tab Percorsi)',
+          'Pagina "Personalizza gruppo" per admin',
+          'Admin panel: marca gruppi come Business',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.1.x',
+        title: 'Mountain Recognition + Mappe Pro',
+        bullets: [
+          'Mountain Finder AR live (37k+ cime italiane)',
+          'Photo Mode Pro (foto annotate)',
+          'Mappe Pro: Topo, Hybrid Satellite, Inverno (MapTiler)',
+          'Paywall foundation con StoreKit 2 e validazione receipt',
+          'Cross-device Pro sync via Firestore',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '1.9.0',
+        title: 'Engagement',
+        bullets: [
+          'Sfide settimanali personalizzate',
+          'Classifiche regionali',
+          'Commenti sulle tracce community',
+          'Report mensile "Il mio mese"',
+          'Compass-up navigation in registrazione',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '1.8.x',
+        title: 'Completezza funzionale',
+        bullets: [
+          'POI / Highlights lungo il percorso',
+          'Notifica vocale geolocata ai POI',
+          'Multi-day tours',
+          'Sharing link pubblico web',
+          'Esportazione TCX / FIT / KML',
+          'Dark mode app-wide',
+          'Onboarding interattivo',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '1.7.0',
+        title: 'Sicurezza',
+        bullets: [
+          'Lifeline: contatti emergenza + invio link live',
+          'Pulsante SOS integrato con 112',
+          'Auto-alert inattività',
+          'Re-routing automatico',
+          'Modalità battery saver',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '1.0.0',
+        title: 'Prima release',
+        bullets: [
+          'Registrazione tracce GPS',
+          'Tracking in background',
+          'LiveTrack - condividi posizione',
+          'Sistema social (follow, cheers)',
+          'Classifica settimanale',
+          'Wishlist percorsi',
+          'Dashboard statistiche',
+          'Import/Export GPX',
+        ],
+      ),
+    ];
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.changelogTitle),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(context.l10n.changelogFirstRelease, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Text('• ${context.l10n.changelogGpsTracking}'),
-              Text('• ${context.l10n.changelogBackground}'),
-              Text('• ${context.l10n.changelogLiveTrack}'),
-              Text('• ${context.l10n.changelogSocial}'),
-              Text('• ${context.l10n.changelogLeaderboard}'),
-              Text('• ${context.l10n.changelogWishlist}'),
-              Text('• ${context.l10n.changelogDashboard}'),
-              Text('• ${context.l10n.changelogGpx}'),
-            ],
+      builder: (ctx) => AlertDialog(
+        title: Text(context.l10n.settingsNews),
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int i = 0; i < releases.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 18),
+                  _buildReleaseEntry(ctx, releases[i], isCurrent: i == 0),
+                ],
+              ],
+            ),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('OK'),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildReleaseEntry(
+    BuildContext context,
+    _ReleaseEntry entry, {
+    required bool isCurrent,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: isCurrent
+                    ? AppColors.primary
+                    : AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'v${entry.version}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: isCurrent ? Colors.white : AppColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                entry.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        for (final b in entry.bullets)
+          Padding(
+            padding: const EdgeInsets.only(left: 4, top: 2),
+            child: Text('• $b', style: const TextStyle(fontSize: 13)),
+          ),
+      ],
     );
   }
 
@@ -783,4 +1408,17 @@ class _SettingsPageState extends State<SettingsPage> {
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
+}
+
+/// Entry del changelog interno mostrato dal settings dialog "Novità".
+/// Aggiungi nuove versioni in cima alla lista in [_showChangelog].
+class _ReleaseEntry {
+  final String version;
+  final String title;
+  final List<String> bullets;
+  const _ReleaseEntry({
+    required this.version,
+    required this.title,
+    required this.bullets,
+  });
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/extensions/l10n_extension.dart';
 
 /// Pagina FAQ
@@ -21,7 +21,7 @@ class FaqPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -103,8 +103,33 @@ class FaqPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: Aprire email
+                  onPressed: () async {
+                    final uri = Uri(
+                      scheme: 'mailto',
+                      path: 'info@trailshare.app',
+                      query: 'subject=TrailShare Support — FAQ',
+                    );
+                    try {
+                      final ok = await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                      if (!ok && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(context.l10n.cannotOpenEmail),
+                          ),
+                        );
+                      }
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(context.l10n.cannotOpenEmail),
+                          ),
+                        );
+                      }
+                    }
                   },
                   icon: const Icon(Icons.email_outlined),
                   label: Text(context.l10n.faqContactSupport),

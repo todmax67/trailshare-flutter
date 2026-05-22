@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/track_photos_service.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Widget per visualizzare e gestire foto durante/dopo registrazione
 class PhotoGalleryWidget extends StatelessWidget {
@@ -123,7 +123,7 @@ class _PhotoThumbnail extends StatelessWidget {
               child: Image.file(
                 File(photo.localPath),
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Center(
+                errorBuilder: (_, _, _) => Center(
                   child: Icon(Icons.broken_image, color: Colors.grey[400]),
                 ),
               ),
@@ -138,7 +138,7 @@ class _PhotoThumbnail extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
+                  color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
@@ -246,7 +246,7 @@ class _PhotoDetailPageState extends State<_PhotoDetailPage> {
               child: Image.file(
                 File(p.localPath),
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Center(
+                errorBuilder: (_, _, _) => const Center(
                   child: Icon(Icons.broken_image, size: 64, color: Colors.white54),
                 ),
               ),
@@ -385,11 +385,11 @@ class AddPhotoButton extends StatelessWidget {
                   onAddPoi!();
                 },
               ),
-              const Divider(height: 1),
+              Divider(height: 1),
             ],
             ListTile(
               leading: Icon(Icons.cancel, color: context.textMuted),
-              title: const Text('Annulla'),
+              title: Text(context.l10n.cancel),
               onTap: () => Navigator.pop(context),
             ),
           ],

@@ -1,0 +1,109 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─── BUSINESS / SPAZIO PRO ────────────────────────────────────────
+    // Read pubblico (foto profilo, hero, gallery, post, services).
+    // Write da utente autenticato. Owner check vero richiederebbe Firestore
+    // get cross-service che nel nostro progetto dà 403 (vedi memoria
+    // feedback_storage_rules); ci affidiamo a UI gating + audit.
+    // Limiti: max 5MB, solo immagini.
+    match /businesses/{businessId}/{kind}/{filename} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
+    // ─── TOUR (foto cover + gallery di un tour pluri-giorno) ─────────
+    // Epic 11 — Read pubblico (i tour pubblici hanno gallery visibile
+    // dalla community detail). Write da utente autenticato (owner
+    // check via UI gating: il bottone "Aggiungi foto" è disponibile
+    // solo all'owner nella TourEditPage).
+    match /tours/{tourId}/{kind}/{filename} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
+    // ─── TRACCE (foto su tracce esistenti) ────────────────────────────
+    // Pattern esistente preservato. Adatta se le tue rules prod sono diverse.
+    match /tracks/{userId}/{trackId}/{filename} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ─── User avatars (se usati) ──────────────────────────────────────
+    match /users/{userId}/{filename} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ─── FOTO SENTIERI PUBBLICI ────────────────────────────────────────
+    // Path: /trail_photos/{trailId}/{photoId}.jpg
+    // Foto associate a sentieri community (public_trails). Read
+    // pubblico (le foto appaiono nella detail page del sentiero
+    // visibile a tutti). Write da auth user, limiti 10MB + image/*.
+    // Gating ownership lato UI (TrailPhotosRepository check + admin).
+    match /trail_photos/{trailId}/{filename=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
+    // ─── CHAT GRUPPI: immagini allegate ai messaggi ────────────────────
+    // Path: /group_images/{groupId}/{filename}.jpg
+    // Pattern storico separato da /groups/ (path coniato prima del
+    // refactor brand assets). Read pubblico (i membri vedono le foto
+    // nella chat), write da auth user, limiti 10MB + content-type image.
+    // Gating membership effettivo lato UI/Firestore rules sui messaggi.
+    match /group_images/{groupId}/{filename=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
+    // ─── GRUPPI (Business + consumer): logo / cover / brand assets ────
+    // Path tipici: /groups/{groupId}/logo.jpg, /groups/{groupId}/cover.jpg
+    // e qualunque altro asset di personalizzazione brand.
+    //
+    // Read pubblico: cover/logo possono apparire in card invito
+    // condivise fuori dall'app, anchor SEO, OG image della landing
+    // /b/{slug} pubblica, ecc.
+    //
+    // Write: qualsiasi utente autenticato (gating admin lato UI —
+    // cross-Firestore call dalle Storage rules dà 403 nel nostro
+    // progetto, vedi memoria feedback_storage_rules). Limiti: 5MB,
+    // solo immagini.
+    //
+    // Pattern wildcard finale {filename=**} per gestire anche
+    // sotto-cartelle (es. /groups/{gid}/posts/{postId}.jpg).
+    match /groups/{groupId}/{filename=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+
+    // Default deny per path non riconosciuti
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -84,7 +84,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
                   height: 80,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [AppColors.primary, AppColors.primary.withOpacity(0.6)],
+                      colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.6)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -224,7 +224,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
             color: isSelected ? color : Colors.grey[300]!,
             width: isSelected ? 2 : 1,
           ),
-          color: isSelected ? color.withOpacity(0.05) : null,
+          color: isSelected ? color.withValues(alpha: 0.05) : null,
         ),
         child: Row(
           children: [

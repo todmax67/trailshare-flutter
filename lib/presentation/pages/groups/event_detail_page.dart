@@ -297,7 +297,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
               Image.network(
                 event.coverImageUrl!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildDefaultCover(event),
+                errorBuilder: (_, _, _) => _buildDefaultCover(event),
               )
             else
               _buildDefaultCover(event),
@@ -332,8 +332,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
           end: Alignment.bottomRight,
           colors: [
             AppColors.primary,
-            AppColors.primary.withOpacity(0.7),
-            AppColors.success.withOpacity(0.5),
+            AppColors.primary.withValues(alpha: 0.7),
+            AppColors.success.withValues(alpha: 0.5),
           ],
         ),
       ),
@@ -375,7 +375,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: event.isPast ? Colors.grey[100] : AppColors.primary.withOpacity(0.1),
+                  color: event.isPast ? Colors.grey[100] : AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -469,9 +469,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
+                color: Colors.amber.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -496,7 +496,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -715,7 +715,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 4, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -726,7 +726,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
             children: [
               CircleAvatar(
                 radius: 16,
-                backgroundColor: AppColors.primary.withOpacity(0.1),
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                 child: Text(
                   authorName.isNotEmpty ? authorName[0].toUpperCase() : '?',
                   style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14),
@@ -781,7 +781,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                       child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                     );
                   },
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     height: 100,
                     color: Colors.grey[100],
                     child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),

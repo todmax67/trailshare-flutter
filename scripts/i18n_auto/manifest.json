@@ -1,0 +1,1739 @@
+{
+  "lib/presentation/pages/settings/emergency_contacts_page.dart": [
+    {
+      "file": "lib/presentation/pages/settings/emergency_contacts_page.dart",
+      "line": 359,
+      "wrapper": "Text",
+      "original": "${c.name} non riceverà più notifiche Lifeline.",
+      "has_interp": true,
+      "suggested_key": "cNameNonRiceverà",
+      "context_line": "content: Text('${c.name} non riceverà più notifiche Lifeline.'),"
+    }
+  ],
+  "lib/presentation/pages/settings/settings_page.dart": [
+    {
+      "file": "lib/presentation/pages/settings/settings_page.dart",
+      "line": 486,
+      "wrapper": "subtitle",
+      "original": "Aggiungi un nuovo profilo business (rifugio, noleggio, ecc.)",
+      "has_interp": false,
+      "suggested_key": "aggiungiUnNuovoProfilo",
+      "context_line": "subtitle: 'Aggiungi un nuovo profilo business (rifugio, noleggio, ecc.)',"
+    },
+    {
+      "file": "lib/presentation/pages/settings/settings_page.dart",
+      "line": 497,
+      "wrapper": "subtitle",
+      "original": "Inserisci ID business per testare il profilo",
+      "has_interp": false,
+      "suggested_key": "inserisciIdBusinessPer",
+      "context_line": "subtitle: 'Inserisci ID business per testare il profilo',"
+    },
+    {
+      "file": "lib/presentation/pages/settings/settings_page.dart",
+      "line": 630,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    }
+  ],
+  "lib/presentation/pages/discover/community_track_detail_page.dart": [
+    {
+      "file": "lib/presentation/pages/discover/community_track_detail_page.dart",
+      "line": 590,
+      "wrapper": "label",
+      "original": "Segui e registra",
+      "has_interp": false,
+      "suggested_key": "seguiERegistra",
+      "context_line": "label: const Text('Segui e registra'),"
+    },
+    {
+      "file": "lib/presentation/pages/discover/community_track_detail_page.dart",
+      "line": 815,
+      "wrapper": "Text",
+      "original": "Traccia troppo corta per essere seguita",
+      "has_interp": false,
+      "suggested_key": "tracciaTroppoCortaPer",
+      "context_line": "const SnackBar(content: Text('Traccia troppo corta per essere seguita')),"
+    }
+  ],
+  "lib/presentation/pages/discover/discover_page.dart": [
+    {
+      "file": "lib/presentation/pages/discover/discover_page.dart",
+      "line": 100,
+      "wrapper": "Text",
+      "original": "Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.",
+      "has_interp": false,
+      "suggested_key": "servizioGpsDisattivatoAttivalo",
+      "context_line": "content: Text('Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.'),"
+    },
+    {
+      "file": "lib/presentation/pages/discover/discover_page.dart",
+      "line": 116,
+      "wrapper": "Text",
+      "original": "Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.",
+      "has_interp": false,
+      "suggested_key": "permessiDiLocalizzazioneNon",
+      "context_line": "content: Text('Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.'),"
+    },
+    {
+      "file": "lib/presentation/pages/discover/discover_page.dart",
+      "line": 154,
+      "wrapper": "Text",
+      "original": "Impossibile ottenere la posizione (timeout GPS). Riprova all\\'aperto.",
+      "has_interp": false,
+      "suggested_key": "impossibileOttenereLaPosizione",
+      "context_line": "content: Text('Impossibile ottenere la posizione (timeout GPS). Riprova all\\'aperto.'),"
+    }
+  ],
+  "lib/presentation/pages/discover/widgets/discover_filter_sheet.dart": [
+    {
+      "file": "lib/presentation/pages/discover/widgets/discover_filter_sheet.dart",
+      "line": 196,
+      "wrapper": "title",
+      "original": "Solo sentieri circolari",
+      "has_interp": false,
+      "suggested_key": "soloSentieriCircolari",
+      "context_line": "title: const Text('Solo sentieri circolari'),"
+    }
+  ],
+  "lib/presentation/pages/record/record_page.dart": [
+    {
+      "file": "lib/presentation/pages/record/record_page.dart",
+      "line": 1722,
+      "wrapper": "title",
+      "original": "Uscire dalla registrazione?",
+      "has_interp": false,
+      "suggested_key": "uscireDallaRegistrazione",
+      "context_line": "title: const Text('Uscire dalla registrazione?'),"
+    },
+    {
+      "file": "lib/presentation/pages/record/record_page.dart",
+      "line": 3075,
+      "wrapper": "Text",
+      "original": "Check superato, registrazione continua",
+      "has_interp": false,
+      "suggested_key": "checkSuperatoRegistrazioneContinua",
+      "context_line": "content: Text('Check superato, registrazione continua'),"
+    },
+    {
+      "file": "lib/presentation/pages/record/record_page.dart",
+      "line": 3146,
+      "wrapper": "Text",
+      "original": "Invia conferma",
+      "has_interp": false,
+      "suggested_key": "inviaConferma",
+      "context_line": "child: const Text('Invia conferma'),"
+    }
+  ],
+  "lib/presentation/pages/business/recommended_track_navigator.dart": [
+    {
+      "file": "lib/presentation/pages/business/recommended_track_navigator.dart",
+      "line": 33,
+      "wrapper": "Text",
+      "original": "Traccia non trovata",
+      "has_interp": false,
+      "suggested_key": "tracciaNonTrovata",
+      "context_line": "const SnackBar(content: Text('Traccia non trovata')),"
+    },
+    {
+      "file": "lib/presentation/pages/business/recommended_track_navigator.dart",
+      "line": 48,
+      "wrapper": "Text",
+      "original": "Traccia non più disponibile",
+      "has_interp": false,
+      "suggested_key": "tracciaNonPiùDisponibile",
+      "context_line": "const SnackBar(content: Text('Traccia non più disponibile')),"
+    },
+    {
+      "file": "lib/presentation/pages/business/recommended_track_navigator.dart",
+      "line": 63,
+      "wrapper": "Text",
+      "original": "Errore apertura traccia: $e",
+      "has_interp": true,
+      "suggested_key": "erroreAperturaTracciaE",
+      "context_line": "SnackBar(content: Text('Errore apertura traccia: $e')),"
+    }
+  ],
+  "lib/presentation/pages/business/business_community_sheet.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_community_sheet.dart",
+      "line": 139,
+      "wrapper": "title",
+      "original": "Scollegare la community?",
+      "has_interp": false,
+      "suggested_key": "scollegareLaCommunity",
+      "context_line": "title: const Text('Scollegare la community?'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_community_sheet.dart",
+      "line": 147,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    }
+  ],
+  "lib/presentation/pages/business/business_profile_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_profile_page.dart",
+      "line": 78,
+      "wrapper": "Text",
+      "original": "Spazio Pro non trovato",
+      "has_interp": false,
+      "suggested_key": "spazioProNonTrovato",
+      "context_line": "body: const Center(child: Text('Spazio Pro non trovato')),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_profile_page.dart",
+      "line": 307,
+      "wrapper": "Text",
+      "original": "Nessun contatto disponibile",
+      "has_interp": false,
+      "suggested_key": "nessunContattoDisponibile",
+      "context_line": "const SnackBar(content: Text('Nessun contatto disponibile')));"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_profile_page.dart",
+      "line": 345,
+      "wrapper": "Text",
+      "original": "Dove siamo",
+      "has_interp": false,
+      "suggested_key": "doveSiamo",
+      "context_line": "const Text('Dove siamo',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_profile_page.dart",
+      "line": 500,
+      "wrapper": "label",
+      "original": "Profilo",
+      "has_interp": false,
+      "suggested_key": "profilo",
+      "context_line": "label: const Text('Profilo'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_profile_page.dart",
+      "line": 643,
+      "wrapper": "content",
+      "original": "La foto verrà eliminata dalla galleria.",
+      "has_interp": false,
+      "suggested_key": "laFotoVerràEliminata",
+      "context_line": "content: const Text('La foto verrà eliminata dalla galleria.'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_profile_page.dart",
+      "line": 647,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    }
+  ],
+  "lib/presentation/pages/business/business_analytics_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_analytics_page.dart",
+      "line": 90,
+      "wrapper": "label",
+      "original": "Visite profilo",
+      "has_interp": false,
+      "suggested_key": "visiteProfilo",
+      "context_line": "label: 'Visite profilo',"
+    }
+  ],
+  "lib/presentation/pages/business/business_qr_card_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_qr_card_page.dart",
+      "line": 83,
+      "wrapper": "Text",
+      "original": "Errore nella condivisione: $e",
+      "has_interp": true,
+      "suggested_key": "erroreNellaCondivisioneE",
+      "context_line": "SnackBar(content: Text('Errore nella condivisione: $e')),"
+    }
+  ],
+  "lib/presentation/pages/business/business_discovery_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_discovery_page.dart",
+      "line": 178,
+      "wrapper": "label",
+      "original": "Apri profilo",
+      "has_interp": false,
+      "suggested_key": "apriProfilo",
+      "context_line": "label: const Text('Apri profilo'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_discovery_page.dart",
+      "line": 273,
+      "wrapper": "Text",
+      "original": "Errore: $_error",
+      "has_interp": true,
+      "suggested_key": "errore_error",
+      "context_line": "Text('Errore: $_error'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_discovery_page.dart",
+      "line": 275,
+      "wrapper": "Text",
+      "original": "Riprova",
+      "has_interp": false,
+      "suggested_key": "riprova",
+      "context_line": "ElevatedButton(onPressed: _load, child: const Text('Riprova')),"
+    }
+  ],
+  "lib/presentation/pages/business/business_post_composer_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_post_composer_page.dart",
+      "line": 68,
+      "wrapper": "Text",
+      "original": "Errore: $e",
+      "has_interp": true,
+      "suggested_key": "erroreE",
+      "context_line": "SnackBar(content: Text('Errore: $e')),"
+    }
+  ],
+  "lib/presentation/pages/business/business_reviews_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_reviews_page.dart",
+      "line": 193,
+      "wrapper": "Text",
+      "original": "Nessuna recensione ancora",
+      "has_interp": false,
+      "suggested_key": "nessunaRecensioneAncora",
+      "context_line": "const Text('Nessuna recensione ancora',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_reviews_page.dart",
+      "line": 259,
+      "wrapper": "Text",
+      "original": "Grazie per la tua recensione!",
+      "has_interp": false,
+      "suggested_key": "graziePerLaTua",
+      "context_line": "const SnackBar(content: Text('Grazie per la tua recensione!')),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_reviews_page.dart",
+      "line": 264,
+      "wrapper": "Text",
+      "original": "Errore: $e",
+      "has_interp": true,
+      "suggested_key": "erroreE",
+      "context_line": "SnackBar(content: Text('Errore: $e')),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_reviews_page.dart",
+      "line": 273,
+      "wrapper": "title",
+      "original": "Elimina la tua recensione?",
+      "has_interp": false,
+      "suggested_key": "eliminaLaTuaRecensione",
+      "context_line": "title: const Text('Elimina la tua recensione?'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_reviews_page.dart",
+      "line": 279,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_reviews_page.dart",
+      "line": 285,
+      "wrapper": "Text",
+      "original": "Elimina",
+      "has_interp": false,
+      "suggested_key": "elimina",
+      "context_line": "child: const Text('Elimina'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_reviews_page.dart",
+      "line": 534,
+      "wrapper": "Text",
+      "original": "Tocca le stelle per dare una valutazione",
+      "has_interp": false,
+      "suggested_key": "toccaLeStellePer",
+      "context_line": "content: Text('Tocca le stelle per dare una valutazione'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_reviews_page.dart",
+      "line": 579,
+      "wrapper": "hintText",
+      "original": "Cosa ti è piaciuto? Cosa miglioreresti? (opzionale)",
+      "has_interp": false,
+      "suggested_key": "cosaTiÈPiaciuto",
+      "context_line": "hintText: 'Cosa ti è piaciuto? Cosa miglioreresti? (opzionale)',"
+    }
+  ],
+  "lib/presentation/pages/business/business_location_picker_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_location_picker_page.dart",
+      "line": 105,
+      "wrapper": "Text",
+      "original": "Impossibile leggere la posizione: $e",
+      "has_interp": true,
+      "suggested_key": "impossibileLeggereLaPosizione",
+      "context_line": "SnackBar(content: Text('Impossibile leggere la posizione: $e')),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_location_picker_page.dart",
+      "line": 128,
+      "wrapper": "tooltip",
+      "original": "La mia posizione",
+      "has_interp": false,
+      "suggested_key": "laMiaPosizione",
+      "context_line": "tooltip: 'La mia posizione',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_location_picker_page.dart",
+      "line": 211,
+      "wrapper": "label",
+      "original": "Conferma posizione",
+      "has_interp": false,
+      "suggested_key": "confermaPosizione",
+      "context_line": "label: const Text('Conferma posizione'),"
+    }
+  ],
+  "lib/presentation/pages/business/business_recommended_tracks_picker_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_recommended_tracks_picker_page.dart",
+      "line": 83,
+      "wrapper": "Text",
+      "original": "Errore caricamento: $e",
+      "has_interp": true,
+      "suggested_key": "erroreCaricamentoE",
+      "context_line": "SnackBar(content: Text('Errore caricamento: $e')),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_recommended_tracks_picker_page.dart",
+      "line": 176,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_recommended_tracks_picker_page.dart",
+      "line": 233,
+      "wrapper": "hintText",
+      "original": "Cerca per nome",
+      "has_interp": false,
+      "suggested_key": "cercaPerNome",
+      "context_line": "hintText: 'Cerca per nome',"
+    }
+  ],
+  "lib/presentation/pages/business/business_create_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_create_page.dart",
+      "line": 137,
+      "wrapper": "Text",
+      "original": "Errore: $e",
+      "has_interp": true,
+      "suggested_key": "erroreE",
+      "context_line": "content: Text('Errore: $e'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_create_page.dart",
+      "line": 177,
+      "wrapper": "labelText",
+      "original": "Nome attività",
+      "has_interp": false,
+      "suggested_key": "nomeAttività",
+      "context_line": "labelText: 'Nome attività',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_create_page.dart",
+      "line": 230,
+      "wrapper": "tooltip",
+      "original": "Usa il mio UID",
+      "has_interp": false,
+      "suggested_key": "usaIlMioUid",
+      "context_line": "tooltip: 'Usa il mio UID',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_create_page.dart",
+      "line": 243,
+      "wrapper": "labelText",
+      "original": "Email owner (solo riferimento, non salvata)",
+      "has_interp": false,
+      "suggested_key": "emailOwnerSoloRiferimento",
+      "context_line": "labelText: 'Email owner (solo riferimento, non salvata)',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_create_page.dart",
+      "line": 294,
+      "wrapper": "labelText",
+      "original": "Città",
+      "has_interp": false,
+      "suggested_key": "città",
+      "context_line": "labelText: 'Città',"
+    }
+  ],
+  "lib/presentation/pages/business/business_services_manager_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_services_manager_page.dart",
+      "line": 288,
+      "wrapper": "labelText",
+      "original": "Unità",
+      "has_interp": false,
+      "suggested_key": "unità",
+      "context_line": "labelText: 'Unità',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_services_manager_page.dart",
+      "line": 323,
+      "wrapper": "label",
+      "original": "Elimina",
+      "has_interp": false,
+      "suggested_key": "elimina",
+      "context_line": "label: const Text('Elimina',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_services_manager_page.dart",
+      "line": 329,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_services_manager_page.dart",
+      "line": 334,
+      "wrapper": "Text",
+      "original": "Salva",
+      "has_interp": false,
+      "suggested_key": "salva",
+      "context_line": "child: const Text('Salva'),"
+    }
+  ],
+  "lib/presentation/pages/business/business_recommended_tracks_manager_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_recommended_tracks_manager_page.dart",
+      "line": 176,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_recommended_tracks_manager_page.dart",
+      "line": 180,
+      "wrapper": "Text",
+      "original": "Salva",
+      "has_interp": false,
+      "suggested_key": "salva",
+      "context_line": "child: const Text('Salva'),"
+    }
+  ],
+  "lib/presentation/pages/business/business_edit_page.dart": [
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 152,
+      "wrapper": "Text",
+      "original": "Profilo aggiornato",
+      "has_interp": false,
+      "suggested_key": "profiloAggiornato",
+      "context_line": "const SnackBar(content: Text('Profilo aggiornato')),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 158,
+      "wrapper": "Text",
+      "original": "Errore: $e",
+      "has_interp": true,
+      "suggested_key": "erroreE",
+      "context_line": "SnackBar(content: Text('Errore: $e')),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 173,
+      "wrapper": "title",
+      "original": "Modifica profilo",
+      "has_interp": false,
+      "suggested_key": "modificaProfilo",
+      "context_line": "title: const Text('Modifica profilo'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 181,
+      "wrapper": "Text",
+      "original": "Salva",
+      "has_interp": false,
+      "suggested_key": "salva",
+      "context_line": ": const Text('Salva'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 226,
+      "wrapper": "labelText",
+      "original": "Descrizione breve (per le card)",
+      "has_interp": false,
+      "suggested_key": "descrizioneBrevePerLe",
+      "context_line": "labelText: 'Descrizione breve (per le card)',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 293,
+      "wrapper": "labelText",
+      "original": "Via / Località",
+      "has_interp": false,
+      "suggested_key": "viaLocalità",
+      "context_line": "labelText: 'Via / Località',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 301,
+      "wrapper": "labelText",
+      "original": "Città",
+      "has_interp": false,
+      "suggested_key": "città",
+      "context_line": "labelText: 'Città',"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 418,
+      "wrapper": "Text",
+      "original": "Posizione aggiornata. Salva per applicare.",
+      "has_interp": false,
+      "suggested_key": "posizioneAggiornataSalvaPer",
+      "context_line": "content: Text('Posizione aggiornata. Salva per applicare.'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 691,
+      "wrapper": "title",
+      "original": "Non impostato",
+      "has_interp": false,
+      "suggested_key": "nonImpostato",
+      "context_line": "title: const Text('Non impostato'),"
+    },
+    {
+      "file": "lib/presentation/pages/business/business_edit_page.dart",
+      "line": 700,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    }
+  ],
+  "lib/presentation/pages/admin/database_stats_page.dart": [
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 228,
+      "wrapper": "Text",
+      "original": "Caricamento statistiche...",
+      "has_interp": false,
+      "suggested_key": "caricamentoStatistiche",
+      "context_line": "Text('Caricamento statistiche...'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 239,
+      "wrapper": "Text",
+      "original": "Errore: $_error",
+      "has_interp": true,
+      "suggested_key": "errore_error",
+      "context_line": "Text('Errore: $_error'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 241,
+      "wrapper": "Text",
+      "original": "Riprova",
+      "has_interp": false,
+      "suggested_key": "riprova",
+      "context_line": "ElevatedButton(onPressed: _loadAllStats, child: const Text('Riprova')),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 272,
+      "wrapper": "label",
+      "original": "Sentieri Pubblici",
+      "has_interp": false,
+      "suggested_key": "sentieriPubblici",
+      "context_line": "label: 'Sentieri Pubblici',"
+    },
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 278,
+      "wrapper": "label",
+      "original": "Utenti Registrati",
+      "has_interp": false,
+      "suggested_key": "utentiRegistrati",
+      "context_line": "label: 'Utenti Registrati',"
+    },
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 284,
+      "wrapper": "label",
+      "original": "Tracce Registrate",
+      "has_interp": false,
+      "suggested_key": "tracceRegistrate",
+      "context_line": "label: 'Tracce Registrate',"
+    },
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 323,
+      "wrapper": "label",
+      "original": "Cheers/Traccia",
+      "has_interp": false,
+      "suggested_key": "cheersTraccia",
+      "context_line": "label: 'Cheers/Traccia',"
+    },
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 383,
+      "wrapper": "label",
+      "original": "Elevazione Sentieri",
+      "has_interp": false,
+      "suggested_key": "elevazioneSentieri",
+      "context_line": "label: 'Elevazione Sentieri',"
+    },
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 399,
+      "wrapper": "Text",
+      "original": "Nessuna traccia pubblicata",
+      "has_interp": false,
+      "suggested_key": "nessunaTracciaPubblicata",
+      "context_line": "child: Text('Nessuna traccia pubblicata'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/database_stats_page.dart",
+      "line": 450,
+      "wrapper": "Text",
+      "original": "Nessun utente registrato",
+      "has_interp": false,
+      "suggested_key": "nessunUtenteRegistrato",
+      "context_line": "child: Text('Nessun utente registrato'),"
+    }
+  ],
+  "lib/presentation/pages/admin/trail_import_page.dart": [
+    {
+      "file": "lib/presentation/pages/admin/trail_import_page.dart",
+      "line": 300,
+      "wrapper": "title",
+      "original": "Import Sentieri",
+      "has_interp": false,
+      "suggested_key": "importSentieri",
+      "context_line": "appBar: AppBar(title: const Text('Import Sentieri')),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/trail_import_page.dart",
+      "line": 403,
+      "wrapper": "label",
+      "original": "Importa singolo",
+      "has_interp": false,
+      "suggested_key": "importaSingolo",
+      "context_line": "label: const Text('Importa singolo'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/trail_import_page.dart",
+      "line": 451,
+      "wrapper": "hintText",
+      "original": "Seleziona regione",
+      "has_interp": false,
+      "suggested_key": "selezionaRegione",
+      "context_line": "hintText: 'Seleziona regione',"
+    },
+    {
+      "file": "lib/presentation/pages/admin/trail_import_page.dart",
+      "line": 479,
+      "wrapper": "title",
+      "original": "Aggiorna trail già importati",
+      "has_interp": false,
+      "suggested_key": "aggiornaTrailGiàImportati",
+      "context_line": "title: const Text('Aggiorna trail già importati',"
+    },
+    {
+      "file": "lib/presentation/pages/admin/trail_import_page.dart",
+      "line": 624,
+      "wrapper": "label",
+      "original": "Importati",
+      "has_interp": false,
+      "suggested_key": "importati",
+      "context_line": "label: 'Importati',"
+    }
+  ],
+  "lib/presentation/pages/admin/admin_panel_page.dart": [
+    {
+      "file": "lib/presentation/pages/admin/admin_panel_page.dart",
+      "line": 258,
+      "wrapper": "hintText",
+      "original": "Cerca per username, email o UID...",
+      "has_interp": false,
+      "suggested_key": "cercaPerUsernameEmail",
+      "context_line": "hintText: 'Cerca per username, email o UID...',"
+    },
+    {
+      "file": "lib/presentation/pages/admin/admin_panel_page.dart",
+      "line": 427,
+      "wrapper": "label",
+      "original": "Cerca e gestisci gruppo",
+      "has_interp": false,
+      "suggested_key": "cercaEGestisciGruppo",
+      "context_line": "label: const Text('Cerca e gestisci gruppo'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/admin_panel_page.dart",
+      "line": 510,
+      "wrapper": "Text",
+      "original": "Gruppo non più Business",
+      "has_interp": false,
+      "suggested_key": "gruppoNonPiùBusiness",
+      "context_line": "content: Text('Gruppo non più Business'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/admin_panel_page.dart",
+      "line": 527,
+      "wrapper": "Text",
+      "original": "Chiudi",
+      "has_interp": false,
+      "suggested_key": "chiudi",
+      "context_line": "child: const Text('Chiudi'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/admin_panel_page.dart",
+      "line": 531,
+      "wrapper": "label",
+      "original": "Cerca",
+      "has_interp": false,
+      "suggested_key": "cerca",
+      "context_line": "label: const Text('Cerca'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/admin_panel_page.dart",
+      "line": 545,
+      "wrapper": "Text",
+      "original": "Nessun gruppo con questo ID",
+      "has_interp": false,
+      "suggested_key": "nessunGruppoConQuesto",
+      "context_line": "const SnackBar(content: Text('Nessun gruppo con questo ID')),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/admin_panel_page.dart",
+      "line": 794,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    }
+  ],
+  "lib/presentation/pages/admin/recalculate_stats_page.dart": [
+    {
+      "file": "lib/presentation/pages/admin/recalculate_stats_page.dart",
+      "line": 109,
+      "wrapper": "label",
+      "original": "Le mie tracce",
+      "has_interp": false,
+      "suggested_key": "leMieTracce",
+      "context_line": "label: const Text('Le mie tracce'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/recalculate_stats_page.dart",
+      "line": 123,
+      "wrapper": "label",
+      "original": "Tutti gli utenti",
+      "has_interp": false,
+      "suggested_key": "tuttiGliUtenti",
+      "context_line": "label: const Text('Tutti gli utenti'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/recalculate_stats_page.dart",
+      "line": 207,
+      "wrapper": "title",
+      "original": "Conferma ricalcolo",
+      "has_interp": false,
+      "suggested_key": "confermaRicalcolo",
+      "context_line": "title: const Text('Conferma ricalcolo'),"
+    },
+    {
+      "file": "lib/presentation/pages/admin/recalculate_stats_page.dart",
+      "line": 216,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla')),"
+    }
+  ],
+  "lib/presentation/pages/tracks/tracks_page.dart": [
+    {
+      "file": "lib/presentation/pages/tracks/tracks_page.dart",
+      "line": 333,
+      "wrapper": "hintText",
+      "original": "Cerca per nome, attività o tag…",
+      "has_interp": false,
+      "suggested_key": "cercaPerNomeAttività",
+      "context_line": "hintText: 'Cerca per nome, attività o tag…',"
+    }
+  ],
+  "lib/presentation/pages/tracks/planner_tab.dart": [
+    {
+      "file": "lib/presentation/pages/tracks/planner_tab.dart",
+      "line": 783,
+      "wrapper": "tooltip",
+      "original": "La mia posizione",
+      "has_interp": false,
+      "suggested_key": "laMiaPosizione",
+      "context_line": "tooltip: 'La mia posizione',"
+    }
+  ],
+  "lib/presentation/pages/groups/group_members_page.dart": [
+    {
+      "file": "lib/presentation/pages/groups/group_members_page.dart",
+      "line": 263,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/pages/groups/group_members_page.dart",
+      "line": 267,
+      "wrapper": "Text",
+      "original": "Conferma",
+      "has_interp": false,
+      "suggested_key": "conferma",
+      "context_line": "child: const Text('Conferma'),"
+    },
+    {
+      "file": "lib/presentation/pages/groups/group_members_page.dart",
+      "line": 278,
+      "wrapper": "Text",
+      "original": "${member.username} non è più admin",
+      "has_interp": true,
+      "suggested_key": "memberUsernameNonÈ",
+      "context_line": "SnackBar(content: Text('${member.username} non è più admin')),"
+    }
+  ],
+  "lib/presentation/pages/groups/business_invite_card_page.dart": [
+    {
+      "file": "lib/presentation/pages/groups/business_invite_card_page.dart",
+      "line": 69,
+      "wrapper": "Text",
+      "original": "Errore nella condivisione: $e",
+      "has_interp": true,
+      "suggested_key": "erroreNellaCondivisioneE",
+      "context_line": "SnackBar(content: Text('Errore nella condivisione: $e')),"
+    }
+  ],
+  "lib/presentation/pages/groups/group_customize_page.dart": [
+    {
+      "file": "lib/presentation/pages/groups/group_customize_page.dart",
+      "line": 64,
+      "wrapper": "Text",
+      "original": "Errore nel salvataggio del colore",
+      "has_interp": false,
+      "suggested_key": "erroreNelSalvataggioDel",
+      "context_line": "const SnackBar(content: Text('Errore nel salvataggio del colore')),"
+    },
+    {
+      "file": "lib/presentation/pages/groups/group_customize_page.dart",
+      "line": 94,
+      "wrapper": "Text",
+      "original": "Errore durante il caricamento",
+      "has_interp": false,
+      "suggested_key": "erroreDuranteIlCaricamento",
+      "context_line": "const SnackBar(content: Text('Errore durante il caricamento')),"
+    },
+    {
+      "file": "lib/presentation/pages/groups/group_customize_page.dart",
+      "line": 103,
+      "wrapper": "title",
+      "original": "Rimuovere il logo?",
+      "has_interp": false,
+      "suggested_key": "rimuovereIlLogo",
+      "context_line": "title: const Text('Rimuovere il logo?'),"
+    },
+    {
+      "file": "lib/presentation/pages/groups/group_customize_page.dart",
+      "line": 110,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/pages/groups/group_customize_page.dart",
+      "line": 164,
+      "wrapper": "title",
+      "original": "Rimuovere la copertina?",
+      "has_interp": false,
+      "suggested_key": "rimuovereLaCopertina",
+      "context_line": "title: const Text('Rimuovere la copertina?'),"
+    },
+    {
+      "file": "lib/presentation/pages/groups/group_customize_page.dart",
+      "line": 475,
+      "wrapper": "Text",
+      "original": "Errore export: $e",
+      "has_interp": true,
+      "suggested_key": "erroreExportE",
+      "context_line": "SnackBar(content: Text('Errore export: $e')),"
+    },
+    {
+      "file": "lib/presentation/pages/groups/group_customize_page.dart",
+      "line": 492,
+      "wrapper": "Text",
+      "original": "Esporta membri",
+      "has_interp": false,
+      "suggested_key": "esportaMembri",
+      "context_line": "Text('Esporta membri', style: theme.textTheme.titleMedium),"
+    },
+    {
+      "file": "lib/presentation/pages/groups/group_customize_page.dart",
+      "line": 633,
+      "wrapper": "Text",
+      "original": "Errore nel salvataggio",
+      "has_interp": false,
+      "suggested_key": "erroreNelSalvataggio",
+      "context_line": "const SnackBar(content: Text('Errore nel salvataggio')),"
+    }
+  ],
+  "lib/presentation/pages/groups/group_detail_page.dart": [
+    {
+      "file": "lib/presentation/pages/groups/group_detail_page.dart",
+      "line": 639,
+      "wrapper": "Text",
+      "original": "Errore: $e",
+      "has_interp": true,
+      "suggested_key": "erroreE",
+      "context_line": "SnackBar(content: Text('Errore: $e'), backgroundColor: AppColors.danger),"
+    }
+  ],
+  "lib/presentation/pages/poi/poi_location_picker_page.dart": [
+    {
+      "file": "lib/presentation/pages/poi/poi_location_picker_page.dart",
+      "line": 215,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/pages/poi/poi_location_picker_page.dart",
+      "line": 226,
+      "wrapper": "label",
+      "original": "Conferma posizione",
+      "has_interp": false,
+      "suggested_key": "confermaPosizione",
+      "context_line": "label: const Text('Conferma posizione'),"
+    }
+  ],
+  "lib/presentation/pages/map/track_map_page.dart": [
+    {
+      "file": "lib/presentation/pages/map/track_map_page.dart",
+      "line": 392,
+      "wrapper": "tooltip",
+      "original": "Centra traccia",
+      "has_interp": false,
+      "suggested_key": "centraTraccia",
+      "context_line": "tooltip: 'Centra traccia',"
+    }
+  ],
+  "lib/presentation/pages/track_detail/track_detail_page.dart": [
+    {
+      "file": "lib/presentation/pages/track_detail/track_detail_page.dart",
+      "line": 196,
+      "wrapper": "Text",
+      "original": "Unisci con un'altra traccia",
+      "has_interp": false,
+      "suggested_key": "unisciConUnAltra",
+      "context_line": "title: Text(\"Unisci con un'altra traccia\"),"
+    },
+    {
+      "file": "lib/presentation/pages/track_detail/track_detail_page.dart",
+      "line": 435,
+      "wrapper": "Text",
+      "original": "Upload non riuscito. Riprova più tardi.",
+      "has_interp": false,
+      "suggested_key": "uploadNonRiuscitoRiprova",
+      "context_line": "content: Text('Upload non riuscito. Riprova più tardi.'),"
+    },
+    {
+      "file": "lib/presentation/pages/track_detail/track_detail_page.dart",
+      "line": 1246,
+      "wrapper": "title",
+      "original": "Spezza traccia",
+      "has_interp": false,
+      "suggested_key": "spezzaTraccia",
+      "context_line": "title: const Text('Spezza traccia'),"
+    },
+    {
+      "file": "lib/presentation/pages/track_detail/track_detail_page.dart",
+      "line": 1395,
+      "wrapper": "title",
+      "original": "Unire le tracce?",
+      "has_interp": false,
+      "suggested_key": "unireLeTracce",
+      "context_line": "title: const Text('Unire le tracce?'),"
+    }
+  ],
+  "lib/presentation/pages/community/community_page.dart": [
+    {
+      "file": "lib/presentation/pages/community/community_page.dart",
+      "line": 1686,
+      "wrapper": "label",
+      "original": "Cerca utenti",
+      "has_interp": false,
+      "suggested_key": "cercaUtenti",
+      "context_line": "label: const Text('Cerca utenti'),"
+    },
+    {
+      "file": "lib/presentation/pages/community/community_page.dart",
+      "line": 1707,
+      "wrapper": "message",
+      "original": "Nessuna attività recente dai tuoi seguiti",
+      "has_interp": false,
+      "suggested_key": "nessunaAttivitàRecenteDai",
+      "context_line": "message: 'Nessuna attività recente dai tuoi seguiti',"
+    }
+  ],
+  "lib/presentation/pages/segments/segment_editor_page.dart": [
+    {
+      "file": "lib/presentation/pages/segments/segment_editor_page.dart",
+      "line": 190,
+      "wrapper": "Text",
+      "original": "Errore durante la creazione del segmento",
+      "has_interp": false,
+      "suggested_key": "erroreDuranteLaCreazione",
+      "context_line": "content: Text('Errore durante la creazione del segmento'),"
+    }
+  ],
+  "lib/presentation/pages/segments/segment_detail_page.dart": [
+    {
+      "file": "lib/presentation/pages/segments/segment_detail_page.dart",
+      "line": 67,
+      "wrapper": "title",
+      "original": "Eliminare segmento?",
+      "has_interp": false,
+      "suggested_key": "eliminareSegmento",
+      "context_line": "title: const Text('Eliminare segmento?'),"
+    },
+    {
+      "file": "lib/presentation/pages/segments/segment_detail_page.dart",
+      "line": 68,
+      "wrapper": "content",
+      "original": "Classifica e tentativi verranno persi. Questa azione non può essere annullata.",
+      "has_interp": false,
+      "suggested_key": "classificaETentativiVerranno",
+      "context_line": "content: const Text('Classifica e tentativi verranno persi. Questa azione non può essere annullata.'),"
+    },
+    {
+      "file": "lib/presentation/pages/segments/segment_detail_page.dart",
+      "line": 70,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),"
+    },
+    {
+      "file": "lib/presentation/pages/segments/segment_detail_page.dart",
+      "line": 74,
+      "wrapper": "Text",
+      "original": "Elimina",
+      "has_interp": false,
+      "suggested_key": "elimina",
+      "context_line": "child: const Text('Elimina'),"
+    },
+    {
+      "file": "lib/presentation/pages/segments/segment_detail_page.dart",
+      "line": 86,
+      "wrapper": "Text",
+      "original": "Errore durante l\\'eliminazione",
+      "has_interp": false,
+      "suggested_key": "erroreDuranteLEliminazione",
+      "context_line": "const SnackBar(content: Text('Errore durante l\\'eliminazione')),"
+    },
+    {
+      "file": "lib/presentation/pages/segments/segment_detail_page.dart",
+      "line": 103,
+      "wrapper": "tooltip",
+      "original": "Elimina segmento",
+      "has_interp": false,
+      "suggested_key": "eliminaSegmento",
+      "context_line": "tooltip: 'Elimina segmento',"
+    }
+  ],
+  "lib/presentation/widgets/live_track_button.dart": [
+    {
+      "file": "lib/presentation/widgets/live_track_button.dart",
+      "line": 127,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    }
+  ],
+  "lib/presentation/widgets/share_card_widget.dart": [
+    {
+      "file": "lib/presentation/widgets/share_card_widget.dart",
+      "line": 142,
+      "wrapper": "Text",
+      "original": "Errore condivisione: $e",
+      "has_interp": true,
+      "suggested_key": "erroreCondivisioneE",
+      "context_line": "SnackBar(content: Text('Errore condivisione: $e'), backgroundColor: Colors.red),"
+    },
+    {
+      "file": "lib/presentation/widgets/share_card_widget.dart",
+      "line": 582,
+      "wrapper": "Text",
+      "original": "Nessun dato GPS",
+      "has_interp": false,
+      "suggested_key": "nessunDatoGps",
+      "context_line": "child: const Center(child: Text('Nessun dato GPS', style: TextStyle(color: Colors.white54))),"
+    }
+  ],
+  "lib/presentation/widgets/trail_conditions_section.dart": [
+    {
+      "file": "lib/presentation/widgets/trail_conditions_section.dart",
+      "line": 71,
+      "wrapper": "Text",
+      "original": "Devi effettuare il login per segnalare",
+      "has_interp": false,
+      "suggested_key": "deviEffettuareIlLogin",
+      "context_line": "content: Text('Devi effettuare il login per segnalare'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_conditions_section.dart",
+      "line": 87,
+      "wrapper": "title",
+      "original": "Eliminare segnalazione?",
+      "has_interp": false,
+      "suggested_key": "eliminareSegnalazione",
+      "context_line": "title: const Text('Eliminare segnalazione?'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_conditions_section.dart",
+      "line": 88,
+      "wrapper": "content",
+      "original": "La tua segnalazione verrà rimossa.",
+      "has_interp": false,
+      "suggested_key": "laTuaSegnalazioneVerrà",
+      "context_line": "content: const Text('La tua segnalazione verrà rimossa.'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_conditions_section.dart",
+      "line": 90,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_conditions_section.dart",
+      "line": 94,
+      "wrapper": "Text",
+      "original": "Elimina",
+      "has_interp": false,
+      "suggested_key": "elimina",
+      "context_line": "child: const Text('Elimina'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_conditions_section.dart",
+      "line": 108,
+      "wrapper": "Text",
+      "original": "Errore durante l\\'eliminazione",
+      "has_interp": false,
+      "suggested_key": "erroreDuranteLEliminazione",
+      "context_line": "content: Text('Errore durante l\\'eliminazione'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_conditions_section.dart",
+      "line": 146,
+      "wrapper": "label",
+      "original": "Segnala una condizione",
+      "has_interp": false,
+      "suggested_key": "segnalaUnaCondizione",
+      "context_line": "label: const Text('Segnala una condizione'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_conditions_section.dart",
+      "line": 210,
+      "wrapper": "Text",
+      "original": "Riprova",
+      "has_interp": false,
+      "suggested_key": "riprova",
+      "context_line": "child: const Text('Riprova'),"
+    }
+  ],
+  "lib/presentation/widgets/track_segments_section.dart": [
+    {
+      "file": "lib/presentation/widgets/track_segments_section.dart",
+      "line": 135,
+      "wrapper": "Text",
+      "original": "\"${s.name}\" verrà eliminato insieme alla sua classifica.",
+      "has_interp": true,
+      "suggested_key": "sNameVerràEliminato",
+      "context_line": "content: Text('\"${s.name}\" verrà eliminato insieme alla sua classifica.'),"
+    }
+  ],
+  "lib/presentation/widgets/report_condition_sheet.dart": [
+    {
+      "file": "lib/presentation/widgets/report_condition_sheet.dart",
+      "line": 63,
+      "wrapper": "Text",
+      "original": "Errore durante la segnalazione",
+      "has_interp": false,
+      "suggested_key": "erroreDuranteLaSegnalazione",
+      "context_line": "content: Text('Errore durante la segnalazione'),"
+    },
+    {
+      "file": "lib/presentation/widgets/report_condition_sheet.dart",
+      "line": 121,
+      "wrapper": "hintText",
+      "original": "Aggiungi dettagli: dove, quando, severità...",
+      "has_interp": false,
+      "suggested_key": "aggiungiDettagliDoveQuando",
+      "context_line": "hintText: 'Aggiungi dettagli: dove, quando, severità...',"
+    },
+    {
+      "file": "lib/presentation/widgets/report_condition_sheet.dart",
+      "line": 134,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    }
+  ],
+  "lib/presentation/widgets/trail_photos_section.dart": [
+    {
+      "file": "lib/presentation/widgets/trail_photos_section.dart",
+      "line": 57,
+      "wrapper": "Text",
+      "original": "Devi effettuare il login per caricare foto",
+      "has_interp": false,
+      "suggested_key": "deviEffettuareIlLogin",
+      "context_line": "content: Text('Devi effettuare il login per caricare foto'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_photos_section.dart",
+      "line": 129,
+      "wrapper": "Text",
+      "original": "Errore: $e",
+      "has_interp": true,
+      "suggested_key": "erroreE",
+      "context_line": "content: Text('Errore: $e'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_photos_section.dart",
+      "line": 141,
+      "wrapper": "title",
+      "original": "Aggiungi una didascalia",
+      "has_interp": false,
+      "suggested_key": "aggiungiUnaDidascalia",
+      "context_line": "title: const Text('Aggiungi una didascalia'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_photos_section.dart",
+      "line": 150,
+      "wrapper": "hintText",
+      "original": "Descrivi la foto (opzionale)",
+      "has_interp": false,
+      "suggested_key": "descriviLaFotoOpzionale",
+      "context_line": "hintText: 'Descrivi la foto (opzionale)',"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_photos_section.dart",
+      "line": 161,
+      "wrapper": "Text",
+      "original": "Carica",
+      "has_interp": false,
+      "suggested_key": "carica",
+      "context_line": "child: const Text('Carica'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_photos_section.dart",
+      "line": 263,
+      "wrapper": "Text",
+      "original": "Riprova",
+      "has_interp": false,
+      "suggested_key": "riprova",
+      "context_line": "child: const Text('Riprova'),"
+    }
+  ],
+  "lib/presentation/widgets/trail_conditions_ai_card.dart": [
+    {
+      "file": "lib/presentation/widgets/trail_conditions_ai_card.dart",
+      "line": 281,
+      "wrapper": "Text",
+      "original": "Sto leggendo le segnalazioni…",
+      "has_interp": false,
+      "suggested_key": "stoLeggendoLeSegnalazioni",
+      "context_line": "Text('Sto leggendo le segnalazioni…',"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_conditions_ai_card.dart",
+      "line": 309,
+      "wrapper": "label",
+      "original": "Riprova",
+      "has_interp": false,
+      "suggested_key": "riprova",
+      "context_line": "label: const Text('Riprova'),"
+    }
+  ],
+  "lib/presentation/widgets/interactive_track_map.dart": [
+    {
+      "file": "lib/presentation/widgets/interactive_track_map.dart",
+      "line": 363,
+      "wrapper": "Text",
+      "original": "Nessun dato GPS disponibile",
+      "has_interp": false,
+      "suggested_key": "nessunDatoGpsDisponibile",
+      "context_line": "child: Text('Nessun dato GPS disponibile'),"
+    },
+    {
+      "file": "lib/presentation/widgets/interactive_track_map.dart",
+      "line": 655,
+      "wrapper": "tooltip",
+      "original": "Centra su traccia",
+      "has_interp": false,
+      "suggested_key": "centraSuTraccia",
+      "context_line": "tooltip: 'Centra su traccia',"
+    },
+    {
+      "file": "lib/presentation/widgets/interactive_track_map.dart",
+      "line": 665,
+      "wrapper": "tooltip",
+      "original": "La mia posizione",
+      "has_interp": false,
+      "suggested_key": "laMiaPosizione",
+      "context_line": "tooltip: 'La mia posizione',"
+    }
+  ],
+  "lib/presentation/widgets/poi_editor_sheet.dart": [
+    {
+      "file": "lib/presentation/widgets/poi_editor_sheet.dart",
+      "line": 120,
+      "wrapper": "Text",
+      "original": "Errore scatto foto: $e",
+      "has_interp": true,
+      "suggested_key": "erroreScattoFotoE",
+      "context_line": "SnackBar(content: Text('Errore scatto foto: $e')),"
+    },
+    {
+      "file": "lib/presentation/widgets/poi_editor_sheet.dart",
+      "line": 208,
+      "wrapper": "Text",
+      "original": "Errore salvataggio POI: $e",
+      "has_interp": true,
+      "suggested_key": "erroreSalvataggioPoiE",
+      "context_line": "content: Text('Errore salvataggio POI: $e'),"
+    },
+    {
+      "file": "lib/presentation/widgets/poi_editor_sheet.dart",
+      "line": 328,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    }
+  ],
+  "lib/presentation/widgets/weather_forecast_card.dart": [
+    {
+      "file": "lib/presentation/widgets/weather_forecast_card.dart",
+      "line": 134,
+      "wrapper": "Text",
+      "original": "Riprova",
+      "has_interp": false,
+      "suggested_key": "riprova",
+      "context_line": "child: const Text('Riprova'),"
+    }
+  ],
+  "lib/presentation/widgets/trail_reviews_section.dart": [
+    {
+      "file": "lib/presentation/widgets/trail_reviews_section.dart",
+      "line": 69,
+      "wrapper": "Text",
+      "original": "Devi effettuare il login per lasciare una recensione",
+      "has_interp": false,
+      "suggested_key": "deviEffettuareIlLogin",
+      "context_line": "content: Text('Devi effettuare il login per lasciare una recensione'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_reviews_section.dart",
+      "line": 203,
+      "wrapper": "Text",
+      "original": "Riprova",
+      "has_interp": false,
+      "suggested_key": "riprova",
+      "context_line": "child: const Text('Riprova'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_reviews_section.dart",
+      "line": 216,
+      "wrapper": "label",
+      "original": "Scrivi una recensione",
+      "has_interp": false,
+      "suggested_key": "scriviUnaRecensione",
+      "context_line": "label: const Text('Scrivi una recensione'),"
+    }
+  ],
+  "lib/presentation/widgets/review_editor_sheet.dart": [
+    {
+      "file": "lib/presentation/widgets/review_editor_sheet.dart",
+      "line": 79,
+      "wrapper": "title",
+      "original": "Eliminare recensione?",
+      "has_interp": false,
+      "suggested_key": "eliminareRecensione",
+      "context_line": "title: const Text('Eliminare recensione?'),"
+    },
+    {
+      "file": "lib/presentation/widgets/review_editor_sheet.dart",
+      "line": 80,
+      "wrapper": "content",
+      "original": "Questa azione non può essere annullata.",
+      "has_interp": false,
+      "suggested_key": "questaAzioneNonPuò",
+      "context_line": "content: const Text('Questa azione non può essere annullata.'),"
+    },
+    {
+      "file": "lib/presentation/widgets/review_editor_sheet.dart",
+      "line": 84,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/widgets/review_editor_sheet.dart",
+      "line": 89,
+      "wrapper": "Text",
+      "original": "Elimina",
+      "has_interp": false,
+      "suggested_key": "elimina",
+      "context_line": "child: const Text('Elimina'),"
+    },
+    {
+      "file": "lib/presentation/widgets/review_editor_sheet.dart",
+      "line": 177,
+      "wrapper": "hintText",
+      "original": "Come è stato il sentiero? Cosa consiglieresti?",
+      "has_interp": false,
+      "suggested_key": "comeÈStatoIl",
+      "context_line": "hintText: 'Come è stato il sentiero? Cosa consiglieresti?',"
+    },
+    {
+      "file": "lib/presentation/widgets/review_editor_sheet.dart",
+      "line": 209,
+      "wrapper": "Text",
+      "original": "Salva",
+      "has_interp": false,
+      "suggested_key": "salva",
+      "context_line": ": const Text('Salva'),"
+    }
+  ],
+  "lib/presentation/widgets/share_track_to_group_sheet.dart": [
+    {
+      "file": "lib/presentation/widgets/share_track_to_group_sheet.dart",
+      "line": 135,
+      "wrapper": "Text",
+      "original": "Errore: $e",
+      "has_interp": true,
+      "suggested_key": "erroreE",
+      "context_line": "SnackBar(content: Text('Errore: $e')),"
+    }
+  ],
+  "lib/presentation/widgets/poi_detail_sheet.dart": [
+    {
+      "file": "lib/presentation/widgets/poi_detail_sheet.dart",
+      "line": 117,
+      "wrapper": "title",
+      "original": "Eliminare POI?",
+      "has_interp": false,
+      "suggested_key": "eliminarePoi",
+      "context_line": "title: const Text('Eliminare POI?'),"
+    },
+    {
+      "file": "lib/presentation/widgets/poi_detail_sheet.dart",
+      "line": 118,
+      "wrapper": "Text",
+      "original": "\"${_poi.title}\" verrà rimosso definitivamente.",
+      "has_interp": true,
+      "suggested_key": "_poiTitleVerràRimosso",
+      "context_line": "content: Text('\"${_poi.title}\" verrà rimosso definitivamente.'),"
+    },
+    {
+      "file": "lib/presentation/widgets/poi_detail_sheet.dart",
+      "line": 122,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/widgets/poi_detail_sheet.dart",
+      "line": 127,
+      "wrapper": "Text",
+      "original": "Elimina",
+      "has_interp": false,
+      "suggested_key": "elimina",
+      "context_line": "child: const Text('Elimina'),"
+    },
+    {
+      "file": "lib/presentation/widgets/poi_detail_sheet.dart",
+      "line": 139,
+      "wrapper": "Text",
+      "original": "Errore eliminazione POI",
+      "has_interp": false,
+      "suggested_key": "erroreEliminazionePoi",
+      "context_line": "const SnackBar(content: Text('Errore eliminazione POI')),"
+    }
+  ],
+  "lib/presentation/widgets/trail_photo_viewer.dart": [
+    {
+      "file": "lib/presentation/widgets/trail_photo_viewer.dart",
+      "line": 54,
+      "wrapper": "title",
+      "original": "Eliminare foto?",
+      "has_interp": false,
+      "suggested_key": "eliminareFoto",
+      "context_line": "title: const Text('Eliminare foto?'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_photo_viewer.dart",
+      "line": 55,
+      "wrapper": "content",
+      "original": "Questa azione non può essere annullata.",
+      "has_interp": false,
+      "suggested_key": "questaAzioneNonPuò",
+      "context_line": "content: const Text('Questa azione non può essere annullata.'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_photo_viewer.dart",
+      "line": 59,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_photo_viewer.dart",
+      "line": 64,
+      "wrapper": "Text",
+      "original": "Elimina",
+      "has_interp": false,
+      "suggested_key": "elimina",
+      "context_line": "child: const Text('Elimina'),"
+    },
+    {
+      "file": "lib/presentation/widgets/trail_photo_viewer.dart",
+      "line": 77,
+      "wrapper": "Text",
+      "original": "Errore durante l\\'eliminazione",
+      "has_interp": false,
+      "suggested_key": "erroreDuranteLEliminazione",
+      "context_line": "content: Text('Errore durante l\\'eliminazione'),"
+    }
+  ],
+  "lib/presentation/widgets/paywall_sheet.dart": [
+    {
+      "file": "lib/presentation/widgets/paywall_sheet.dart",
+      "line": 296,
+      "wrapper": "Text",
+      "original": "Nessun acquisto attivo trovato per questo account.",
+      "has_interp": false,
+      "suggested_key": "nessunAcquistoAttivoTrovato",
+      "context_line": "Text('Nessun acquisto attivo trovato per questo account.'),"
+    },
+    {
+      "file": "lib/presentation/widgets/paywall_sheet.dart",
+      "line": 478,
+      "wrapper": "title",
+      "original": "Tutte le funzioni Pro future",
+      "has_interp": false,
+      "suggested_key": "tutteLeFunzioniPro",
+      "context_line": "title: 'Tutte le funzioni Pro future',"
+    },
+    {
+      "file": "lib/presentation/widgets/paywall_sheet.dart",
+      "line": 845,
+      "wrapper": "Text",
+      "original": " e la ",
+      "has_interp": false,
+      "suggested_key": "eLa",
+      "context_line": "Text(' e la ', style: muted),"
+    },
+    {
+      "file": "lib/presentation/widgets/paywall_sheet.dart",
+      "line": 1042,
+      "wrapper": "subtitle",
+      "original": "Foto panoramiche con i nomi delle cime annotati.",
+      "has_interp": false,
+      "suggested_key": "fotoPanoramicheConI",
+      "context_line": "subtitle: 'Foto panoramiche con i nomi delle cime annotati.',"
+    },
+    {
+      "file": "lib/presentation/widgets/paywall_sheet.dart",
+      "line": 1266,
+      "wrapper": "Text",
+      "original": "Upgrade in attesa di conferma.",
+      "has_interp": false,
+      "suggested_key": "upgradeInAttesaDi",
+      "context_line": "content: Text('Upgrade in attesa di conferma.'),"
+    },
+    {
+      "file": "lib/presentation/widgets/paywall_sheet.dart",
+      "line": 1605,
+      "wrapper": "subtitle",
+      "original": "Foto annotate con i nomi delle cime.",
+      "has_interp": false,
+      "suggested_key": "fotoAnnotateConI",
+      "context_line": "subtitle: 'Foto annotate con i nomi delle cime.',"
+    },
+    {
+      "file": "lib/presentation/widgets/paywall_sheet.dart",
+      "line": 1610,
+      "wrapper": "title",
+      "original": "Cime salvate illimitate",
+      "has_interp": false,
+      "suggested_key": "cimeSalvateIllimitate",
+      "context_line": "title: 'Cime salvate illimitate',"
+    }
+  ],
+  "lib/presentation/widgets/photo_gallery_widget.dart": [
+    {
+      "file": "lib/presentation/widgets/photo_gallery_widget.dart",
+      "line": 391,
+      "wrapper": "title",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "title: const Text('Annulla'),"
+    }
+  ],
+  "lib/presentation/widgets/track_tags_editor.dart": [
+    {
+      "file": "lib/presentation/widgets/track_tags_editor.dart",
+      "line": 226,
+      "wrapper": "Text",
+      "original": "Annulla",
+      "has_interp": false,
+      "suggested_key": "annulla",
+      "context_line": "child: const Text('Annulla'),"
+    }
+  ]
+}

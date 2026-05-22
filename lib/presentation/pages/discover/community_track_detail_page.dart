@@ -6,14 +6,17 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/discovery_prompt_service.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/difficulty_badge.dart';
+import '../../widgets/expandable_description.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
-import '../../../presentation/widgets/charts/elevation_chart.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../../presentation/widgets/lap_splits_widget.dart';
 import '../../../presentation/widgets/track_segments_section.dart';
 import '../../widgets/trail_pois_section.dart';
+import '../../widgets/nearby_businesses_section.dart';
+import '../../widgets/follow_button.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/services/trails_cache_service.dart';
@@ -141,31 +144,66 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
             flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsetsDirectional.only(
+                  start: 56, bottom: 14, end: 16),
               title: Text(
                 track.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 16,
-                  shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black87,
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
               ),
-              background: Padding(
-                padding: const EdgeInsets.only(bottom: 48), // Spazio per il titolo
-                child: InteractiveTrackMap(
-                  points: track.points,
-                  height: 300,
-                  photoMarkers: _buildPhotoMarkers(),
-                  title: track.name,
-                  showUserLocation: true,
-                  highlightedPointIndex: _selectedPointIndex,
-                  poiTrackId: track.id,
-                  poiIncludePrivate:
-                      FirebaseAuth.instance.currentUser?.uid == track.ownerId,
-                  onPointTap: (index) {
-                    setState(() => _selectedPointIndex = index);
-                  },
-                  communityTrack: track, // ⭐ Per fullscreen con TrackMapPage
-                ),
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  InteractiveTrackMap(
+                    points: track.points,
+                    height: 300,
+                    photoMarkers: _buildPhotoMarkers(),
+                    title: track.name,
+                    showUserLocation: true,
+                    highlightedPointIndex: _selectedPointIndex,
+                    poiTrackId: track.id,
+                    poiIncludePrivate:
+                        FirebaseAuth.instance.currentUser?.uid == track.ownerId,
+                    loadOsmPois: true, // POI OSM lungo la traccia
+                    onPointTap: (index) {
+                      setState(() => _selectedPointIndex = index);
+                    },
+                    communityTrack: track, // ⭐ Per fullscreen con TrackMapPage
+                  ),
+                  // Gradient nero in basso per leggibilità titolo +
+                  // separazione netta dal contenuto bianco sottostante.
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.center,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.55),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -184,6 +222,21 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
 
                   // Stats principali
                   _buildMainStats(),
+
+                  // Komoot K1a Step 2 — badge difficoltà computata.
+                  // Mostrato solo se la traccia ha computedDifficulty
+                  // (tracce nuove ≥ 20/5/2026 o ri-salvate).
+                  if (track.computedDifficulty != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        DifficultyBadge(
+                          difficultyKey: track.computedDifficulty,
+                          compact: false,
+                        ),
+                      ],
+                    ),
+                  ],
 
                   const SizedBox(height: 16),
 
@@ -232,7 +285,8 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
 
                   const SizedBox(height: 16),
 
-                  // POI community sulla traccia (fontane, rifugi, panorami)
+                  // POI community + POI OSM (rifugi, bivacchi, fontane,
+                  // sorgenti, panorami) lungo la traccia.
                   TrailPoisSection(
                     trackId: track.id,
                     isOwner: FirebaseAuth.instance.currentUser?.uid ==
@@ -248,9 +302,20 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     polyline: track.points
                         .map((p) => LatLng(p.latitude, p.longitude))
                         .toList(),
+                    loadOsmPois: true,
                   ),
 
                   const SizedBox(height: 16),
+
+                  // Spazi Pro lungo il percorso (rifugi, noleggi,
+                  // guide). Auto-nascosto se nessuno in zona.
+                  if (track.points.length >= 2)
+                    NearbyBusinessesSection(
+                      polyline: track.points
+                          .map(
+                              (p) => LatLng(p.latitude, p.longitude))
+                          .toList(),
+                    ),
 
                   // Dettagli
                   _buildDetails(),
@@ -301,7 +366,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               height: 50,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+                  colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.7)],
                 ),
                 shape: BoxShape.circle,
               ),
@@ -325,12 +390,36 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    track.ownerUsername,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          track.ownerUsername,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Pulsante "Segui" inline accanto al nome.
+                      // Pattern Komoot/Strava: trasforma una scheda
+                      // informativa in un punto di engagement
+                      // community. Nascosto se l'autore sono io
+                      // (segui te stesso non ha senso) o se non
+                      // loggato.
+                      if (track.ownerId.isNotEmpty &&
+                          FirebaseAuth.instance.currentUser != null &&
+                          FirebaseAuth.instance.currentUser!.uid !=
+                              track.ownerId) ...[
+                        const SizedBox(width: 8),
+                        FollowButton(
+                          targetUserId: track.ownerId,
+                          compact: true,
+                        ),
+                      ],
+                    ],
                   ),
                   if (track.sharedAt != null) ...[
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       context.l10n.sharedOnDate(_formatDate(track.sharedAt!)),
                       style: TextStyle(color: context.textSecondary, fontSize: 12),
@@ -345,7 +434,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.danger.withOpacity(0.1),
+                  color: AppColors.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -435,7 +524,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             Row(
               children: [
                 Icon(Icons.photo_library, size: 20, color: context.textSecondary),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text(
                   context.l10n.photosWithCount(photoUrls.length),
                   style: const TextStyle(
@@ -495,9 +584,13 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 8),
-            Text(
-              widget.track.description!,
-              style: TextStyle(color: context.textSecondary),
+            ExpandableDescription(
+              text: widget.track.description!,
+              style: TextStyle(
+                color: context.textSecondary,
+                height: 1.45,
+                fontSize: 14,
+              ),
             ),
           ],
         ),
@@ -516,9 +609,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           children: [
             Text(
               context.l10n.detailsLabel,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            const Divider(height: 24),
+            Divider(height: 24),
             _buildDetailRow(Icons.directions_walk, context.l10n.activityLabel, '${track.activityIcon} ${track.activityType}'),
             if (track.difficulty != null)
               _buildDetailRow(Icons.signal_cellular_alt, context.l10n.difficultyLabel, '${track.difficultyIcon} ${track.difficulty}'),
@@ -564,12 +657,12 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               activityName: widget.track.activityType,
               username: widget.track.ownerUsername,
               onExportGpx: _exportGpx,
-              onShareLink: () => Share.share(
-                '${widget.track.name}\nhttps://trailshare.app/track/${widget.track.id}',
+              onShareLink: () => SharePlus.instance.share(ShareParams(
+                text: '${widget.track.name}\nhttps://trailshare.app/track/${widget.track.id}',
                 subject: widget.track.name,
-              ),
+              )),
             ),
-            icon: const Icon(Icons.share),
+            icon: Icon(Icons.share),
             label: Text(context.l10n.share),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
@@ -584,8 +677,8 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: _followTrack,
-            icon: const Icon(Icons.navigation),
-            label: const Text('Segui e registra'),
+            icon: Icon(Icons.navigation),
+            label: Text(context.l10n.trackFollowAndRecord),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.info,
               foregroundColor: Colors.white,
@@ -605,7 +698,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
-                : const Icon(Icons.download),
+                : Icon(Icons.download),
             label: Text(_isExporting ? context.l10n.exporting : context.l10n.downloadGpx),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -622,9 +715,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.08),
+              color: Colors.orange.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -695,9 +788,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           children: [
             Text(
               context.l10n.promoteDialogDescription,
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 14),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _promoteInfoRow(context.l10n.nameLabel, track.name),
             _promoteInfoRow(context.l10n.authorLabel, track.ownerUsername),
             _promoteInfoRow(context.l10n.distanceLabel, '${track.distanceKm.toStringAsFixed(1)} km'),
@@ -709,13 +802,13 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.1),
+                  color: Colors.amber.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.warning_amber, size: 16, color: Colors.amber),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         context.l10n.fewGpsPointsWarning,
@@ -789,10 +882,11 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(context.l10n.trackPromotedSuccess),
-            backgroundColor: const Color(0xFF388E3C),
+            backgroundColor: Color(0xFF388E3C),
           ),
         );
       } else {
+        if (!mounted) return;
         throw Exception(context.l10n.promotionFailed);
       }
     } catch (e) {
@@ -809,7 +903,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     final points = widget.track.points;
     if (points.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Traccia troppo corta per essere seguita')),
+        SnackBar(content: Text(context.l10n.trackTooShortToFollow)),
       );
       return;
     }
@@ -851,11 +945,13 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
         await DiscoveryPromptService.markFitExported();
       }
 
-      await Share.shareXFiles(
-        [XFile(filePath)],
+      if (!mounted) return;
+      final shareText = context.l10n.gpxTrackName(widget.track.name);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(filePath)],
         subject: widget.track.name,
-        text: context.l10n.gpxTrackName(widget.track.name),
-      );
+        text: shareText,
+      ));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -930,7 +1026,7 @@ class _StatCard extends StatelessWidget {
                       text: ' $unit',
                       style: TextStyle(
                         fontSize: 12,
-                        color: color.withOpacity(0.7),
+                        color: color.withValues(alpha: 0.7),
                       ),
                     ),
                 ],
@@ -972,7 +1068,7 @@ class _PhotoThumbnail extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1007,7 +1103,7 @@ class _PhotoThumbnail extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.broken_image, color: context.textMuted, size: 32),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         context.l10n.errorLabel,
                         style: TextStyle(color: context.textMuted, fontSize: 10),
@@ -1031,7 +1127,7 @@ class _PhotoThumbnail extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.6),
+                      Colors.black.withValues(alpha: 0.6),
                     ],
                   ),
                 ),
@@ -1045,7 +1141,7 @@ class _PhotoThumbnail extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Icon(Icons.fullscreen, size: 16, color: Colors.white),
@@ -1108,13 +1204,13 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
         actions: [
           // Scarica foto
           IconButton(
-            icon: const Icon(Icons.download, color: Colors.white, size: 28),
+            icon: Icon(Icons.download, color: Colors.white, size: 28),
             tooltip: context.l10n.downloadTooltip,
             onPressed: () => _downloadPhoto(widget.photoUrls[_currentIndex]),
           ),
           // Condividi foto
           IconButton(
-            icon: const Icon(Icons.share, color: Colors.white, size: 28),
+            icon: Icon(Icons.share, color: Colors.white, size: 28),
             tooltip: context.l10n.shareTooltip,
             onPressed: () => _sharePhoto(widget.photoUrls[_currentIndex]),
           ),
@@ -1149,12 +1245,12 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                         ),
                       );
                     },
-                    errorBuilder: (context, error, __) {
+                    errorBuilder: (context, error, _) {
                       return Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Icon(Icons.broken_image, color: Colors.white54, size: 64),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16),
                           Text(
                             context.l10n.cannotLoadImage,
                             style: const TextStyle(color: Colors.white54),
@@ -1185,7 +1281,7 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
                     decoration: BoxDecoration(
                       color: index == _currentIndex
                           ? Colors.white
-                          : Colors.white.withOpacity(0.4),
+                          : Colors.white.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -1198,10 +1294,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
   }
 
   void _sharePhoto(String url) {
-    Share.share(
-      '${context.l10n.photoFrom(widget.trackName)}\n$url',
+    SharePlus.instance.share(ShareParams(
+      text: '${context.l10n.photoFrom(widget.trackName)}\n$url',
       subject: context.l10n.hikePhoto,
-    );
+    ));
   }
 
   Future<void> _downloadPhoto(String url) async {
@@ -1211,7 +1307,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
       );
 
       final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) throw Exception(context.l10n.downloadError);
+      if (response.statusCode != 200) {
+        if (!mounted) throw Exception('Download error');
+        throw Exception(context.l10n.downloadError);
+      }
 
       final tempDir = await getTemporaryDirectory();
       final fileName = 'trailshare_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -1220,10 +1319,10 @@ class _PhotoViewerPageState extends State<_PhotoViewerPage> {
 
       if (!mounted) return;
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
         text: context.l10n.photoFrom(widget.trackName),
-      );
+      ));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

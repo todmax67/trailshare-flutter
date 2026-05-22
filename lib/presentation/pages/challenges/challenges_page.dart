@@ -313,8 +313,8 @@ class _ChallengeCardState extends State<_ChallengeCard> {
                     ),
                     decoration: BoxDecoration(
                       color: challenge.daysLeft <= 3
-                          ? AppColors.danger.withOpacity(0.1)
-                          : AppColors.primary.withOpacity(0.1),
+                          ? AppColors.danger.withValues(alpha: 0.1)
+                          : AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -443,7 +443,7 @@ class _CreateChallengeSheetState extends State<_CreateChallengeSheet> {
   final _descriptionController = TextEditingController();
   final _goalController = TextEditingController();
 
-  String _selectedType = ChallengesService.TYPE_DISTANCE;
+  String _selectedType = ChallengesService.typeDistance;
   int _durationDays = 7;
   bool _isCreating = false;
 
@@ -520,17 +520,17 @@ class _CreateChallengeSheetState extends State<_CreateChallengeSheet> {
                 SegmentedButton<String>(
                   segments: [
                     ButtonSegment(
-                      value: ChallengesService.TYPE_DISTANCE,
+                      value: ChallengesService.typeDistance,
                       label: Text(context.l10n.distance),
                       icon: const Icon(Icons.straighten),
                     ),
                     ButtonSegment(
-                      value: ChallengesService.TYPE_ELEVATION,
+                      value: ChallengesService.typeElevation,
                       label: Text(context.l10n.elevation),
                       icon: const Icon(Icons.terrain),
                     ),
                     ButtonSegment(
-                      value: ChallengesService.TYPE_TRACKS,
+                      value: ChallengesService.typeTracks,
                       label: Text(context.l10n.tracks),
                       icon: const Icon(Icons.route),
                     ),
@@ -607,11 +607,11 @@ class _CreateChallengeSheetState extends State<_CreateChallengeSheet> {
 
   String _getUnitLabel() {
     switch (_selectedType) {
-      case ChallengesService.TYPE_DISTANCE:
+      case ChallengesService.typeDistance:
         return 'km';
-      case ChallengesService.TYPE_ELEVATION:
+      case ChallengesService.typeElevation:
         return 'm';
-      case ChallengesService.TYPE_TRACKS:
+      case ChallengesService.typeTracks:
         return context.l10n.tracksUnit;
       default:
         return '';
@@ -625,7 +625,7 @@ class _CreateChallengeSheetState extends State<_CreateChallengeSheet> {
 
     double goal = double.parse(_goalController.text);
     // Converti km in metri per distanza
-    if (_selectedType == ChallengesService.TYPE_DISTANCE) {
+    if (_selectedType == ChallengesService.typeDistance) {
       goal *= 1000;
     }
 
@@ -851,7 +851,7 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _leaderboard.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final p = _leaderboard[index];
                         final isMe = p.userId == FirebaseAuth.instance.currentUser?.uid;
@@ -879,7 +879,7 @@ class _ChallengeDetailPageState extends State<ChallengeDetailPage> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           tileColor: isMe
-                              ? AppColors.primary.withOpacity(0.05)
+                              ? AppColors.primary.withValues(alpha: 0.05)
                               : null,
                         );
                       },

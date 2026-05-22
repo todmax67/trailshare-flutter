@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/extensions/l10n_extension.dart';
 import '../../data/models/segment.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/segments_repository.dart';
@@ -96,7 +97,7 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
     final points = widget.trackPoints;
     if (points == null || points.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Traccia senza punti: impossibile creare un segmento')),
+        SnackBar(content: Text(context.l10n.trackNoPointsForSegment)),
       );
       return;
     }
@@ -130,14 +131,14 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminare segmento?'),
+        title: Text(context.l10n.deleteSegmentQuestion),
         content: Text('"${s.name}" verrà eliminato insieme alla sua classifica.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annulla')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Elimina'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -151,8 +152,8 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
       await _load();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Errore durante l\'eliminazione'),
+        SnackBar(
+          content: Text(context.l10n.deleteError),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -212,7 +213,7 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
           IconButton(
             icon: const Icon(Icons.add, size: 20),
             onPressed: _openEditor,
-            tooltip: 'Crea segmento',
+            tooltip: context.l10n.createSegment,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
@@ -225,10 +226,10 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Text(
         widget.readOnly
-            ? 'Nessun segmento su questa traccia.'
+            ? context.l10n.noSegmentsOnTrack
             : (_canCreate
-                ? 'Nessun segmento creato da questa traccia. Tocca "+" per crearne uno.'
-                : 'Nessun segmento creato da questa traccia.'),
+                ? context.l10n.noSegmentsCreatedTapPlus
+                : context.l10n.noSegmentsCreated),
         style: TextStyle(
           color: Colors.grey[600],
           fontSize: 13,
@@ -328,7 +329,7 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 18),
                   onPressed: () => _deleteSegment(s),
-                  tooltip: 'Elimina',
+                  tooltip: context.l10n.delete,
                   color: context.textMuted,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),

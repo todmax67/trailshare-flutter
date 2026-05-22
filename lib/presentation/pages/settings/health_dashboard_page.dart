@@ -219,7 +219,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
                   barRods: [
                     BarChartRodData(
                       toY: entry.value.value.toDouble(),
-                      color: isToday ? AppColors.primary : AppColors.primary.withOpacity(0.4),
+                      color: isToday ? AppColors.primary : AppColors.primary.withValues(alpha: 0.4),
                       width: 28,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                     ),
@@ -301,7 +301,7 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
                   barRods: [
                     BarChartRodData(
                       toY: entry.value.value,
-                      color: isToday ? AppColors.warning : AppColors.warning.withOpacity(0.4),
+                      color: isToday ? AppColors.warning : AppColors.warning.withValues(alpha: 0.4),
                       width: 28,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                     ),
@@ -338,12 +338,12 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
 
   Widget _buildInfoCard() {
     return Card(
-      color: AppColors.primary.withOpacity(0.05),
+      color: AppColors.primary.withValues(alpha: 0.05),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Icon(Icons.info_outline, color: AppColors.primary.withOpacity(0.7), size: 20),
+            Icon(Icons.info_outline, color: AppColors.primary.withValues(alpha: 0.7), size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -425,7 +425,7 @@ class _DashboardCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: progress,
-                  backgroundColor: color.withOpacity(0.1),
+                  backgroundColor: color.withValues(alpha: 0.1),
                   valueColor: AlwaysStoppedAnimation<Color>(color),
                   minHeight: 6,
                 ),

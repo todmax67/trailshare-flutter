@@ -378,6 +378,16 @@ class Track {
   final bool isPublic;
   final bool isPlanned;
   final TrackStats stats;
+
+  /// Lista degli ID dei gruppi in cui questa traccia è "consigliata"
+  /// (visibile come percorso nel tab Percorsi del gruppo). Vuota = non
+  /// condivisa con nessun gruppo.
+  ///
+  /// Una traccia può essere consigliata in più gruppi
+  /// contemporaneamente (es. l'admin di un noleggio ebike la condivide
+  /// sia nel gruppo "Stagione 2026" sia in "Tour panoramici").
+  /// Le query lato gruppo usano `array-contains`.
+  final List<String> groupIds;
   
   // 📸 NUOVO: Lista foto
   final List<TrackPhotoMetadata> photos;
@@ -389,6 +399,22 @@ class Track {
   final double? healthCalories;
   // 👣 Passi da Health Connect/Apple Health
   final int? healthSteps;
+  // Traccia importata automaticamente da Strava (es. attività Garmin via Strava)
+  final bool importedFromStrava;
+  // ID dell'attività Strava da cui questa traccia è stata importata
+  final String? stravaSourceActivityId;
+
+  /// 5.5 — Tag personalizzati creati dall'utente (es. "vacanze 2026",
+  /// "test scarpe nuove", "con cane"). Salvati lowercase per ricerca
+  /// case-insensitive coerente. Filtrabili in "Le mie tracce".
+  final List<String> tags;
+
+  /// Komoot K1a Step 2 — difficoltà computata dalla formula
+  /// `DifficultyCalculator`. Persistita per evitare ricalcolo a ogni
+  /// render e per consentire filtri Firestore (es. tracce T3+).
+  /// Storage: stringa "t1".."t5" via `ComputedDifficulty.firestoreKey`.
+  /// null = non ancora calcolata (tracce legacy o stats insufficienti).
+  final String? computedDifficulty;
 
   const Track({
     this.id,
@@ -402,10 +428,15 @@ class Track {
     this.isPublic = false,
     this.isPlanned = false,
     this.stats = const TrackStats(),
+    this.groupIds = const [],
     this.photos = const [], // 📸 Default: nessuna foto
     this.heartRateData, // ❤️ Battito cardiaco (opzionale)
     this.healthCalories, // 🔥 Calorie reali (opzionale)
     this.healthSteps, // 👣 Passi (opzionale)
+    this.importedFromStrava = false,
+    this.stravaSourceActivityId,
+    this.tags = const [],
+    this.computedDifficulty,
   });
 
   Map<String, dynamic> toMap() {
@@ -419,6 +450,7 @@ class Track {
       'userId': userId,
       'isPublic': isPublic,
       'isPlanned': isPlanned,
+      'groupIds': groupIds,
       'distance': stats.distance,
       'elevationGain': stats.elevationGain,
       'elevationLoss': stats.elevationLoss,
@@ -440,6 +472,19 @@ class Track {
     if (healthSteps != null) {
       map['healthSteps'] = healthSteps;
     }
+    if (importedFromStrava) {
+      map['importedFromStrava'] = true;
+    }
+    if (stravaSourceActivityId != null) {
+      map['stravaSourceActivityId'] = stravaSourceActivityId;
+    }
+    // 5.5 — Salviamo i tag solo se non vuoti per non sporcare il doc.
+    if (tags.isNotEmpty) {
+      map['tags'] = tags;
+    }
+    if (computedDifficulty != null) {
+      map['computedDifficulty'] = computedDifficulty;
+    }
 
     return map;
   }
@@ -456,10 +501,15 @@ class Track {
     bool? isPublic,
     bool? isPlanned,
     TrackStats? stats,
+    List<String>? groupIds,
     List<TrackPhotoMetadata>? photos, // 📸 NUOVO
     Map<DateTime, int>? heartRateData, // ❤️
     double? healthCalories, // 🔥
     int? healthSteps, // 👣
+    bool? importedFromStrava,
+    String? stravaSourceActivityId,
+    List<String>? tags,
+    String? computedDifficulty,
   }) {
     return Track(
       id: id ?? this.id,
@@ -473,10 +523,15 @@ class Track {
       isPublic: isPublic ?? this.isPublic,
       isPlanned: isPlanned ?? this.isPlanned,
       stats: stats ?? this.stats,
+      groupIds: groupIds ?? this.groupIds,
       photos: photos ?? this.photos, // 📸 NUOVO
       heartRateData: heartRateData ?? this.heartRateData, // ❤️
       healthCalories: healthCalories ?? this.healthCalories, // 🔥
       healthSteps: healthSteps ?? this.healthSteps, // 👣
+      importedFromStrava: importedFromStrava ?? this.importedFromStrava,
+      stravaSourceActivityId: stravaSourceActivityId ?? this.stravaSourceActivityId,
+      tags: tags ?? this.tags,
+      computedDifficulty: computedDifficulty ?? this.computedDifficulty,
     );
   }
 }

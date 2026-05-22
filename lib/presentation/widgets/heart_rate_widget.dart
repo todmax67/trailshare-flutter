@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/heart_rate_service.dart';
+import '../../core/extensions/l10n_extension.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 
 /// Widget per mostrare il battito cardiaco durante il tracking
@@ -147,7 +148,6 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
         style = style.copyWith(color: AppColors.danger, fontSize: 12);
         break;
       case HRConnectionState.disconnected:
-      default:
         text = 'HR';
         style = style.copyWith(color: context.textMuted);
     }
@@ -169,24 +169,24 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
   Color _getBackgroundColor() {
     switch (_connectionState) {
       case HRConnectionState.connected:
-        return AppColors.danger.withOpacity(0.1);
+        return AppColors.danger.withValues(alpha: 0.1);
       case HRConnectionState.bluetoothOff:
       case HRConnectionState.error:
-        return AppColors.warning.withOpacity(0.1);
+        return AppColors.warning.withValues(alpha: 0.1);
       default:
-        return Colors.grey.withOpacity(0.1);
+        return Colors.grey.withValues(alpha: 0.1);
     }
   }
 
   Color _getBorderColor() {
     switch (_connectionState) {
       case HRConnectionState.connected:
-        return AppColors.danger.withOpacity(0.3);
+        return AppColors.danger.withValues(alpha: 0.3);
       case HRConnectionState.bluetoothOff:
       case HRConnectionState.error:
-        return AppColors.warning.withOpacity(0.3);
+        return AppColors.warning.withValues(alpha: 0.3);
       default:
-        return Colors.grey.withOpacity(0.3);
+        return Colors.grey.withValues(alpha: 0.3);
     }
   }
 
@@ -233,7 +233,7 @@ class _HeartRateWidgetState extends State<HeartRateWidget>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Chiudi'),
+            child: Text(context.l10n.close),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -380,7 +380,7 @@ class _HeartRateDeviceSelectorState extends State<HeartRateDeviceSelector> {
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
+                  color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -423,10 +423,10 @@ class _HeartRateDeviceSelectorState extends State<HeartRateDeviceSelector> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Ricerca dispositivi...'),
-            SizedBox(height: 8),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(context.l10n.searchingDevices),
+            const SizedBox(height: 8),
             Text(
               'Assicurati che la fascia sia accesa\ne il Bluetooth attivo',
               textAlign: TextAlign.center,
@@ -443,11 +443,11 @@ class _HeartRateDeviceSelectorState extends State<HeartRateDeviceSelector> {
         children: [
           Icon(Icons.bluetooth_searching, size: 48, color: Colors.grey[400]),
           const SizedBox(height: 16),
-          const Text('Nessun dispositivo trovato'),
+          Text(context.l10n.noDeviceFound),
           const SizedBox(height: 8),
           ElevatedButton(
             onPressed: _startScan,
-            child: const Text('Riprova'),
+            child: Text(context.l10n.retry),
           ),
         ],
       ),
@@ -480,7 +480,7 @@ class _DeviceListTile extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.danger.withOpacity(0.1),
+            color: AppColors.danger.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Icon(Icons.favorite, color: AppColors.danger),

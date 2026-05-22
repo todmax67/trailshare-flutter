@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd LaunchAgent per il watcher dei draft social_lab.
+
+  Installazione (una sola volta):
+    cp social_lab/scripts/com.trailshare.social-lab-watch.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.trailshare.social-lab-watch.plist
+
+  Disinstallazione:
+    launchctl unload ~/Library/LaunchAgents/com.trailshare.social-lab-watch.plist
+    rm ~/Library/LaunchAgents/com.trailshare.social-lab-watch.plist
+
+  Verifica stato:
+    launchctl list | grep trailshare
+    tail -f ~/Library/Logs/trailshare-social-lab-watch.log
+
+  IMPORTANTE: prima di copiare il file, verifica che i path siano corretti per
+  la tua macchina (in particolare /Volumes/Lexar/Sviluppo/...) e l'eseguibile
+  node sia in /usr/local/bin/node o /opt/homebrew/bin/node.
+
+  Per trovare il path esatto di node:
+    which node
+
+  Se diverso da quello qui sotto, modifica <string>/usr/local/bin/node</string>.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.trailshare.social-lab-watch</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/bluspose/.nvm/versions/node/v20.19.5/bin/node</string>
+        <string>/Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/scripts/watch-drafts.mjs</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Volumes/Lexar/Sviluppo/trailshare_flutter/social_lab/scripts</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/bluspose/Library/Logs/trailshare-social-lab-watch.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/bluspose/Library/Logs/trailshare-social-lab-watch.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/bluspose/.nvm/versions/node/v20.19.5/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+    </dict>
+</dict>
+</plist>

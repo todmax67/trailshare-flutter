@@ -2,7 +2,7 @@ name: trailshare_flutter
 description: "TrailShare - GPS Tracking per escursioni e trail running"
 publish_to: 'none'
 
-version: 1.9.0+52
+version: 2.5.1+77
 
 environment:
   sdk: ^3.10.4
@@ -20,9 +20,16 @@ dependencies:
   firebase_auth: ^5.5.0
   cloud_firestore: ^5.6.0
   firebase_storage: ^12.4.0
+  # 6.B2 — Receipt validation server-side
+  cloud_functions: ^5.2.0
+
+  # Viewshed: decode PNG terrarium tile (AWS Open Terrain) per algoritmo
+  # "solo cime visibili" (PRO feature)
+  image: ^4.3.0
 
   # Mappe
   flutter_map: ^7.0.2
+  flutter_map_marker_cluster: ^1.4.0
   latlong2: ^0.9.1
 
   # Location
@@ -34,6 +41,9 @@ dependencies:
   # Bussola magnetica (fallback heading quando il GPS non fornisce
   # direzione affidabile, es. fermi o velocita bassa).
   flutter_compass: ^0.8.1
+  # 6.1 — Mountain Recognition AR
+  camera: ^0.11.0+2
+  sensors_plus: ^6.0.1
 
   # State management
   provider: ^6.1.2
@@ -57,6 +67,10 @@ dependencies:
   xml: ^6.6.1
   file_picker: ^10.3.8
   share_plus: ^12.0.1
+  # QR code per la card invito brandizzata dei gruppi Business
+  qr_flutter: ^4.1.0
+  # Deep link custom scheme (trailshare://g/{code} per join gruppo)
+  app_links: ^6.3.2
   flutter_foreground_task: ^9.2.0
   battery_plus: ^7.0.0
   # Local notifications (alert Lifeline standby)
@@ -64,6 +78,12 @@ dependencies:
   vibration: ^3.1.8
   url_launcher: ^6.3.2
   package_info_plus: ^9.0.0
+
+  # PDF generation client-side per Outreach Kit (7.H10). pdf produce
+  # un PDF nativo (no print browser), printing apre il save dialog
+  # cross-platform.
+  pdf: ^3.11.3
+  printing: ^5.13.4
 
   #supporto BLE
   flutter_blue_plus: ^1.16.0
@@ -76,11 +96,17 @@ dependencies:
   image_picker: ^1.1.2
   cached_network_image: ^3.4.1
   path: ^1.9.0
+  # EXIF parsing per auto-geolocation delle foto smartphone aggiunte
+  # alle tracce post-import (es. foto della galleria con GPS tag).
+  exif: ^3.3.0
   
   flutter_native_splash: ^2.4.7
   firebase_messaging: ^15.2.10
   
   flutter_localizations:
+    sdk: flutter
+  # Path-based URL strategy per la dashboard web (lib/main_web.dart).
+  flutter_web_plugins:
     sdk: flutter
   intl: any
   fit_sdk: ^0.3.0
@@ -88,16 +114,28 @@ dependencies:
   health: ^13.3.1
   google_fonts: ^8.0.2
 
+  # 6.B — Paywall / Pro subscription
+  in_app_purchase: ^3.2.0
+
+  # Prompt nativo "Valuta app" (StoreKit / Play in-app review)
+  in_app_review: ^2.0.10
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
- 
+
+  # Test utilities
+  mocktail: ^1.0.4
+  fake_cloud_firestore: ^3.1.0
+
 flutter:
   generate: true
   uses-material-design: true
   assets:
     - assets/icons/
+    - assets/data/peaks_italy.json
+    - assets/data/pois_italy_clean.json
 

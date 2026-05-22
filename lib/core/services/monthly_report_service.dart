@@ -90,9 +90,12 @@ class MonthlyReportService {
 
     final boundaries = MonthBoundaries.forYearMonth(year, month);
 
-    // Le tracce sono limitate a 20 in getMyTracks; per un report mensile
-    // vanno bene (un utente attivo raramente supera 20 tracce/mese).
-    final allTracks = await _tracksRepo.getMyTracks();
+    // Report mensile: serve solo stats aggregate (distanza, dislivello,
+    // count, durata). getMyTracks() scarica anche i GPS points che
+    // saturano l'heap. Lightweight ritorna fino a 1000 tracce senza
+    // points → niente OOM e copre tutto lo storico, non solo gli
+    // ultimi 20.
+    final allTracks = await _tracksRepo.getMyTracksLightweight();
     final monthTracks = allTracks.where((t) {
       final d = t.recordedAt ?? t.createdAt;
       return !d.isBefore(boundaries.start) && !d.isAfter(boundaries.end);

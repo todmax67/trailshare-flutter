@@ -16,18 +16,55 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="TrailShare — Tracking GPS outdoor, mappe topografiche, Mountain Finder AR e community per escursioni, trail running e mountain bike in Italia.">
+  <meta name="theme-color" content="#FC4C02">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="trailshare_flutter">
+  <meta name="apple-mobile-web-app-title" content="TrailShare">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png">
 
-  <title>trailshare_flutter</title>
+  <!-- 7.D2 — Open Graph + Twitter card per share social (link su WhatsApp,
+       Facebook, Twitter). Per OG per-business (rifugio/noleggio) vedi
+       roadmap futura: richiede Cloud Function SSR che intercetta i
+       crawler su /b/{slug} e ritorna HTML statico con tag dinamici. -->
+  <meta property="og:title" content="TrailShare — Outdoor GPS Italia">
+  <meta property="og:description" content="Mappe topografiche, AR cime, tracking GPS, community e Spazi Pro (rifugi, noleggi, guide alpine) per escursioni in Italia.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://trailshare.app/og-default.png">
+  <meta property="og:url" content="https://trailshare.app">
+  <meta property="og:site_name" content="TrailShare">
+  <meta property="og:locale" content="it_IT">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="TrailShare — Outdoor GPS Italia">
+  <meta name="twitter:description" content="Mappe topografiche, AR cime, tracking GPS, community e Spazi Pro per escursioni in Italia.">
+  <meta name="twitter:image" content="https://trailshare.app/og-default.png">
+
+  <!-- 7.D2 — Schema.org JSON-LD generico (Organization TrailShare). Le
+       singole entità Business diventeranno LocalBusiness via SSR. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "TrailShare",
+    "url": "https://trailshare.app",
+    "logo": "https://trailshare.app/icons/Icon-512.png",
+    "description": "GPS Tracking per escursioni e trail running, mappe topografiche, AR riconoscimento cime, community outdoor e Spazi Pro per rifugi, noleggi e guide alpine in Italia.",
+    "applicationCategory": "OutdoorApplication",
+    "operatingSystem": "iOS, Android",
+    "sameAs": [
+      "https://www.instagram.com/trailshare",
+      "https://www.facebook.com/trailshare"
+    ]
+  }
+  </script>
+
+  <title>TrailShare — Outdoor GPS Italia</title>
   <link rel="manifest" href="manifest.json">
   <style id="splash-screen-style">
     html {

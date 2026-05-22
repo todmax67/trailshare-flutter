@@ -6,6 +6,7 @@ import '../../data/repositories/reviews_repository.dart';
 import 'review_editor_sheet.dart';
 import 'star_rating.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Sezione completa recensioni per la pagina dettaglio sentiero.
 ///
@@ -200,7 +201,7 @@ class _TrailReviewsSectionState extends State<TrailReviewsSection> {
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('Riprova'),
+            child: Text(context.l10n.retry),
           ),
         ],
       ),

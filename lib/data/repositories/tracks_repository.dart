@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/track.dart';
+import '../../core/utils/difficulty_calculator.dart';
 import '../../core/utils/elevation_processor.dart';
 
 /// Risultato paginato per le tracce
@@ -125,6 +128,125 @@ class TracksRepository {
     return getUserTracks(userId);
   }
 
+  /// Variante di [getMyTracksLightweight] che accetta un userId
+  /// arbitrario (es. profilo pubblico di un altro utente). Stessa
+  /// strategia: skip `points`, limit alto.
+  Future<List<Track>> getUserTracksLightweight(
+    String userId, {
+    int limit = 1000,
+  }) async {
+    try {
+      final snapshot = await _tracksCollection(userId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      return snapshot.docs.map((doc) {
+        final data = Map<String, dynamic>.from(doc.data());
+        data.remove('points');
+        final t = _trackFromFirestore(doc.id, data);
+        // Fallback userId dal path (per tracce con campo top-level
+        // mancante) — qui usiamo userId della firma, non currentUser.
+        return t.userId == null ? t.copyWith(userId: userId) : t;
+      }).toList();
+    } catch (e) {
+      debugPrint(
+          '[TracksRepository] Errore getUserTracksLightweight($userId): $e');
+      return [];
+    }
+  }
+
+  /// Versione **lightweight**: tutte le tracce dell'utente corrente
+  /// senza i punti GPS, pensata per dashboard/lista/profilo web dove
+  /// servono solo stats, nome, date e activity type.
+  ///
+  /// Salta la deserializzazione del campo `points` per evitare di
+  /// allocare migliaia di [TrackPoint] × N tracce (OOM su mobile,
+  /// memoria sprecata su web). Il documento Firestore arriva comunque
+  /// per intero via wire, ma viene ridotto prima del parse.
+  ///
+  /// Per il dettaglio mappa (che richiede i punti) usare
+  /// [getTrackById] — fa una read singola completa.
+  ///
+  /// [bypassCache] = true: usa `Source.server` per evitare decoding della
+  /// cache locale (utile quando i doc sono pesanti per points embedded e
+  /// la cache satura va in OOM). Default false per non rompere offline.
+  Future<List<Track>> getMyTracksLightweight({
+    int limit = 1000,
+    bool bypassCache = false,
+  }) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return [];
+    try {
+      final query = _tracksCollection(userId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
+      final snapshot = await (bypassCache
+          ? query.get(const GetOptions(source: Source.server))
+          : query.get());
+      return snapshot.docs.map((doc) {
+        // Copia mutabile + rimozione points prima del parse
+        final data = Map<String, dynamic>.from(doc.data());
+        data.remove('points');
+        final t = _trackFromFirestore(doc.id, data);
+        // Fallback userId dal path (tracce vecchie senza campo
+        // top-level userId — vedi getTrackById per dettagli).
+        return t.userId == null ? t.copyWith(userId: userId) : t;
+      }).toList();
+    } catch (e) {
+      debugPrint('[TracksRepository] Errore getMyTracksLightweight: $e');
+      return [];
+    }
+  }
+
+  /// Epic 4.7 — calcola i Personal Records dell'utente per le tracce
+  /// dello stesso `activityType`, escludendo opzionalmente la traccia
+  /// corrente (così il "best" rappresenta lo storico vs cui confrontarla).
+  ///
+  /// Best:
+  /// - distance (metri)
+  /// - duration (secondi)
+  /// - elevation gain (metri)
+  /// - avg pace (sec/km) per attività di velocità (running/cycling/etc.)
+  ///
+  /// Implementazione lightweight: usa [getMyTracksLightweight] (skip
+  /// points), filtra in-memory. Cap a 500 tracce per limitare memoria.
+  Future<PersonalRecords?> getPersonalRecordsForActivity({
+    required String activityType,
+    String? excludeTrackId,
+  }) async {
+    final tracks = await getMyTracksLightweight(limit: 500);
+    final sameActivity = tracks.where((t) {
+      if (excludeTrackId != null && t.id == excludeTrackId) return false;
+      return t.activityType.name == activityType;
+    }).toList();
+    if (sameActivity.isEmpty) return null;
+
+    Track? bestDistance;
+    Track? bestDuration;
+    Track? bestElevation;
+    for (final t in sameActivity) {
+      if (bestDistance == null ||
+          t.stats.distance > bestDistance.stats.distance) {
+        bestDistance = t;
+      }
+      if (bestDuration == null ||
+          t.stats.duration.inSeconds > bestDuration.stats.duration.inSeconds) {
+        bestDuration = t;
+      }
+      if (bestElevation == null ||
+          t.stats.elevationGain > bestElevation.stats.elevationGain) {
+        bestElevation = t;
+      }
+    }
+    return PersonalRecords(
+      activityType: activityType,
+      bestDistance: bestDistance,
+      bestDuration: bestDuration,
+      bestElevation: bestElevation,
+      sampleSize: sameActivity.length,
+    );
+  }
+
   /// ⭐ NUOVO: Ottiene le mie tracce con paginazione
   Future<PaginatedTracksResult> getMyTracksPaginated({
     int limit = 10,
@@ -148,6 +270,22 @@ class TracksRepository {
             .toList());
   }
 
+  /// Ottiene una traccia di un altro utente (path users/{ownerId}/tracks/{trackId}).
+  /// Le rules permettono read pubblico ai signed-in. Utile per percorsi
+  /// consigliati su Spazi Pro dove l'owner del business ha consigliato
+  /// una traccia di un altro utente.
+  Future<Track?> getTrackByOwnerAndId(
+      String ownerId, String trackId) async {
+    try {
+      final doc = await _tracksCollection(ownerId).doc(trackId).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return _trackFromFirestore(doc.id, doc.data()!);
+    } catch (e) {
+      debugPrint('[TracksRepository] Errore getTrackByOwnerAndId: $e');
+      return null;
+    }
+  }
+
   /// Ottiene una traccia specifica per ID
   Future<Track?> getTrackById(String trackId) async {
     final userId = _auth.currentUser?.uid;
@@ -156,7 +294,15 @@ class TracksRepository {
     try {
       final doc = await _tracksCollection(userId).doc(trackId).get();
       if (!doc.exists || doc.data() == null) return null;
-      return _trackFromFirestore(doc.id, doc.data()!);
+      final track = _trackFromFirestore(doc.id, doc.data()!);
+      // Fallback: tracce vecchie possono non avere il campo userId
+      // salvato top-level (lo si conosce comunque dal path). Senza
+      // questo, ownership check (es. _canEdit in WebTrackPhotosEditor)
+      // ritorna false e il bottone 'Aggiungi foto' resta nascosto
+      // anche sulle proprie tracce.
+      return track.userId == null
+          ? track.copyWith(userId: userId)
+          : track;
     } catch (e) {
       debugPrint('[TracksRepository] Errore getTrackById: $e');
       return null;
@@ -223,6 +369,103 @@ class TracksRepository {
       field: value,
     });
     debugPrint('[TracksRepository] Campo "$field" aggiornato per traccia $trackId');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONDIVISIONE NEI GRUPPI (B2B Groups feature)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Aggiunge [groupId] al campo `groupIds` della traccia, rendendola
+  /// visibile come "percorso consigliato" nel tab Percorsi del gruppo.
+  ///
+  /// Il chiamante deve essere il **proprietario della traccia** (regola
+  /// Firestore) e tipicamente anche admin del gruppo (controllo lato
+  /// UI prima di chiamare). Idempotente — Firestore arrayUnion non
+  /// duplica.
+  Future<void> shareTrackToGroup(String trackId, String groupId) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Utente non autenticato');
+
+    await _tracksCollection(userId).doc(trackId).update({
+      'groupIds': FieldValue.arrayUnion([groupId]),
+    });
+    debugPrint(
+      '[TracksRepository] Traccia $trackId condivisa nel gruppo $groupId',
+    );
+  }
+
+  /// Rimuove [groupId] dal campo `groupIds` della traccia. La traccia
+  /// sparirà dal tab Percorsi del gruppo ma resta nelle "Le mie tracce"
+  /// del proprietario. Idempotente.
+  Future<void> unshareTrackFromGroup(String trackId, String groupId) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Utente non autenticato');
+
+    await _tracksCollection(userId).doc(trackId).update({
+      'groupIds': FieldValue.arrayRemove([groupId]),
+    });
+    debugPrint(
+      '[TracksRepository] Traccia $trackId rimossa dal gruppo $groupId',
+    );
+  }
+
+  /// Restituisce le tracce condivise nel gruppo [groupId] da tutti i
+  /// suoi membri. Usa una `collectionGroup` query su `tracks` con
+  /// `array-contains` su [groupId]. Richiede l'indice composito:
+  ///
+  ///   collection: tracks (collectionGroup), groupIds: ARRAYS asc
+  ///
+  /// Le regole Firestore devono permettere a chi è membro del gruppo
+  /// di leggere i documenti tracks con `request.auth.uid in resource.data.groupIds`
+  /// implicito tramite la membership.
+  Future<List<Track>> getGroupTracks(String groupId) async {
+    try {
+      final snap = await _firestore
+          .collectionGroup('tracks')
+          .where('groupIds', arrayContains: groupId)
+          .orderBy('createdAt', descending: true)
+          .limit(100)
+          .get();
+
+      final tracks = snap.docs
+          .map((d) => _trackFromFirestore(d.id, d.data()))
+          .toList();
+      debugPrint(
+        '[TracksRepository] getGroupTracks($groupId): ${tracks.length} tracce',
+      );
+      return tracks;
+    } catch (e) {
+      debugPrint('[TracksRepository] Errore getGroupTracks: $e');
+      return [];
+    }
+  }
+
+  /// Versione **lightweight** di [getGroupTracks]: stesse tracce ma
+  /// senza `points` (skip TrackPoint allocation) e con cap alzato a
+  /// 1000 invece di 100. Pensata per stats/dashboard web dove servono
+  /// solo metadata aggregati (distance, elevation, date, userId,
+  /// activityType) — i punti GPS non servono.
+  Future<List<Track>> getGroupTracksLightweight(
+    String groupId, {
+    int limit = 1000,
+  }) async {
+    try {
+      final snap = await _firestore
+          .collectionGroup('tracks')
+          .where('groupIds', arrayContains: groupId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      return snap.docs.map((d) {
+        final data = Map<String, dynamic>.from(d.data());
+        data.remove('points');
+        return _trackFromFirestore(d.id, data);
+      }).toList();
+    } catch (e) {
+      debugPrint(
+          '[TracksRepository] Errore getGroupTracksLightweight: $e');
+      return [];
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -328,6 +571,9 @@ class TracksRepository {
       'userId': userId,
       'isPublic': track.isPublic,
       'isPlanned': track.isPlanned,
+      // Gruppi in cui la traccia è condivisa come "percorso consigliato"
+      // (B2B groups feature, vedi GroupsRepository.shareTrackToGroup).
+      'groupIds': track.groupIds,
       // Stats RICALCOLATE dai punti (non più da track.stats)
       'distance': stats.distance,
       'elevationGain': stats.elevationGain,
@@ -346,9 +592,18 @@ class TracksRepository {
           (key, value) => MapEntry(key.millisecondsSinceEpoch.toString(), value),
         ),
       if (track.healthCalories != null)
-        'healthCalories': track.healthCalories,  
+        'healthCalories': track.healthCalories,
       if (track.healthSteps != null)
-        'healthSteps': track.healthSteps,  
+        'healthSteps': track.healthSteps,
+      // Komoot K1a Step 2 — difficoltà computata client-side al save.
+      // Preserva valore esistente se passato dall'utente (override
+      // manuale), altrimenti ricalcola da stats. null se insufficient.
+      'computedDifficulty':
+          track.computedDifficulty ??
+              DifficultyCalculator.compute(
+                stats: stats,
+                activityType: track.activityType,
+              )?.firestoreKey,
     };
   }
 
@@ -518,13 +773,205 @@ class TracksRepository {
       userId: data['userId']?.toString(),
       isPublic: data['isPublic'] == true,
       isPlanned: data['isPlanned'] == true,
+      groupIds: (data['groupIds'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
       stats: stats,
       photos: photos, // 📸 Foto
       heartRateData: heartRateData, // ❤️ Battito cardiaco
       healthCalories: healthCalories, // 🔥 Calorie reali
       healthSteps: healthSteps, // 👣 Passi
+      importedFromStrava: data['importedFromStrava'] == true,
+      stravaSourceActivityId: data['stravaSourceActivityId']?.toString(),
+      // 5.5 — Tag personalizzati salvati lowercase
+      tags: data['tags'] is List
+          ? List<String>.from(data['tags'] as List)
+          : const <String>[],
+      computedDifficulty: data['computedDifficulty']?.toString(),
     );
   }
+
+  /// 5.5 — Aggiorna SOLO il campo `tags` di una traccia esistente.
+  /// I tag vengono normalizzati lowercase + trimmed + dedup prima del save.
+  Future<bool> updateTrackTags(String trackId, List<String> tags) async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    final normalized = tags
+        .map((t) => t.trim().toLowerCase())
+        .where((t) => t.isNotEmpty && t.length <= 30)
+        .toSet()
+        .toList();
+    try {
+      await _tracksCollection(user.uid).doc(trackId).update({
+        'tags': normalized,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[TracksRepository] updateTrackTags error: $e');
+      return false;
+    }
+  }
+
+  /// 5.5 — Restituisce l'insieme di tutti i tag usati dall'utente
+  /// nelle sue tracce (per autocomplete del tag editor).
+  Future<List<String>> getAllUserTags() async {
+    final tracks = await getMyTracksLightweight(limit: 500);
+    final set = <String>{};
+    for (final t in tracks) {
+      set.addAll(t.tags);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  /// 5.4 — Spezza una traccia in due al [splitIndex] (esclusivo: primo
+  /// pezzo include points[0..splitIndex-1], secondo pezzo
+  /// points[splitIndex..end]). Le stats vengono ricalcolate per
+  /// distance/duration/elevation in modo coerente. Salva i 2 nuovi
+  /// documenti, cancella l'originale. Ritorna gli ID dei 2 nuovi
+  /// oppure null su errore.
+  Future<({String firstId, String secondId})?> splitTrack(
+    Track track,
+    int splitIndex,
+  ) async {
+    if (track.id == null) return null;
+    final points = track.points;
+    if (splitIndex <= 1 || splitIndex >= points.length - 1) return null;
+
+    final first = points.sublist(0, splitIndex);
+    final second = points.sublist(splitIndex);
+
+    // Stats ricalcolate dalle distanze cumulative dei punti
+    final firstStats = _recomputeStats(first);
+    final secondStats = _recomputeStats(second);
+
+    final firstTrack = track.copyWith(
+      id: null, // nuovo doc
+      name: '${track.name} (parte 1)',
+      points: first,
+      stats: firstStats,
+      recordedAt: track.recordedAt,
+      createdAt: DateTime.now(),
+    );
+    final secondTrack = track.copyWith(
+      id: null,
+      name: '${track.name} (parte 2)',
+      points: second,
+      stats: secondStats,
+      recordedAt: first.last.timestamp,
+      createdAt: DateTime.now(),
+    );
+
+    try {
+      final firstId = await saveTrack(firstTrack);
+      final secondId = await saveTrack(secondTrack);
+      await deleteTrack(track.id!);
+      debugPrint(
+          '[TracksRepository] split OK: ${track.id} → $firstId + $secondId');
+      return (firstId: firstId, secondId: secondId);
+    } catch (e) {
+      debugPrint('[TracksRepository] split error: $e');
+      return null;
+    }
+  }
+
+  /// 5.4 — Unisce due tracce concatenando i punti (in ordine cronologico
+  /// di [recordedAt]/[createdAt]). Stats sommate. Salva nuova traccia,
+  /// cancella le originali. Ritorna l'ID della nuova traccia o null.
+  Future<String?> mergeTracks(Track a, Track b) async {
+    if (a.id == null || b.id == null) return null;
+    if (a.id == b.id) return null;
+
+    // Ordina cronologicamente per evitare polilinee zigzaganti.
+    final aDate = a.recordedAt ?? a.createdAt;
+    final bDate = b.recordedAt ?? b.createdAt;
+    final ordered = aDate.isBefore(bDate) ? [a, b] : [b, a];
+    final allPoints = [...ordered[0].points, ...ordered[1].points];
+    final newStats = _recomputeStats(allPoints);
+
+    final merged = ordered[0].copyWith(
+      id: null,
+      name: '${ordered[0].name} + ${ordered[1].name}',
+      points: allPoints,
+      stats: newStats,
+      recordedAt: ordered[0].recordedAt,
+      createdAt: DateTime.now(),
+      // Unisci anche i tag dedup-lowercase.
+      tags: {...ordered[0].tags, ...ordered[1].tags}.toList(),
+    );
+
+    try {
+      final newId = await saveTrack(merged);
+      await deleteTrack(a.id!);
+      await deleteTrack(b.id!);
+      debugPrint(
+          '[TracksRepository] merge OK: ${a.id}+${b.id} → $newId');
+      return newId;
+    } catch (e) {
+      debugPrint('[TracksRepository] merge error: $e');
+      return null;
+    }
+  }
+
+  /// Helper: ricalcola distance / duration / elevation gain & loss /
+  /// min & max elevation per una sequenza di punti. Usato da split e
+  /// merge per produrre stats coerenti con i nuovi point[].
+  TrackStats _recomputeStats(List<TrackPoint> points) {
+    if (points.isEmpty) return const TrackStats();
+    double distance = 0;
+    double elevationGain = 0;
+    double elevationLoss = 0;
+    double minEle = double.infinity;
+    double maxEle = -double.infinity;
+    for (int i = 0; i < points.length; i++) {
+      final p = points[i];
+      if (p.elevation != null) {
+        if (p.elevation! < minEle) minEle = p.elevation!;
+        if (p.elevation! > maxEle) maxEle = p.elevation!;
+      }
+      if (i > 0) {
+        final prev = points[i - 1];
+        distance += _haversine(prev, p);
+        if (prev.elevation != null && p.elevation != null) {
+          final diff = p.elevation! - prev.elevation!;
+          if (diff > 0) {
+            elevationGain += diff;
+          } else {
+            elevationLoss += -diff;
+          }
+        }
+      }
+    }
+    final duration =
+        points.last.timestamp.difference(points.first.timestamp);
+    return TrackStats(
+      distance: distance,
+      elevationGain: elevationGain,
+      elevationLoss: elevationLoss,
+      duration: duration,
+      movingTime: duration, // approssimazione: senza i flag di auto-pause
+      minElevation: minEle == double.infinity ? 0 : minEle,
+      maxElevation: maxEle == -double.infinity ? 0 : maxEle,
+    );
+  }
+
+  /// Haversine in metri tra due TrackPoint (lat/lng decimali).
+  double _haversine(TrackPoint a, TrackPoint b) {
+    const r = 6371000.0;
+    final dLat = _toRad(b.latitude - a.latitude);
+    final dLng = _toRad(b.longitude - a.longitude);
+    final lat1 = _toRad(a.latitude);
+    final lat2 = _toRad(b.latitude);
+    final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.sin(dLng / 2) *
+            math.sin(dLng / 2) *
+            math.cos(lat1) *
+            math.cos(lat2);
+    return 2 * r * math.asin(math.min(1.0, math.sqrt(h)));
+  }
+
+  double _toRad(double deg) => deg * math.pi / 180.0;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // HELPER
@@ -547,4 +994,35 @@ class TracksRepository {
     if (value is String) return int.tryParse(value);
     return null;
   }
+}
+
+/// Epic 4.7 — Personal Records dell'utente per uno specifico activityType.
+/// Vengono passati alla [PersonalRecordsCard] nella track detail page per
+/// confrontare la traccia corrente vs lo storico personale.
+class PersonalRecords {
+  final String activityType;
+  final Track? bestDistance;
+  final Track? bestDuration;
+  final Track? bestElevation;
+  /// Numero tracce dello stesso tipo (utile per disclaimer "su N attività").
+  final int sampleSize;
+
+  const PersonalRecords({
+    required this.activityType,
+    this.bestDistance,
+    this.bestDuration,
+    this.bestElevation,
+    this.sampleSize = 0,
+  });
+
+  /// `true` se la traccia [current] è il nuovo best per la metrica.
+  bool isNewDistanceRecord(Track current) =>
+      bestDistance == null ||
+      current.stats.distance > bestDistance!.stats.distance;
+  bool isNewDurationRecord(Track current) =>
+      bestDuration == null ||
+      current.stats.duration.inSeconds > bestDuration!.stats.duration.inSeconds;
+  bool isNewElevationRecord(Track current) =>
+      bestElevation == null ||
+      current.stats.elevationGain > bestElevation!.stats.elevationGain;
 }

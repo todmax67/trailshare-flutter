@@ -3,6 +3,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/services/weather_service.dart';
 import '../../data/models/weather_data.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/extensions/l10n_extension.dart';
 
 /// Card che mostra meteo attuale + forecast 5 giorni per una location.
 ///
@@ -131,7 +132,7 @@ class _WeatherForecastCardState extends State<WeatherForecastCard> {
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('Riprova'),
+            child: Text(context.l10n.retry),
           ),
         ],
       ),
@@ -201,7 +202,7 @@ class _WeatherForecastCardState extends State<WeatherForecastCard> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: daily.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) => _dayTile(daily[index], index == 0),
       ),
     );

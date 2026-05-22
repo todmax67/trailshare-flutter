@@ -18,6 +18,8 @@ import '../../widgets/live_track_button.dart';
 import '../../widgets/heart_rate_widget.dart';
 import '../../../core/services/feature_tips.dart';
 import '../../../core/services/heading_service.dart';
+import '../../../core/services/hud_prefs_service.dart';
+import '../../../core/utils/eta_estimator.dart';
 import '../../../core/services/recording_status_service.dart';
 import '../../widgets/map_heading_toggle.dart';
 import '../../widgets/map_overlays.dart';
@@ -29,6 +31,7 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../../../core/services/health_service.dart';
+import '../../../core/services/strava_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/voice_guidance_service.dart';
 import '../../../core/services/navigation_service.dart';
@@ -37,6 +40,9 @@ import '../../../core/services/lifeline_service.dart';
 import '../../../core/config/app_config.dart';
 import '../../../data/models/navigation_step.dart';
 import '../../../data/models/recording_reference.dart';
+import '../../widgets/pre_start_preview_sheet.dart';
+import '../mountain_finder/mountain_finder_page.dart';
+import '../settings/emergency_contacts_page.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/repositories/emergency_contacts_repository.dart';
 import '../../widgets/poi_editor_sheet.dart';
@@ -110,9 +116,18 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   double _refDistanceFromTrail = 0;
   bool _refOffTrail = false;
   bool _refArrived = false;
+  /// Epic 4.1 — ETA dinamico ricalcolato ad ogni update guidato sulla
+  /// base della velocità corrente reale (non più solo Naismith pre-start).
+  Duration? _refDynamicEta;
   DateTime? _refLastOffTrailAnnouncement;
   final Set<String> _refSpokenThresholds = {};
   bool _refAutoStartRequested = false;
+
+  /// 4.1 — Pre-start preview: quando in modalità guidata, mostra al volo
+  /// distanza/dislivello/ETA prima di avviare la registrazione, così
+  /// l'utente può decidere se ha tempo. Una volta tappato "Inizia" la
+  /// flag diventa false e la registrazione parte normalmente.
+  bool _showPreStartPreview = true;
 
   // ── POI voice announcement (guided) ─────────────────────────────────
   /// POI associati al reference (trail o track) caricati al start della
@@ -149,6 +164,17 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   bool _statsExpanded = false;
   /// Analogo per la card unificata guida+lifeline.
   bool _overlayExpanded = false;
+
+  /// 1.D4 — Auto-hide HUD dopo N secondi di inattività. Quando false lo
+  /// stats header si nasconde (AnimatedOpacity 0 + IgnorePointer), e
+  /// resta solo un chip mini in alto a sinistra come "shortcut" per
+  /// rimostrarlo. Tap mappa, tap chip, o cambio stato recording lo
+  /// riattivano.
+  bool _hudVisible = true;
+  Timer? _hudHideTimer;
+  bool _lastIsRecording = false;
+  bool _lastIsPaused = false;
+  bool _lastIsIdle = true;
 
   StreamSubscription<LifelineState>? _lifelineSub;
   bool _inactivityDialogShown = false;
@@ -195,7 +221,11 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     await FeatureTipsService().markTipShown(AppTips.firstTrack);
   }
 
-  /// Modalità guidata: inizializza voce + parte automaticamente la registrazione.
+  /// Modalità guidata: pre-carica POI + voce + servizio routing, ma NON
+  /// avvia automaticamente la registrazione. L'avvio reale è demandato a
+  /// [_startGuidedRecording] chiamato dal pulsante "Inizia" nel
+  /// [PreStartPreviewSheet] (4.1).
+  ///
   /// NON fa check backup perché ci si aspetta che l'utente abbia appena
   /// avviato il follow e la pagina entri subito in registrazione.
   Future<void> _initGuidedMode() async {
@@ -206,29 +236,78 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _routingSvc = RoutingService(proxyBaseUrl: AppConfig.orsProxyBaseUrl);
 
     // Carica POI del trail/track di riferimento + preferenze voce.
-    // Non blocca l'inizio della registrazione (fire-and-forget).
+    // Non blocca l'avvio (fire-and-forget).
     unawaited(_loadGuidedPois());
 
-    // Inizializza TTS solo se abbiamo step turn-by-turn (planner).
-    // Per le tracce pubbliche la guida vocale completa non ha senso (niente
-    // svolte), ma teniamo un messaggio di benvenuto e gli alert off-trail.
+    // Inizializza TTS in anticipo così, quando l'utente tappa "Inizia",
+    // possiamo parlare immediatamente senza freeze percepibile.
     _voice = VoiceGuidanceService();
     await _voice!.init();
+  }
 
-    if (ref.isPlanner && ref.hasTurnByTurn) {
-      final next = ref.steps.length > 1 ? ref.steps[1] : null;
-      final welcome = next != null
-          ? 'Registrazione avviata. Prima manovra: ${next.maneuver.italianAction.toLowerCase()}'
-          : 'Registrazione avviata lungo il percorso pianificato';
-      await _voice!.speak(welcome);
-    } else {
-      await _voice!.speak('Registrazione avviata. Seguo la traccia ${ref.name}.');
+  /// Chiamato quando l'utente tappa "Inizia" nel pre-start preview sheet.
+  /// Avvia Lifeline (se richiesto), la registrazione e l'eventuale
+  /// messaggio vocale di benvenuto.
+  Future<void> _startGuidedRecording() async {
+    if (_refAutoStartRequested) return;
+    final ref = widget.reference!;
+
+    // ─── Lifeline: attivazione opzionale prima dello start ────────────
+    // Replica della logica di [_onStartPressed] ma adattata al flusso
+    // guidato. Se l'utente ha tappato il toggle Lifeline e ha contatti
+    // configurati, mostriamo disclaimer (al primo uso) e avviamo il
+    // servizio prima di partire con la registrazione.
+    if (_lifelineToggleOn && _emergencyContacts.isNotEmpty) {
+      final accepted = await _ensureLifelineDisclaimerAccepted();
+      if (!accepted) return; // utente ha rifiutato: non parte nulla
+      try {
+        final userName = FirebaseAuth.instance.currentUser?.displayName ??
+            FirebaseAuth.instance.currentUser?.email ??
+            'Utente TrailShare';
+        final drafts = await _lifeline.start(
+          contacts: _emergencyContacts,
+          userName: userName,
+          activityName: _selectedActivity.displayName,
+          referenceName: ref.name,
+          customTemplate: _lifelineTemplate,
+        );
+        _lifelineActive = drafts.isNotEmpty;
+        if (drafts.isNotEmpty && mounted) {
+          await _showLifelineDraftsDialog(drafts);
+        }
+      } catch (e) {
+        debugPrint('[RecordPage] Errore avvio Lifeline (guided): $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.l10n.lifelineCannotStart(e.toString())),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+      }
     }
 
-    // Avvia la registrazione al prossimo frame (dopo che il widget è montato
-    // e il tracking bloc è pronto).
-    if (!mounted || _refAutoStartRequested) return;
-    _refAutoStartRequested = true;
+    if (!mounted) return;
+    setState(() {
+      _showPreStartPreview = false;
+      _refAutoStartRequested = true;
+    });
+
+    // Messaggio vocale di benvenuto (solo per planner con turn-by-turn).
+    if (_voice != null) {
+      if (ref.isPlanner && ref.hasTurnByTurn) {
+        final next = ref.steps.length > 1 ? ref.steps[1] : null;
+        final welcome = next != null
+            ? 'Registrazione avviata. Prima manovra: ${next.maneuver.italianAction.toLowerCase()}'
+            : 'Registrazione avviata lungo il percorso pianificato';
+        unawaited(_voice!.speak(welcome));
+      } else {
+        unawaited(_voice!.speak('Registrazione avviata. Seguo la traccia ${ref.name}.'));
+      }
+    }
+
+    if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _trackingBloc.startRecording(activityType: _selectedActivity);
@@ -410,8 +489,11 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       ),
     );
     
-    if (shouldRestore == true) await _restoreFromBackup(backup);
-    else await _persistence.clearState();
+    if (shouldRestore == true) {
+      await _restoreFromBackup(backup);
+    } else {
+      await _persistence.clearState();
+    }
   }
 
   Widget _buildBackupInfo(RecordingBackup backup) {
@@ -481,6 +563,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _mapController.rotate(-h);
   }
 
+  /// Stato precedente per detection delle transizioni (usato da 4.3).
+  bool _wasAutoPaused = false;
+
   void _onTrackingUpdate() {
     if (_followUser && _trackingBloc.state.points.isNotEmpty) {
       final lastPoint = _trackingBloc.state.points.last;
@@ -507,6 +592,27 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     } else {
       RecordingStatusService().markIdle();
     }
+
+    // 4.3 — Notifica utente quando l'auto-pausa scatta o si auto-risolve.
+    final isAutoNow = _trackingBloc.isAutoPaused;
+    if (isAutoNow && !_wasAutoPaused) {
+      _showSnackBar(context.l10n.autoPauseTriggered);
+    } else if (!isAutoNow && _wasAutoPaused && state.isRecording) {
+      _showSnackBar(context.l10n.autoPauseResumed);
+    }
+    _wasAutoPaused = isAutoNow;
+
+    // 1.D4 — su cambio stato recording (start, pause, resume, idle) rimostra
+    // l'HUD: l'utente deve confermare visivamente la transizione.
+    if (state.isRecording != _lastIsRecording ||
+        state.isPaused != _lastIsPaused ||
+        state.isIdle != _lastIsIdle) {
+      _lastIsRecording = state.isRecording;
+      _lastIsPaused = state.isPaused;
+      _lastIsIdle = state.isIdle;
+      _bumpHudActivity();
+    }
+
     setState(() {});
   }
 
@@ -555,11 +661,41 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _refDistanceToNextTurn = distToTurn;
     _refRemainingDistance = remaining;
     _refDistanceFromTrail = distFromRoute;
+    final wasOffTrail = _refOffTrail;
     _refOffTrail = offTrail;
+
+    // Epic 4.1 — ETA dinamico basato su velocità corrente.
+    // Stima del dislivello residuo: proporzionale alla quota di
+    // percorso ancora da fare (totalEle × remaining/total). È
+    // un'approssimazione, ma evita di scorrere tutto il profilo ad
+    // ogni update.
+    {
+      final totalDist = ref.totalDistance ?? 0;
+      final totalEle = ref.totalElevationGain ?? 0;
+      final remainingEle = (totalDist > 0)
+          ? totalEle * (remaining / totalDist).clamp(0.0, 1.0)
+          : 0.0;
+      // Velocità corrente in km/h da m/s dell'ultimo punto GPS.
+      final rawSpeed = p.speed;
+      final speedMs = (rawSpeed != null && rawSpeed.isFinite && rawSpeed >= 0)
+          ? rawSpeed
+          : 0.0;
+      final speedKmh = speedMs * 3.6;
+      _refDynamicEta = EtaEstimator.estimateDynamic(
+        remainingDistanceMeters: remaining,
+        remainingElevationGainMeters: remainingEle,
+        activityType: _selectedActivity,
+        currentSpeedKmh: speedKmh,
+      );
+    }
+
+    // 1.D4 — riapri l'HUD sui trigger guida critici (off-trail, arrivo)
+    if (offTrail != wasOffTrail) _bumpHudActivity();
 
     // Arrivo → trigger save dialog automatico
     if (remaining < 30 && !_refArrived) {
       _refArrived = true;
+      _bumpHudActivity();
       _voice?.speak('Sei arrivato a destinazione. Salvataggio registrazione.');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_isSaving) _showSaveDialog();
@@ -755,6 +891,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       
       final now = DateTime.now();
       final activityName = track.activityType.displayName;
+      if (!mounted) return;
       final trackToSave = track.copyWith(name: '$activityName ${now.day}/${now.month}/${now.year} ${context.l10n.autoSaved}');
       
       await _repository.saveTrack(trackToSave);
@@ -789,9 +926,46 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     }
     _batterySubscription?.cancel();
     _lifelineSub?.cancel();
+    _hudHideTimer?.cancel();
     _voice?.dispose();
     _trackingBloc.dispose();
     super.dispose();
+  }
+
+  // ─── 1.D4 Auto-hide HUD helpers ─────────────────────────────────────
+  /// Re-mostra l'HUD e (re)avvia il timer di auto-hide. Da chiamare su
+  /// ogni "interazione" significativa:
+  /// - gesture sulla mappa (pan/zoom)
+  /// - tap sul chip mini
+  /// - cambio stato recording (start/pause/resume/arrivo)
+  /// - eventi guida (off-trail, arrivato)
+  void _bumpHudActivity() {
+    if (!HudPrefsService().enabled) {
+      // Se l'utente ha disattivato l'auto-hide nelle settings, l'HUD
+      // resta sempre visibile.
+      if (!_hudVisible && mounted) setState(() => _hudVisible = true);
+      return;
+    }
+    final state = _trackingBloc.state;
+    if (state.isIdle) return; // HUD non esiste in idle
+    if (!_hudVisible && mounted) {
+      setState(() => _hudVisible = true);
+    }
+    _hudHideTimer?.cancel();
+    _hudHideTimer = Timer(
+      Duration(seconds: HudPrefsService().seconds),
+      _hideHudIfRecording,
+    );
+  }
+
+  void _hideHudIfRecording() {
+    if (!mounted) return;
+    final state = _trackingBloc.state;
+    // Non nasconde mai in pausa o off-trail: lo stato deve restare ben
+    // visibile (l'utente potrebbe non essersi accorto della pausa).
+    if (!state.isRecording) return;
+    if (_refOffTrail || _refArrived) return;
+    setState(() => _hudVisible = false);
   }
 
   /// Banner informativo per modalità guidata in versione compatta con
@@ -899,8 +1073,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
               color: _refOffTrail
-                  ? Colors.white.withOpacity(0.2)
-                  : AppColors.info.withOpacity(0.12),
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : AppColors.info.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -959,8 +1133,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: _refOffTrail
-              ? Colors.white.withOpacity(0.15)
-              : AppColors.info.withOpacity(0.08),
+              ? Colors.white.withValues(alpha: 0.15)
+              : AppColors.info.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -1024,7 +1198,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.info.withOpacity(0.12),
+            color: AppColors.info.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(step.maneuver.icon, size: 28, color: AppColors.info),
@@ -1066,11 +1240,29 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   }
 
   Widget _buildGuidedProgressRow() {
+    // Epic 4.1 — ETA dinamico + orario d'arrivo se disponibile.
+    final eta = _refDynamicEta;
+    String? etaValue;
+    String? etaLabel;
+    if (eta != null && eta > Duration.zero) {
+      etaValue = EtaEstimator.formatArrivalClock(DateTime.now(), eta);
+      etaLabel = 'Arrivo • ${EtaEstimator.formatCompact(eta)}';
+    }
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        _guidedStat(Icons.straighten, _formatDistanceMeters(_refRemainingDistance), 'Residuo'),
-        _guidedStat(Icons.near_me, '${_refDistanceFromTrail.round()} m', 'Dal percorso'),
+        _guidedStat(
+          Icons.straighten,
+          _formatDistanceMeters(_refRemainingDistance),
+          'Residuo',
+        ),
+        _guidedStat(
+          Icons.near_me,
+          '${_refDistanceFromTrail.round()} m',
+          'Dal percorso',
+        ),
+        if (etaValue != null && etaLabel != null)
+          _guidedStat(Icons.schedule, etaValue, etaLabel),
       ],
     );
   }
@@ -1266,6 +1458,34 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     );
   }
 
+  /// 6.1 — Pulsante per aprire il Mountain Finder AR. Disponibile sia in
+  /// idle (per esplorare le cime intorno) sia durante registrazione.
+  Widget _buildMountainFinderButton() {
+    return Material(
+      elevation: 3,
+      shape: const CircleBorder(),
+      color: Colors.white,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const MountainFinderPage()),
+          );
+        },
+        child: const SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            Icons.terrain,
+            color: Color(0xFF6D4C41),
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Chip battery saver: posizionato in basso-sinistra durante recording.
   Widget _buildBatterySaverButton() {
     return Positioned(
@@ -1276,7 +1496,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(20),
         color: _batterySaverOn
             ? AppColors.success
-            : Colors.white.withOpacity(0.95),
+            : Colors.white.withValues(alpha: 0.95),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () => _toggleBatterySaver(),
@@ -1439,8 +1659,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                     side: const BorderSide(color: Colors.white),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  child: const Text('Annulla',
-                      style: TextStyle(color: Colors.white)),
+                  child: Text(context.l10n.cancel,
+                      style: const TextStyle(color: Colors.white)),
                 ),
               ),
             ],
@@ -1469,9 +1689,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('Impossibile aprire la chiamata. Compone manualmente 112.'),
+          SnackBar(
+            content: Text(context.l10n.callCannotOpen),
             backgroundColor: AppColors.warning,
           ),
         );
@@ -1508,7 +1727,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Annulla'),
+                      child: Text(context.l10n.cancel),
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, true),
@@ -1547,7 +1766,27 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             Positioned(bottom: 180, left: 0, right: 0,
               child: PhotoGalleryWidget(photos: _photos, isRecording: !state.isIdle, onAddPhoto: state.isIdle ? null : _showPhotoOptions, onDeletePhoto: _deletePhoto),
             ),
-          if (!state.isIdle) _buildStatsHeader(state),
+          // 1.D4 — stats header con auto-hide. Quando _hudVisible è false
+          // fade-out (250ms) + IgnorePointer; un chip mini in alto a
+          // sinistra resta cliccabile per riportarlo on.
+          //
+          // IMPORTANTE: il Positioned deve essere il figlio DIRETTO dello
+          // Stack; AnimatedOpacity/IgnorePointer intermedi rompono il
+          // parentData (StackParentData) e crashano in release con
+          // 'ParentData is not a subtype of StackParentData'.
+          if (!state.isIdle)
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: AnimatedOpacity(
+                opacity: _hudVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 250),
+                child: IgnorePointer(
+                  ignoring: !_hudVisible,
+                  child: _buildStatsHeader(state),
+                ),
+              ),
+            ),
+          if (!state.isIdle && !_hudVisible) _buildHudReshowChip(state),
           // Banner guidato: solo durante registrazione attiva.
           // A registrazione ferma (idle) nasconderlo così l'utente vede la
           // schermata idle pulita e può uscire dalla pagina.
@@ -1576,6 +1815,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             right: 12,
             child: const MapHeadingToggle(),
           ),
+          // 6.1 — Mountain Finder AR (v2.0.0): pulsante per puntare il
+          // telefono e riconoscere le cime. Posizionato sotto il toggle
+          // bussola (bussola = 56 + 8 gap = 64 da SOS+66).
+          Positioned(
+            top: _topRightControlsOffset() + 66 + 64,
+            right: 12,
+            child: _buildMountainFinderButton(),
+          ),
           // Scrim sotto i controlli: protegge leggibilita del bottone REC
           // (e di eventuali toast) su tile mappa ad alta luminosita.
           const Positioned(
@@ -1600,6 +1847,42 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           ])),
           // Tutorial primo record: overlay con freccia che indica il REC.
           if (_showRecTutorial && state.isIdle && !_isGuided) _buildRecTutorialOverlay(),
+
+          // 4.1 — Pre-start preview overlay: visibile solo in modalità
+          // guidata, prima dell'avvio della registrazione. Include toggle
+          // Lifeline per non perdere la possibilità di attivarlo.
+          if (_isGuided && _showPreStartPreview && state.isIdle)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: PreStartPreviewSheet(
+                reference: widget.reference!,
+                activityType: _selectedActivity,
+                lifelineEnabled: _lifelineToggleOn,
+                hasLifelineContacts: _emergencyContacts.isNotEmpty,
+                contactsCount: _emergencyContacts.length,
+                onLifelineToggle: () => setState(
+                    () => _lifelineToggleOn = !_lifelineToggleOn),
+                onLifelineSetup: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EmergencyContactsPage(),
+                    ),
+                  );
+                  if (mounted) await _loadLifelineConfig();
+                },
+                onStart: _startGuidedRecording,
+                onCancel: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    setState(() => _showPreStartPreview = false);
+                  }
+                },
+              ),
+            ),
         ],
       ),
       floatingActionButton: !state.isIdle && state.isRecording
@@ -1707,26 +1990,46 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     final activityName = state.activityType.displayName;
     final defaultName = '$activityName del ${now.day}/${now.month}/${now.year}';
     final nameController = TextEditingController(text: defaultName);
-    
+
+    // Pre-check Strava: solo se connesso mostriamo lo switch nel dialog.
+    // Default dello switch = preferenza utente (autoUploadEnabled).
+    final stravaService = StravaService();
+    final stravaConnected = await stravaService.isConnected();
+    bool uploadToStrava = stravaConnected && await stravaService.isAutoUploadEnabled();
+    if (!mounted) return;
+
     // 3. Mostra dialog di conferma (lo stato è in pausa, non perso)
     final shouldSave = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(context.l10n.saveTrackTitle),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          TextField(controller: nameController, decoration: InputDecoration(labelText: context.l10n.trackName, border: const OutlineInputBorder())),
-          const SizedBox(height: 16),
-          _buildSummaryRow(context.l10n.distanceLabel, '${state.stats.distanceKm.toStringAsFixed(2)} km'),
-          _buildSummaryRow(context.l10n.elevationLabel, '+${state.stats.elevationGain.toStringAsFixed(0)} m'),
-          _buildSummaryRow(context.l10n.durationStatLabel, state.stats.durationFormatted),
-          _buildSummaryRow(context.l10n.gpsPoints, '${state.points.length}'),
-          if (_photos.isNotEmpty) _buildSummaryRow(context.l10n.photosLabel, '${_photos.length}'),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white), child: Text(context.l10n.save)),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          title: Text(context.l10n.saveTrackTitle),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            TextField(controller: nameController, decoration: InputDecoration(labelText: context.l10n.trackName, border: const OutlineInputBorder())),
+            const SizedBox(height: 16),
+            _buildSummaryRow(context.l10n.distanceLabel, '${state.stats.distanceKm.toStringAsFixed(2)} km'),
+            _buildSummaryRow(context.l10n.elevationLabel, '+${state.stats.elevationGain.toStringAsFixed(0)} m'),
+            _buildSummaryRow(context.l10n.durationStatLabel, state.stats.durationFormatted),
+            _buildSummaryRow(context.l10n.gpsPoints, '${state.points.length}'),
+            if (_photos.isNotEmpty) _buildSummaryRow(context.l10n.photosLabel, '${_photos.length}'),
+            if (stravaConnected) ...[
+              const Divider(),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                secondary: const Icon(Icons.directions_run, color: Color(0xFFFC4C02)),
+                title: Text(context.l10n.stravaUploadTitle),
+                value: uploadToStrava,
+                onChanged: (v) => setStateDialog(() => uploadToStrava = v),
+              ),
+            ],
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(context.l10n.cancel)),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white), child: Text(context.l10n.save)),
+          ],
+        ),
       ),
     );
     
@@ -1740,7 +2043,10 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     setState(() => _isSaving = true);
     try {
       final track = await _trackingBloc.stopRecording();
-      if (track == null) throw Exception(context.l10n.stopRecordingError);
+      if (track == null) {
+        if (!mounted) throw Exception('Stop recording error');
+        throw Exception(context.l10n.stopRecordingError);
+      }
       
       final trackToSave = track.copyWith(name: nameController.text.trim());
       final trackId = await _repository.saveTrack(trackToSave);
@@ -1759,7 +2065,18 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       // Sync con Apple Health / Health Connect
       HealthService().saveTrackAsWorkout(trackToSave).catchError((e) {
         debugPrint('[RecordPage] Errore sync Health: $e');
+        return false;
       });
+
+      // Upload su Strava (fire-and-forget). Lo switch nel save dialog ha
+      // priorità sulla preferenza globale autoUploadEnabled per questa
+      // singola attività.
+      if (uploadToStrava) {
+        StravaService().uploadTrack(trackId).catchError((e) {
+          debugPrint('[RecordPage] Errore upload Strava: $e');
+          return null;
+        });
+      }
 
       /// ❤️ Recupera battito cardiaco da Health Connect/Apple Health
       // Attende 15 secondi per dare tempo al wearable di sincronizzare
@@ -1860,7 +2177,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     final center = state.points.isNotEmpty ? LatLng(state.points.last.latitude, state.points.last.longitude) : (_userPosition ?? const LatLng(45.9, 9.9));
     return FlutterMap(
       mapController: _mapController,
-      options: MapOptions(initialCenter: center, initialZoom: 16, minZoom: 4, maxZoom: 18, onPositionChanged: (position, hasGesture) { if (hasGesture) _followUser = false; }),
+      options: MapOptions(initialCenter: center, initialZoom: 16, minZoom: 4, maxZoom: 18, onPositionChanged: (position, hasGesture) { if (hasGesture) { _followUser = false; _bumpHudActivity(); } }),
       children: [
         TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.trailshare.app', tileProvider: OfflineFallbackTileProvider()),
         // Polyline di riferimento (sotto la traccia utente) quando in modalità guidata
@@ -1869,7 +2186,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             Polyline(
               points: widget.reference!.polyline,
               strokeWidth: 5,
-              color: AppColors.info.withOpacity(0.7),
+              color: AppColors.info.withValues(alpha: 0.7),
               pattern: StrokePattern.dashed(segments: const [10, 6]),
             ),
           ]),
@@ -1894,14 +2211,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             width: 32, height: 32,
             child: ListenableBuilder(
               listenable: HeadingService(),
-              builder: (_, __) {
+              builder: (_, _) {
                 final h = HeadingService().currentHeading ?? 0;
                 return Container(
                   decoration: BoxDecoration(
                     color: state.isRecording ? AppColors.trackRecording : AppColors.primary,
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [BoxShadow(color: (state.isRecording ? AppColors.trackRecording : AppColors.primary).withOpacity(0.4), blurRadius: 8, spreadRadius: 2)],
+                    boxShadow: [BoxShadow(color: (state.isRecording ? AppColors.trackRecording : AppColors.primary).withValues(alpha: 0.4), blurRadius: 8, spreadRadius: 2)],
                   ),
                   child: Transform.rotate(
                     angle: h * math.pi / 180,
@@ -1925,7 +2242,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 3),
                   boxShadow: [
-                    BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8, spreadRadius: 2),
+                    BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 8, spreadRadius: 2),
                   ],
                 ),
               ),
@@ -1941,32 +2258,82 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   /// Tap sull'header alterna i due stati.
   Widget _buildStatsHeader(TrackingState state) {
     final bg = state.isRecording
-        ? AppColors.trackRecording.withOpacity(0.95)
-        : AppColors.warning.withOpacity(0.95);
+        ? AppColors.trackRecording.withValues(alpha: 0.95)
+        : AppColors.warning.withValues(alpha: 0.95);
+    // NB: il Positioned (top/left/right) è applicato dal chiamante
+    // (vedi `build`) — qui ritorniamo solo il contenuto, così questo
+    // widget può essere wrappato in AnimatedOpacity/IgnorePointer
+    // senza rompere StackParentData.
+    return GestureDetector(
+      onTap: () {
+        setState(() => _statsExpanded = !_statsExpanded);
+        _bumpHudActivity();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: EdgeInsets.only(
+          top: MediaQuery.of(context).padding.top + 6,
+          bottom: _statsExpanded ? 14 : 8,
+          left: 12,
+          right: 12,
+        ),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+          ),
+        ),
+        child: _statsExpanded
+            ? _buildStatsExpanded(state)
+            : _buildStatsCompact(state),
+      ),
+    );
+  }
+
+  /// 1.D4 — Chip mini visualizzato in alto a sinistra quando lo stats
+  /// HUD è in auto-hide. Mostra solo distanza+pulse, tap → rimostra
+  /// l'HUD per altri N secondi.
+  Widget _buildHudReshowChip(TrackingState state) {
+    final isRec = state.isRecording;
+    final accent = isRec ? AppColors.trackRecording : AppColors.warning;
     return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 12,
       child: GestureDetector(
-        onTap: () => setState(() => _statsExpanded = !_statsExpanded),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top + 6,
-            bottom: _statsExpanded ? 14 : 8,
-            left: 12,
-            right: 12,
-          ),
+        onTap: _bumpHudActivity,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: bg,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(18),
-              bottomRight: Radius.circular(18),
-            ),
+            color: accent.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
           ),
-          child: _statsExpanded
-              ? _buildStatsExpanded(state)
-              : _buildStatsCompact(state),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isRec ? Icons.fiber_manual_record : Icons.pause,
+                color: Colors.white,
+                size: 10,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${state.stats.distanceKm.toStringAsFixed(2)} km',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1989,9 +2356,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _miniStat('${state.stats.distanceKm.toStringAsFixed(2)}', 'km'),
+              _miniStat(state.stats.distanceKm.toStringAsFixed(2), 'km'),
               _miniStat(state.stats.durationFormatted, 'h/m'),
-              _miniStat('${state.stats.elevationGain.toStringAsFixed(0)}', 'D+'),
+              _miniStat(state.stats.elevationGain.toStringAsFixed(0), 'D+'),
             ],
           ),
         ),
@@ -2079,14 +2446,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           child: Text(
             unit,
             style: TextStyle(
-                color: Colors.white.withOpacity(0.8), fontSize: 10),
+                color: Colors.white.withValues(alpha: 0.8), fontSize: 10),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStat(String label, String value, {bool small = false}) => Column(children: [Text(value, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: small ? 16 : 22)), Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: small ? 10 : 11))]);
+  Widget _buildStat(String label, String value, {bool small = false}) => Column(children: [Text(value, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: small ? 16 : 22)), Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: small ? 10 : 11))]);
   String _formatPace(double avgSpeed) { if (avgSpeed <= 0) return '--:--'; final paceSeconds = 1000 / avgSpeed; final minutes = (paceSeconds / 60).floor(); final seconds = (paceSeconds % 60).floor(); return '$minutes:${seconds.toString().padLeft(2, '0')}'; }
 
   /// Overlay per schermata idle: stats settimanali + ultima attività
@@ -2108,9 +2475,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: colorScheme.surface.withOpacity(0.95),
+                color: colorScheme.surface.withValues(alpha: 0.95),
                 borderRadius: BorderRadius.circular(14),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8)],
               ),
               // Row con FittedBox per resistere a schermi stretti /
               // accessibility font: se non entra, scala tutto insieme.
@@ -2149,9 +2516,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: colorScheme.surface.withOpacity(0.95),
+                color: colorScheme.surface.withValues(alpha: 0.95),
                 borderRadius: BorderRadius.circular(14),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8)],
               ),
               child: Row(
                 children: [
@@ -2159,7 +2526,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(
@@ -2224,7 +2591,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       child: GestureDetector(
         onTap: _dismissRecTutorial,
         child: Container(
-          color: Colors.black.withOpacity(0.65),
+          color: Colors.black.withValues(alpha: 0.65),
           child: SafeArea(
             child: Stack(
               children: [
@@ -2241,7 +2608,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                             color: Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 4)),
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 4)),
                             ],
                           ),
                           child: Column(
@@ -2251,7 +2618,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                                 width: 56,
                                 height: 56,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE07B4C).withOpacity(0.15),
+                                  color: const Color(0xFFE07B4C).withValues(alpha: 0.15),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(Icons.play_arrow_rounded, color: Color(0xFFE07B4C), size: 32),
@@ -2305,7 +2672,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                   child: Column(
                     children: [
                       Icon(Icons.keyboard_double_arrow_down,
-                          color: Colors.white.withOpacity(0.9), size: 48),
+                          color: Colors.white.withValues(alpha: 0.9), size: 48),
                     ],
                   ),
                 ),
@@ -2339,7 +2706,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(25),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, spreadRadius: 2)],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -2377,7 +2744,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               ),
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 24, spreadRadius: 4),
+                BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 24, spreadRadius: 4),
               ],
             ),
             child: Column(
@@ -2408,18 +2775,18 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: _lifelineToggleOn
-              ? AppColors.info.withOpacity(0.95)
+              ? AppColors.info.withValues(alpha: 0.95)
               : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color: _lifelineToggleOn
                 ? AppColors.info
-                : AppColors.info.withOpacity(0.5),
+                : AppColors.info.withValues(alpha: 0.5),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 6,
             ),
           ],
@@ -2501,7 +2868,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Impossibile avviare Lifeline: $e'),
+              content: Text(context.l10n.lifelineCannotStart(e.toString())),
               backgroundColor: AppColors.warning,
             ),
           );
@@ -2562,7 +2929,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor: AppColors.info.withOpacity(0.15),
+            backgroundColor: AppColors.info.withValues(alpha: 0.15),
             child: Text(
               draft.contact.name.isNotEmpty
                   ? draft.contact.name[0].toUpperCase()
@@ -2625,7 +2992,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nessuna app disponibile')),
+          SnackBar(content: Text(context.l10n.noAppAvailable)),
         );
       }
     } catch (e) {
@@ -2894,16 +3261,20 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   Widget _buildRecordingControls(TrackingState state) => Column(mainAxisSize: MainAxisSize.min, children: [
     const Padding(padding: EdgeInsets.only(bottom: 12), child: LiveTrackButton()),
-    Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+    Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, spreadRadius: 2)]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
       _buildControlButton(icon: Icons.close, label: context.l10n.cancelLabel, color: context.textMuted, onTap: _showCancelDialog),
-      _buildControlButton(icon: state.isRecording ? Icons.pause : Icons.play_arrow, label: state.isRecording ? context.l10n.pauseLabel : context.l10n.resumeLabel, color: AppColors.warning, onTap: () { if (state.isRecording) _trackingBloc.pauseRecording(); else _trackingBloc.resumeRecording(); }, large: true),
+      _buildControlButton(icon: state.isRecording ? Icons.pause : Icons.play_arrow, label: state.isRecording ? context.l10n.pauseLabel : context.l10n.resumeLabel, color: AppColors.warning, onTap: () { if (state.isRecording) {
+        _trackingBloc.pauseRecording();
+      } else {
+        _trackingBloc.resumeRecording();
+      } }, large: true),
       _buildControlButton(icon: Icons.stop, label: context.l10n.saveLabel, color: AppColors.danger, onTap: _showSaveDialog),
     ])),
   ]);
 
   Widget _buildControlButton({required IconData icon, required String label, required Color color, required VoidCallback onTap, bool large = false}) {
     final size = large ? 64.0 : 48.0;
-    return GestureDetector(onTap: onTap, child: Column(mainAxisSize: MainAxisSize.min, children: [Container(width: size, height: size, decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle), child: Icon(icon, color: color, size: large ? 32 : 24)), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500))]));
+    return GestureDetector(onTap: onTap, child: Column(mainAxisSize: MainAxisSize.min, children: [Container(width: size, height: size, decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle), child: Icon(icon, color: color, size: large ? 32 : 24)), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500))]));
   }
 
   Future<void> _showCompletionDialog(Track track) async {
@@ -2911,7 +3282,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     final elev = track.stats.elevationGain.toStringAsFixed(0);
     final h = track.stats.duration.inHours;
     final m = track.stats.duration.inMinutes % 60;
-    final duration = h > 0 ? '${h}h ${m}m' : '${m} min';
+    final duration = h > 0 ? '${h}h ${m}m' : '$m min';
 
     // Messaggi motivazionali casuali
     final messages = [
@@ -2938,7 +3309,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1),
+                color: AppColors.success.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.check_circle, color: AppColors.success, size: 48),
@@ -3163,10 +3534,10 @@ class _LifelineDisclaimerDialogState
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
-        children: const [
-          Icon(Icons.shield_outlined, color: AppColors.info, size: 24),
-          SizedBox(width: 8),
-          Expanded(child: Text('Come funziona Lifeline')),
+        children: [
+          const Icon(Icons.shield_outlined, color: AppColors.info, size: 24),
+          const SizedBox(width: 8),
+          Expanded(child: Text(context.l10n.lifelineHowItWorks)),
         ],
       ),
       content: SingleChildScrollView(
@@ -3200,9 +3571,9 @@ class _LifelineDisclaimerDialogState
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.08),
+                color: AppColors.warning.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
               ),
               child: const Text(
                 'In aree remote, in alta montagna o in condizioni estreme, '
@@ -3230,7 +3601,7 @@ class _LifelineDisclaimerDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: const Text('Annulla'),
+          child: Text(context.l10n.cancel),
         ),
         ElevatedButton(
           onPressed: _ack ? () => Navigator.pop(context, true) : null,
@@ -3346,7 +3717,7 @@ class _SosFabState extends State<_SosFab>
             // Progress ring durante il long-press
             AnimatedBuilder(
               animation: _ctrl,
-              builder: (_, __) {
+              builder: (_, _) {
                 if (_ctrl.value == 0) return const SizedBox.shrink();
                 return SizedBox(
                   width: size,
@@ -3354,7 +3725,7 @@ class _SosFabState extends State<_SosFab>
                   child: CircularProgressIndicator(
                     value: _ctrl.value,
                     strokeWidth: 4,
-                    backgroundColor: Colors.white.withOpacity(0.3),
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
                     valueColor:
                         const AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
@@ -3370,7 +3741,7 @@ class _SosFabState extends State<_SosFab>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.danger.withOpacity(0.5),
+                    color: AppColors.danger.withValues(alpha: 0.5),
                     blurRadius: 12,
                     spreadRadius: 2,
                   ),
@@ -3483,7 +3854,7 @@ class _InactivityDialogState extends State<_InactivityDialog> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
@@ -3502,7 +3873,7 @@ class _InactivityDialogState extends State<_InactivityDialog> {
                   child: LinearProgressIndicator(
                     value: pct.clamp(0.0, 1.0),
                     minHeight: 6,
-                    backgroundColor: Colors.white.withOpacity(0.3),
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
                     valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 ),
@@ -3520,7 +3891,7 @@ class _InactivityDialogState extends State<_InactivityDialog> {
               child: ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context, _InactivityResponse.ok),
                 icon: const Icon(Icons.check),
-                label: const Text('Sono OK, continuo'),
+                label: Text(context.l10n.imOkContinue),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.success,
                   foregroundColor: Colors.white,
@@ -3535,8 +3906,8 @@ class _InactivityDialogState extends State<_InactivityDialog> {
                 onPressed: () =>
                     Navigator.pop(context, _InactivityResponse.stopAndSave),
                 icon: const Icon(Icons.stop, color: Colors.white),
-                label: const Text('Sono OK, termina e salva',
-                    style: TextStyle(color: Colors.white)),
+                label: Text(context.l10n.imOkSaveStop,
+                    style: const TextStyle(color: Colors.white)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white),
                   padding: const EdgeInsets.symmetric(vertical: 12),

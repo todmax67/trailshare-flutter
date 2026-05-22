@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -9,6 +10,10 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/tours_repository.dart';
+import 'widgets/expandable_description.dart';
+import 'widgets/multi_stage_elevation_chart.dart';
+import 'widgets/tour_hero.dart';
+import 'widgets/tour_rich_sections.dart';
 import '../track_detail/track_detail_page.dart';
 import 'tour_edit_page.dart';
 
@@ -66,7 +71,10 @@ class _TourDetailPageState extends State<TourDetailPage> {
 
   Future<void> _shareWebLink(Tour tour) async {
     final url = 'https://trailshare.app/tour/${tour.id}';
-    await Share.share('${tour.title}\n$url', subject: tour.title);
+    await SharePlus.instance.share(ShareParams(
+      text: '${tour.title}\n$url',
+      subject: tour.title,
+    ));
   }
 
   Future<void> _edit() async {
@@ -136,14 +144,26 @@ class _TourDetailPageState extends State<TourDetailPage> {
       ),
       body: ListView(
         children: [
-          SizedBox(height: 280, child: _buildMap(tour)),
+          TourHero(
+            coverPhotoUrl: tour.coverPhotoUrl,
+            title: tour.title,
+            subtitle:
+                '${tour.type == TourType.consecutive ? "${tour.daysCount} giorni" : "${tour.trackIds.length} tracce"} · '
+                '${tour.totalDistanceKm.toStringAsFixed(1)} km · '
+                '+${tour.totalElevationGain.toStringAsFixed(0)} m',
+            map: _buildMap(tour),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (tour.description != null && tour.description!.isNotEmpty) ...[
-                  Text(tour.description!, style: TextStyle(color: context.textSecondary)),
+                  ExpandableDescription(
+                    text: tour.description!,
+                    style: TextStyle(
+                        color: context.textSecondary, height: 1.45),
+                  ),
                   const SizedBox(height: 12),
                 ],
                 Row(
@@ -162,17 +182,42 @@ class _TourDetailPageState extends State<TourDetailPage> {
                   spacing: 16,
                   runSpacing: 8,
                   children: [
-                    _stat(Icons.calendar_month, context.l10n.tourDays(tour.daysCount)),
-                    _stat(Icons.format_list_numbered, context.l10n.tourStages(tour.trackIds.length)),
+                    if (tour.type == TourType.consecutive)
+                      _stat(Icons.calendar_month, context.l10n.tourDays(tour.daysCount)),
+                    _stat(
+                      tour.type == TourType.consecutive
+                          ? Icons.format_list_numbered
+                          : Icons.collections_bookmark_outlined,
+                      tour.type == TourType.consecutive
+                          ? context.l10n.tourStages(tour.trackIds.length)
+                          : '${tour.trackIds.length} tracce',
+                    ),
                     _stat(Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
                     _stat(Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
                     if (tour.totalDuration.inMinutes > 0) _stat(Icons.schedule, durStr),
                   ],
                 ),
-                const SizedBox(height: 24),
-                Text(context.l10n.tourStagesTitle, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                const SizedBox(height: 20),
+                // Epic 11 — chart altimetria multistage (solo owner
+                // detail: ha accesso alle tracce private con TrackPoint
+                // elevation).
+                // Per le collezioni le tracce sono indipendenti: il
+                // grafico cumulativo sarebbe fuorviante.
+                if (_tracks.isNotEmpty && tour.type == TourType.consecutive) ...[
+                  MultiStageElevationChart.fromTracks(_tracks),
+                  const SizedBox(height: 20),
+                ],
+                // Epic 11 — sezioni ricche: chip difficoltà/periodo,
+                // gallery, equipaggiamento, note storiche.
+                TourRichHeaderSections(tour: tour),
+                Text(
+                  tour.type == TourType.consecutive
+                      ? context.l10n.tourStagesTitle
+                      : 'Tracce',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                ),
                 const SizedBox(height: 8),
-                for (var i = 0; i < _tracks.length; i++)
+                for (var i = 0; i < _tracks.length; i++) ...[
                   _StageTile(
                     index: i + 1,
                     track: _tracks[i],
@@ -182,6 +227,18 @@ class _TourDetailPageState extends State<TourDetailPage> {
                       MaterialPageRoute(builder: (_) => TrackDetailPage(track: _tracks[i])),
                     ),
                   ),
+                  if (tour.stageAccommodations[_tracks[i].id] != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(60, 0, 0, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _AccommodationBadgeLoader(
+                          businessId:
+                              tour.stageAccommodations[_tracks[i].id]!,
+                        ),
+                      ),
+                    ),
+                ],
               ],
             ),
           ),
@@ -266,6 +323,49 @@ class _TourDetailPageState extends State<TourDetailPage> {
         const SizedBox(width: 6),
         Text(value, style: TextStyle(color: color ?? context.textPrimary, fontWeight: FontWeight.w500)),
       ],
+    );
+  }
+}
+
+/// Carica async name+slug del business accommodation e mostra il
+/// badge cliccabile. Cache repository minima — per ora 1 fetch
+/// per render. Il community_tours mirror denormalizza già il name
+/// nelle stages, quindi solo la detail owner ha bisogno di questo
+/// loader.
+class _AccommodationBadgeLoader extends StatefulWidget {
+  final String businessId;
+  const _AccommodationBadgeLoader({required this.businessId});
+
+  @override
+  State<_AccommodationBadgeLoader> createState() =>
+      _AccommodationBadgeLoaderState();
+}
+
+class _AccommodationBadgeLoaderState extends State<_AccommodationBadgeLoader> {
+  String? _name;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(widget.businessId)
+          .get();
+      if (!mounted) return;
+      setState(() => _name = doc.data()?['name']?.toString());
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StageAccommodationBadge(
+      businessId: widget.businessId,
+      businessName: _name,
     );
   }
 }

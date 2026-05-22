@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "trailshare-5334b"
-  }
+  },
+  "targets": {
+    "trailshare-5334b": {
+      "hosting": {
+        "webapp": [
+          "trailshare"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

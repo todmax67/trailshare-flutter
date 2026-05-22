@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/repositories/community_tracks_repository.dart';
 import 'community_track_card.dart';
-import '../../core/extensions/theme_colors_extension.dart';
 
 /// Item del feed "Seguiti": header utente con avatar/username/data relativa
 /// + `CommunityTrackCard` sottostante.
@@ -46,6 +45,7 @@ class FollowingFeedItem extends StatelessWidget {
             cheerCount: track.cheerCount,
             sharedAt: track.sharedAt,
             difficulty: track.difficulty,
+            computedDifficulty: track.computedDifficulty,
             photoUrls: track.photoUrls,
             points: track.points,
             onTap: onTap,

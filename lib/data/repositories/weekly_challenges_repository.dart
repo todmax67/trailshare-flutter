@@ -22,17 +22,30 @@ class WeeklyChallengesRepository {
     final uid = _uid;
     if (uid == null) return null;
     final id = WeekBoundaries.forNow().isoWeekId;
-    final doc = await _col(uid).doc(id).get();
-    if (!doc.exists || doc.data() == null) return null;
-    return WeeklyChallenge.fromFirestore(doc.id, doc.data()!);
+    try {
+      final doc = await _col(uid).doc(id).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return WeeklyChallenge.fromFirestore(doc.id, doc.data()!);
+    } catch (e) {
+      // permission-denied, offline o transitorio: non far crashare il
+      // caller (discover carousel, post-track save, ecc.). Ritorna null
+      // e lascia che chi chiama gestisca l'assenza della sfida.
+      debugPrint('[WeeklyChallengesRepo] getCurrent failed: $e');
+      return null;
+    }
   }
 
   Future<WeeklyChallenge?> getById(String id) async {
     final uid = _uid;
     if (uid == null) return null;
-    final doc = await _col(uid).doc(id).get();
-    if (!doc.exists || doc.data() == null) return null;
-    return WeeklyChallenge.fromFirestore(doc.id, doc.data()!);
+    try {
+      final doc = await _col(uid).doc(id).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return WeeklyChallenge.fromFirestore(doc.id, doc.data()!);
+    } catch (e) {
+      debugPrint('[WeeklyChallengesRepo] getById failed: $e');
+      return null;
+    }
   }
 
   Future<void> save(WeeklyChallenge challenge) async {

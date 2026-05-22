@@ -46,6 +46,13 @@ class DiscoverFilters {
   /// Ordinamento lista
   final TrailSortBy sortBy;
 
+  /// Epic 4.5 — codice regione amministrativa italiana (vedi
+  /// [ItalianRegion.code]). Null = nessun filtro regionale. La
+  /// regione `international` non è usata come filtro (sentinella
+  /// profilo utente). Il filtro confronta il primo punto del trail
+  /// con il bbox della regione.
+  final String? regionCode;
+
   const DiscoverFilters({
     this.difficulties = const {},
     this.lengthKm,
@@ -53,6 +60,7 @@ class DiscoverFilters {
     this.categories = const {},
     this.onlyCircular = false,
     this.sortBy = TrailSortBy.defaultOrder,
+    this.regionCode,
   });
 
   const DiscoverFilters.empty() : this();
@@ -66,6 +74,7 @@ class DiscoverFilters {
     if (categories.isNotEmpty) count++;
     if (onlyCircular) count++;
     if (sortBy != TrailSortBy.defaultOrder) count++;
+    if (regionCode != null && regionCode!.isNotEmpty) count++;
     return count;
   }
 
@@ -80,6 +89,8 @@ class DiscoverFilters {
     Set<ActivityCategory>? categories,
     bool? onlyCircular,
     TrailSortBy? sortBy,
+    String? regionCode,
+    bool clearRegion = false,
   }) {
     return DiscoverFilters(
       difficulties: difficulties ?? this.difficulties,
@@ -88,6 +99,7 @@ class DiscoverFilters {
       categories: categories ?? this.categories,
       onlyCircular: onlyCircular ?? this.onlyCircular,
       sortBy: sortBy ?? this.sortBy,
+      regionCode: clearRegion ? null : (regionCode ?? this.regionCode),
     );
   }
 }

@@ -86,7 +86,7 @@ class _ToursTabState extends State<ToursTab> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: AppColors.danger.withOpacity(0.5)),
+            Icon(Icons.error_outline, size: 64, color: AppColors.danger.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             Text(_error!, textAlign: TextAlign.center),
             const SizedBox(height: 16),
@@ -105,7 +105,7 @@ class _ToursTabState extends State<ToursTab> {
             Center(
               child: Column(
                 children: [
-                  Icon(Icons.map_outlined, size: 80, color: AppColors.primary.withOpacity(0.3)),
+                  Icon(Icons.map_outlined, size: 80, color: AppColors.primary.withValues(alpha: 0.3)),
                   const SizedBox(height: 16),
                   Text(
                     context.l10n.noTours,
@@ -169,7 +169,7 @@ class _TourCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(Icons.map, color: AppColors.primary),
@@ -187,7 +187,9 @@ class _TourCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${context.l10n.tourDays(tour.daysCount)} · ${context.l10n.tourStages(tour.trackIds.length)}',
+                          tour.type == TourType.consecutive
+                              ? '${context.l10n.tourDays(tour.daysCount)} · ${context.l10n.tourStages(tour.trackIds.length)}'
+                              : '${tour.trackIds.length} tracce',
                           style: TextStyle(color: context.textSecondary, fontSize: 12),
                         ),
                       ],

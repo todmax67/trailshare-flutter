@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../../data/models/track.dart' hide ActivityType;
@@ -155,6 +154,10 @@ class LocationService {
         final alreadyShown = prefs.getBool('location_disclosure_shown') ?? false;
         
         if (!alreadyShown) {
+          if (!context.mounted) {
+            _resolveAllPending(false);
+            return false;
+          }
           final accepted = await _showLocationDisclosure(context);
           if (!accepted) {
             debugPrint('[LocationService] Utente ha rifiutato il disclosure');
@@ -233,14 +236,14 @@ class LocationService {
           'salvo quando scegli volontariamente di pubblicare una traccia nella community.',
           style: TextStyle(fontSize: 14, height: 1.5),
         ),
+        // Apple guideline 5.1.1(iv): il pre-prompt non deve avere
+        // un'uscita che salti il system permission dialog. Single
+        // CTA "Continua" che porta sempre al sistema; l'utente
+        // decide lì se concedere o negare.
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Non ora'),
-          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Ho capito, continua'),
+            child: const Text('Continua'),
           ),
         ],
       ),

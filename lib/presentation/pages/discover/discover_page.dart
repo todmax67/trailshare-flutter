@@ -6,16 +6,20 @@ import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/utils/text_search.dart';
 // ⭐ Repository con cache e clustering
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../core/services/trails_cache_service.dart';
 import 'trail_detail_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/constants/api_keys.dart';
+import '../../../core/constants/italian_regions.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../widgets/map_layer_button.dart';
 import 'models/discover_filters.dart';
 import 'widgets/discover_filter_sheet.dart';
+import '../../../data/repositories/heatmap_repository.dart';
 import '../../../data/repositories/trail_photos_repository.dart';
 import '../../../data/models/track.dart';
 import 'dart:ui' as ui;
@@ -55,6 +59,12 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Timer? _viewportDebounce;
   LatLngBounds? _lastLoadedBounds;
 
+  // Epic 3.4 — Heatmap trail popolari
+  final HeatmapRepository _heatmapRepo = HeatmapRepository();
+  List<HeatmapCell> _heatmapCells = const [];
+  bool _heatmapVisible = false;
+  bool _heatmapLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -86,8 +96,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
         setState(() => _isLoadingLocation = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Servizio GPS disattivato. Attivalo nelle impostazioni del telefono.'),
+            SnackBar(
+              content: Text(context.l10n.gpsServiceDisabled),
               duration: Duration(seconds: 4),
             ),
           );
@@ -96,13 +106,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
       }
 
       // Verifica permessi con Prominent Disclosure
+      if (!mounted) return;
       final hasPermission = await LocationService().checkAndRequestPermission(context: context);
       if (!hasPermission) {
         setState(() => _isLoadingLocation = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permessi di localizzazione non concessi. Abilitali nelle Impostazioni per centrare la mappa.'),
+            SnackBar(
+              content: Text(context.l10n.locationPermissionDenied),
               duration: Duration(seconds: 4),
             ),
           );
@@ -154,7 +165,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Future<void> _refreshTrails() async {
     _lastLoadedBounds = null;
     _trails.clear();
-    _clusters.clear();
+    _clusters = []; // const [] altrove → riassegna a lista mutabile
     await _trailsRepository.invalidateCache();
     await _loadTrailsForViewport();
   }
@@ -165,11 +176,21 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   List<PublicTrail> get _filteredTrails {
     var list = _trails.where((trail) {
-      // Ricerca testuale
+      // 4.4 — Ricerca testuale full-text accent-insensitive su:
+      // nome, ref (numerazione CAI/SAT), network, operator, regione,
+      // difficoltà CAI (es. "ee"), tipo attività (es. "mtb").
       if (_searchQuery.isNotEmpty) {
-        final matchName = trail.name.toLowerCase().contains(_searchQuery);
-        final matchRef = trail.ref?.toLowerCase().contains(_searchQuery) ?? false;
-        if (!matchName && !matchRef) return false;
+        final hit = TextSearch.matchesAny(_searchQuery, [
+          trail.name,
+          trail.ref,
+          trail.network,
+          trail.operator,
+          trail.region,
+          trail.difficulty,
+          trail.activityType,
+          trail.parsedActivityType.displayName,
+        ]);
+        if (!hit) return false;
       }
 
       // Difficoltà
@@ -198,6 +219,39 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
       // Solo circolari
       if (_filters.onlyCircular && !trail.isCircular) return false;
+
+      // Epic 4.5 — filtro per regione amministrativa.
+      // Strategia multipla per robustezza (alcuni trail OSM hanno
+      // region taggata, altri no; i points non sono sempre caricati
+      // nella versione lightweight):
+      //  1) Se il trail ha `region` taggato, match case-insensitive su
+      //     nameIt o code della regione selezionata
+      //  2) Fallback su bbox di startLat/startLng (sempre presenti).
+      // Esce false solo se ENTRAMBI i check falliscono.
+      if (_filters.regionCode != null && _filters.regionCode!.isNotEmpty) {
+        final region = ItalianRegions.byCode(_filters.regionCode);
+        if (region == null) return false;
+        bool match = false;
+        final trailRegion = trail.region?.trim().toLowerCase();
+        if (trailRegion != null && trailRegion.isNotEmpty) {
+          final code = region.code.toLowerCase();
+          final nameIt = region.nameIt.toLowerCase();
+          // Normalizziamo: "trentino-alto adige" ↔ "trentino_alto_adige"
+          final normalized = trailRegion
+              .replaceAll('-', '_')
+              .replaceAll(' ', '_');
+          if (normalized == code || trailRegion == nameIt) {
+            match = true;
+          }
+        }
+        if (!match) {
+          // Fallback bbox su startLat/startLng denormalizzato (sempre
+          // disponibile, anche se trail.points è vuoto nella lista
+          // lightweight).
+          match = region.contains(trail.startLat, trail.startLng);
+        }
+        if (!match) return false;
+      }
 
       return true;
     }).toList();
@@ -299,17 +353,39 @@ class _DiscoverPageState extends State<DiscoverPage> {
     return LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
   }
 
-  LatLng _calculateCenterFromTrackPoints(List points) {
-    double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    
-    for (final p in points) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
+  /// Epic 3.4 — toggle heatmap overlay. Al primo "on" fetcha le celle;
+  /// successivi toggle riusano la cache locale (le celle cambiano solo
+  /// alla domenica notte via Cloud Function).
+  Future<void> _toggleHeatmap() async {
+    if (_heatmapVisible) {
+      setState(() => _heatmapVisible = false);
+      return;
     }
-    
-    return LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    if (_heatmapCells.isEmpty && !_heatmapLoading) {
+      setState(() => _heatmapLoading = true);
+      final cells = await _heatmapRepo.getAll();
+      if (!mounted) return;
+      setState(() {
+        _heatmapCells = cells;
+        _heatmapLoading = false;
+        _heatmapVisible = true;
+      });
+    } else {
+      setState(() => _heatmapVisible = true);
+    }
+  }
+
+  /// Restituisce un colore caldo (giallo → rosso) in base al count
+  /// relativo della cella vs il massimo della collezione corrente.
+  Color _heatmapColor(int count, int maxCount) {
+    if (maxCount <= 0) return Colors.orange;
+    final t = (count / maxCount).clamp(0.0, 1.0);
+    return Color.lerp(
+          const Color(0xFFFFEB3B), // giallo
+          const Color(0xFFD32F2F), // rosso
+          t,
+        ) ??
+        Colors.orange;
   }
 
   void _centerOnUser() {
@@ -424,31 +500,32 @@ class _DiscoverPageState extends State<DiscoverPage> {
         minLng: bounds.west,
         maxLng: bounds.east,
         zoom: zoom,
-        limit: 200,
+        // Dopo split geometry i doc sono ~2KB → posso alzare il cap.
+        // 800 trail × 2KB ≈ 1.6MB, gestibile.
+        limit: 800,
       );
       
       if (mounted) {
         setState(() {
-          _clusters = result.clusters;
-          if (result.hasClusters) {
-            // In modalità cluster, sostituisci tutto
-            _trails = result.trails;
-          } else {
-            // In modalità trails, accumula con deduplicazione
-            final existingIds = _trails.map((t) => t.id).toSet();
-            final newTrails = result.trails.where((t) => !existingIds.contains(t.id)).toList();
-            if (newTrails.isNotEmpty) {
-              _trails = [..._trails, ...newTrails];
-            }
+          // Cluster disabilitati (rompevano la ricerca): ignoriamo
+          // result.clusters anche se la repo lo ritornasse.
+          _clusters = const [];
+          // Accumula con deduplicazione
+          final existingIds = _trails.map((t) => t.id).toSet();
+          final newTrails = result.trails
+              .where((t) => !existingIds.contains(t.id))
+              .toList();
+          if (newTrails.isNotEmpty) {
+            _trails = [..._trails, ...newTrails];
           }
           _lastLoadedBounds = bounds;
           _isLoadingTrails = false;
         });
       }
-      
+
       final source = result.fromCache ? '⚡ cache' : '🌐 server';
-      final type = result.hasClusters ? 'cluster' : 'trails';
-      debugPrint('[DiscoverPage] $source: ${result.totalCount} $type (zoom: ${zoom.toStringAsFixed(1)})');
+      debugPrint(
+          '[DiscoverPage] $source: ${result.trails.length} trails (zoom: ${zoom.toStringAsFixed(1)})');
       
     } catch (e) {
       debugPrint('[DiscoverPage] Errore caricamento: $e');
@@ -627,10 +704,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.info.withOpacity(0.1),
+        color: AppColors.info.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: AppColors.info.withOpacity(0.3),
+          color: AppColors.info.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -662,7 +739,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: Text(context.l10n.positionBtn, style: const TextStyle(fontSize: 12)),
+              child: Text(context.l10n.positionBtn, style: TextStyle(fontSize: 12)),
             ),
         ],
       ),
@@ -710,14 +787,16 @@ class _DiscoverPageState extends State<DiscoverPage> {
             initialZoom: _userPosition != null ? 12 : 11,
             minZoom: 8,
             maxZoom: 18,
-            onTap: (_, __) => setState(() => _selectedTrail = null),
+            onTap: (_, _) => setState(() => _selectedTrail = null),
             onMapEvent: _onMapEvent, // ⭐ Handler per viewport loading
           ),
           children: [
             TileLayer(
               urlTemplate: mapStyles[_currentMapStyle].urlTemplate,
               subdomains: mapStyles[_currentMapStyle].subdomains,
-              userAgentPackageName: 'com.trailshare.app',
+              // UA richiesto dalla restrizione MapTiler (vedi ApiKeys);
+              // i provider free (OSM/OpenTopo/ArcGIS) lo accettano.
+              userAgentPackageName: ApiKeys.mapTilerUserAgent,
               tileProvider: OfflineFallbackTileProvider(),
               tileBuilder: mapStyles[_currentMapStyle].tileColorFilter != null
                   ? (context, tileWidget, tile) => ColorFiltered(
@@ -726,6 +805,29 @@ class _DiscoverPageState extends State<DiscoverPage> {
                       )
                   : null,
             ),
+
+            // Epic 3.4 — Heatmap overlay (sotto le polyline così tracce
+            // selezionate restano leggibili sopra). Cerchi semitrasparenti
+            // grandi al variare del count (giallo → rosso). Raggio fisso
+            // ~10km (mezza cella geohash p4).
+            if (_heatmapVisible && _heatmapCells.isNotEmpty)
+              CircleLayer(
+                circles: () {
+                  final maxC = _heatmapCells
+                      .map((c) => c.count)
+                      .fold<int>(1, (a, b) => a > b ? a : b);
+                  return _heatmapCells
+                      .map((c) => CircleMarker(
+                            point: c.center,
+                            radius: 10000, // 10 km
+                            useRadiusInMeter: true,
+                            color: _heatmapColor(c.count, maxC)
+                                .withValues(alpha: 0.35),
+                            borderStrokeWidth: 0,
+                          ))
+                      .toList();
+                }(),
+              ),
 
             // Polyline: zoom medio = tratteggio, zoom alto = completo
             if (_clusters.isEmpty && _currentZoom >= 13)
@@ -739,7 +841,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                     strokeWidth: isSelected ? 5 : (isHighZoom ? 3.5 : 2),
                     color: isSelected
                         ? color
-                        : color.withOpacity(isHighZoom ? 0.85 : 0.4),
+                        : color.withValues(alpha: isHighZoom ? 0.85 : 0.4),
                     pattern: (!isHighZoom && !isSelected)
                         ? StrokePattern.dashed(segments: [8, 6])
                         : const StrokePattern.solid(),
@@ -747,58 +849,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 }).toList(),
               ),
 
-            // ⭐ NUOVO: Cluster markers (zoom basso)
-            if (_clusters.isNotEmpty)
-              MarkerLayer(
-                markers: _clusters.map((cluster) => Marker(
-                  point: cluster.center,
-                  width: 56,
-                  height: 56,
-                  child: GestureDetector(
-                    onTap: () {
-                      // Zoom in sul cluster
-                      _mapController.move(cluster.center, _currentZoom + 2);
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${cluster.count}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const Text(
-                              '🥾',
-                              style: TextStyle(fontSize: 10),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                )).toList(),
-              ),
-
-            // Marker punto di partenza con icona attività
-            if (_clusters.isEmpty)
-              MarkerLayer(
+            // Marker punto di partenza con icona attività (cluster
+            // disabilitati: rompevano la ricerca su zoom basso).
+            MarkerLayer(
                 markers: trails.map((trail) {
                   final startLat = trail.startLat;
                   final startLng = trail.startLng;
@@ -828,7 +881,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                                     shape: BoxShape.circle,
                                     border: Border.all(color: color, width: 2.5),
                                     boxShadow: [
-                                      BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                                      BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 2)),
                                     ],
                                   ),
                                   child: Icon(icon, color: color, size: 20),
@@ -855,7 +908,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                                 shape: BoxShape.circle,
                                 border: Border.all(color: isSelected ? Colors.white : color, width: 2),
                                 boxShadow: [
-                                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 3),
+                                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 3),
                                 ],
                               ),
                               child: Icon(
@@ -884,7 +937,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                         border: Border.all(color: Colors.white, width: 3),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.4),
+                            color: AppColors.primary.withValues(alpha: 0.4),
                             blurRadius: 10,
                             spreadRadius: 2,
                           ),
@@ -942,7 +995,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 8,
                     ),
                   ],
@@ -956,7 +1009,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                     const SizedBox(width: 8),
-                    Text(context.l10n.loading, style: const TextStyle(fontSize: 12)),
+                    Text(context.l10n.loading, style: TextStyle(fontSize: 12)),
                   ],
                 ),
               ),
@@ -976,7 +1029,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 8,
                   ),
                 ],
@@ -994,7 +1047,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                           context.l10n.noTrailInArea,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(
                           context.l10n.moveOrZoomMap,
                           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -1017,6 +1070,30 @@ class _DiscoverPageState extends State<DiscoverPage> {
               MapLayerButton(
                 currentIndex: _currentMapStyle,
                 onChanged: (i) => setState(() => _currentMapStyle = i),
+              ),
+              const SizedBox(height: 8),
+              // Epic 3.4 — toggle Heatmap trail popolari
+              FloatingActionButton.small(
+                heroTag: 'heatmap_toggle',
+                onPressed: _heatmapLoading ? null : _toggleHeatmap,
+                backgroundColor: _heatmapVisible
+                    ? AppColors.primary
+                    : Colors.white,
+                child: _heatmapLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    : Icon(
+                        Icons.local_fire_department,
+                        color: _heatmapVisible
+                            ? Colors.white
+                            : AppColors.primary,
+                      ),
               ),
               const SizedBox(height: 8),
               // Pulsante centra su utente. Sempre visibile: se non abbiamo
@@ -1088,7 +1165,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: context.textMuted.withOpacity(0.5)),
+          Icon(icon, size: 64, color: context.textMuted.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             message,
@@ -1133,7 +1210,7 @@ class _CounterBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1193,7 +1270,7 @@ class _TrailInfoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 16, offset: const Offset(0, -4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, -4))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -1224,7 +1301,7 @@ class _TrailInfoCard extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
+                        color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(_getIcon(), color: color, size: 26),
@@ -1354,9 +1431,9 @@ class _MiniElevationPainter extends CustomPainter {
     fillPath.lineTo(size.width, size.height);
     fillPath.close();
 
-    canvas.drawPath(fillPath, Paint()..color = color.withOpacity(0.08));
+    canvas.drawPath(fillPath, Paint()..color = color.withValues(alpha: 0.08));
     canvas.drawPath(path, Paint()
-      ..color = color.withOpacity(0.5)
+      ..color = color.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5);
   }
@@ -1383,7 +1460,7 @@ class _TrailCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       elevation: 3,
-      shadowColor: Colors.black.withOpacity(0.15),
+      shadowColor: Colors.black.withValues(alpha: 0.15),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -1408,9 +1485,9 @@ class _TrailCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.info.withOpacity(0.15),
+                            color: AppColors.info.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                            border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
                           ),
                           child: Text(
                             trail.ref!,
@@ -1467,7 +1544,7 @@ class _TrailCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _getDifficultyColor().withOpacity(0.1),
+                          color: _getDifficultyColor().withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -1647,7 +1724,7 @@ class _TrailCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.hiking, size: 32, color: context.textMuted),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 trail.ref ?? context.l10n.trailFallback,
                 style: TextStyle(color: context.textMuted, fontSize: 12),
@@ -1678,10 +1755,15 @@ class _TrailCard extends StatelessWidget {
     final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
     
     double zoom = 14.0;
-    if (maxDiff > 0.5) zoom = 10;
-    else if (maxDiff > 0.2) zoom = 11;
-    else if (maxDiff > 0.1) zoom = 12;
-    else if (maxDiff > 0.05) zoom = 13;
+    if (maxDiff > 0.5) {
+      zoom = 10;
+    } else if (maxDiff > 0.2) {
+      zoom = 11;
+    } else if (maxDiff > 0.1) {
+      zoom = 12;
+    } else if (maxDiff > 0.05) {
+      zoom = 13;
+    }
 
     return SizedBox(
       height: 120,
@@ -1754,14 +1836,14 @@ class _TrailCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.loop, size: 14, color: AppColors.info),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       context.l10n.circularBadge,
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
@@ -1778,7 +1860,7 @@ class _TrailCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.chevron_right, size: 18, color: context.textMuted),
