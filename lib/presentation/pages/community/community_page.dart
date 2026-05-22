@@ -290,11 +290,27 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     }
     if (_filterMinDifficulty != null) {
       list = list.where((t) {
-        final level = ComputedDifficulty.fromKey(t.computedDifficulty);
+        final level = _resolveTrackDifficulty(t);
         return level == _filterMinDifficulty;
       }).toList();
     }
     return list;
+  }
+
+  /// Risolve il T-grade di una community track: prima prova il valore
+  /// persistito su Firestore (computedDifficulty), poi fallback al
+  /// calcolo on-the-fly dalle stats. Così anche le tracce legacy
+  /// senza valore persistito vengono filtrate correttamente.
+  ComputedDifficulty? _resolveTrackDifficulty(CommunityTrack t) {
+    final persisted = ComputedDifficulty.fromKey(t.computedDifficulty);
+    if (persisted != null) return persisted;
+    return DifficultyCalculator.compute(
+      stats: TrackStats(
+        distance: t.distance,
+        elevationGain: t.elevationGain,
+      ),
+      activityType: _parseTrackActivity(t.activityType),
+    );
   }
 
   void _onSearchChanged(String query) {
