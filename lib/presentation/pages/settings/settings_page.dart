@@ -1209,6 +1209,48 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.6.0',
+        title: 'Komoot foundations: highlights, difficoltà T1-T5, surface profile',
+        bullets: [
+          'Highlights: collega un POI a uno Spazio Pro vicino, diventa cliccabile',
+          'Difficoltà T1-T5 calcolata automaticamente da distanza, dislivello e attività',
+          'Filtro community per difficoltà esatta (T1, T2, T3, T4, T5)',
+          'Surface profile: la mappa del trail OSM colora il percorso per tipo di terreno (asfalto, sterrato, sentiero, roccia, ferrata)',
+          'Toggle "Pendenza ↔ Terreno" sulla mappa fullscreen + legenda',
+          'ETA terrain-aware: stima durata che tiene conto del fondo del sentiero',
+          'Tour: distinzione "Cammino consecutivo" vs "Collezione tematica" con filtro dedicato',
+          'Tour pubblici: grafico altimetrico cumulativo visibile anche sulla community',
+          'Descrizioni lunghe ora si compattano a 3 righe con "Leggi di più" (track community, business, tour, ecc.)',
+          'Carousel "Consigli per te" collassabile, si auto-collassa quando cambi tab',
+          'Newsletter prodotto: infrastruttura email service-update + admin panel',
+          'Tracciato pianificato: difficoltà calcolata anche per i percorsi da pianificatore',
+          'Fix vari deliverability email + branding pulito (no S.r.l. nelle email automatiche)',
+          'Sito web TrailShare ridisegnato (homepage, /pro, /business)',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.5.1',
+        title: 'Tour multi-giorno + polish track detail',
+        bullets: [
+          'Scheda Tour: gallery foto, sezioni descrizione, periodo migliore, difficoltà, rifugio per tappa',
+          'Tour multi-giorno: hero design "poster" + descrizione espandibile',
+          'Tour: tipo "Cammino" vs "Collezione" con grafico altimetria solo per i cammini',
+          'Community Tour: list rinnovata con cover hero + ricerca + filtro difficoltà',
+          'Track detail: fix titolo hero non più a cavallo tra mappa e sfondo (con titoli su 2 righe)',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.5.0',
+        title: 'Wearable e fitness integrato',
+        bullets: [
+          'HealthKit (iOS) + Health Connect (Android): sync attività, frequenza cardiaca, calorie, passi',
+          'Strava bidirezionale: upload automatico a fine sessione + import attività recenti',
+          'ConnectIQ Garmin: app dedicata per visualizzare metriche TrailShare sull\'orologio',
+          'Lifeline + LiveTrack consolidati: contatti emergenza, posizione live, SOS manuale',
+          'Outreach business automatizzato (Cloud Function + admin panel)',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.4.0',
         title: 'Epic 3 + 4 chiuse, Community VIP, dark map, training HR',
         bullets: [
