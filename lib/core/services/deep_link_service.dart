@@ -8,6 +8,7 @@ import '../../app.dart';
 import '../../data/repositories/business_repository.dart';
 import '../../data/repositories/groups_repository.dart';
 import '../../presentation/pages/business/business_profile_page.dart';
+import '../../presentation/pages/challenges/challenges_page.dart';
 import '../../presentation/pages/groups/group_detail_page.dart';
 
 /// Singleton che gestisce i deep link in ingresso.
@@ -72,7 +73,27 @@ class DeepLinkService {
     final code = _extractGroupCode(uri);
     if (code != null && code.isNotEmpty) {
       await _handleGroupCode(code);
+      return;
     }
+
+    // Universal Link per Apple In-App Events e link da PR/social:
+    // https://trailshare.app/sfide → apre ChallengesPage.
+    if ((uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host == 'trailshare.app' &&
+        uri.pathSegments.isNotEmpty &&
+        (uri.pathSegments.first == 'sfide' ||
+            uri.pathSegments.first == 'challenges')) {
+      _handleChallenges();
+      return;
+    }
+  }
+
+  void _handleChallenges() {
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => const ChallengesPage()),
+    );
   }
 
   void _handleStravaCallback(Uri uri) {
