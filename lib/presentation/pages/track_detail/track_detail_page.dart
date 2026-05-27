@@ -1433,10 +1433,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         setState(() => _track = fresh);
       }
 
+      final sourceTag = result.sourceLabel.isNotEmpty
+          ? ' (${result.sourceLabel})'
+          : '';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Quote corrette: Δ medio ${result.avgDeltaMeters.toStringAsFixed(0)}m, '
+              'Quote corrette$sourceTag: Δ medio ${result.avgDeltaMeters.toStringAsFixed(0)}m, '
               'max ${result.maxDeltaMeters.toStringAsFixed(0)}m'),
           backgroundColor: AppColors.success,
         ),
