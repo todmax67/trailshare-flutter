@@ -13,6 +13,7 @@ import '../../../data/models/recording_reference.dart';
 import '../record/record_page.dart';
 import '../../../core/services/track_export_service.dart';
 import '../../../core/services/track_photos_service.dart';
+import '../../../core/utils/difficulty_calculator.dart';
 import '../../widgets/difficulty_badge.dart';
 import '../../widgets/expandable_description.dart';
 import '../../widgets/export_format_sheet.dart';
@@ -294,6 +295,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     children: [
                       DifficultyBadge(
                         difficultyKey: _track.computedDifficulty,
+                        manualDifficultyKey: _track.manualDifficulty,
                         compact: false,
                         fallbackStats: _track.stats,
                         fallbackActivity: _track.activityType,
@@ -1343,84 +1345,169 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     final nameController = TextEditingController(text: _track.name);
     final descriptionController = TextEditingController(text: _track.description ?? '');
 
+    // Selezione corrente difficoltà: null = "Automatica" (no override),
+    // altrimenti uno dei livelli T1..T5.
+    ComputedDifficulty? selectedDifficulty =
+        ComputedDifficulty.fromKey(_track.manualDifficulty);
+    final autoDifficulty =
+        ComputedDifficulty.fromKey(_track.computedDifficulty);
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.editTrack),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  labelText: context.l10n.nameLabel,
-                  border: const OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(context.l10n.editTrack),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.nameLabel,
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: descriptionController,
-                decoration: InputDecoration(
-                  labelText: context.l10n.descriptionLabel,
-                  border: const OutlineInputBorder(),
-                  hintText: context.l10n.addDescription,
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descriptionController,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.descriptionLabel,
+                    border: const OutlineInputBorder(),
+                    hintText: context.l10n.addDescription,
+                  ),
+                  maxLines: 4,
                 ),
-                maxLines: 4,
-              ),
-            ],
+                const SizedBox(height: 20),
+                // ───── Difficoltà manuale (2026-05-27) ─────
+                Text(
+                  'Difficoltà',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<ComputedDifficulty?>(
+                  initialValue: selectedDifficulty,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    DropdownMenuItem<ComputedDifficulty?>(
+                      value: null,
+                      child: Text(
+                        autoDifficulty != null
+                            ? 'Automatica (${autoDifficulty.code} · ${autoDifficulty.label})'
+                            : 'Automatica',
+                      ),
+                    ),
+                    ...ComputedDifficulty.values.map(
+                      (d) => DropdownMenuItem<ComputedDifficulty?>(
+                        value: d,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: d.color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text('${d.code} · ${d.label}'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) =>
+                      setDialogState(() => selectedDifficulty = v),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  selectedDifficulty == null
+                      ? 'La difficoltà sarà calcolata automaticamente da distanza, dislivello e attività.'
+                      : 'Override manuale: questa difficoltà sostituisce il calcolo automatico.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.l10n.cancel),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newName = nameController.text.trim();
-              final newDescription = descriptionController.text.trim();
-              
-              if (newName.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(context.l10n.nameCannotBeEmpty)),
-                );
-                return;
-              }
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(context.l10n.cancel),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final newName = nameController.text.trim();
+                final newDescription = descriptionController.text.trim();
 
-              Navigator.pop(context);
-              
-              try {
-                await _tracksRepository.updateTrack(
-                  _track.id!,
-                  name: newName,
-                  description: newDescription.isNotEmpty ? newDescription : null,
-                );
-                
-                setState(() {
-                  _track = _track.copyWith(
+                if (newName.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(context.l10n.nameCannotBeEmpty)),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
+
+                // Per manualDifficulty: stringa non vuota = imposta,
+                // stringa vuota = rimuovi (FieldValue.delete), null
+                // implicito = non passare (no-op).
+                final manualToSave = selectedDifficulty?.firestoreKey ?? '';
+
+                try {
+                  await _tracksRepository.updateTrack(
+                    _track.id!,
                     name: newName,
-                    description: newDescription.isNotEmpty ? newDescription : null,
+                    description:
+                        newDescription.isNotEmpty ? newDescription : null,
+                    manualDifficulty: manualToSave,
                   );
-                });
-                
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(context.l10n.trackUpdated), backgroundColor: AppColors.success),
-                  );
+
+                  setState(() {
+                    _track = _track.copyWith(
+                      name: newName,
+                      description:
+                          newDescription.isNotEmpty ? newDescription : null,
+                      manualDifficulty: selectedDifficulty?.firestoreKey,
+                      clearManualDifficulty: selectedDifficulty == null,
+                    );
+                  });
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(context.l10n.trackUpdated),
+                          backgroundColor: AppColors.success),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(
+                              context.l10n.errorWithDetails(e.toString())),
+                          backgroundColor: AppColors.danger),
+                    );
+                  }
                 }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            child: Text(context.l10n.save),
-          ),
-        ],
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white),
+              child: Text(context.l10n.save),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1622,6 +1709,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         ownerUsername: await _getUsername(user.uid),
         photoUrls: _track.photos.map((p) => p.url).toList(),
         computedDifficulty: _track.computedDifficulty,
+        manualDifficulty: _track.manualDifficulty,
       );
 
       if (success) {

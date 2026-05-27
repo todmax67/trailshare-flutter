@@ -46,12 +46,22 @@ enum ComputedDifficulty {
 
 /// Calcolatore di difficoltà computata per una traccia.
 ///
-/// Formula score-based che combina due segnali principali:
+/// Formula score-based che combina **tre segnali principali**:
 /// 1. **Dislivello relativo** (m / km) — pendenza media percepita
-/// 2. **Distanza assoluta** (km) — fatica accumulata
+/// 2. **Dislivello assoluto** (m totali in salita) — fatica oggettiva
+///    indipendente da come si distribuisce sul percorso
+/// 3. **Distanza assoluta** (km) — fatica accumulata
 ///
 /// I pesi e le soglie variano per [ActivityType]: una ferrata di 200m
 /// di dislivello su 1km è T4-T5, lo stesso m/km in mtb è normale.
+///
+/// Storia tuning (2026-05-27): aggiunto absoluteGainScore dopo
+/// feedback utente. Precedentemente, 1266m di dislivello su 26km in
+/// ebike risultava T1 perché il rapporto m/km (48) cadeva nella zona
+/// "facile" e il totale assoluto non veniva considerato. Ora 1000m+
+/// gain pesano oggettivamente anche con rapporto basso. Inoltre i
+/// factor ebike/eMTB sono stati rivisti al rialzo: l'assistenza riduce
+/// lo sforzo ma non lo azzera.
 ///
 /// Implementato come funzione pura per essere testabile e riusabile
 /// sia client-side post-recording sia su Cloud Function batch.
@@ -81,6 +91,11 @@ class DifficultyCalculator {
     // Gain score lineare con bonus quando supera soglie OEM-style.
     final gainScore = _gainScore(gainPerKm, activityType);
 
+    // Dislivello assoluto: 1500m di salita restano impegnativi
+    // anche se diluiti su 40km. Componente fondamentale per
+    // escursioni lunghe ad approccio dolce.
+    final absoluteGainScore = _absoluteGainScore(gain, activityType);
+
     // Bonus discesa "tecnica": una traccia con loss >> gain (es. via di
     // discesa MTB di 1500m in 8km) è più impegnativa di una piana.
     // Capped per non triplare il punteggio.
@@ -88,7 +103,8 @@ class DifficultyCalculator {
         ? ((loss - gain) / distanceKm).clamp(0.0, 30.0)
         : 0.0;
 
-    final totalScore = gainScore + distScore + lossBonus;
+    final totalScore =
+        gainScore + distScore + absoluteGainScore + lossBonus;
 
     return _scoreToLevel(totalScore);
   }
@@ -96,11 +112,15 @@ class DifficultyCalculator {
   /// Lookup tabella score → livello T1..T5. Soglie tarate empiricamente
   /// per generare ~30% T1-T2 / ~40% T3 / ~25% T4 / ~5% T5 sul dataset
   /// outdoor tipico italiano (Alpi + Appennini).
+  ///
+  /// Soglie ricalibrate 2026-05-27 dopo aggiunta di
+  /// [_absoluteGainScore] (componente extra che alza
+  /// strutturalmente il totale): da 35/70/120/180 a 40/80/140/200.
   static ComputedDifficulty _scoreToLevel(double score) {
-    if (score < 35) return ComputedDifficulty.t1;
-    if (score < 70) return ComputedDifficulty.t2;
-    if (score < 120) return ComputedDifficulty.t3;
-    if (score < 180) return ComputedDifficulty.t4;
+    if (score < 40) return ComputedDifficulty.t1;
+    if (score < 80) return ComputedDifficulty.t2;
+    if (score < 140) return ComputedDifficulty.t3;
+    if (score < 200) return ComputedDifficulty.t4;
     return ComputedDifficulty.t5;
   }
 
@@ -112,11 +132,15 @@ class DifficultyCalculator {
     // fatica relativa (la bici aiuta), quindi peso minore. Per trail
     // running e trekking pesa di più. Sci alpinismo + racchette su
     // neve aggiungono fatica.
+    //
+    // Tuning 2026-05-27: alzati factor ebike e eMTB. L'assistenza
+    // riduce lo sforzo ma non lo azzera: 1200m di dislivello
+    // restano impegnativi anche in ebike (batteria + ore in sella).
     final factor = switch (type) {
       ActivityType.cycling => 0.50,
       ActivityType.gravelBiking => 0.55,
-      ActivityType.eBike => 0.35,
-      ActivityType.eMountainBike => 0.40,
+      ActivityType.eBike => 0.55,
+      ActivityType.eMountainBike => 0.65,
       ActivityType.mountainBiking => 0.65,
       ActivityType.running => 1.15,
       ActivityType.trailRunning => 1.20,
@@ -151,11 +175,12 @@ class DifficultyCalculator {
   /// (siamo già stanchi).
   static double _distanceScore(double distanceKm, ActivityType type) {
     // Fattore: bici copre distanza facilmente, walking si stanca prima.
+    // Tuning 2026-05-27: alzati ebike e eMTB di 0.05 ciascuno.
     final factor = switch (type) {
       ActivityType.cycling => 0.30,
       ActivityType.gravelBiking => 0.35,
-      ActivityType.eBike => 0.20,
-      ActivityType.eMountainBike => 0.25,
+      ActivityType.eBike => 0.30,
+      ActivityType.eMountainBike => 0.35,
       ActivityType.mountainBiking => 0.40,
       ActivityType.running => 1.15,
       ActivityType.trailRunning => 1.30,
@@ -182,6 +207,66 @@ class DifficultyCalculator {
       raw = 50 + (distanceKm - 25) * 1.2;
     } else {
       raw = 80 + (distanceKm - 50) * 0.5;
+    }
+    return raw * factor;
+  }
+
+  /// Score dal dislivello positivo assoluto (totale m saliti).
+  ///
+  /// Aggiunto 2026-05-27: gestisce il caso di escursioni con
+  /// dislivello importante distribuito su molti km (es. Ardesio →
+  /// Passo Branchino, 1266m in 26km ebike). Il rapporto m/km
+  /// (48 in quell'esempio) sottostimava la fatica, mentre il totale
+  /// assoluto la cattura correttamente.
+  ///
+  /// Curva non lineare a 5 segmenti pensata per discriminare:
+  /// - 0-500m: T1-T2 territory (gite brevi)
+  /// - 500-1000m: T2-T3 (mezza giornata)
+  /// - 1000-1500m: T3-T4 (giornata piena)
+  /// - 1500-2000m: T4 (lunga giornata o tappa hut-to-hut)
+  /// - 2000+m: T4-T5 (impresa)
+  static double _absoluteGainScore(double totalGain, ActivityType type) {
+    if (totalGain <= 0) return 0;
+
+    // Factor: bici/ebike riducono lo sforzo della salita ma non lo
+    // azzerano. Alpinismo/sci touring lo amplificano. La proporzione
+    // è simile (ma non identica) ai factor di _gainScore — il
+    // dislivello assoluto pesa relativamente meno per le bici
+    // rispetto al rapporto m/km.
+    final factor = switch (type) {
+      ActivityType.cycling => 0.55,
+      ActivityType.gravelBiking => 0.60,
+      ActivityType.eBike => 0.60,
+      ActivityType.eMountainBike => 0.70,
+      ActivityType.mountainBiking => 0.75,
+      ActivityType.running => 1.10,
+      ActivityType.trailRunning => 1.15,
+      ActivityType.snowshoeing => 1.20,
+      ActivityType.skiTouring => 1.15,
+      ActivityType.alpineSkiing => 0.50,
+      ActivityType.nordicSkiing => 1.0,
+      ActivityType.snowboarding => 0.50,
+      ActivityType.trekking => 1.0,
+      ActivityType.walking => 0.95,
+    };
+
+    // Curva: 5 segmenti che accelerano fino a 1500m, poi rallentano.
+    // 0-500m     → 0..15   (0.030/m)
+    // 500-1000m  → 15..35  (0.040/m)
+    // 1000-1500m → 35..60  (0.050/m)
+    // 1500-2000m → 60..90  (0.060/m)
+    // 2000+m     → 90 + 0.040/m
+    double raw;
+    if (totalGain <= 500) {
+      raw = totalGain * 0.030;
+    } else if (totalGain <= 1000) {
+      raw = 15 + (totalGain - 500) * 0.040;
+    } else if (totalGain <= 1500) {
+      raw = 35 + (totalGain - 1000) * 0.050;
+    } else if (totalGain <= 2000) {
+      raw = 60 + (totalGain - 1500) * 0.060;
+    } else {
+      raw = 90 + (totalGain - 2000) * 0.040;
     }
     return raw * factor;
   }

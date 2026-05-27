@@ -233,6 +233,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     children: [
                       DifficultyBadge(
                         difficultyKey: track.computedDifficulty,
+                        manualDifficultyKey: track.manualDifficulty,
                         compact: false,
                         fallbackStats: TrackStats(
                           distance: track.distance,

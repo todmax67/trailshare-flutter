@@ -23,6 +23,10 @@ class PaginatedTracksResult {
 /// Repository unificato per gestire le tracce su Firestore
 /// Compatibile con la struttura dati esistente dall'app JavaScript
 class TracksRepository {
+  /// Sentinel per [updateTrack]: distingue "non passare il parametro"
+  /// (lascia il campo invariato) da "imposta a null" (rimuovi).
+  static const Object _unsetManual = Object();
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -314,11 +318,18 @@ class TracksRepository {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /// Aggiorna una traccia esistente
+  /// Aggiorna campi editabili di una traccia.
+  ///
+  /// [manualDifficulty]: stringa "t1".."t5" per impostare override
+  /// manuale, oppure stringa vuota "" per **rimuovere** l'override
+  /// (torna alla classificazione automatica). Non passare il parametro
+  /// (null implicito tramite `_unsetManual`) per non toccare il campo.
   Future<void> updateTrack(String trackId, {
     String? name,
     String? description,
     ActivityType? activityType,
     bool? isPublic,
+    Object? manualDifficulty = _unsetManual,
   }) async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return;
@@ -328,6 +339,18 @@ class TracksRepository {
     if (description != null) updates['description'] = description;
     if (activityType != null) updates['activityType'] = activityType.name;
     if (isPublic != null) updates['isPublic'] = isPublic;
+
+    // Override manuale difficoltà:
+    // - string non vuota → imposta override
+    // - string vuota → rimuove override (torna ad auto)
+    // - _unsetManual → non tocca il campo
+    if (manualDifficulty != _unsetManual) {
+      if (manualDifficulty is String && manualDifficulty.isNotEmpty) {
+        updates['manualDifficulty'] = manualDifficulty;
+      } else {
+        updates['manualDifficulty'] = FieldValue.delete();
+      }
+    }
 
     if (updates.isEmpty) return;
 
@@ -644,6 +667,10 @@ class TracksRepository {
                 stats: stats,
                 activityType: track.activityType,
               )?.firestoreKey,
+      // Override manuale (può essere null per default, salvato solo se
+      // l'utente l'ha esplicitamente impostato dalla edit page).
+      if (track.manualDifficulty != null)
+        'manualDifficulty': track.manualDifficulty,
     };
   }
 
@@ -829,6 +856,7 @@ class TracksRepository {
           ? List<String>.from(data['tags'] as List)
           : const <String>[],
       computedDifficulty: data['computedDifficulty']?.toString(),
+      manualDifficulty: data['manualDifficulty']?.toString(),
     );
   }
 

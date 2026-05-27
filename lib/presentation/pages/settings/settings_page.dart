@@ -1209,6 +1209,16 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.6.2',
+        title: 'Difficoltà più precisa + override manuale',
+        bullets: [
+          'Algoritmo difficoltà ricalibrato: ora tiene conto del dislivello totale assoluto, non solo del rapporto m/km. Fix per escursioni con tanti km e dislivello importante (es. 1200m+ in 25km) che venivano classificate troppo facili',
+          'Factor ebike ed e-MTB rivisti al rialzo: l\'assistenza riduce lo sforzo ma non lo azzera',
+          'Override manuale: nella modifica di una traccia puoi impostare la difficoltà T1-T5 a mano. Il badge mostra una piccola icona ✏️ quando è stata impostata manualmente',
+          'I filtri community usano la difficoltà manuale se presente, automatica altrimenti',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.6.1',
         title: 'TrailShare Pro disponibile anche su Android',
         bullets: [

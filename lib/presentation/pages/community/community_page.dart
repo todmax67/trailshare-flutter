@@ -297,11 +297,14 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     return list;
   }
 
-  /// Risolve il T-grade di una community track: prima prova il valore
-  /// persistito su Firestore (computedDifficulty), poi fallback al
-  /// calcolo on-the-fly dalle stats. Così anche le tracce legacy
-  /// senza valore persistito vengono filtrate correttamente.
+  /// Risolve il T-grade di una community track: priorità all'override
+  /// manuale (impostato dall'utente in edit), poi al valore persistito
+  /// computato (computedDifficulty), poi fallback al calcolo on-the-fly
+  /// dalle stats. Così anche le tracce legacy senza valore persistito
+  /// vengono filtrate correttamente.
   ComputedDifficulty? _resolveTrackDifficulty(CommunityTrack t) {
+    final manual = ComputedDifficulty.fromKey(t.manualDifficulty);
+    if (manual != null) return manual;
     final persisted = ComputedDifficulty.fromKey(t.computedDifficulty);
     if (persisted != null) return persisted;
     return DifficultyCalculator.compute(
@@ -1364,6 +1367,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             sharedAt: track.sharedAt,
             difficulty: track.difficulty,
             computedDifficulty: track.computedDifficulty,
+            manualDifficulty: track.manualDifficulty,
             fallbackStats: TrackStats(
               distance: track.distance,
               elevationGain: track.elevationGain,

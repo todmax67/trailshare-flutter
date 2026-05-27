@@ -27,6 +27,7 @@ class CommunityTrackCard extends StatelessWidget {
   final DateTime? sharedAt;
   final String? difficulty;
   final String? computedDifficulty; // Komoot K1a Step 2
+  final String? manualDifficulty; // 2026-05-27 override utente
   final List<String> photoUrls;
   final List<TrackPoint> points;
   final VoidCallback onTap;
@@ -48,6 +49,7 @@ class CommunityTrackCard extends StatelessWidget {
     this.sharedAt,
     this.difficulty,
     this.computedDifficulty,
+    this.manualDifficulty,
     this.photoUrls = const [],
     this.points = const [],
     required this.onTap,
@@ -129,9 +131,11 @@ class CommunityTrackCard extends StatelessWidget {
                   // (legacy); poi fallback ulteriore a difficulty
                   // manuale (vecchie tracce con label testuale).
                   if (computedDifficulty != null ||
+                      manualDifficulty != null ||
                       (fallbackStats != null && fallbackActivity != null))
                     DifficultyBadge(
                       difficultyKey: computedDifficulty,
+                      manualDifficultyKey: manualDifficulty,
                       compact: false,
                       fallbackStats: fallbackStats,
                       fallbackActivity: fallbackActivity,

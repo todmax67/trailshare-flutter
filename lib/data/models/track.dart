@@ -416,6 +416,24 @@ class Track {
   /// null = non ancora calcolata (tracce legacy o stats insufficienti).
   final String? computedDifficulty;
 
+  /// Override manuale della difficoltà impostato dall'utente nel detail.
+  /// Se non-null, prevale su [computedDifficulty] in tutte le UI e nei
+  /// filtri. Permette di correggere casi limite dove l'algoritmo
+  /// sotto/sovrastima (es. via ferrata breve, ebike con dislivello
+  /// percepito alto, terreno tecnico).
+  /// Aggiunto 2026-05-27 dopo feedback utente.
+  final String? manualDifficulty;
+
+  /// Difficoltà effettiva = override manuale se presente, altrimenti
+  /// quella computata. Usare questa nelle UI per visualizzazione e
+  /// nei filtri community (no distinzione fra auto/manual).
+  String? get effectiveDifficulty => manualDifficulty ?? computedDifficulty;
+
+  /// `true` se la difficoltà mostrata è stata impostata manualmente
+  /// dall'utente (non calcolata automaticamente). Usato per mostrare
+  /// un piccolo indicatore "✏️" nel badge.
+  bool get hasManualDifficulty => manualDifficulty != null;
+
   const Track({
     this.id,
     required this.name,
@@ -437,6 +455,7 @@ class Track {
     this.stravaSourceActivityId,
     this.tags = const [],
     this.computedDifficulty,
+    this.manualDifficulty,
   });
 
   Map<String, dynamic> toMap() {
@@ -485,6 +504,9 @@ class Track {
     if (computedDifficulty != null) {
       map['computedDifficulty'] = computedDifficulty;
     }
+    if (manualDifficulty != null) {
+      map['manualDifficulty'] = manualDifficulty;
+    }
 
     return map;
   }
@@ -510,6 +532,8 @@ class Track {
     String? stravaSourceActivityId,
     List<String>? tags,
     String? computedDifficulty,
+    String? manualDifficulty,
+    bool clearManualDifficulty = false,
   }) {
     return Track(
       id: id ?? this.id,
@@ -532,6 +556,9 @@ class Track {
       stravaSourceActivityId: stravaSourceActivityId ?? this.stravaSourceActivityId,
       tags: tags ?? this.tags,
       computedDifficulty: computedDifficulty ?? this.computedDifficulty,
+      manualDifficulty: clearManualDifficulty
+          ? null
+          : (manualDifficulty ?? this.manualDifficulty),
     );
   }
 }

@@ -14,6 +14,7 @@ class CommunityTrackPreview {
   final String activityType;
   final String? difficulty;
   final String? computedDifficulty; // Komoot K1a Step 2
+  final String? manualDifficulty; // 2026-05-27 override utente
   final double distance;
   final double elevationGain;
   final int duration;
@@ -32,6 +33,7 @@ class CommunityTrackPreview {
     required this.activityType,
     this.difficulty,
     this.computedDifficulty,
+    this.manualDifficulty,
     required this.distance,
     required this.elevationGain,
     required this.duration,
@@ -78,6 +80,7 @@ class CommunityTrack {
   final String activityType;
   final String? difficulty;
   final String? computedDifficulty; // Komoot K1a Step 2
+  final String? manualDifficulty; // 2026-05-27 override utente
   final double distance;
   final double elevationGain;
   final int duration;
@@ -95,6 +98,7 @@ class CommunityTrack {
     required this.activityType,
     this.difficulty,
     this.computedDifficulty,
+    this.manualDifficulty,
     required this.distance,
     required this.elevationGain,
     required this.duration,
@@ -370,6 +374,7 @@ class CommunityTracksRepository {
         activityType: data['activityType']?.toString() ?? 'trekking',
         difficulty: data['difficulty']?.toString(),
         computedDifficulty: data['computedDifficulty']?.toString(),
+        manualDifficulty: data['manualDifficulty']?.toString(),
         distance: (data['distance'] as num?)?.toDouble() ?? 0,
         elevationGain: (data['elevationGain'] as num?)?.toDouble() ?? 0,
         duration: (data['duration'] as num?)?.toInt() ?? 0,
@@ -661,6 +666,7 @@ class CommunityTracksRepository {
         activityType: data['activityType']?.toString() ?? 'trekking',
         difficulty: data['difficulty']?.toString(),
         computedDifficulty: data['computedDifficulty']?.toString(),
+        manualDifficulty: data['manualDifficulty']?.toString(),
         distance: (data['distance'] as num?)?.toDouble() ?? 0,
         elevationGain: (data['elevationGain'] as num?)?.toDouble() ?? 0,
         duration: (data['duration'] as num?)?.toInt() ?? 0,
@@ -692,6 +698,7 @@ class CommunityTracksRepository {
     List<String>? photoUrls,
     String? difficulty,
     String? computedDifficulty, // Komoot K1a Step 2
+    String? manualDifficulty, // 2026-05-27 override utente
   }) async {
     try {
       // Converti punti in formato Firestore
@@ -718,6 +725,7 @@ class CommunityTracksRepository {
         'photoUrls': photoUrls ?? [],
         'difficulty': difficulty,
         if (computedDifficulty != null) 'computedDifficulty': computedDifficulty,
+        if (manualDifficulty != null) 'manualDifficulty': manualDifficulty,
         'startLat': points.isNotEmpty ? points.first.latitude : null,
         'startLng': points.isNotEmpty ? points.first.longitude : null,
       });
