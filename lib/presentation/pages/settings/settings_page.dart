@@ -1212,9 +1212,9 @@ class _SettingsPageState extends State<SettingsPage> {
         version: '2.6.1',
         title: 'TrailShare Pro disponibile anche su Android',
         bullets: [
-          'TrailShare Pro ora attivabile anche su Android: €2,99/mese o €19,99/anno con 14 giorni di prova gratuita sul piano annuale',
-          'Grandfather policy: tutti gli utenti registrati prima del 26 maggio 2026 hanno TrailShare Pro gratis a vita su Android come ringraziamento per averci sostenuto durante il periodo beta',
-          'Allineamento esperienza Pro fra iOS e Android: stesse funzioni, stesso flusso di acquisto, gestione abbonamento dal Play Store',
+          'TrailShare Pro ora attivabile anche su Android: €3,69/mese o €23,99/anno con 14 giorni di prova gratuita sul piano annuale',
+          'Grandfather policy: tutti gli utenti registrati prima del 26 maggio 2026 hanno TrailShare Pro gratis a vita su qualsiasi piattaforma (iOS e Android) come ringraziamento per averci sostenuto durante il periodo beta',
+          'Allineamento esperienza Pro fra iOS e Android: stesse funzioni, stesso flusso di acquisto, gestione abbonamento dallo store di acquisto',
         ],
       ),
       _ReleaseEntry(

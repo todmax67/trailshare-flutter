@@ -10,8 +10,10 @@
 ///
 /// **Migrazione utenti pre-2026-05-26 (Grandfather policy):**
 /// tutti gli utenti il cui account Firebase Auth è stato creato prima
-/// di 2026-05-26 sono **Pro a vita gratis** su Android. La policy è
-/// applicata da [ProGateService.syncFromFirestore] confrontando
+/// di 2026-05-26 sono **Pro a vita gratis su qualsiasi piattaforma**
+/// (Android + iOS) come riconoscimento per averci usato durante il
+/// periodo beta/early-adopter. La policy è applicata da
+/// [ProGateService.syncFromFirestore] confrontando
 /// `FirebaseAuth.user.metadata.creationTime` con
 /// [androidGrandfatherCutoff].
 ///
@@ -20,6 +22,10 @@
 /// è mai stato scritto sistematicamente dall'app, quindi su 114 utenti
 /// esistenti la maggior parte non l'aveva e sarebbe stata
 /// erroneamente esclusa dal grandfather.
+///
+/// Cross-platform: `proStatus` viene scritto autoritativo su
+/// Firestore, quindi un utente grandfathered che passa fra
+/// iOS/Android mantiene lo stato Pro automaticamente al prossimo sync.
 class MonetizationConfig {
   MonetizationConfig._();
 
@@ -38,17 +44,20 @@ class MonetizationConfig {
   /// - Il dev toggle in Settings è nascosto su Android
   static const bool androidMonetizationEnabled = true;
 
-  /// Cutoff per la Grandfather policy Android.
+  /// Cutoff per la Grandfather policy (iOS + Android).
   ///
   /// Tutti gli utenti con `FirebaseAuth.user.metadata.creationTime`
   /// **strettamente precedente** a questa data ricevono Pro gratis a
-  /// vita su Android come riconoscimento del fatto che hanno usato
-  /// l'app durante il periodo in cui Android non monetizzava.
+  /// vita su qualsiasi piattaforma come riconoscimento per averci
+  /// usato durante il periodo beta/early-adopter.
   ///
   /// La data è il momento in cui [androidMonetizationEnabled] è passato
   /// da `false` a `true` (2026-05-26 mezzanotte UTC). NON cambiare questa
   /// data dopo il deploy in prod, altrimenti utenti già grandfathered
   /// perderebbero lo stato.
+  ///
+  /// Nome storico mantenuto (`androidGrandfatherCutoff`) per coerenza
+  /// git/codice, ma la policy è cross-platform.
   static final DateTime androidGrandfatherCutoff =
       DateTime.utc(2026, 5, 26);
 }

@@ -237,21 +237,29 @@ class ProGateService extends ChangeNotifier {
       final stillActive =
           remoteIsPro && (expiresAtMs == null || expiresAtMs > now);
 
-      // Grandfather Android: utenti registrati su Firebase Auth prima
-      // del cutoff 2026-05-26 = Pro a vita gratis.
+      // Grandfather policy (iOS + Android): utenti registrati su
+      // Firebase Auth prima del cutoff 2026-05-26 = Pro a vita gratis,
+      // come riconoscimento per averci usato durante il periodo
+      // beta/early-adopter.
       //
       // Si applica quando l'utente NON è ATTUALMENTE Pro pagante
       // (stillActive=false): include sia chi non ha mai avuto un
       // abbonamento, sia chi ha avuto iOS Pro ma è scaduto. Un utente
-      // con abbonamento attivo (iOS o Android) viene preservato senza
-      // sovrascritture.
+      // con abbonamento attivo viene preservato senza sovrascritture.
+      //
+      // Cross-platform: scriviamo `proStatus` autoritativo su Firestore,
+      // quindi se un utente grandfathered passa fra iOS/Android/web,
+      // mantiene lo stato Pro ovunque senza dover ri-verificare.
       //
       // Usiamo `user.metadata.creationTime` (sempre presente su
       // FirebaseAuth) invece di `users/{uid}.createdAt` perché quel
       // campo non è mai stato scritto sistematicamente dall'app.
-      if (!kIsWeb &&
-          Platform.isAndroid &&
-          MonetizationConfig.androidMonetizationEnabled) {
+      final platformGrandfatherActive = !kIsWeb &&
+          ((Platform.isAndroid &&
+                  MonetizationConfig.androidMonetizationEnabled) ||
+              (Platform.isIOS &&
+                  MonetizationConfig.iosMonetizationEnabled));
+      if (platformGrandfatherActive) {
         final authCreatedAt = user.metadata.creationTime;
         final cutoff = MonetizationConfig.androidGrandfatherCutoff;
         final preCutoff =
@@ -262,12 +270,13 @@ class ProGateService extends ChangeNotifier {
         final shouldGrandfather =
             !stillActive && preCutoff && !alreadyGrandfather;
         debugPrint('[ProGate] Grandfather check: uid=${user.uid} '
+            'platform=${Platform.operatingSystem} '
             'authCreatedAt=$authCreatedAt cutoff=$cutoff '
             'preCutoff=$preCutoff stillActive=$stillActive '
             'alreadyGrandfather=$alreadyGrandfather '
             'shouldGrandfather=$shouldGrandfather');
         if (shouldGrandfather) {
-          debugPrint('[ProGate] Grandfather Android: APPLYING → Pro a vita');
+          debugPrint('[ProGate] Grandfather: APPLYING → Pro a vita');
           await _writeGrandfatherStatus(user.uid);
           await setUnlocked(true);
           return;
