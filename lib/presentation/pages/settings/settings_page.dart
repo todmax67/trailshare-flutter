@@ -1209,6 +1209,16 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.6.3',
+        title: 'Quote altimetriche più precise (correzione DEM)',
+        bullets: [
+          'Le quote GPS dello smartphone hanno spesso errori sistematici di 30-100 metri rispetto alla realtà. Ora al salvataggio di una traccia le quote vengono corrette automaticamente usando un modello digitale del terreno (AWS Open Terrain), ottenendo accuratezza paragonabile a Strava e Komoot',
+          'Grafici di altitudine più puliti, dislivello totale più preciso, difficoltà ricalcolata coerentemente',
+          'Per le tracce vecchie: dal menu "⋮" della scheda traccia trovi "Correggi quote dal DEM" per aggiornarle a posteriori',
+          'La correzione è gratuita (dati pubblici AWS Open Terrain Tiles)',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.6.2',
         title: 'Difficoltà più precisa + override manuale',
         bullets: [

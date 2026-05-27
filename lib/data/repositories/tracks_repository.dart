@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -5,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/track.dart';
 import '../../core/utils/difficulty_calculator.dart';
+import '../../core/utils/elevation_dem_corrector.dart';
 import '../../core/utils/elevation_processor.dart';
 
 /// Risultato paginato per le tracce
@@ -46,7 +48,13 @@ class TracksRepository {
   // CREAZIONE E SALVATAGGIO
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Salva una nuova traccia e restituisce l'ID
+  /// Salva una nuova traccia e restituisce l'ID.
+  ///
+  /// Dopo il save, **lancia in background** la correzione DEM delle
+  /// quote GPS (vedi [correctTrackElevationsFromDem]). Non blocca il
+  /// return: l'utente vede subito la traccia salvata con stats
+  /// preliminari, il chart si aggiorna entro pochi secondi quando la
+  /// correzione completa.
   Future<String> saveTrack(Track track) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Utente non autenticato');
@@ -56,11 +64,109 @@ class TracksRepository {
       final docRef = await _tracksCollection(user.uid).add(data);
 
       debugPrint('[TracksRepository] Traccia salvata con ID: ${docRef.id}');
+
+      // Lancia correzione DEM in background, non-bloccante. Eventuali
+      // errori (offline, AWS down) sono loggati ma non risalgono al
+      // chiamante: la traccia resta salvata con le quote GPS originali.
+      // L'utente può ricorreggere manualmente da TrackDetail.
+      if (!track.elevationCorrectedFromDem && track.points.isNotEmpty) {
+        unawaited(_autoCorrectElevationsInBackground(docRef.id, user.uid));
+      }
+
       return docRef.id;
     } catch (e) {
       debugPrint('[TracksRepository] Errore saveTrack: $e');
       rethrow;
     }
+  }
+
+  /// Esegue la correzione DEM in background dopo il save di una nuova
+  /// traccia. Errori silenti (l'utente vedrà ancora le quote GPS, e
+  /// può richiedere la correzione manuale da TrackDetail).
+  Future<void> _autoCorrectElevationsInBackground(
+    String trackId,
+    String userId,
+  ) async {
+    try {
+      debugPrint('[TracksRepository] auto-correzione DEM background per $trackId');
+      await correctTrackElevationsFromDem(trackId, userId: userId);
+    } catch (e) {
+      debugPrint('[TracksRepository] auto-correzione DEM background failed: $e');
+    }
+  }
+
+  /// Ricalcola le quote di una traccia esistente usando il DEM
+  /// (AWS Open Terrain Tiles). Aggiorna i punti, elevationGain/loss,
+  /// max/minAltitude, computedDifficulty (se dipende dalle stats) e
+  /// setta `elevationCorrectedFromDem=true`.
+  ///
+  /// Ritorna le statistiche della correzione (delta medio/min/max).
+  /// Ritorna `null` se la traccia non esiste o se il DEM non è
+  /// disponibile (nessun update applicato).
+  Future<CorrectionResult?> correctTrackElevationsFromDem(
+    String trackId, {
+    String? userId,
+    void Function(int corrected, int total)? onProgress,
+  }) async {
+    final uid = userId ?? _auth.currentUser?.uid;
+    if (uid == null) return null;
+
+    final docRef = _tracksCollection(uid).doc(trackId);
+    final snap = await docRef.get();
+    if (!snap.exists) return null;
+    final data = snap.data()!;
+
+    // Parse dei punti.
+    final pointsRaw = data['points'] as List?;
+    if (pointsRaw == null || pointsRaw.isEmpty) return null;
+    final points = pointsRaw
+        .map((p) => TrackPoint.fromMap(p as Map<String, dynamic>))
+        .toList();
+
+    // Correzione DEM.
+    final result = await ElevationDemCorrector.correct(
+      points,
+      onProgress: onProgress,
+    );
+    if (!result.success || !result.hasChanges) return result;
+
+    // Ricalcola gain/loss/max/min con ElevationProcessor sui valori corretti.
+    final activityRaw = data['activityType']?.toString() ?? 'trekking';
+    final processor = ElevationProcessor.forActivity(activityRaw);
+    final eleResult = processor.process(
+      result.points.map((p) => p.elevation).toList(),
+    );
+
+    // Ricalcola difficulty (se non è override manuale).
+    final stats = TrackStats(
+      distance: (data['distance'] as num?)?.toDouble() ?? 0,
+      elevationGain: eleResult.elevationGain,
+      elevationLoss: eleResult.elevationLoss,
+    );
+    final newDifficulty = DifficultyCalculator.compute(
+      stats: stats,
+      activityType: _parseActivity(activityRaw),
+    );
+
+    // Costruisci patch.
+    final updates = <String, dynamic>{
+      'points': result.points.map((p) => p.toMap()).toList(),
+      'elevationGain': eleResult.elevationGain,
+      'elevationLoss': eleResult.elevationLoss,
+      'maxAltitude': eleResult.maxElevation,
+      'minAltitude': eleResult.minElevation,
+      'elevationCorrectedFromDem': true,
+      if (newDifficulty != null)
+        'computedDifficulty': newDifficulty.firestoreKey,
+    };
+
+    await docRef.update(updates);
+    debugPrint('[TracksRepository] DEM correction applicata a $trackId: '
+        'gain=${eleResult.elevationGain.toStringAsFixed(0)}m '
+        'max=${eleResult.maxElevation.toStringAsFixed(0)}m '
+        'diff=${newDifficulty?.code ?? "?"}');
+
+    return result;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -857,6 +963,7 @@ class TracksRepository {
           : const <String>[],
       computedDifficulty: data['computedDifficulty']?.toString(),
       manualDifficulty: data['manualDifficulty']?.toString(),
+      elevationCorrectedFromDem: data['elevationCorrectedFromDem'] == true,
     );
   }
 

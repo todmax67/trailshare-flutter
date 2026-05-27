@@ -216,6 +216,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     case 'delete':
                       _showDeleteDialog();
                       break;
+                    case 'correctElevations':
+                      _showCorrectElevationsDialog();
+                      break;
                   }
                 },
                 itemBuilder: (context) => [
@@ -248,6 +251,22 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       _track.userId ==
                           FirebaseAuth.instance.currentUser?.uid) ...[
                     const PopupMenuDivider(),
+                    // 2026-05-27 — correzione DEM quote per tracce che
+                    // hanno ancora le altitudini GPS grezze (~tutte le
+                    // tracce pre-aggiornamento).
+                    if (!_track.elevationCorrectedFromDem)
+                      const PopupMenuItem(
+                        value: 'correctElevations',
+                        child: ListTile(
+                          leading: Icon(Icons.terrain),
+                          title: Text('Correggi quote dal DEM'),
+                          subtitle: Text(
+                            'Quote più precise da AWS Open Terrain',
+                            style: TextStyle(fontSize: 11),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
                     const PopupMenuItem(
                       value: 'split',
                       child: ListTile(
@@ -1340,6 +1359,99 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   // ═══════════════════════════════════════════════════════════════════════════
   // DIALOGS: Modifica, Pubblica, Elimina
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Dialog che chiede conferma e poi lancia la correzione DEM delle
+  /// quote di questa traccia. Mostra progress + risultato (Δ medio,
+  /// max). Aggiorna lo stato locale e ricarica i dati da Firestore.
+  void _showCorrectElevationsDialog() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Correggi quote dal DEM'),
+        content: const Text(
+          'Le quote GPS dello smartphone possono avere errori di '
+          '30-100 metri. La correzione usa un modello digitale del '
+          'terreno (AWS Open Terrain) per quote più precise.\n\n'
+          'Verranno aggiornati i grafici altimetrici, il dislivello '
+          'totale e la difficoltà calcolata.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.l10n.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Correggi'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    // Mostra progress dialog non-dismissible.
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Scarico DEM e correggo quote…'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await _tracksRepository
+          .correctTrackElevationsFromDem(_track.id!);
+      if (!mounted) return;
+      Navigator.pop(context); // chiude progress
+
+      if (result == null || !result.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Correzione non riuscita — controlla la connessione e riprova'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+        return;
+      }
+
+      // Ricarica la traccia dal Firestore per avere i nuovi valori.
+      final fresh = await _tracksRepository.getTrackById(_track.id!);
+      if (!mounted) return;
+      if (fresh != null) {
+        setState(() => _track = fresh);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Quote corrette: Δ medio ${result.avgDeltaMeters.toStringAsFixed(0)}m, '
+              'max ${result.maxDeltaMeters.toStringAsFixed(0)}m'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Errore: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
 
   void _showEditDialog() {
     final nameController = TextEditingController(text: _track.name);

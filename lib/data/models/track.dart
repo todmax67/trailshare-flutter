@@ -20,6 +20,27 @@ class TrackPoint {
     this.heading,
   });
 
+  /// CopyWith — usato principalmente dalla correzione DEM delle quote.
+  TrackPoint copyWith({
+    double? latitude,
+    double? longitude,
+    double? elevation,
+    DateTime? timestamp,
+    double? speed,
+    double? accuracy,
+    double? heading,
+  }) {
+    return TrackPoint(
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      elevation: elevation ?? this.elevation,
+      timestamp: timestamp ?? this.timestamp,
+      speed: speed ?? this.speed,
+      accuracy: accuracy ?? this.accuracy,
+      heading: heading ?? this.heading,
+    );
+  }
+
   /// Distanza in metri verso un altro punto (Haversine)
   double distanceTo(TrackPoint other) {
     const R = 6371000.0;
@@ -416,6 +437,12 @@ class Track {
   /// null = non ancora calcolata (tracce legacy o stats insufficienti).
   final String? computedDifficulty;
 
+  /// `true` se le quote dei TrackPoint sono state corrette via DEM
+  /// (AWS Open Terrain Tiles, vedi `ElevationDemCorrector`). Le tracce
+  /// pre-2026-05-27 sono `false` (quote GPS grezze): possono essere
+  /// corrette retroattivamente dal menu di TrackDetail.
+  final bool elevationCorrectedFromDem;
+
   /// Override manuale della difficoltà impostato dall'utente nel detail.
   /// Se non-null, prevale su [computedDifficulty] in tutte le UI e nei
   /// filtri. Permette di correggere casi limite dove l'algoritmo
@@ -456,6 +483,7 @@ class Track {
     this.tags = const [],
     this.computedDifficulty,
     this.manualDifficulty,
+    this.elevationCorrectedFromDem = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -507,6 +535,9 @@ class Track {
     if (manualDifficulty != null) {
       map['manualDifficulty'] = manualDifficulty;
     }
+    if (elevationCorrectedFromDem) {
+      map['elevationCorrectedFromDem'] = true;
+    }
 
     return map;
   }
@@ -534,6 +565,7 @@ class Track {
     String? computedDifficulty,
     String? manualDifficulty,
     bool clearManualDifficulty = false,
+    bool? elevationCorrectedFromDem,
   }) {
     return Track(
       id: id ?? this.id,
@@ -559,6 +591,8 @@ class Track {
       manualDifficulty: clearManualDifficulty
           ? null
           : (manualDifficulty ?? this.manualDifficulty),
+      elevationCorrectedFromDem:
+          elevationCorrectedFromDem ?? this.elevationCorrectedFromDem,
     );
   }
 }
