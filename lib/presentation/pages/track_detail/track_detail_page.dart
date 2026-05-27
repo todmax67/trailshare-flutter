@@ -317,13 +317,28 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      DifficultyBadge(
-                        difficultyKey: _track.computedDifficulty,
-                        manualDifficultyKey: _track.manualDifficulty,
-                        compact: false,
-                        fallbackStats: _track.stats,
-                        fallbackActivity: _track.activityType,
-                      ),
+                      // Badge tappabile (solo per owner): apre dialog
+                      // dedicato alla selezione difficoltà manuale.
+                      if (_isOwner)
+                        InkWell(
+                          onTap: _showDifficultyDialog,
+                          borderRadius: BorderRadius.circular(14),
+                          child: DifficultyBadge(
+                            difficultyKey: _track.computedDifficulty,
+                            manualDifficultyKey: _track.manualDifficulty,
+                            compact: false,
+                            fallbackStats: _track.stats,
+                            fallbackActivity: _track.activityType,
+                          ),
+                        )
+                      else
+                        DifficultyBadge(
+                          difficultyKey: _track.computedDifficulty,
+                          manualDifficultyKey: _track.manualDifficulty,
+                          compact: false,
+                          fallbackStats: _track.stats,
+                          fallbackActivity: _track.activityType,
+                        ),
                     ],
                   ),
 
@@ -1364,6 +1379,122 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   // ═══════════════════════════════════════════════════════════════════════════
   // DIALOGS: Modifica, Pubblica, Elimina
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Dialog dedicato alla selezione della difficoltà T1-T5 (override
+  /// manuale). Apribile direttamente tappando il badge difficoltà sulla
+  /// scheda traccia: più discoverable rispetto allo scrollare fino al
+  /// dropdown nel dialog generico "Modifica".
+  void _showDifficultyDialog() {
+    ComputedDifficulty? selected =
+        ComputedDifficulty.fromKey(_track.manualDifficulty);
+    final autoLevel =
+        ComputedDifficulty.fromKey(_track.computedDifficulty);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Difficoltà'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RadioListTile<ComputedDifficulty?>(
+                value: null,
+                groupValue: selected,
+                onChanged: (v) => setDialogState(() => selected = v),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text(
+                  autoLevel != null
+                      ? 'Automatica (${autoLevel.code} · ${autoLevel.label})'
+                      : 'Automatica',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: const Text(
+                  'Calcolata da distanza, dislivello e attività',
+                  style: TextStyle(fontSize: 11),
+                ),
+              ),
+              const Divider(height: 1),
+              ...ComputedDifficulty.values.map(
+                (d) => RadioListTile<ComputedDifficulty?>(
+                  value: d,
+                  groupValue: selected,
+                  onChanged: (v) => setDialogState(() => selected = v),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Row(
+                    children: [
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: d.color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${d.code} · ${d.label}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(context.l10n.cancel),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final manualToSave = selected?.firestoreKey ?? '';
+                try {
+                  await _tracksRepository.updateTrack(
+                    _track.id!,
+                    manualDifficulty: manualToSave,
+                  );
+                  if (!mounted) return;
+                  setState(() {
+                    _track = _track.copyWith(
+                      manualDifficulty: selected?.firestoreKey,
+                      clearManualDifficulty: selected == null,
+                    );
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(selected == null
+                          ? 'Difficoltà tornata ad automatica'
+                          : 'Difficoltà impostata: ${selected!.code} · ${selected!.label}'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Errore: $e'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(context.l10n.save),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   /// Dialog che chiede conferma e poi lancia la correzione DEM delle
   /// quote di questa traccia. Mostra progress + risultato (Δ medio,
