@@ -227,24 +227,63 @@ class ProGateService extends ChangeNotifier {
       final data = snap.data();
       final proStatus = data?['proStatus'] as Map<String, dynamic>?;
 
+      // Calcola lo stato Pro corrente PRIMA del check grandfather: serve
+      // sia per decidere se grandfatherizzare (non lo facciamo se l'utente
+      // è già Pro attivo, es. pagante iOS), sia per il sync normale sotto.
+      final remoteIsPro = proStatus?['isPro'] == true;
+      final expiresAtMs = (proStatus?['expiresAtMs'] as num?)?.toInt();
+      final productId = proStatus?['productId'] as String?;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final stillActive =
+          remoteIsPro && (expiresAtMs == null || expiresAtMs > now);
+
+      // Grandfather Android: utenti registrati su Firebase Auth prima
+      // del cutoff 2026-05-26 = Pro a vita gratis.
+      //
+      // Si applica quando l'utente NON è ATTUALMENTE Pro pagante
+      // (stillActive=false): include sia chi non ha mai avuto un
+      // abbonamento, sia chi ha avuto iOS Pro ma è scaduto. Un utente
+      // con abbonamento attivo (iOS o Android) viene preservato senza
+      // sovrascritture.
+      //
+      // Usiamo `user.metadata.creationTime` (sempre presente su
+      // FirebaseAuth) invece di `users/{uid}.createdAt` perché quel
+      // campo non è mai stato scritto sistematicamente dall'app.
+      if (!kIsWeb &&
+          Platform.isAndroid &&
+          MonetizationConfig.androidMonetizationEnabled) {
+        final authCreatedAt = user.metadata.creationTime;
+        final cutoff = MonetizationConfig.androidGrandfatherCutoff;
+        final preCutoff =
+            authCreatedAt != null && authCreatedAt.isBefore(cutoff);
+        final alreadyGrandfather =
+            proStatus?['source']?.toString().startsWith('grandfather') ??
+                false;
+        final shouldGrandfather =
+            !stillActive && preCutoff && !alreadyGrandfather;
+        debugPrint('[ProGate] Grandfather check: uid=${user.uid} '
+            'authCreatedAt=$authCreatedAt cutoff=$cutoff '
+            'preCutoff=$preCutoff stillActive=$stillActive '
+            'alreadyGrandfather=$alreadyGrandfather '
+            'shouldGrandfather=$shouldGrandfather');
+        if (shouldGrandfather) {
+          debugPrint('[ProGate] Grandfather Android: APPLYING → Pro a vita');
+          await _writeGrandfatherStatus(user.uid);
+          await setUnlocked(true);
+          return;
+        }
+      }
+
       if (proStatus == null) {
         debugPrint('[ProGate] syncFromFirestore: no proStatus on remote — '
             'keep local cache');
         return;
       }
 
-      final remoteIsPro = proStatus['isPro'] == true;
-      final expiresAtMs = (proStatus['expiresAtMs'] as num?)?.toInt();
-      final productId = proStatus['productId'] as String?;
-      final now = DateTime.now().millisecondsSinceEpoch;
-
       // Pro è davvero attivo se: il server lo dice E non è scaduto.
       // Quando arriveranno i webhook V2 (6.B5), `isPro` sarà
       // aggiornato anche su revoche/cancellazioni autonome; per ora
       // ricontrolliamo l'expiry localmente per sicurezza.
-      final stillActive =
-          remoteIsPro && (expiresAtMs == null || expiresAtMs > now);
-
       debugPrint('[ProGate] syncFromFirestore: remoteIsPro=$remoteIsPro '
           'productId=$productId expires=$expiresAtMs stillActive=$stillActive');
 
@@ -257,6 +296,31 @@ class ProGateService extends ChangeNotifier {
       // Manteniamo cache locale: niente blocco utente per problema rete.
     } finally {
       _firestoreSyncInProgress = false;
+    }
+  }
+
+  /// Scrive `proStatus` con marker `grandfather_android` su Firestore.
+  /// Idempotente: usa `set(merge: true)` quindi ri-eseguirla non
+  /// crea problemi (utile se la prima chiamata fallisce per rete).
+  ///
+  /// Da quel momento `syncFromFirestore` legge questo `proStatus`
+  /// come autoritativo, identico ai paganti veri (con la differenza
+  /// di `source` che resta tracciato per audit/analytics).
+  Future<void> _writeGrandfatherStatus(String uid) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'proStatus': {
+          'isPro': true,
+          'source': 'grandfather_android_2026_05_26',
+          'productId': null,
+          'expiresAtMs': null,
+          'grandfatheredAt': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+      debugPrint('[ProGate] grandfather status written for $uid');
+    } catch (e) {
+      // Non blocchiamo l'utente — il sync ritenterà al prossimo login.
+      debugPrint('[ProGate] grandfather write error (will retry): $e');
     }
   }
 

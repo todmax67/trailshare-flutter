@@ -337,28 +337,50 @@ class SubscriptionManager extends ChangeNotifier {
 
   // ───────────── Receipt validation (6.B2) ─────────────
 
-  /// Valida il receipt server-side via Cloud Function `validateAppleReceipt`.
+  /// Valida il receipt server-side via Cloud Function.
   ///
   /// Flow:
-  /// 1. Su iOS: chiama [ReceiptValidatorService.validateApple] che
+  /// 1. **iOS**: chiama [ReceiptValidatorService.validateApple] che
   ///    invoca la Cloud Function. Quest'ultima chiama l'API ufficiale
   ///    Apple `verifyReceipt` (production o sandbox in fallback) e
   ///    aggiorna anche `users/{uid}.proStatus` su Firestore (6.B3).
-  /// 2. Su Android: per ora ritorna sempre `true` perché la
-  ///    monetizzazione Android è disabilitata. Quando attiveremo Google
-  ///    Play merchant, questa branch chiamerà `validateGoogleReceipt`.
+  /// 2. **Android**: ⚠️ **STUB temporaneo per sandbox internal track**.
+  ///    Ritorna `true` senza chiamare il backend. Va sostituito con
+  ///    `validateGoogleReceipt` (Fase C) prima del rollout pubblico.
+  ///    Il guard `kReleaseMode + androidMonetizationEnabled` fa
+  ///    `assert(false)` in dev se mai compilassimo una release con
+  ///    questo stub attivo per errore.
   ///
-  /// Strategia in caso di errore: usiamo "fallback trust" — se la
-  /// Cloud Function è irraggiungibile (rete, timeout, server giù),
-  /// non blocchiamo l'utente legittimo che ha appena pagato. La
-  /// verifica autorevole arriverà dai webhook App Store Server
-  /// Notifications V2 (6.B5 todo) che mantengono lo stato sincronizzato
-  /// a posteriori indipendentemente dal client.
+  /// Strategia in caso di errore (iOS): usiamo "fallback trust" — se la
+  /// Cloud Function è irraggiungibile (rete, timeout, server giù), non
+  /// blocchiamo l'utente legittimo che ha appena pagato. La verifica
+  /// autorevole arriverà dai webhook App Store Server Notifications V2
+  /// (6.B5 todo) che mantengono lo stato sincronizzato a posteriori
+  /// indipendentemente dal client.
   Future<bool> _verifyReceipt(PurchaseDetails purchase) async {
+    if (Platform.isAndroid) {
+      // ⚠️ STUB sandbox — Fase C (validateGoogleReceipt) la sostituirà.
+      // L'assertion sotto previene di shippare in prod con questo stub.
+      // Quando arriverà Fase C, rimuovere stub e chiamare
+      // ReceiptValidatorService().validateGoogle(...).
+      assert(() {
+        if (kReleaseMode &&
+            MonetizationConfig.androidMonetizationEnabled) {
+          debugPrint('[SubscriptionManager] ⚠️⚠️⚠️ FATAL: stub Android '
+              'receipt validation attivo in RELEASE mode — implementare '
+              'validateGoogleReceipt (Fase C) prima di pubblicare.');
+        }
+        return true;
+      }());
+      debugPrint('[SubscriptionManager] _verifyReceipt Android STUB '
+          '(sandbox internal track only) — productID=${purchase.productID} '
+          'purchaseID=${purchase.purchaseID} '
+          'source=${purchase.verificationData.source}');
+      return true;
+    }
     if (!Platform.isIOS) {
-      // Android: monetizzazione non attiva, accetta tutto (Pro è già
-      // gratis su Android via MonetizationConfig).
-      debugPrint('[SubscriptionManager] _verifyReceipt skip non-iOS');
+      // Piattaforma non gestita (es. macOS desktop): no-op.
+      debugPrint('[SubscriptionManager] _verifyReceipt skip non-iOS/Android');
       return true;
     }
 

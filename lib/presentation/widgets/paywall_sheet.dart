@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -90,15 +91,34 @@ Future<bool?> showPaywallSheet(
 }
 
 /// URL per gestire l'abbonamento dalla pagina Apple/Play Store.
-/// - iOS: deep link nativo che apre Settings → Apple ID → Abbonamenti
-/// - Android (futuro): deep link a Play Store app management
-String _manageSubscriptionUrl() {
-  if (Platform.isIOS) {
-    return 'https://apps.apple.com/account/subscriptions';
+///
+/// - **iOS**: deep link che apre Settings → Apple ID → Abbonamenti.
+/// - **Android**: deep link al Play Store; se [productId] è fornito,
+///   apre direttamente la pagina di quello specifico abbonamento,
+///   altrimenti la lista generale degli abbonamenti utente.
+///
+/// Su altre piattaforme (es. macOS desktop, web) usiamo il link Apple
+/// come fallback — gli utenti web hanno ProGateService.isMonetizationActive
+/// = false, quindi non vedono questo bottone.
+String _manageSubscriptionUrl({String? productId}) {
+  if (!kIsWeb && Platform.isAndroid) {
+    const package = 'com.trailshare.app';
+    if (productId != null && productId.isNotEmpty) {
+      return 'https://play.google.com/store/account/subscriptions'
+          '?sku=$productId&package=$package';
+    }
+    return 'https://play.google.com/store/account/subscriptions'
+        '?package=$package';
   }
-  // Android: quando attiveremo la monetizzazione (6.B Android), usare:
-  // 'https://play.google.com/store/account/subscriptions?package=<id>'
+  // iOS + fallback
   return 'https://apps.apple.com/account/subscriptions';
+}
+
+/// Etichetta dello store di destinazione per la copy del bottone
+/// "gestisci abbonamento". iOS = Apple, Android = Play Store.
+String _manageSubscriptionStoreName() {
+  if (!kIsWeb && Platform.isAndroid) return 'Play Store';
+  return 'App Store';
 }
 
 /// Sheet di upgrade a TrailShare Pro.
@@ -747,10 +767,12 @@ class _PaywallSheetState extends State<PaywallSheet> {
             '• $productTitle: $price ogni $period$unitPrice.\n'
             '• L\'abbonamento si rinnova automaticamente a meno che '
             'non venga disattivato almeno 24 ore prima della fine del '
-            'periodo. Il pagamento viene addebitato sul tuo account App '
-            'Store al momento della conferma e ad ogni rinnovo.\n'
+            'periodo. Il pagamento viene addebitato sul tuo account '
+            '${_manageSubscriptionStoreName()} al momento della conferma '
+            'e ad ogni rinnovo.\n'
             '• Puoi gestire o cancellare l\'abbonamento dalle '
-            'impostazioni del tuo account App Store dopo l\'acquisto.'
+            'impostazioni del tuo account ${_manageSubscriptionStoreName()} '
+            'dopo l\'acquisto.'
             '$trialLine',
             style: TextStyle(
               fontSize: 11,
@@ -1144,7 +1166,7 @@ class _AlreadyProYearlySheet extends StatelessWidget {
 
   Future<void> _openManage() async {
     await launchUrl(
-      Uri.parse(_manageSubscriptionUrl()),
+      Uri.parse(_manageSubscriptionUrl(productId: ProProducts.yearly)),
       mode: LaunchMode.externalApplication,
     );
   }
@@ -1180,8 +1202,8 @@ class _AlreadyProYearlySheet extends StatelessWidget {
                 const SizedBox(height: 14),
                 _buildFooterCaption(
                   context,
-                  'Apri le impostazioni Apple per modificare o cancellare '
-                  'l\'abbonamento.',
+                  'Apri ${_manageSubscriptionStoreName()} per modificare o '
+                  'cancellare l\'abbonamento.',
                 ),
               ],
             ),
@@ -1284,7 +1306,7 @@ class _UpgradeToYearlySheetState extends State<_UpgradeToYearlySheet> {
 
   Future<void> _openManage() async {
     await launchUrl(
-      Uri.parse(_manageSubscriptionUrl()),
+      Uri.parse(_manageSubscriptionUrl(productId: ProProducts.monthly)),
       mode: LaunchMode.externalApplication,
     );
   }
@@ -1320,8 +1342,8 @@ class _UpgradeToYearlySheetState extends State<_UpgradeToYearlySheet> {
                 const SizedBox(height: 12),
                 _buildFooterCaption(
                   context,
-                  'L\'upgrade è immediato. Apple rimborsa la parte non '
-                  'utilizzata del piano mensile.',
+                  'L\'upgrade è immediato. Lo store rimborsa la parte '
+                  'non utilizzata del piano mensile.',
                 ),
                 const SizedBox(height: 18),
                 Center(
