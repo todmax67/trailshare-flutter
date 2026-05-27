@@ -251,22 +251,27 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       _track.userId ==
                           FirebaseAuth.instance.currentUser?.uid) ...[
                     const PopupMenuDivider(),
-                    // 2026-05-27 — correzione DEM quote per tracce che
-                    // hanno ancora le altitudini GPS grezze (~tutte le
-                    // tracce pre-aggiornamento).
-                    if (!_track.elevationCorrectedFromDem)
-                      const PopupMenuItem(
-                        value: 'correctElevations',
-                        child: ListTile(
-                          leading: Icon(Icons.terrain),
-                          title: Text('Correggi quote dal DEM'),
-                          subtitle: Text(
-                            'Quote più precise da AWS Open Terrain',
-                            style: TextStyle(fontSize: 11),
-                          ),
-                          contentPadding: EdgeInsets.zero,
+                    // 2026-05-27 — correzione DEM quote. Sempre visibile
+                    // per permettere ri-correzione con fonti DEM più
+                    // accurate (es. switch Mapzen → EU-DEM 25m).
+                    PopupMenuItem(
+                      value: 'correctElevations',
+                      child: ListTile(
+                        leading: const Icon(Icons.terrain),
+                        title: Text(
+                          _track.elevationCorrectedFromDem
+                              ? 'Ricalcola quote (EU-DEM 25m)'
+                              : 'Correggi quote dal DEM',
                         ),
+                        subtitle: Text(
+                          _track.elevationCorrectedFromDem
+                              ? 'Ri-applica correzione con DEM più recente'
+                              : 'Quote più precise da EU-DEM 25m',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        contentPadding: EdgeInsets.zero,
                       ),
+                    ),
                     const PopupMenuItem(
                       value: 'split',
                       child: ListTile(
