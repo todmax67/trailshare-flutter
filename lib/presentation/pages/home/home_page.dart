@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/recording_status_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../community/community_page.dart';
+import '../home_feed/home_feed_page.dart';
 import '../record/record_page.dart';
 import '../tracks/tracks_page.dart';
 import '../profile/profile_page.dart';
@@ -18,11 +20,14 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentIndex = 1; // Community come default
+  // Con la nuova Home Feed, tab 0 è la Home e diventa il default.
+  // Legacy: tab 0 = Scopri, default = Community (index 1).
+  int _currentIndex = AppConfig.useNewHomeFeed ? 0 : 1;
 
   final List<Widget> _pages = [
-    const DiscoverPage(),       // 0 - Scopri (Sentieri OSM)
-    const CommunityPage(),      // 1 - Community (Tracce + Gruppi + Eventi) ← DEFAULT
+    // 0 — Home Feed (nuova) oppure Scopri (legacy)
+    AppConfig.useNewHomeFeed ? const HomeFeedPage() : const DiscoverPage(),
+    const CommunityPage(),      // 1 - Community
     const RecordPage(),         // 2 - Registra
     const TracksPage(),         // 3 - Tracce
     const ProfilePage(),        // 4 - Profilo
@@ -97,11 +102,16 @@ class _HomePageState extends State<HomePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // Scopri
+              // Home (nuova) oppure Scopri (legacy)
               _NavItem(
-                icon: Icons.explore_outlined,
-                activeIcon: Icons.explore,
-                label: context.l10n.discover,
+                icon: AppConfig.useNewHomeFeed
+                    ? Icons.home_outlined
+                    : Icons.explore_outlined,
+                activeIcon:
+                    AppConfig.useNewHomeFeed ? Icons.home : Icons.explore,
+                label: AppConfig.useNewHomeFeed
+                    ? context.l10n.home
+                    : context.l10n.discover,
                 isSelected: _currentIndex == 0,
                 primaryColor: primaryColor,
                 onTap: () => setState(() => _currentIndex = 0),

@@ -104,6 +104,96 @@ abstract class AppLocalizations {
   /// **'TrailShare'**
   String get appTitle;
 
+  /// No description provided for @home.
+  ///
+  /// In it, this message translates to:
+  /// **'Home'**
+  String get home;
+
+  /// No description provided for @homeGreetingMorning.
+  ///
+  /// In it, this message translates to:
+  /// **'Buongiorno'**
+  String get homeGreetingMorning;
+
+  /// No description provided for @homeGreetingAfternoon.
+  ///
+  /// In it, this message translates to:
+  /// **'Buon pomeriggio'**
+  String get homeGreetingAfternoon;
+
+  /// No description provided for @homeGreetingEvening.
+  ///
+  /// In it, this message translates to:
+  /// **'Buonasera'**
+  String get homeGreetingEvening;
+
+  /// No description provided for @homeReadyForTrail.
+  ///
+  /// In it, this message translates to:
+  /// **'Pronto per il sentiero?'**
+  String get homeReadyForTrail;
+
+  /// No description provided for @homeSectionChallenge.
+  ///
+  /// In it, this message translates to:
+  /// **'Sfida settimanale'**
+  String get homeSectionChallenge;
+
+  /// No description provided for @homeSectionFollowing.
+  ///
+  /// In it, this message translates to:
+  /// **'Dai tuoi seguiti'**
+  String get homeSectionFollowing;
+
+  /// No description provided for @homeSectionTour.
+  ///
+  /// In it, this message translates to:
+  /// **'Tour del mese'**
+  String get homeSectionTour;
+
+  /// No description provided for @homeSectionPro.
+  ///
+  /// In it, this message translates to:
+  /// **'Spazi Pro vicini'**
+  String get homeSectionPro;
+
+  /// No description provided for @homeSectionDiscover.
+  ///
+  /// In it, this message translates to:
+  /// **'Scopri vicino a te'**
+  String get homeSectionDiscover;
+
+  /// No description provided for @homeViewAll.
+  ///
+  /// In it, this message translates to:
+  /// **'Vedi tutto'**
+  String get homeViewAll;
+
+  /// No description provided for @homeExploreArea.
+  ///
+  /// In it, this message translates to:
+  /// **'Esplora la zona'**
+  String get homeExploreArea;
+
+  /// No description provided for @homeEmptyTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Inizia la tua avventura'**
+  String get homeEmptyTitle;
+
+  /// No description provided for @homeEmptySubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'TrailShare si popola con te.'**
+  String get homeEmptySubtitle;
+
+  /// No description provided for @homeEmptyRecord.
+  ///
+  /// In it, this message translates to:
+  /// **'Registra la tua prima traccia'**
+  String get homeEmptyRecord;
+
   /// No description provided for @save.
   ///
   /// In it, this message translates to:

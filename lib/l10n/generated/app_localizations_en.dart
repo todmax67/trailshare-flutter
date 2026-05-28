@@ -12,6 +12,51 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'TrailShare';
 
   @override
+  String get home => 'Home';
+
+  @override
+  String get homeGreetingMorning => 'Good morning';
+
+  @override
+  String get homeGreetingAfternoon => 'Good afternoon';
+
+  @override
+  String get homeGreetingEvening => 'Good evening';
+
+  @override
+  String get homeReadyForTrail => 'Ready for the trail?';
+
+  @override
+  String get homeSectionChallenge => 'Weekly challenge';
+
+  @override
+  String get homeSectionFollowing => 'From people you follow';
+
+  @override
+  String get homeSectionTour => 'Tour of the month';
+
+  @override
+  String get homeSectionPro => 'Pro spaces nearby';
+
+  @override
+  String get homeSectionDiscover => 'Discover nearby';
+
+  @override
+  String get homeViewAll => 'View all';
+
+  @override
+  String get homeExploreArea => 'Explore the area';
+
+  @override
+  String get homeEmptyTitle => 'Start your adventure';
+
+  @override
+  String get homeEmptySubtitle => 'TrailShare grows as you do.';
+
+  @override
+  String get homeEmptyRecord => 'Record your first track';
+
+  @override
   String get save => 'Save';
 
   @override
