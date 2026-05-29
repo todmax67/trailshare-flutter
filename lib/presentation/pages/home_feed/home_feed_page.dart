@@ -72,9 +72,12 @@ class _HomeFeedPageState extends State<HomeFeedPage>
               ? const _HomeFeedSkeleton()
               : data == null
                   ? _ErrorView(error: _bloc.error, onRetry: _bloc.load)
-                  : data.isCompletelyEmpty
+                  // Empty state solo quando ANCHE la fase geo è finita:
+                  // evita il flash di "vuoto" mentre i sentieri/Pro
+                  // stanno ancora arrivando.
+                  : (data.isCompletelyEmpty && !_bloc.geoPending)
                       ? _HomeEmptyState(onRecord: _openRecord)
-                      : _buildSections(data),
+                      : _buildSections(data, _bloc.geoPending),
         ),
       ),
     );
@@ -82,7 +85,7 @@ class _HomeFeedPageState extends State<HomeFeedPage>
 
   // ── Sections ────────────────────────────────────────────────────────
 
-  Widget _buildSections(HomeFeedData data) {
+  Widget _buildSections(HomeFeedData data, bool geoPending) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 32),
@@ -115,9 +118,16 @@ class _HomeFeedPageState extends State<HomeFeedPage>
             onTap: () => _openTour(data.editorialTour!),
           ),
         ],
+        // ── Sezioni geo (Fase 2) ──
+        // Mentre geoPending, mostriamo header + loader per dare
+        // feedback "sto cercando vicino a te". Quando arrivano i dati,
+        // si riempiono; se restano vuote a fine fase, si nascondono.
         if (data.nearbyPro.isNotEmpty) ...[
           _SectionHeader(title: context.l10n.homeSectionPro),
           _ProStrip(items: data.nearbyPro, onTap: _openBusiness),
+        ] else if (geoPending) ...[
+          _SectionHeader(title: context.l10n.homeSectionPro),
+          const _GeoStripLoader(),
         ],
         if (data.nearbyTrails.isNotEmpty) ...[
           _SectionHeader(
@@ -130,6 +140,9 @@ class _HomeFeedPageState extends State<HomeFeedPage>
             userLocation: data.userLocation,
             onExplore: _openDiscover,
           ),
+        ] else if (geoPending) ...[
+          _SectionHeader(title: context.l10n.homeSectionDiscover),
+          const _GeoListLoader(),
         ],
       ],
     );
@@ -696,6 +709,58 @@ class _DiscoverPreview extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 // Skeleton / Error / Empty
 // ═══════════════════════════════════════════════════════════════════════
+
+/// Loader orizzontale per la sezione Spazi Pro mentre la Fase 2
+/// (posizione + fetch) è in corso.
+class _GeoStripLoader extends StatelessWidget {
+  const _GeoStripLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 150,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 3,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, _) => Container(
+          width: 180,
+          height: 100,
+          decoration: BoxDecoration(
+            color: context.themedSurfaceVariant,
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Loader a lista per la sezione Scopri mentre la Fase 2 è in corso.
+class _GeoListLoader extends StatelessWidget {
+  const _GeoListLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        children: [
+          for (var i = 0; i < 3; i++)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              height: 44,
+              decoration: BoxDecoration(
+                color: context.themedSurfaceVariant,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 class _HomeFeedSkeleton extends StatelessWidget {
   const _HomeFeedSkeleton();

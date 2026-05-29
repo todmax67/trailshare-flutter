@@ -56,4 +56,36 @@ class HomeFeedData {
   /// quando si torna sulla tab Home dopo un po').
   bool isStale({Duration maxAge = const Duration(minutes: 5)}) =>
       DateTime.now().difference(fetchedAt) > maxAge;
+
+  /// Ritorna una copia con i campi geo (Fase 2) popolati, mantenendo
+  /// i campi non-geo (Fase 1) invariati.
+  HomeFeedData withGeo({
+    required LatLng? userLocation,
+    required HomeFeedGeo geo,
+  }) =>
+      HomeFeedData(
+        userLocation: userLocation,
+        weather: geo.weather,
+        resume: resume,
+        challenge: challenge,
+        followingPosts: followingPosts,
+        editorialTour: editorialTour,
+        nearbyPro: geo.nearbyPro,
+        nearbyTrails: geo.nearbyTrails,
+        fetchedAt: fetchedAt,
+      );
+}
+
+/// Risultato della Fase 2 (geo) dell'aggregator: solo i campi che
+/// dipendono dalla posizione utente.
+class HomeFeedGeo {
+  final WeatherData? weather;
+  final List<Business> nearbyPro;
+  final List<PublicTrail> nearbyTrails;
+
+  const HomeFeedGeo({
+    this.weather,
+    this.nearbyPro = const [],
+    this.nearbyTrails = const [],
+  });
 }

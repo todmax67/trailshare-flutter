@@ -5,9 +5,14 @@ import '../../data/models/home_feed_data.dart';
 
 enum HomeFeedStatus { idle, loading, ready, error }
 
-/// Stato della Home Feed (ChangeNotifier, allineato al pattern del
-/// codebase). Wrappa [HomeFeedAggregator] e mantiene l'ultimo
-/// [HomeFeedData] caricato.
+/// Stato della Home Feed (ChangeNotifier).
+///
+/// **Caricamento a due fasi** (per velocità + accuratezza geo):
+/// 1. `loadCore()` — sezioni non-geo (sfida, seguiti, tour): veloci,
+///    mostrate appena pronte → la Home appare quasi subito.
+/// 2. `resolveLocation()` + `loadGeo()` — sezioni geo (Pro, Scopri,
+///    meteo): usano una posizione accurata; mentre arrivano,
+///    [geoPending] è true e la UI mostra un loader per quelle sezioni.
 class HomeFeedBloc extends ChangeNotifier {
   HomeFeedBloc({HomeFeedAggregator? aggregator})
       : _aggregator = aggregator ?? HomeFeedAggregator();
@@ -17,39 +22,54 @@ class HomeFeedBloc extends ChangeNotifier {
   HomeFeedStatus _status = HomeFeedStatus.idle;
   HomeFeedData? _data;
   String? _error;
+  bool _geoPending = false;
 
   HomeFeedStatus get status => _status;
   HomeFeedData? get data => _data;
   String? get error => _error;
 
+  /// True mentre le sezioni geo (Pro, Scopri, meteo) stanno ancora
+  /// caricando dopo che le sezioni non-geo sono già a schermo.
+  bool get geoPending => _geoPending;
+
   /// True al primissimo load (skeleton full-page). Un refresh
-  /// successivo mantiene i dati vecchi a schermo mentre carica.
+  /// successivo mantiene i dati a schermo.
   bool get isInitialLoading =>
       _status == HomeFeedStatus.loading && _data == null;
 
-  Future<void> load() async {
+  Future<void> load() => _run(keepData: false);
+
+  /// Pull-to-refresh: ricarica senza azzerare [_data] (anti-flash).
+  Future<void> refresh() => _run(keepData: true);
+
+  Future<void> _run({required bool keepData}) async {
     if (_status == HomeFeedStatus.loading) return;
     _status = HomeFeedStatus.loading;
     _error = null;
+    if (!keepData) _data = null;
     notifyListeners();
-    await _run();
-  }
 
-  /// Pull-to-refresh: ricarica tutto senza azzerare [_data] (anti-flash).
-  Future<void> refresh() async {
-    _status = HomeFeedStatus.loading;
-    notifyListeners();
-    await _run();
-  }
-
-  Future<void> _run() async {
     try {
-      _data = await _aggregator.load();
+      // ── Fase 1: non-geo (veloce) ──
+      final core = await _aggregator.loadCore();
+      _data = core;
+      _geoPending = true;
       _status = HomeFeedStatus.ready;
+      notifyListeners(); // la Home appare con le sezioni non-geo
+
+      // ── Fase 2: geo (posizione accurata + fetch) ──
+      final loc = await _aggregator.resolveLocation();
+      if (loc != null) {
+        final geo = await _aggregator.loadGeo(loc);
+        _data = core.withGeo(userLocation: loc, geo: geo);
+      }
+      _geoPending = false;
+      notifyListeners(); // le sezioni geo si riempiono
     } catch (e) {
       _error = e.toString();
       _status = HomeFeedStatus.error;
+      _geoPending = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 }
