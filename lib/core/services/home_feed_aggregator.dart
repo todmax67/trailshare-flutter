@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../data/models/business.dart';
@@ -52,13 +53,23 @@ class HomeFeedAggregator {
   final WeatherService _weatherService;
   final LocationService _locationService;
 
-  /// Bounding box ~20 km attorno alla posizione utente.
-  /// 1° lat ≈ 111 km → 20 km ≈ 0.18°.
-  static const double _trailBboxDeg = 0.18;
+  /// Bounding box ~12 km attorno alla posizione utente.
+  /// 1° lat ≈ 111 km → 12 km ≈ 0.11°. Più stretto di prima (era 0.18)
+  /// per evitare di mostrare sentieri troppo lontani.
+  static const double _trailBboxDeg = 0.11;
+
+  /// Distanza per calcoli haversine (riusato per ordinamento sentieri).
+  static const Distance _distance = Distance();
 
   Future<HomeFeedData> load() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    final loc = await _safelyLoadLocation();
+
+    // La posizione GPS può richiedere secondi (fix satellitare). NON la
+    // aspettiamo prima di tutto: lanciamo subito i fetch che non
+    // dipendono dalla location, e quelli geo-dipendenti aspettano
+    // internamente questa Future condivisa. Così le sezioni non-geo
+    // (sfida, seguiti, tour) compaiono senza attendere il GPS.
+    final locationFuture = _safelyLoadLocation();
 
     final results = await Future.wait<dynamic>([
       _safe<HomeResumeItem?>(_loadResume, null),
@@ -67,30 +78,30 @@ class HomeFeedAggregator {
           () => uid == null ? Future.value(const []) : _loadFollowing(uid),
           const []),
       _safe<Tour?>(_loadEditorialTour, null),
-      _safe<List<Business>>(
-          () => loc == null
-              ? Future.value(const [])
-              : _businessRepo.getNearby(
-                  lat: loc.latitude,
-                  lng: loc.longitude,
-                  radiusKm: 50,
-                  limit: 6,
-                ),
-          const []),
-      _safe<List<PublicTrail>>(
-          () => loc == null
-              ? Future.value(const [])
-              : _loadNearbyTrails(loc),
-          const []),
-      _safe<WeatherData?>(
-          () => loc == null
-              ? Future.value(null)
-              : _weatherService.getForecast(loc.latitude, loc.longitude),
-          null),
+      _safe<List<Business>>(() async {
+        final loc = await locationFuture;
+        if (loc == null) return const [];
+        return _businessRepo.getNearby(
+          lat: loc.latitude,
+          lng: loc.longitude,
+          radiusKm: 50,
+          limit: 6,
+        );
+      }, const []),
+      _safe<List<PublicTrail>>(() async {
+        final loc = await locationFuture;
+        if (loc == null) return const [];
+        return _loadNearbyTrails(loc);
+      }, const []),
+      _safe<WeatherData?>(() async {
+        final loc = await locationFuture;
+        if (loc == null) return null;
+        return _weatherService.getForecast(loc.latitude, loc.longitude);
+      }, null),
     ]);
 
     return HomeFeedData(
-      userLocation: loc,
+      userLocation: await locationFuture,
       resume: results[0] as HomeResumeItem?,
       challenge: results[1] as WeeklyChallenge?,
       followingPosts: results[2] as List<CommunityTrack>,
@@ -115,6 +126,19 @@ class HomeFeedAggregator {
   }
 
   Future<LatLng?> _safelyLoadLocation() async {
+    // Per la Home Feed la posizione "last known" (istantanea, dalla
+    // cache OS) è più che sufficiente: serve solo per "sentieri/Pro
+    // entro ~12-50 km", non per il tracking. Evita il fix GPS ad alta
+    // accuratezza (fino a 10s) che rendeva lenta la Home.
+    try {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) {
+        return LatLng(last.latitude, last.longitude);
+      }
+    } catch (_) {
+      // ignora, prova il fallback sotto
+    }
+    // Nessuna last-known (primo avvio dopo install/clear): fix normale.
     try {
       final tp = await _locationService.getCurrentPosition();
       if (tp == null) return null;
@@ -159,12 +183,24 @@ class HomeFeedAggregator {
   }
 
   Future<List<PublicTrail>> _loadNearbyTrails(LatLng loc) async {
-    return _trailsRepo.getTrailsInBounds(
+    // Carichiamo più sentieri del necessario (bbox può contenerne tanti
+    // sparsi) e poi ordiniamo per vicinanza reale al punto di partenza,
+    // tenendo i 12 più vicini. Senza questo, Firestore ritorna in
+    // ordine arbitrario e l'utente vede sentieri lontani prima.
+    final trails = await _trailsRepo.getTrailsInBounds(
       minLat: loc.latitude - _trailBboxDeg,
       maxLat: loc.latitude + _trailBboxDeg,
       minLng: loc.longitude - _trailBboxDeg,
       maxLng: loc.longitude + _trailBboxDeg,
-      limit: 12,
+      limit: 60,
     );
+    trails.sort((a, b) {
+      final da = _distance.as(LengthUnit.Meter, loc,
+          LatLng(a.startLat, a.startLng));
+      final db = _distance.as(LengthUnit.Meter, loc,
+          LatLng(b.startLat, b.startLng));
+      return da.compareTo(db);
+    });
+    return trails.take(12).toList();
   }
 }

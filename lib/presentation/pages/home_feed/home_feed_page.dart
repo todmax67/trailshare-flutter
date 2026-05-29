@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -124,7 +125,11 @@ class _HomeFeedPageState extends State<HomeFeedPage>
             actionLabel: context.l10n.homeExploreArea,
             onAction: _openDiscover,
           ),
-          _DiscoverPreview(trails: data.nearbyTrails, onExplore: _openDiscover),
+          _DiscoverPreview(
+            trails: data.nearbyTrails,
+            userLocation: data.userLocation,
+            onExplore: _openDiscover,
+          ),
         ],
       ],
     );
@@ -386,12 +391,42 @@ class _FollowingStrip extends StatelessWidget {
     );
   }
 
-  Widget _coverFallback(BuildContext context) => Container(
-        height: 110,
-        width: 220,
-        color: context.themedSurfaceVariant,
-        child: Icon(Icons.terrain, color: context.textMuted, size: 32),
-      );
+  Widget _coverFallback(BuildContext context) =>
+      _TrailCoverPlaceholder(height: 110, width: 220);
+}
+
+/// Placeholder gradevole per tracce/sentieri senza foto: gradiente
+/// "topografico" verde→primario con icona montagna leggera. Sostituisce
+/// il vecchio box grigio piatto che risultava respingente.
+class _TrailCoverPlaceholder extends StatelessWidget {
+  final double height;
+  final double width;
+  const _TrailCoverPlaceholder({required this.height, required this.width});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF4C8C5A).withValues(alpha: 0.85),
+            AppColors.primary.withValues(alpha: 0.75),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.landscape_outlined,
+          color: Colors.white.withValues(alpha: 0.85),
+          size: 34,
+        ),
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -515,9 +550,9 @@ class _ProStrip extends StatelessWidget {
                             height: 100,
                             width: 180,
                             fit: BoxFit.cover,
-                            errorWidget: (_, _, _) => _fallback(context),
+                            errorWidget: (_, _, _) => _ProPlaceholder(business: b),
                           )
-                        : _fallback(context),
+                        : _ProPlaceholder(business: b),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -548,12 +583,52 @@ class _ProStrip extends StatelessWidget {
     );
   }
 
-  Widget _fallback(BuildContext context) => Container(
-        height: 100,
-        width: 180,
-        color: context.themedSurfaceVariant,
-        child: Icon(Icons.storefront, color: context.textMuted, size: 28),
-      );
+}
+
+/// Placeholder per Spazi Pro senza logo/foto: usa il colore brand del
+/// business (se presente) come sfondo + iniziale del nome. Molto più
+/// gradevole e riconoscibile del generico box grigio con storefront.
+class _ProPlaceholder extends StatelessWidget {
+  final Business business;
+  const _ProPlaceholder({required this.business});
+
+  /// Parse "#RRGGBB" → Color, fallback al primario TrailShare.
+  Color _brandColor() {
+    final hex = business.branding.primaryColor;
+    if (hex == null) return AppColors.primary;
+    final clean = hex.replaceAll('#', '').trim();
+    if (clean.length != 6) return AppColors.primary;
+    final v = int.tryParse('FF$clean', radix: 16);
+    return v == null ? AppColors.primary : Color(v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = _brandColor();
+    final initial =
+        business.name.isNotEmpty ? business.name[0].toUpperCase() : '?';
+    return Container(
+      height: 100,
+      width: 180,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [base, base.withValues(alpha: 0.7)],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 40,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -562,8 +637,27 @@ class _ProStrip extends StatelessWidget {
 
 class _DiscoverPreview extends StatelessWidget {
   final List<PublicTrail> trails;
+  final LatLng? userLocation;
   final VoidCallback onExplore;
-  const _DiscoverPreview({required this.trails, required this.onExplore});
+  const _DiscoverPreview({
+    required this.trails,
+    required this.userLocation,
+    required this.onExplore,
+  });
+
+  static const Distance _distance = Distance();
+
+  String? _distanceFromUser(PublicTrail t) {
+    final loc = userLocation;
+    if (loc == null) return null;
+    final km = _distance.as(
+      LengthUnit.Kilometer,
+      loc,
+      LatLng(t.startLat, t.startLng),
+    );
+    if (km < 1) return '${(km * 1000).round()} m da te';
+    return '${km.toStringAsFixed(1)} km da te';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -583,11 +677,11 @@ class _DiscoverPreview extends StatelessWidget {
               ),
               subtitle: Text(
                 [
+                  _distanceFromUser(t),
                   if (t.length != null)
-                    '${(t.length! / 1000).toStringAsFixed(1)} km',
+                    'lung. ${(t.length! / 1000).toStringAsFixed(1)} km',
                   if (t.difficulty != null) t.difficulty!,
-                  if (t.region != null) t.region!,
-                ].join(' · '),
+                ].whereType<String>().join(' · '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
