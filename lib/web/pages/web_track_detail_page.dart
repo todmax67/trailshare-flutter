@@ -1,12 +1,16 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/map_styles.dart';
 import '../../core/services/gpx_service.dart';
 import '../../core/utils/csv_export.dart';
 import '../../core/utils/web_layout.dart';
 import '../../data/models/track.dart';
+import '../../data/repositories/tracks_repository.dart';
+import '../widgets/web_map_layer_control.dart';
 import '../widgets/web_track_photos_editor.dart';
 
 /// Detail web di una traccia: mappa + stats + **gallery foto** con
@@ -26,11 +30,160 @@ class WebTrackDetailPage extends StatefulWidget {
 
 class _WebTrackDetailPageState extends State<WebTrackDetailPage> {
   late List<TrackPhotoMetadata> _photos;
+  late String? _description;
+  final _tracksRepo = TracksRepository();
+  bool _savingDescription = false;
+  MapStyle _mapStyle = mapStyles.first;
 
   @override
   void initState() {
     super.initState();
     _photos = List.of(widget.track.photos);
+    _description = widget.track.description;
+  }
+
+  /// Vero se l'utente loggato è il proprietario della traccia e può
+  /// quindi editare descrizione/foto. Lettori esterni: sola lettura.
+  bool get _canEdit {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    return uid != null && uid == widget.track.userId;
+  }
+
+  /// Apre un dialog per modificare la descrizione della traccia e la
+  /// persiste su Firestore via TracksRepository.updateTrack.
+  Future<void> _editDescription() async {
+    final controller = TextEditingController(text: _description ?? '');
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Descrizione traccia'),
+        content: SizedBox(
+          width: 480,
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 8,
+            minLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Racconta questo percorso: punti d\'interesse, '
+                  'fondo, panorami, consigli…',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+    if (result == null) return; // annullato
+
+    final trackId = widget.track.id;
+    if (trackId == null) return;
+
+    setState(() => _savingDescription = true);
+    try {
+      await _tracksRepo.updateTrack(
+        trackId,
+        // Stringa vuota = rimuove la descrizione (campo svuotato).
+        description: result,
+      );
+      if (!mounted) return;
+      setState(() {
+        _description = result.isEmpty ? null : result;
+        _savingDescription = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Descrizione aggiornata'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _savingDescription = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Errore: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  /// Sezione descrizione: editabile dal proprietario (con icona matita
+  /// e placeholder se vuota), sola lettura per i visitatori.
+  Widget _buildDescriptionSection() {
+    final hasDesc = _description != null && _description!.isNotEmpty;
+
+    // Visitatore senza descrizione: niente da mostrare.
+    if (!_canEdit && !hasDesc) return const SizedBox.shrink();
+
+    if (!_canEdit) {
+      // Visitatore con descrizione: sola lettura.
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Text(
+          _description!,
+          style: const TextStyle(fontSize: 14, height: 1.5),
+        ),
+      );
+    }
+
+    // Proprietario: descrizione editabile.
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: hasDesc
+                  ? Text(
+                      _description!,
+                      style: const TextStyle(fontSize: 14, height: 1.5),
+                    )
+                  : Text(
+                      'Aggiungi una descrizione per questa traccia…',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 8),
+            _savingDescription
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : IconButton(
+                    tooltip: hasDesc ? 'Modifica descrizione' : 'Aggiungi descrizione',
+                    icon: Icon(hasDesc ? Icons.edit : Icons.add,
+                        color: AppColors.primary, size: 20),
+                    onPressed: _editDescription,
+                  ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _downloadGpx() async {
@@ -137,45 +290,52 @@ class _WebTrackDetailPageState extends State<WebTrackDetailPage> {
               ),
               clipBehavior: Clip.antiAlias,
               child: hasPoints
-                  ? FlutterMap(
-                      options: MapOptions(
-                        initialCameraFit: CameraFit.bounds(
-                          bounds: bounds!,
-                          padding: const EdgeInsets.all(40),
-                        ),
-                      ),
+                  ? Stack(
                       children: [
-                        TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'app.trailshare',
-                          maxZoom: 19,
-                        ),
-                        PolylineLayer(
-                          polylines: [
-                            Polyline(
-                              points: points,
-                              strokeWidth: 4,
-                              color: AppColors.primary,
+                        FlutterMap(
+                          options: MapOptions(
+                            initialCameraFit: CameraFit.bounds(
+                              bounds: bounds!,
+                              padding: const EdgeInsets.all(40),
+                            ),
+                          ),
+                          children: [
+                            tileLayerForStyle(_mapStyle),
+                            PolylineLayer(
+                              polylines: [
+                                Polyline(
+                                  points: points,
+                                  strokeWidth: 4,
+                                  color: AppColors.primary,
+                                ),
+                              ],
+                            ),
+                            MarkerLayer(
+                              markers: [
+                                Marker(
+                                  point: points.first,
+                                  width: 24,
+                                  height: 24,
+                                  child: _StartEndDot(color: AppColors.success),
+                                ),
+                                Marker(
+                                  point: points.last,
+                                  width: 24,
+                                  height: 24,
+                                  child: _StartEndDot(color: AppColors.danger),
+                                ),
+                                ...photoMarkers,
+                              ],
                             ),
                           ],
                         ),
-                        MarkerLayer(
-                          markers: [
-                            Marker(
-                              point: points.first,
-                              width: 24,
-                              height: 24,
-                              child: _StartEndDot(color: AppColors.success),
-                            ),
-                            Marker(
-                              point: points.last,
-                              width: 24,
-                              height: 24,
-                              child: _StartEndDot(color: AppColors.danger),
-                            ),
-                            ...photoMarkers,
-                          ],
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: WebMapLayerControl(
+                            current: _mapStyle,
+                            onChanged: (s) => setState(() => _mapStyle = s),
+                          ),
                         ),
                       ],
                     )
@@ -222,17 +382,7 @@ class _WebTrackDetailPageState extends State<WebTrackDetailPage> {
                 ),
               ],
             ),
-            if (track.description != null &&
-                track.description!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                track.description!,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-            ],
+            _buildDescriptionSection(),
             const SizedBox(height: 20),
             // Stats grid
             Wrap(

@@ -4,9 +4,11 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/map_styles.dart';
 import '../../core/services/routing_service.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/tracks_repository.dart';
+import '../widgets/web_map_layer_control.dart';
 
 /// Pianificatore tracce per dashboard web.
 ///
@@ -34,6 +36,7 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
   );
   final _tracksRepo = TracksRepository();
   final _mapController = MapController();
+  MapStyle _mapStyle = mapStyles.first;
 
   static const int _maxWaypoints = 10;
   static const _initialCenter = LatLng(45.9, 10.5); // Lombardia / Lago di Garda
@@ -187,21 +190,19 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
   }
 
   Widget _buildMap() {
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _initialCenter,
-        initialZoom: _initialZoom,
-        minZoom: 4,
-        maxZoom: 18,
-        onTap: _onMapTap,
-      ),
+    return Stack(
       children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'app.trailshare',
-          maxZoom: 19,
-        ),
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _initialCenter,
+            initialZoom: _initialZoom,
+            minZoom: 4,
+            maxZoom: 18,
+            onTap: _onMapTap,
+          ),
+          children: [
+            tileLayerForStyle(_mapStyle),
         if (_route != null)
           PolylineLayer(
             polylines: [
@@ -226,7 +227,17 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
                   hasError: i == _errorWaypointIndex,
                 ),
               ),
+              ],
+            ),
           ],
+        ),
+        Positioned(
+          top: 10,
+          right: 10,
+          child: WebMapLayerControl(
+            current: _mapStyle,
+            onChanged: (s) => setState(() => _mapStyle = s),
+          ),
         ),
       ],
     );
