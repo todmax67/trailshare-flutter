@@ -13,7 +13,7 @@ import '../widgets/web_map_layer_control.dart';
 /// Pianificatore tracce per dashboard web.
 ///
 /// MVP scope:
-/// - Mappa con click per aggiungere waypoint (max 10)
+/// - Mappa con click per aggiungere waypoint (max 25)
 /// - Sidebar destra con lista waypoint, activity type, calcola, save
 /// - Routing via Cloud Function proxy ORS (stessa di mobile)
 /// - Salva su Firestore come Track con isPlanned=true
@@ -38,7 +38,11 @@ class _WebPlannerPageState extends State<WebPlannerPage> {
   final _mapController = MapController();
   MapStyle _mapStyle = mapStyles.first;
 
-  static const int _maxWaypoints = 10;
+  // Limite waypoint: alzato 10→25 (richiesta utente). Su sentieri con
+  // molti incroci servono più punti per guidare il router sul percorso
+  // giusto. 25 resta ben sotto il limite ORS (~50 coordinate/richiesta)
+  // e mantiene la lista laterale gestibile.
+  static const int _maxWaypoints = 25;
   static const _initialCenter = LatLng(45.9, 10.5); // Lombardia / Lago di Garda
   static const double _initialZoom = 10;
 
