@@ -142,14 +142,61 @@ class TrackingBloc extends ChangeNotifier {
     await _doPause();
   }
 
-  /// Pausa automatica per inattività (4.3). Differente da [pauseRecording]
-  /// solo per il flag [_autoPaused] che permette il resume automatico
-  /// al primo movimento successivo.
+  /// Pausa automatica per inattività (4.3).
+  ///
+  /// ⚠️ A differenza della pausa manuale, **NON spegne il GPS**: il
+  /// sensore deve restare attivo per poter rilevare la ripresa del
+  /// movimento e fare l'auto-resume. Spegnerlo (come faceva prima
+  /// chiamando `_doPause` → `pauseTracking`) bloccava la registrazione
+  /// in pausa per sempre: senza punti GPS in arrivo, `_onNewPoint` non
+  /// veniva più chiamato e il check di auto-resume non scattava mai.
+  ///
+  /// Nota batteria: durante una sosta il GPS sarebbe comunque acceso
+  /// (la registrazione normale lo tiene attivo), quindi questo non
+  /// aumenta il consumo — congela solo la durata mentre si è fermi.
   Future<void> _autoPause() async {
     if (!_state.isRecording) return;
-    debugPrint('[TrackingBloc] 🟡 Auto-pausa per inattività >5 min');
+    debugPrint('[TrackingBloc] 🟡 Auto-pausa per inattività >5 min '
+        '(GPS resta attivo per l\'auto-resume)');
     _autoPaused = true;
-    await _doPause();
+
+    // Congela la durata, NON tocca il GPS né la subscription.
+    _pauseStartTime = DateTime.now();
+    _durationTimer?.cancel();
+    _autoIdleTimer?.cancel();
+
+    _state = _state.copyWith(status: TrackingStatus.paused);
+    notifyListeners();
+  }
+
+  /// Ripresa automatica dall'auto-pausa (movimento rilevato).
+  ///
+  /// Il GPS è già acceso (l'auto-pausa non l'ha spento), quindi NON
+  /// chiamiamo `resumeTracking()` — lo farebbe ripartire creando un
+  /// secondo stream con punti duplicati. Riattiviamo solo timer durata
+  /// + watchdog e ripristiniamo lo stato a `recording`.
+  Future<void> _autoResume() async {
+    if (!_state.isPaused) return;
+    debugPrint('[TrackingBloc] 🟢 Auto-resume: movimento rilevato');
+
+    if (_pauseStartTime != null) {
+      final pauseDuration = DateTime.now().difference(_pauseStartTime!);
+      _state = _state.copyWith(
+        pausedDuration: _state.pausedDuration + pauseDuration,
+      );
+    }
+    _pauseStartTime = null;
+    _autoPaused = false;
+
+    _state = _state.copyWith(status: TrackingStatus.recording);
+    notifyListeners();
+
+    // Riavvia SOLO i timer (il GPS è già attivo e in ascolto).
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _updateDuration();
+    });
+    _lastMovementTime = DateTime.now();
+    _startAutoIdleWatcher();
   }
 
   /// Logica comune di pausa.
@@ -415,10 +462,10 @@ class TrackingBloc extends ChangeNotifier {
     // se eravamo in auto-pausa, riprendi automaticamente.
     _lastMovementTime = DateTime.now();
     if (_autoPaused && _state.isPaused) {
-      debugPrint('[TrackingBloc] 🟢 Auto-resume: utente in movimento');
-      // Fire-and-forget: il resume è asincrono ma non vogliamo bloccare
-      // l'elaborazione del punto corrente.
-      unawaited(resumeRecording());
+      // GPS già attivo (l'auto-pausa non l'ha spento): usiamo
+      // _autoResume() che riavvia solo i timer, NON resumeRecording()
+      // che ricreerebbe lo stream GPS generando punti duplicati.
+      unawaited(_autoResume());
       return;
     }
 
