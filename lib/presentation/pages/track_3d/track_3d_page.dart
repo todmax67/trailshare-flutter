@@ -61,7 +61,12 @@ class _Track3DPageState extends State<Track3DPage> {
     try {
       final data = jsonDecode(message.message) as Map<String, dynamic>;
       final type = data['type'] as String?;
+      // Log diagnostico di OGNI messaggio dal WebView 3D.
+      debugPrint('[Track3D] msg: $type ${data['message'] ?? ''}');
       switch (type) {
+        case 'log':
+          // Solo diagnostica (già loggato sopra).
+          break;
         case 'bridgeReady':
           // Il bridge JS è pronto: inizializza la mappa con la key.
           _controller.runJavaScript('tsInit(${jsonEncode(ApiKeys.mapTiler)})');

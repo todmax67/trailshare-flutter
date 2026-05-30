@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>TrailShare 3D</title>
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link href="maplibre-gl.css" rel="stylesheet" />
+  <script src="maplibre-gl.js"></script>
   <style>
     html, body { margin: 0; padding: 0; height: 100%; background: #0c1116; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
@@ -110,13 +110,20 @@
           maxPitch: 80
         });
         map.on('load', function() {
-          // Terrain 3D da MapTiler terrain-rgb
-          map.addSource('terrainSource', {
-            type: 'raster-dem',
-            url: 'https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=' + maptilerKey
-          });
-          map.setTerrain({ source: 'terrainSource', exaggeration: 1.4 });
-          // Sky per profondità all'orizzonte
+          post({ type: 'log', message: 'map load fired' });
+          // Terrain 3D — racchiuso in try/catch così un eventuale
+          // fallimento (tile-dem 403, source non pronta) NON blocca il
+          // flusso: postiamo comunque 'ready' e la mappa resta 2.5D.
+          try {
+            map.addSource('terrainSource', {
+              type: 'raster-dem',
+              url: 'https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=' + maptilerKey
+            });
+            map.setTerrain({ source: 'terrainSource', exaggeration: 1.3 });
+            post({ type: 'log', message: 'terrain set' });
+          } catch (e) {
+            post({ type: 'log', message: 'terrain fallito: ' + e.message });
+          }
           try {
             map.setSky({
               'sky-color': '#a9d1ff', 'horizon-color': '#dfeaf6',
@@ -126,9 +133,16 @@
           } catch (e) {}
           post({ type: 'ready' });
         });
+        // Watchdog: se 'load' non scatta entro 9s, segnala (di solito
+        // significa style.json non raggiungibile o key non valida).
+        setTimeout(function() {
+          if (!map || !map.isStyleLoaded()) {
+            post({ type: 'log', message: 'WATCHDOG: style non caricato dopo 9s' });
+          }
+        }, 9000);
         map.on('error', function(e) {
           // Errori tile non fatali: logghiamo soltanto.
-          post({ type: 'maperror', message: (e && e.error && e.error.message) || 'tile error' });
+          post({ type: 'log', message: 'maperror: ' + ((e && e.error && e.error.message) || 'sconosciuto') });
         });
       } catch (e) {
         showError('Init 3D fallito: ' + e.message);
