@@ -282,23 +282,12 @@ class _TourDetailPageState extends State<TourDetailPage> {
       return;
     }
     // Le tracce del tour privato hanno quota reale (DEM).
-    final isCollection = _tour?.type == TourType.collection;
-    final List<List<TrackPoint>> segments;
-    List<String>? names;
-    if (isCollection) {
-      // Raccolta: ogni traccia un segmento → salto volante tra loro.
-      final valid = _tracks.where((t) => t.points.length >= 2).toList();
-      segments = [for (final t in valid) t.points];
-      names = [for (final t in valid) t.name];
-    } else {
-      // Consecutivo: un unico segmento continuo.
-      final all = <TrackPoint>[];
-      for (final t in _tracks) {
-        all.addAll(t.points);
-      }
-      segments = [all];
-    }
-    if (segments.every((s) => s.length < 2)) return;
+    // Ogni traccia è un segmento con il suo nome. Il viewer 3D decide
+    // salto volante (raccolta) vs continuità liscia (cammino) dal gap.
+    final valid = _tracks.where((t) => t.points.length >= 2).toList();
+    if (valid.isEmpty) return;
+    final segments = [for (final t in valid) t.points];
+    final names = [for (final t in valid) t.name];
     Navigator.push(
       context,
       MaterialPageRoute(

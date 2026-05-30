@@ -313,24 +313,13 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
             ))
         .toList();
 
-    final isCollection = _tour?.type == TourType.collection;
-    final List<List<TrackPoint>> segments;
-    List<String>? names;
-    if (isCollection) {
-      // Raccolta: ogni traccia è un segmento separato → salto volante
-      // morbido tra una e l'altra (possono essere distanti).
-      final valid = stages.where((s) => s.points.length >= 2).toList();
-      segments = [for (final s in valid) stageToPoints(s)];
-      names = [for (final s in valid) s.name];
-    } else {
-      // Cammino consecutivo: un unico segmento continuo.
-      final all = <TrackPoint>[];
-      for (final s in stages) {
-        all.addAll(stageToPoints(s));
-      }
-      segments = [all];
-    }
-    if (segments.every((s) => s.length < 2)) return;
+    // Ogni tappa è un segmento con il suo nome. Il viewer 3D decide se
+    // fare il salto volante (tappe distanti = raccolta) o continuare
+    // liscio (tappe contigue = cammino consecutivo), in base al gap.
+    final valid = stages.where((s) => s.points.length >= 2).toList();
+    if (valid.isEmpty) return;
+    final segments = [for (final s in valid) stageToPoints(s)];
+    final names = [for (final s in valid) s.name];
     Navigator.push(
       context,
       MaterialPageRoute(

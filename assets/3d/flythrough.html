@@ -311,21 +311,38 @@
                    zoom: CAM_ZOOM, padding: camPadding() });
     }
 
-    // "Salto volante" morbido verso l'inizio del prossimo segmento:
-    // flyTo ad arco (zoom-out → in), poi riprende l'animazione.
+    // Passaggio al segmento successivo. Decide in base al "gap" tra la
+    // fine della tappa corrente e l'inizio della prossima:
+    // - gap piccolo (cammino consecutivo, tappe contigue) → continua
+    //   LISCIO, nessun flyTo, solo banner col nome della nuova tappa.
+    // - gap grande (raccolta, tracce distanti) → "salto volante"
+    //   morbido (flyTo ad arco).
     function beginTransition() {
-      transitioning = true;
-      if (anim) cancelAnimationFrame(anim);
+      var curCoords = segs[segIdx].coords;
+      var curEnd = curCoords[curCoords.length-1];
       var nextStart = segs[segIdx+1].coords[0];
-      // bearing della partenza del prossimo segmento
+      var gap = dist(curEnd, nextStart);
       var nextLook = pointAtSeg(segIdx+1, 0.02);
       var brg = (nextLook && nextLook.pos) ? bearing(nextStart, nextLook.pos) : map.getBearing();
+
+      if (gap < 500) {
+        // Tappe contigue: continuità senza salto.
+        segIdx++; segT = 0;
+        setCursor(nextStart);
+        postSegment(segIdx);
+        lastFrameTs = 0;
+        if (playing) anim = requestAnimationFrame(frame);
+        return;
+      }
+
+      // Tracce distanti: salto volante ad arco.
+      transitioning = true;
+      if (anim) cancelAnimationFrame(anim);
       setCursor(nextStart);
       map.flyTo({
         center: nextStart, bearing: brg, pitch: CAM_PITCH,
         zoom: CAM_ZOOM, padding: camPadding(),
-        speed: 0.8, curve: 1.6, // arco morbido (zoom-out e ritorno)
-        essential: true
+        speed: 0.8, curve: 1.6, essential: true
       });
       map.once('moveend', function() {
         segIdx++; segT = 0; transitioning = false;
