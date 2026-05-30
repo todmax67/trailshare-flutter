@@ -191,6 +191,24 @@
             'circle-color':['match',['get','kind'],'start','#2E7D32','#C62828'],
             'circle-stroke-width':2, 'circle-stroke-color':'#fff'
           }});
+
+          // Cursore "tu sei qui": alone + pallino bianco bordato arancione,
+          // aggiornato a ogni frame del fly-through.
+          map.addSource('cursor', { type:'geojson', data:{
+            type:'Feature', geometry:{ type:'Point', coordinates: trackCoords[0] } } });
+          map.addLayer({ id:'cursor-halo', type:'circle', source:'cursor', paint:{
+            'circle-radius':16, 'circle-color':'#E07B4C', 'circle-opacity':0.30,
+            'circle-blur':0.4
+          }});
+          map.addLayer({ id:'cursor-dot', type:'circle', source:'cursor', paint:{
+            'circle-radius':7, 'circle-color':'#ffffff',
+            'circle-stroke-width':3, 'circle-stroke-color':'#E07B4C'
+          }});
+        }
+        // Posiziona il cursore all'inizio a ogni (ri)caricamento traccia.
+        if (map.getSource('cursor')) {
+          map.getSource('cursor').setData({
+            type:'Feature', geometry:{ type:'Point', coordinates: trackCoords[0] } });
         }
 
         // Inquadra la traccia con un po' di pitch (preview interattiva)
@@ -220,6 +238,11 @@
         var look = pointAt(Math.min(1, progressT + 0.01));
         var brg = (look && look.pos) ? bearing(p.pos, look.pos) : map.getBearing();
         map.jumpTo({ center: p.pos, bearing: brg, pitch: pitch, zoom: zoom });
+        // Aggiorna il cursore "tu sei qui" alla posizione corrente.
+        if (map.getSource('cursor')) {
+          map.getSource('cursor').setData({
+            type:'Feature', geometry:{ type:'Point', coordinates: p.pos } });
+        }
         post({ type:'progress', t: progressT });
       }
 
@@ -247,6 +270,10 @@
     window.tsReset = function() {
       window.tsPause();
       progressT = 0;
+      if (map.getSource('cursor') && trackCoords.length) {
+        map.getSource('cursor').setData({
+          type:'Feature', geometry:{ type:'Point', coordinates: trackCoords[0] } });
+      }
       if (trackCoords.length) {
         var b = trackCoords.reduce(function(acc, c){
           return [Math.min(acc[0],c[0]), Math.min(acc[1],c[1]),
