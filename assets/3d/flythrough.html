@@ -332,19 +332,28 @@
       if (!map || trackCoords.length === 0) return;
       if (progressT >= 1) progressT = 0; // replay dall'inizio
       post({ type:'playing' });
-      // Warm-up al primo avvio: posiziona la camera all'inizio così i
-      // tile terrain lì iniziano a caricare, poi parte l'animazione.
-      // Senza, il primo Play partiva con terrain non ancora pronto
-      // (serviva pausa+replay).
+
+      var p0 = pointAt(progressT);
+      var look0 = pointAt(Math.min(1, progressT + 0.02));
+      var brg0 = (look0 && look0.pos) ? bearing(p0.pos, look0.pos) : 0;
+
+      // FONDAMENTALE: ferma qualsiasi animazione in corso (es. il
+      // fitBounds dell'apertura) e riposiziona la camera in modo PULITO
+      // sul punto di partenza. Senza map.stop()+jumpTo, la prima
+      // setFreeCameraOptions non si applicava (transform non
+      // sincronizzato → il fly partiva fuori traccia finché non si
+      // muoveva la mappa a mano).
+      map.stop();
+      map.jumpTo({ center: p0.pos, bearing: brg0, pitch: 0, zoom: 14 });
+      setChaseCamera(p0.pos, brg0, p0.ele);
+
+      playing = true;
+      lastFrameTs = 0;
+
+      // Al primo avvio attende che i tile terrain siano pronti (idle)
+      // o max 900ms, poi anima. Dopo, parte subito.
       if (!window._warmedUp) {
         window._warmedUp = true;
-        var p0 = pointAt(0);
-        var look0 = pointAt(0.02);
-        var brg0 = (look0 && look0.pos) ? bearing(p0.pos, look0.pos) : 0;
-        setChaseCamera(p0.pos, brg0, p0.ele);
-        playing = true;
-        lastFrameTs = 0;
-        // Attende che i tile siano pronti (idle) o max 900ms, poi anima.
         var started = false;
         var startAnim = function() {
           if (started) return; started = true;
@@ -355,8 +364,6 @@
         setTimeout(startAnim, 900);
         return;
       }
-      playing = true;
-      lastFrameTs = 0;
       anim = requestAnimationFrame(frame);
     };
     window.tsPause = function() {
