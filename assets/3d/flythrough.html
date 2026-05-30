@@ -92,35 +92,38 @@
     // Posiziona la camera come "chase cam": l'occhio sta dietro il punto
     // corrente lungo il bearing, a un'altitudine SOPRA il terreno, e
     // guarda un punto poco più avanti. Così non entra mai nella montagna.
-    var CAM_BACK_M = 320;   // distanza camera dietro il punto (metri)
-    var CAM_HEIGHT_M = 240; // altezza camera sopra il riferimento (metri)
-    // curEle: quota (m s.l.m.) del punto corrente della traccia, usata
-    // come base affidabile per l'altitudine camera (queryTerrainElevation
-    // può tornare null se i tile DEM non sono pronti → camera sottoterra).
-    function setChaseCamera(curPos, lookPos, brg, curEle) {
+    var CAM_BACK_M = 350;    // distanza camera dietro il cursore (metri)
+    var CAM_HEIGHT_M = 220;  // altezza camera SOPRA il terreno (metri)
+    // Chase-cam: l'occhio sta dietro il cursore lungo il bearing, a
+    // un'altezza COSTANTE sopra il terreno (segue la salita → il gap
+    // resta uguale). L'inclinazione (pitch) è calcolata per puntare al
+    // cursore alla sua quota reale, evitando il bug di lookAtPoint che
+    // mirava a quota 0 (mare) → camera che guardava sottoterra.
+    function setChaseCamera(curPos, brg, curEle) {
       var eye = destPoint(curPos, (brg + 180) % 360, CAM_BACK_M);
-      // Base = max fra quota traccia e quota terreno (se disponibile)
-      // sotto occhio e punto, così la camera sta sempre sopra il rilievo.
-      var teEye = terrainAt(eye, NaN), teCur = terrainAt(curPos, NaN);
-      var base = curEle || 0;
-      base = Math.max(base, isNaN(teEye)?base:teEye, isNaN(teCur)?base:teCur);
-      var eyeAlt = base + CAM_HEIGHT_M;
+      // Quota terreno sotto il cursore: quota traccia (DEM) come base,
+      // alzata alla terrain query se disponibile.
+      var ground = curEle || 0;
+      var tq = terrainAt(curPos, NaN);
+      if (!isNaN(tq)) ground = Math.max(ground, tq);
+      var eyeAlt = ground + CAM_HEIGHT_M;
+      // pitch MapLibre: 0 = nadir (giù), 90 = orizzonte. L'angolo verso
+      // il basso = atan(altezza/distanza); pitch = 90 - quell'angolo.
+      var downAngle = Math.atan2(CAM_HEIGHT_M, CAM_BACK_M) * 180/Math.PI;
+      var pitchDeg = 90 - downAngle;
       if (!window._camLogged) {
         window._camLogged = true;
-        post({ type:'log', message: 'cam#1 curEle='+Math.round(curEle||0)+
-              ' terrainEye='+(isNaN(teEye)?'null':Math.round(teEye))+
-              ' terrainCur='+(isNaN(teCur)?'null':Math.round(teCur))+
-              ' eyeAlt='+Math.round(eyeAlt) });
+        post({ type:'log', message: 'cam#1 ground='+Math.round(ground)+
+              ' eyeAlt='+Math.round(eyeAlt)+' pitch='+Math.round(pitchDeg) });
       }
       try {
         var cam = map.getFreeCameraOptions();
         cam.position = maplibregl.MercatorCoordinate.fromLngLat(
           { lng: eye[0], lat: eye[1] }, eyeAlt);
-        cam.lookAtPoint({ lng: lookPos[0], lat: lookPos[1] });
+        cam.setPitchBearing(pitchDeg, brg);
         map.setFreeCameraOptions(cam);
       } catch (err) {
-        // Fallback al vecchio metodo se FreeCamera non disponibile.
-        map.jumpTo({ center: curPos, bearing: brg, pitch: 65, zoom: 15 });
+        map.jumpTo({ center: curPos, bearing: brg, pitch: pitchDeg, zoom: 14 });
       }
     }
 
@@ -306,17 +309,9 @@
         var look = pointAt(Math.min(1, progressT + 0.02));
         var lookPos = (look && look.pos) ? look.pos : p.pos;
         var brg = bearing(p.pos, lookPos);
-        // Camera terrain-aware nativa: con il terrain attivo MapLibre
-        // posiziona automaticamente la camera SOPRA la superficie del
-        // punto centrale. Zoom 13.8 (più basso = camera più alta) per
-        // stare ben sopra il rilievo senza grazing; pitch 62 per la
-        // vista cinematografica. Niente FreeCamera (il cui lookAtPoint
-        // mira a quota 0 → guardava sottoterra).
-        map.jumpTo({ center: p.pos, bearing: brg, pitch: 62, zoom: 13.8 });
-        if (!window._camLogged) {
-          window._camLogged = true;
-          post({ type:'log', message: 'cam jumpTo pitch=62 zoom=13.8 ele='+Math.round(p.ele||0) });
-        }
+        // Chase-cam: dietro il cursore, altezza costante sopra il
+        // terreno (segue la salita), punta al cursore alla quota reale.
+        setChaseCamera(p.pos, brg, p.ele);
         // Aggiorna il cursore "tu sei qui" alla posizione corrente.
         if (map.getSource('cursor')) {
           map.getSource('cursor').setData({
@@ -346,7 +341,7 @@
         var p0 = pointAt(0);
         var look0 = pointAt(0.02);
         var brg0 = (look0 && look0.pos) ? bearing(p0.pos, look0.pos) : 0;
-        map.jumpTo({ center: p0.pos, bearing: brg0, pitch: 62, zoom: 13.8 });
+        setChaseCamera(p0.pos, brg0, p0.ele);
         playing = true;
         lastFrameTs = 0;
         // Attende che i tile siano pronti (idle) o max 900ms, poi anima.
