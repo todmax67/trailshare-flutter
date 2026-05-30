@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TrailShare 3D</title>
+  <link href="maplibre-gl.css" rel="stylesheet" />
+  <script src="maplibre-gl.js"></script>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0c1116; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    #err {
+      position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%);
+      color: #fff; font-family: -apple-system, system-ui, sans-serif;
+      text-align: center; padding: 24px; display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="err"></div>
+  <script>
+    // ───────────────────────────────────────────────────────────────
+    // Canale verso Flutter. Flutter registra un JavaScriptChannel
+    // chiamato "TSChannel"; qui postiamo messaggi JSON.
+    // ───────────────────────────────────────────────────────────────
+    function post(obj) {
+      try {
+        if (window.TSChannel && window.TSChannel.postMessage) {
+          window.TSChannel.postMessage(JSON.stringify(obj));
+        }
+      } catch (e) {}
+    }
+    function showError(msg) {
+      var e = document.getElementById('err');
+      e.style.display = 'block';
+      e.textContent = msg;
+      post({ type: 'error', message: msg });
+    }
+
+    var map = null;
+    var TERRAIN_EXAG = 1.3;    // esagerazione terrain (vedi terrainAt)
+    // Segmenti: ogni traccia è un segmento separato. Per una raccolta
+    // (tour collection) sono più segmenti distanti; per una traccia
+    // singola o un cammino consecutivo è un solo segmento.
+    var segs = [];             // [{coords:[[lng,lat,ele],...], cum:[...], dist}]
+    var totalAllDist = 0;      // somma delle distanze di tutti i segmenti
+    var segNames = [];         // nomi dei segmenti (tappe tour)
+    var pois = [];             // Spazi Pro vicini [{name,lat,lng}]
+    var activePoi = null;      // nome Spazio Pro attualmente "raggiunto"
+    var segIdx = 0;            // indice segmento corrente
+    var segT = 0;              // 0..1 posizione nel segmento corrente
+    var transitioning = false; // true durante il "salto volante" flyTo
+    var anim = null;           // requestAnimationFrame id
+    var playing = false;
+    var speed = 1.0;           // moltiplicatore velocità camera
+    var lastFrameTs = 0;
+    // Durata "base" del fly-through a speed=1 (secondi), scalata sulla
+    // lunghezza del segmento.
+    var BASE_DURATION_S = 40;
+
+    // Haversine in metri
+    function dist(a, b) {
+      var R = 6371000;
+      var dLat = (b[1]-a[1]) * Math.PI/180;
+      var dLng = (b[0]-a[0]) * Math.PI/180;
+      var la1 = a[1]*Math.PI/180, la2 = b[1]*Math.PI/180;
+      var h = Math.sin(dLat/2)*Math.sin(dLat/2) +
+              Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)*Math.sin(dLng/2);
+      return 2*R*Math.asin(Math.sqrt(h));
+    }
+    function bearing(a, b) {
+      var y = Math.sin((b[0]-a[0])*Math.PI/180) * Math.cos(b[1]*Math.PI/180);
+      var x = Math.cos(a[1]*Math.PI/180)*Math.sin(b[1]*Math.PI/180) -
+              Math.sin(a[1]*Math.PI/180)*Math.cos(b[1]*Math.PI/180)*Math.cos((b[0]-a[0])*Math.PI/180);
+      return (Math.atan2(y, x)*180/Math.PI + 360) % 360;
+    }
+    // Punto di destinazione dato origine [lng,lat], bearing (gradi) e
+    // distanza (metri) — formula great-circle.
+    function destPoint(origin, brgDeg, distM) {
+      var R = 6371000;
+      var d = distM / R;
+      var brg = brgDeg * Math.PI/180;
+      var lat1 = origin[1]*Math.PI/180, lng1 = origin[0]*Math.PI/180;
+      var lat2 = Math.asin(Math.sin(lat1)*Math.cos(d) +
+                 Math.cos(lat1)*Math.sin(d)*Math.cos(brg));
+      var lng2 = lng1 + Math.atan2(Math.sin(brg)*Math.sin(d)*Math.cos(lat1),
+                 Math.cos(d) - Math.sin(lat1)*Math.sin(lat2));
+      return [lng2*180/Math.PI, lat2*180/Math.PI];
+    }
+    // Quota terreno (m s.l.m.) sotto un punto, con fallback.
+    // queryTerrainElevation restituisce la quota MOLTIPLICATA per il
+    // fattore di esagerazione del terrain. L'opzione {exaggerated:false}
+    // non è supportata in MapLibre 4.7 → la dividiamo manualmente per
+    // TERRAIN_EXAG (deterministico, indipendente dalla versione).
+    // Senza, i tour pubblici (quota dal terrain) risultavano gonfiati:
+    // es. 1915 → 2470.
+    function terrainAt(p, fallback) {
+      try {
+        var e = map.queryTerrainElevation
+          ? map.queryTerrainElevation({lng:p[0], lat:p[1]})
+          : null;
+        if (e === null || e === undefined || isNaN(e)) return fallback;
+        return e / TERRAIN_EXAG;
+      } catch (err) { return fallback; }
+    }
+    // Posiziona la camera come "chase cam": l'occhio sta dietro il punto
+    // corrente lungo il bearing, a un'altitudine SOPRA il terreno, e
+    // guarda un punto poco più avanti. Così non entra mai nella montagna.
+    // Parametri camera fly-over (jumpTo center+pitch+zoom, terrain-aware).
+    // pitch 46 = vista più dall'alto: sovrasta meglio il terreno (in
+    // discesa si vede oltre le creste) e stabilizza la posizione del
+    // cursore (un pitch alto, per prospettiva, lo spingeva verso l'alto).
+    // zoom 13.2 = camera ben sopra il rilievo, traccia leggibile.
+    var CAM_PITCH = 46;
+    var CAM_ZOOM = 13.2;
+    // Padding in alto per portare il cursore verso il centro-basso
+    // dello schermo (framing "guarda avanti").
+    function camPadding() {
+      var h = window.innerHeight || 700;
+      return { top: Math.round(h * 0.38), bottom: 0, left: 0, right: 0 };
+    }
+    function ele(c) { return (c.length > 2 && !isNaN(c[2])) ? c[2] : 0; }
+    // Posizione interpolata DENTRO il segmento si a frazione t (0..1).
+    function pointAtSeg(si, t) {
+      var s = segs[si];
+      if (!s || s.coords.length === 0) return null;
+      var cc = s.coords, cum = s.cum, tot = s.dist;
+      if (t <= 0) return { pos: cc[0], ele: ele(cc[0]) };
+      if (t >= 1) { var last = cc[cc.length-1];
+        return { pos: last, ele: ele(last) }; }
+      var target = t * tot;
+      var lo = 0, hi = cum.length-1;
+      while (lo < hi) { var mid=(lo+hi)>>1; if (cum[mid]<target) lo=mid+1; else hi=mid; }
+      var i = Math.max(1, lo);
+      var d0 = cum[i-1], d1 = cum[i];
+      var seg = d1 - d0;
+      var f = seg > 0 ? (target - d0)/seg : 0;
+      var p0 = cc[i-1], p1 = cc[i];
+      return {
+        pos: [ p0[0]+(p1[0]-p0[0])*f, p0[1]+(p1[1]-p0[1])*f ],
+        ele: ele(p0) + (ele(p1)-ele(p0))*f
+      };
+    }
+    // Durata (s) del fly-over del segmento si, proporzionale alla
+    // lunghezza (clamp 12-70s), a speed=1.
+    function segDuration(si) {
+      var km = (segs[si] ? segs[si].dist : 0) / 1000;
+      return Math.max(12, Math.min(70, BASE_DURATION_S * Math.sqrt(km/5)));
+    }
+    // Distanza reale percorsa fino al segmento corrente (esclude i salti
+    // fra segmenti) — per il display "Distanza".
+    function distSoFar() {
+      var d = 0;
+      for (var i=0; i<segIdx; i++) d += segs[i].dist;
+      if (segs[segIdx]) d += segT * segs[segIdx].dist;
+      return d;
+    }
+    // Progresso complessivo 0..1 sul totale di tutti i segmenti.
+    function overallT() {
+      return totalAllDist > 0 ? distSoFar()/totalAllDist : 0;
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    // API chiamata da Flutter
+    // ───────────────────────────────────────────────────────────────
+    window.tsInit = function(maptilerKey) {
+      try {
+        var styleUrl = 'https://api.maptiler.com/maps/hybrid/style.json?key=' + maptilerKey;
+        map = new maplibregl.Map({
+          container: 'map',
+          style: styleUrl,
+          center: [10.5, 45.9],
+          zoom: 10,
+          pitch: 0,
+          bearing: 0,
+          attributionControl: false,
+          maxPitch: 80
+        });
+        map.on('load', function() {
+          post({ type: 'log', message: 'map load fired' });
+          // Terrain 3D — racchiuso in try/catch così un eventuale
+          // fallimento (tile-dem 403, source non pronta) NON blocca il
+          // flusso: postiamo comunque 'ready' e la mappa resta 2.5D.
+          try {
+            map.addSource('terrainSource', {
+              type: 'raster-dem',
+              url: 'https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=' + maptilerKey
+            });
+            map.setTerrain({ source: 'terrainSource', exaggeration: TERRAIN_EXAG });
+            post({ type: 'log', message: 'terrain set' });
+          } catch (e) {
+            post({ type: 'log', message: 'terrain fallito: ' + e.message });
+          }
+          try {
+            map.setSky({
+              'sky-color': '#a9d1ff', 'horizon-color': '#dfeaf6',
+              'fog-color': '#e8eef5', 'fog-ground-blend': 0.6,
+              'sky-horizon-blend': 0.6
+            });
+          } catch (e) {}
+          post({ type: 'ready' });
+        });
+        // Watchdog: se 'load' non scatta entro 9s, segnala (di solito
+        // significa style.json non raggiungibile o key non valida).
+        setTimeout(function() {
+          if (!map || !map.isStyleLoaded()) {
+            post({ type: 'log', message: 'WATCHDOG: style non caricato dopo 9s' });
+          }
+        }, 9000);
+        map.on('error', function(e) {
+          // Errori tile non fatali: logghiamo soltanto.
+          post({ type: 'log', message: 'maperror: ' + ((e && e.error && e.error.message) || 'sconosciuto') });
+        });
+      } catch (e) {
+        showError('Init 3D fallito: ' + e.message);
+      }
+    };
+
+    window.tsLoadTrack = function(geojsonStr) {
+      try {
+        var gj = JSON.parse(geojsonStr);
+        // Accetta {segments:[[...],...]} (nuovo) o {coordinates:[...]}
+        // (retro-compat → singolo segmento).
+        var rawSegs = gj.segments ||
+          (gj.coordinates ? [gj.coordinates] : []);
+        segNames = gj.names || [];
+        rawSegs = rawSegs.filter(function(c){ return c && c.length >= 2; });
+        if (!rawSegs.length) { showError('Traccia senza punti'); return; }
+
+        // Costruisci i segmenti con distanze cumulate.
+        segs = []; totalAllDist = 0;
+        var allPts = [];
+        for (var si=0; si<rawSegs.length; si++) {
+          var cc = rawSegs[si];
+          var cum = [0], tot = 0;
+          for (var i=1; i<cc.length; i++) { tot += dist(cc[i-1], cc[i]); cum.push(tot); }
+          segs.push({ coords: cc, cum: cum, dist: tot });
+          totalAllDist += tot;
+          for (var j=0; j<cc.length; j++) allPts.push(cc[j]);
+        }
+        segIdx = 0; segT = 0; transitioning = false;
+
+        var startPt = segs[0].coords[0];
+        var lastSeg = segs[segs.length-1];
+        var endPt = lastSeg.coords[lastSeg.coords.length-1];
+
+        // Track come MultiLineString: ogni segmento è una linea a sé,
+        // niente linea dritta di collegamento tra tracce distanti.
+        var multiGeo = { type:'Feature', geometry:{ type:'MultiLineString',
+          coordinates: segs.map(function(s){ return s.coords; }) } };
+        if (map.getSource('track')) {
+          map.getSource('track').setData(multiGeo);
+        } else {
+          map.addSource('track', { type:'geojson', data: multiGeo });
+          map.addLayer({ id:'track-glow', type:'line', source:'track',
+            layout:{ 'line-cap':'round', 'line-join':'round' },
+            paint:{ 'line-color':'#E07B4C', 'line-width':10, 'line-opacity':0.25, 'line-blur':4 } });
+          map.addLayer({ id:'track-line', type:'line', source:'track',
+            layout:{ 'line-cap':'round', 'line-join':'round' },
+            paint:{ 'line-color':'#E07B4C', 'line-width':4 } });
+          map.addSource('endpoints', { type:'geojson', data:{ type:'FeatureCollection', features:[
+            { type:'Feature', properties:{ kind:'start' }, geometry:{ type:'Point', coordinates: startPt } },
+            { type:'Feature', properties:{ kind:'end' }, geometry:{ type:'Point', coordinates: endPt } }
+          ]}});
+          map.addLayer({ id:'pts', type:'circle', source:'endpoints', paint:{
+            'circle-radius':6,
+            'circle-color':['match',['get','kind'],'start','#2E7D32','#C62828'],
+            'circle-stroke-width':2, 'circle-stroke-color':'#fff' }});
+          map.addSource('cursor', { type:'geojson', data:{
+            type:'Feature', geometry:{ type:'Point', coordinates: startPt } } });
+          map.addLayer({ id:'cursor-halo', type:'circle', source:'cursor', paint:{
+            'circle-radius':16, 'circle-color':'#E07B4C', 'circle-opacity':0.30, 'circle-blur':0.4 }});
+          map.addLayer({ id:'cursor-dot', type:'circle', source:'cursor', paint:{
+            'circle-radius':7, 'circle-color':'#ffffff',
+            'circle-stroke-width':3, 'circle-stroke-color':'#E07B4C' }});
+        }
+        // Aggiorna endpoints + cursore al (ri)caricamento.
+        if (map.getSource('endpoints')) {
+          map.getSource('endpoints').setData({ type:'FeatureCollection', features:[
+            { type:'Feature', properties:{ kind:'start' }, geometry:{ type:'Point', coordinates: startPt } },
+            { type:'Feature', properties:{ kind:'end' }, geometry:{ type:'Point', coordinates: endPt } }
+          ]});
+        }
+        setCursor(startPt);
+
+        // Inquadra tutto (tutti i segmenti) per la preview.
+        var b = allPts.reduce(function(acc, c){
+          return [Math.min(acc[0],c[0]), Math.min(acc[1],c[1]),
+                  Math.max(acc[2],c[0]), Math.max(acc[3],c[1])]; }, [180,90,-180,-90]);
+        map.fitBounds([[b[0],b[1]],[b[2],b[3]]], { padding: 60, pitch: 45, duration: 1200 });
+
+        post({ type:'trackLoaded',
+               distanceKm: +(totalAllDist/1000).toFixed(2),
+               segments: segs.length });
+      } catch (e) {
+        showError('Caricamento traccia fallito: ' + e.message);
+      }
+    };
+
+    function setCursor(pos) {
+      if (map.getSource('cursor')) {
+        map.getSource('cursor').setData({
+          type:'Feature', geometry:{ type:'Point', coordinates: pos } });
+      }
+    }
+    // Segnala a Flutter il segmento corrente (nome tappa) — solo se ci
+    // sono più segmenti con nome (tour). Per la traccia singola no-op.
+    function postSegment(idx) {
+      if (segs.length > 1 && segNames && segNames[idx]) {
+        post({ type:'segment', index: idx, name: segNames[idx] });
+      }
+    }
+
+    // Spazi Pro (rifugi/business) vicini al percorso: marker + label.
+    window.tsLoadPois = function(jsonStr) {
+      try {
+        pois = JSON.parse(jsonStr) || [];
+        if (!pois.length) return;
+        var fc = { type:'FeatureCollection', features: pois.map(function(p){
+          return { type:'Feature', properties:{ name:p.name },
+                   geometry:{ type:'Point', coordinates:[p.lng, p.lat] } }; }) };
+        if (map.getSource('pois')) { map.getSource('pois').setData(fc); }
+        else {
+          map.addSource('pois', { type:'geojson', data: fc });
+          map.addLayer({ id:'poi-dot', type:'circle', source:'pois', paint:{
+            'circle-radius':7, 'circle-color':'#7C4DFF',
+            'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' }});
+          map.addLayer({ id:'poi-label', type:'symbol', source:'pois',
+            layout:{ 'text-field':['get','name'], 'text-size':12,
+              'text-offset':[0,1.3], 'text-anchor':'top',
+              'text-font':['Noto Sans Regular'], 'text-allow-overlap':false },
+            paint:{ 'text-color':'#ffffff', 'text-halo-color':'#1a1030',
+              'text-halo-width':1.6 }});
+        }
+        post({ type:'log', message: 'pois caricati: '+pois.length });
+      } catch (e) { post({ type:'log', message:'pois err: '+e.message }); }
+    };
+
+    // Rileva se il cursore raggiunge uno Spazio Pro (entro 250m). Posta
+    // una sola volta per ingresso (evita spam).
+    function checkPoiProximity(pos) {
+      if (!pois.length) return;
+      var best = null, bd = 1e9;
+      for (var i=0; i<pois.length; i++) {
+        var d = dist(pos, [pois[i].lng, pois[i].lat]);
+        if (d < bd) { bd = d; best = pois[i]; }
+      }
+      if (best && bd < 250) {
+        if (activePoi !== best.name) {
+          activePoi = best.name;
+          post({ type:'poi', name: best.name });
+        }
+      } else {
+        activePoi = null;
+      }
+    }
+
+    // Inquadra la camera fly-over su (pos, bearing).
+    function flyOverAt(pos, brg) {
+      map.jumpTo({ center: pos, bearing: brg, pitch: CAM_PITCH,
+                   zoom: CAM_ZOOM, padding: camPadding() });
+    }
+
+    // Passaggio al segmento successivo. Decide in base al "gap" tra la
+    // fine della tappa corrente e l'inizio della prossima:
+    // - gap piccolo (cammino consecutivo, tappe contigue) → continua
+    //   LISCIO, nessun flyTo, solo banner col nome della nuova tappa.
+    // - gap grande (raccolta, tracce distanti) → "salto volante"
+    //   morbido (flyTo ad arco).
+    function beginTransition() {
+      var curCoords = segs[segIdx].coords;
+      var curEnd = curCoords[curCoords.length-1];
+      var nextStart = segs[segIdx+1].coords[0];
+      var gap = dist(curEnd, nextStart);
+      var nextLook = pointAtSeg(segIdx+1, 0.02);
+      var brg = (nextLook && nextLook.pos) ? bearing(nextStart, nextLook.pos) : map.getBearing();
+
+      if (gap < 500) {
+        // Tappe contigue: continuità senza salto.
+        segIdx++; segT = 0;
+        setCursor(nextStart);
+        postSegment(segIdx);
+        lastFrameTs = 0;
+        if (playing) anim = requestAnimationFrame(frame);
+        return;
+      }
+
+      // Tracce distanti: salto volante ad arco.
+      transitioning = true;
+      if (anim) cancelAnimationFrame(anim);
+      setCursor(nextStart);
+      map.flyTo({
+        center: nextStart, bearing: brg, pitch: CAM_PITCH,
+        zoom: CAM_ZOOM, padding: camPadding(),
+        speed: 0.8, curve: 1.6, essential: true
+      });
+      map.once('moveend', function() {
+        segIdx++; segT = 0; transitioning = false;
+        lastFrameTs = 0;
+        postSegment(segIdx);
+        if (playing) anim = requestAnimationFrame(frame);
+      });
+    }
+
+    function frame(ts) {
+      if (!playing || transitioning) return;
+      if (!lastFrameTs) lastFrameTs = ts;
+      var dt = (ts - lastFrameTs)/1000; // secondi
+      lastFrameTs = ts;
+      segT += (dt * speed) / segDuration(segIdx);
+      if (segT >= 1) segT = 1;
+
+      var p = pointAtSeg(segIdx, segT);
+      if (p) {
+        var look = pointAtSeg(segIdx, Math.min(1, segT + 0.02));
+        var lookPos = (look && look.pos) ? look.pos : p.pos;
+        var brg = bearing(p.pos, lookPos);
+        flyOverAt(p.pos, brg);
+        setCursor(p.pos);
+        checkPoiProximity(p.pos);
+        var dispEle = p.ele;
+        if (!dispEle || dispEle < 1) {
+          var te = terrainAt(p.pos, NaN);
+          if (!isNaN(te)) dispEle = te;
+        }
+        post({ type:'progress', t: overallT(), dist: distSoFar(), ele: dispEle });
+      }
+
+      if (segT >= 1) {
+        if (segIdx < segs.length - 1) {
+          // C'è un altro segmento → salto volante morbido.
+          beginTransition();
+          return;
+        }
+        // Fine ultimo segmento.
+        playing = false;
+        post({ type:'ended' });
+        return;
+      }
+      anim = requestAnimationFrame(frame);
+    }
+
+    window.tsPlay = function() {
+      if (!map || segs.length === 0) return;
+      // Replay dall'inizio se eravamo a fine percorso.
+      if (segIdx >= segs.length - 1 && segT >= 1) { segIdx = 0; segT = 0; }
+      post({ type:'playing' });
+
+      var p0 = pointAtSeg(segIdx, segT);
+      var look0 = pointAtSeg(segIdx, Math.min(1, segT + 0.02));
+      var brg0 = (look0 && look0.pos) ? bearing(p0.pos, look0.pos) : 0;
+
+      // Ferma il fitBounds dell'apertura e riposiziona pulito (senza
+      // questo la prima inquadratura partiva fuori traccia).
+      map.stop();
+      flyOverAt(p0.pos, brg0);
+      setCursor(p0.pos);
+      postSegment(segIdx);
+
+      playing = true;
+      lastFrameTs = 0;
+
+      if (!window._warmedUp) {
+        window._warmedUp = true;
+        var started = false;
+        var startAnim = function() {
+          if (started) return; started = true;
+          lastFrameTs = 0;
+          anim = requestAnimationFrame(frame);
+        };
+        map.once('idle', startAnim);
+        setTimeout(startAnim, 900);
+        return;
+      }
+      anim = requestAnimationFrame(frame);
+    };
+    window.tsPause = function() {
+      playing = false;
+      if (anim) cancelAnimationFrame(anim);
+      post({ type:'paused' });
+    };
+    window.tsReset = function() {
+      window.tsPause();
+      transitioning = false;
+      segIdx = 0; segT = 0; activePoi = null;
+      if (segs.length) {
+        setCursor(segs[0].coords[0]);
+        var all = [];
+        for (var i=0;i<segs.length;i++) for (var j=0;j<segs[i].coords.length;j++) all.push(segs[i].coords[j]);
+        var b = all.reduce(function(acc, c){
+          return [Math.min(acc[0],c[0]), Math.min(acc[1],c[1]),
+                  Math.max(acc[2],c[0]), Math.max(acc[3],c[1])]; }, [180,90,-180,-90]);
+        map.fitBounds([[b[0],b[1]],[b[2],b[3]]], { padding: 60, pitch: 45, duration: 1000 });
+      }
+      post({ type:'reset' });
+    };
+    window.tsSetSpeed = function(x) { speed = Math.max(0.25, Math.min(4, x)); };
+    window.tsSetExaggeration = function(x) {
+      TERRAIN_EXAG = Math.max(1, Math.min(2.5, x));
+      try { map.setTerrain({ source:'terrainSource', exaggeration: TERRAIN_EXAG }); } catch(e){}
+    };
+
+    // Segnala a Flutter che il bridge JS è pronto a ricevere tsInit.
+    post({ type:'bridgeReady' });
+  </script>
+</body>
+</html>

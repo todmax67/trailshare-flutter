@@ -18,6 +18,7 @@ enum PaywallTrigger {
   mountainFinderAR,
   photoModePro,
   mapStylePro,
+  flythrough3d,
   discoveryUpsell,
   settingsManual,
   onboarding,
@@ -169,6 +170,8 @@ class _PaywallSheetState extends State<PaywallSheet> {
         return 'Sblocca Photo Mode Pro';
       case PaywallTrigger.mapStylePro:
         return 'Sblocca le mappe Pro';
+      case PaywallTrigger.flythrough3d:
+        return 'Rivivi le tue tracce in 3D';
       case PaywallTrigger.discoveryUpsell:
         return 'Porta TrailShare al livello Pro';
       case PaywallTrigger.onboarding:
@@ -190,6 +193,9 @@ class _PaywallSheetState extends State<PaywallSheet> {
       case PaywallTrigger.mapStylePro:
         return 'Topografica dettagliata, satellite con etichette e mappa '
             'invernale per scialpinismo. Pensate per la montagna.';
+      case PaywallTrigger.flythrough3d:
+        return 'Guarda il tuo percorso sorvolare il terreno 3D con un '
+            'fly-through animato — come esserci di nuovo.';
       case PaywallTrigger.discoveryUpsell:
         return 'Funzioni AR, photo mode professionale e tutte le novità future, '
             'sempre incluse.';

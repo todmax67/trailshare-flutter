@@ -6,11 +6,14 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/pro_gate_service.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../discover/community_track_detail_page.dart';
+import '../track_3d/track_3d_page.dart';
+import '../../widgets/paywall_sheet.dart';
 import 'widgets/expandable_description.dart';
 import 'widgets/multi_stage_elevation_chart.dart';
 import 'widgets/tour_hero.dart';
@@ -218,6 +221,8 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
                     if (tour.totalDuration.inMinutes > 0) _stat(Icons.schedule, durStr),
                   ],
                 ),
+                const SizedBox(height: 16),
+                _build3DButton(stages),
                 const SizedBox(height: 20),
                 // Grafico altimetrico cumulativo: solo per cammini
                 // consecutivi (per le collezioni le tracce sono
@@ -264,6 +269,65 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Pulsante "Vedi in 3D" per il tour: unisce i punti di tutte le
+  /// tappe in un unico fly-through. Pro-gated.
+  Widget _build3DButton(List<TourStageSummary> stages) {
+    final hasPoints = stages.any((s) => s.points.length >= 2);
+    if (!hasPoints) return const SizedBox.shrink();
+    final isPro = ProGateService().isPro;
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => _open3D(stages),
+        icon: const Icon(Icons.threed_rotation, size: 20),
+        label: Text(isPro ? 'Vedi in 3D' : 'Vedi in 3D (Pro)'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary, width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _open3D(List<TourStageSummary> stages) {
+    if (!ProGateService().isPro) {
+      showPaywallSheet(context, trigger: PaywallTrigger.flythrough3d);
+      return;
+    }
+    // Ogni tappa → lista di TrackPoint (i tour hanno solo lat/lng: il
+    // 3D è terrain-aware e la quota mostrata viene dal DEM lato JS).
+    final now = DateTime.now();
+    List<TrackPoint> stageToPoints(TourStageSummary s) => s.points
+        .map((p) => TrackPoint(
+              latitude: p.latitude,
+              longitude: p.longitude,
+              timestamp: now,
+            ))
+        .toList();
+
+    // Ogni tappa è un segmento con il suo nome. Il viewer 3D decide se
+    // fare il salto volante (tappe distanti = raccolta) o continuare
+    // liscio (tappe contigue = cammino consecutivo), in base al gap.
+    final valid = stages.where((s) => s.points.length >= 2).toList();
+    if (valid.isEmpty) return;
+    final segments = [for (final s in valid) stageToPoints(s)];
+    final names = [for (final s in valid) s.name];
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Track3DPage(
+          trackName: _tour?.title ?? 'Tour',
+          segments: segments,
+          segmentNames: names,
+        ),
       ),
     );
   }

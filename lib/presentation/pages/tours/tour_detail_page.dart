@@ -15,6 +15,9 @@ import 'widgets/multi_stage_elevation_chart.dart';
 import 'widgets/tour_hero.dart';
 import 'widgets/tour_rich_sections.dart';
 import '../track_detail/track_detail_page.dart';
+import '../track_3d/track_3d_page.dart';
+import '../../widgets/paywall_sheet.dart';
+import '../../../core/services/pro_gate_service.dart';
 import 'tour_edit_page.dart';
 
 /// Pagina di dettaglio di un tour: mappa aggregata con una polyline per tappa
@@ -197,6 +200,8 @@ class _TourDetailPageState extends State<TourDetailPage> {
                     if (tour.totalDuration.inMinutes > 0) _stat(Icons.schedule, durStr),
                   ],
                 ),
+                const SizedBox(height: 16),
+                _build3DButton(),
                 const SizedBox(height: 20),
                 // Epic 11 — chart altimetria multistage (solo owner
                 // detail: ha accesso alle tracce private con TrackPoint
@@ -243,6 +248,54 @@ class _TourDetailPageState extends State<TourDetailPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Pulsante "Vedi in 3D" del tour privato: unisce i punti (con quota
+  /// reale) di tutte le tracce in un unico fly-through. Pro-gated.
+  Widget _build3DButton() {
+    final total = _tracks.fold<int>(0, (n, t) => n + t.points.length);
+    if (total < 2) return const SizedBox.shrink();
+    final isPro = ProGateService().isPro;
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _open3D,
+        icon: const Icon(Icons.threed_rotation, size: 20),
+        label: Text(isPro ? 'Vedi in 3D' : 'Vedi in 3D (Pro)'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary, width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _open3D() {
+    if (!ProGateService().isPro) {
+      showPaywallSheet(context, trigger: PaywallTrigger.flythrough3d);
+      return;
+    }
+    // Le tracce del tour privato hanno quota reale (DEM).
+    // Ogni traccia è un segmento con il suo nome. Il viewer 3D decide
+    // salto volante (raccolta) vs continuità liscia (cammino) dal gap.
+    final valid = _tracks.where((t) => t.points.length >= 2).toList();
+    if (valid.isEmpty) return;
+    final segments = [for (final t in valid) t.points];
+    final names = [for (final t in valid) t.name];
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Track3DPage(
+          trackName: _tour?.title ?? 'Tour',
+          segments: segments,
+          segmentNames: names,
+        ),
       ),
     );
   }
