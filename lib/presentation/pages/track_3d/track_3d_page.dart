@@ -126,9 +126,12 @@ class _Track3DPageState extends State<Track3DPage> {
   }
 
   void _loadTrack() {
-    // GeoJSON-ish: solo l'array coordinates [[lng,lat], ...].
+    // GeoJSON-ish: [lng, lat, ele] — la quota (corretta DEM) serve alla
+    // camera 3D per posizionarsi sopra il terreno senza finire
+    // sottoterra (queryTerrainElevation può essere null se i tile DEM
+    // non sono ancora pronti).
     final coords = widget.points
-        .map((p) => [p.longitude, p.latitude])
+        .map((p) => [p.longitude, p.latitude, p.elevation ?? 0.0])
         .toList(growable: false);
     final payload = jsonEncode({'coordinates': coords});
     // jsonEncode(payload) → string literal JS sicura da passare.
