@@ -332,8 +332,15 @@
           map.getSource('cursor').setData({
             type:'Feature', geometry:{ type:'Point', coordinates: p.pos } });
         }
+        // Quota da mostrare: quella della traccia (DEM) se presente,
+        // altrimenti quota terreno (es. tour, che hanno solo lat/lng).
+        var dispEle = p.ele;
+        if (!dispEle || dispEle < 1) {
+          var te = terrainAt(p.pos, NaN);
+          if (!isNaN(te)) dispEle = te;
+        }
         post({ type:'progress', t: progressT,
-               dist: progressT*totalDist, ele: p.ele });
+               dist: progressT*totalDist, ele: dispEle });
       }
 
       if (progressT >= 1) {

@@ -4,7 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/discovery_prompt_service.dart';
+import '../../../core/services/pro_gate_service.dart';
 import '../../../core/services/track_export_service.dart';
+import '../track_3d/track_3d_page.dart';
+import '../../widgets/paywall_sheet.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/difficulty_badge.dart';
 import '../../widgets/expandable_description.dart';
@@ -241,6 +244,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                         ),
                         fallbackActivity: track.parsedActivityType,
                       ),
+                      const Spacer(),
+                      if (track.points.length >= 2)
+                        _build3DButton(track),
                     ],
                   ),
 
@@ -460,6 +466,54 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           ],
         ),
       ),
+      ),
+    );
+  }
+
+  /// Pulsante "3D" — fly-through 3D (Pro). Non-Pro → paywall.
+  Widget _build3DButton(CommunityTrack track) {
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => _open3D(track),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.threed_rotation,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: 6),
+              const Text('3D',
+                  style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13)),
+              if (!ProGateService().isPro) ...[
+                const SizedBox(width: 4),
+                const Icon(Icons.lock, size: 12, color: AppColors.primary),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _open3D(CommunityTrack track) {
+    if (!ProGateService().isPro) {
+      showPaywallSheet(context, trigger: PaywallTrigger.flythrough3d);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Track3DPage(
+          trackName: track.name,
+          points: track.points,
+        ),
       ),
     );
   }
