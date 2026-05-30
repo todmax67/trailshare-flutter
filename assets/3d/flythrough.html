@@ -306,8 +306,17 @@
         var look = pointAt(Math.min(1, progressT + 0.02));
         var lookPos = (look && look.pos) ? look.pos : p.pos;
         var brg = bearing(p.pos, lookPos);
-        // Chase cam sopra il terreno (no clipping nella montagna).
-        setChaseCamera(p.pos, lookPos, brg, p.ele);
+        // Camera terrain-aware nativa: con il terrain attivo MapLibre
+        // posiziona automaticamente la camera SOPRA la superficie del
+        // punto centrale. Zoom 13.8 (più basso = camera più alta) per
+        // stare ben sopra il rilievo senza grazing; pitch 62 per la
+        // vista cinematografica. Niente FreeCamera (il cui lookAtPoint
+        // mira a quota 0 → guardava sottoterra).
+        map.jumpTo({ center: p.pos, bearing: brg, pitch: 62, zoom: 13.8 });
+        if (!window._camLogged) {
+          window._camLogged = true;
+          post({ type:'log', message: 'cam jumpTo pitch=62 zoom=13.8 ele='+Math.round(p.ele||0) });
+        }
         // Aggiorna il cursore "tu sei qui" alla posizione corrente.
         if (map.getSource('cursor')) {
           map.getSource('cursor').setData({

@@ -60,8 +60,12 @@ class _Track3DPageState extends State<Track3DPage> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onWebResourceError: (err) {
-            // Errori di risorse (tile, CDN): non fatali, logghiamo.
-            debugPrint('[Track3D] web resource error: ${err.description}');
+            // ERR_FAILED/ERR_ABORTED durante il fly-through sono tile
+            // cancellati da MapLibre mentre la camera si muove veloce —
+            // innocui e rumorosi. Logghiamo solo gli altri.
+            final d = err.description;
+            if (d.contains('ERR_FAILED') || d.contains('ERR_ABORTED')) return;
+            debugPrint('[Track3D] web resource error: $d');
           },
         ),
       )
