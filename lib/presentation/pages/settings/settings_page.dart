@@ -1209,6 +1209,18 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.6.5',
+        title: 'Rivivi le tue tracce in 3D 🏔️',
+        bullets: [
+          'Nuova funzione Pro "Vedi in 3D": guarda il tuo percorso sorvolare il terreno in 3D con un fly-through animato, stile Relive',
+          'Camera cinematografica che segue la traccia sul rilievo reale, con distanza e quota in tempo reale e controllo della velocità',
+          'Funziona su tracce tue, della community e sui tour: nei cammini di più giorni mostra il nome di ogni tappa, nelle raccolte fa un "salto volante" morbido da una traccia all\'altra',
+          'Gli Spazi Pro (rifugi, noleggi) lungo il percorso compaiono sulla mappa 3D e vengono segnalati quando il volo li raggiunge',
+          'Fix registrazione: la pausa automatica dopo qualche minuto di sosta ora riprende da sola al movimento (prima restava bloccata)',
+          'Quote altimetriche corrette via DEM anche più precise',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.6.3',
         title: 'Quote altimetriche più precise (correzione DEM)',
         bullets: [
