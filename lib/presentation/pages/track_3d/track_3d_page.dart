@@ -37,6 +37,8 @@ class _Track3DPageState extends State<Track3DPage> {
   bool _playing = false;
   double _progress = 0; // 0..1
   double _speed = 1.0;
+  double _distM = 0; // distanza dalla partenza (metri)
+  double _eleM = 0; // quota corrente (m s.l.m.)
   String? _error;
 
   @override
@@ -96,7 +98,15 @@ class _Track3DPageState extends State<Track3DPage> {
           break;
         case 'progress':
           final t = (data['t'] as num?)?.toDouble() ?? 0;
-          if (mounted) setState(() => _progress = t);
+          final d = (data['dist'] as num?)?.toDouble();
+          final e = (data['ele'] as num?)?.toDouble();
+          if (mounted) {
+            setState(() {
+              _progress = t;
+              if (d != null) _distM = d;
+              if (e != null) _eleM = e;
+            });
+          }
           break;
         case 'playing':
           if (mounted) setState(() => _playing = true);
@@ -254,6 +264,27 @@ class _Track3DPageState extends State<Track3DPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Riga info: distanza dalla partenza + quota (live).
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 0, 2, 6),
+            child: Row(
+              children: [
+                _InfoStat(
+                  icon: Icons.straighten,
+                  value: _distM < 1000
+                      ? '${_distM.round()} m'
+                      : '${(_distM / 1000).toStringAsFixed(1)} km',
+                  label: 'Distanza',
+                ),
+                const SizedBox(width: 18),
+                _InfoStat(
+                  icon: Icons.terrain,
+                  value: '${_eleM.round()} m',
+                  label: 'Quota',
+                ),
+              ],
+            ),
+          ),
           // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -281,34 +312,107 @@ class _Track3DPageState extends State<Track3DPage> {
                 onPressed: _reset,
               ),
               const Spacer(),
-              // Velocità
+              // Velocità — pill con contrasto netto attivo/inattivo.
               for (final s in const [0.5, 1.0, 2.0])
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: ChoiceChip(
-                    label: Text('${s == s.toInt() ? s.toInt() : s}×'),
-                    selected: _speed == s,
-                    onSelected: (_) => _setSpeed(s),
-                    selectedColor: AppColors.primary,
-                    labelStyle: TextStyle(
-                      color: _speed == s ? Colors.white : Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    backgroundColor: Colors.white12,
-                    visualDensity: VisualDensity.compact,
-                  ),
+                _SpeedPill(
+                  label: '${s == s.toInt() ? s.toInt() : s}×',
+                  selected: _speed == s,
+                  onTap: () => _setSpeed(s),
                 ),
             ],
           ),
           const Padding(
-            padding: EdgeInsets.only(top: 2),
+            padding: EdgeInsets.only(top: 4),
             child: Text(
               'Trascina per ruotare · pizzica per inclinare',
               style: TextStyle(color: Colors.white38, fontSize: 11),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Statistica live (distanza/quota) nella barra controlli 3D.
+class _InfoStat extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  const _InfoStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: AppColors.primary),
+        const SizedBox(width: 6),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white54, fontSize: 11),
+        ),
+      ],
+    );
+  }
+}
+
+/// Pill velocità con contrasto netto: attivo = primario pieno, inattivo
+/// = sfondo scuro semi-trasparente con testo bianco leggibile.
+class _SpeedPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _SpeedPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Material(
+        color: selected ? AppColors.primary : Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: selected
+                    ? AppColors.primary
+                    : Colors.white.withValues(alpha: 0.30),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

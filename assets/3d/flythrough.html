@@ -332,7 +332,8 @@
           map.getSource('cursor').setData({
             type:'Feature', geometry:{ type:'Point', coordinates: p.pos } });
         }
-        post({ type:'progress', t: progressT });
+        post({ type:'progress', t: progressT,
+               dist: progressT*totalDist, ele: p.ele });
       }
 
       if (progressT >= 1) {
