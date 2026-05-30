@@ -85,7 +85,14 @@ class TrackingBloc extends ChangeNotifier {
   /// (non dall'utente). Permette il resume automatico al primo movimento.
   bool _autoPaused = false;
   /// Soglia di inattività oltre la quale scatta la pausa automatica.
-  static const Duration _autoIdleTimeout = Duration(minutes: 5);
+  ///
+  /// 3 minuti: compromesso pensato per il trekking. Le app fitness
+  /// (Strava/Garmin) usano auto-pause speed-based molto aggressivo
+  /// (~15 sec), ottimo per running/cycling ma fastidioso in montagna
+  /// dove le soste brevi (foto, panorami, fiato) sono normali. 3 min
+  /// ignora le soste tipiche (<2 min) ma congela la durata sulle pause
+  /// vere (riposo, pranzo). Era 5 min, ridotto su feedback utente.
+  static const Duration _autoIdleTimeout = Duration(minutes: 3);
   /// Frequenza del check di inattività.
   static const Duration _autoIdleCheckInterval = Duration(seconds: 30);
 
