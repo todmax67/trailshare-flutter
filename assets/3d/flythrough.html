@@ -97,6 +97,13 @@
     // camera ben sopra il rilievo, traccia centrata e leggibile.
     var CAM_PITCH = 52;
     var CAM_ZOOM = 13.2;
+    // Con il pitch la prospettiva spinge il punto centrale in alto.
+    // Aggiungiamo padding in alto così il cursore viene "spostato"
+    // verso il centro-basso dello schermo (framing "guarda avanti").
+    function camPadding() {
+      var h = window.innerHeight || 700;
+      return { top: Math.round(h * 0.45), bottom: 0, left: 0, right: 0 };
+    }
     var CAM_BACK_M = 350;    // (legacy chase-cam, non più usato)
     var CAM_HEIGHT_M = 220;  // (legacy chase-cam, non più usato)
     // Chase-cam: l'occhio sta dietro il cursore lungo il bearing, a
@@ -316,9 +323,9 @@
         var brg = bearing(p.pos, lookPos);
         // Camera fly-over con jumpTo (terrain-aware e robusto, niente
         // FreeCamera che dava problemi di sync → partenza fuori traccia).
-        // Centro sul cursore; pitch 52 + zoom 13.2 = vista dall'alto
-        // panoramica con la traccia centrata e ben leggibile.
-        map.jumpTo({ center: p.pos, bearing: brg, pitch: CAM_PITCH, zoom: CAM_ZOOM });
+        // padding spinge il cursore al centro-basso dello schermo.
+        map.jumpTo({ center: p.pos, bearing: brg, pitch: CAM_PITCH,
+                     zoom: CAM_ZOOM, padding: camPadding() });
         // Aggiorna il cursore "tu sei qui" alla posizione corrente.
         if (map.getSource('cursor')) {
           map.getSource('cursor').setData({
@@ -351,7 +358,8 @@
       // sincronizzato → il fly partiva fuori traccia finché non si
       // muoveva la mappa a mano).
       map.stop();
-      map.jumpTo({ center: p0.pos, bearing: brg0, pitch: CAM_PITCH, zoom: CAM_ZOOM });
+      map.jumpTo({ center: p0.pos, bearing: brg0, pitch: CAM_PITCH,
+                   zoom: CAM_ZOOM, padding: camPadding() });
 
       playing = true;
       lastFrameTs = 0;
