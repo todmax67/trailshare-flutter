@@ -101,9 +101,17 @@
       var eye = destPoint(curPos, (brg + 180) % 360, CAM_BACK_M);
       // Base = max fra quota traccia e quota terreno (se disponibile)
       // sotto occhio e punto, così la camera sta sempre sopra il rilievo.
+      var teEye = terrainAt(eye, NaN), teCur = terrainAt(curPos, NaN);
       var base = curEle || 0;
-      base = Math.max(base, terrainAt(eye, base), terrainAt(curPos, base));
+      base = Math.max(base, isNaN(teEye)?base:teEye, isNaN(teCur)?base:teCur);
       var eyeAlt = base + CAM_HEIGHT_M;
+      if (!window._camLogged) {
+        window._camLogged = true;
+        post({ type:'log', message: 'cam#1 curEle='+Math.round(curEle||0)+
+              ' terrainEye='+(isNaN(teEye)?'null':Math.round(teEye))+
+              ' terrainCur='+(isNaN(teCur)?'null':Math.round(teCur))+
+              ' eyeAlt='+Math.round(eyeAlt) });
+      }
       try {
         var cam = map.getFreeCameraOptions();
         cam.position = maplibregl.MercatorCoordinate.fromLngLat(
@@ -214,6 +222,16 @@
         // Durata fly-through proporzionale alla lunghezza (clamp 25-70s)
         var km = totalDist/1000;
         flyDurationS = Math.max(25, Math.min(70, BASE_DURATION_S * Math.sqrt(km/5)));
+
+        // Diagnostica quote: se min/max ele sono ~0 la traccia non ha
+        // elevazione → la camera userà solo queryTerrainElevation.
+        var eMin = Infinity, eMax = -Infinity;
+        for (var k=0; k<trackCoords.length; k++) {
+          var z = ele(trackCoords[k]);
+          if (z < eMin) eMin = z; if (z > eMax) eMax = z;
+        }
+        post({ type:'log', message: 'quote traccia: min='+Math.round(eMin)+
+              ' max='+Math.round(eMax)+' n='+trackCoords.length });
 
         // Sorgente + layer linea traccia
         var lineGeo = { type:'Feature', geometry:{ type:'LineString', coordinates: trackCoords } };
