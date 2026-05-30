@@ -336,10 +336,33 @@
     window.tsPlay = function() {
       if (!map || trackCoords.length === 0) return;
       if (progressT >= 1) progressT = 0; // replay dall'inizio
+      post({ type:'playing' });
+      // Warm-up al primo avvio: posiziona la camera all'inizio così i
+      // tile terrain lì iniziano a caricare, poi parte l'animazione.
+      // Senza, il primo Play partiva con terrain non ancora pronto
+      // (serviva pausa+replay).
+      if (!window._warmedUp) {
+        window._warmedUp = true;
+        var p0 = pointAt(0);
+        var look0 = pointAt(0.02);
+        var brg0 = (look0 && look0.pos) ? bearing(p0.pos, look0.pos) : 0;
+        map.jumpTo({ center: p0.pos, bearing: brg0, pitch: 62, zoom: 13.8 });
+        playing = true;
+        lastFrameTs = 0;
+        // Attende che i tile siano pronti (idle) o max 900ms, poi anima.
+        var started = false;
+        var startAnim = function() {
+          if (started) return; started = true;
+          lastFrameTs = 0;
+          anim = requestAnimationFrame(frame);
+        };
+        map.once('idle', startAnim);
+        setTimeout(startAnim, 900);
+        return;
+      }
       playing = true;
       lastFrameTs = 0;
       anim = requestAnimationFrame(frame);
-      post({ type:'playing' });
     };
     window.tsPause = function() {
       playing = false;
