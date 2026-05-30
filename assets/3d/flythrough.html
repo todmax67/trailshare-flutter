@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TrailShare 3D</title>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0c1116; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    #err {
+      position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%);
+      color: #fff; font-family: -apple-system, system-ui, sans-serif;
+      text-align: center; padding: 24px; display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="err"></div>
+  <script>
+    // ───────────────────────────────────────────────────────────────
+    // Canale verso Flutter. Flutter registra un JavaScriptChannel
+    // chiamato "TSChannel"; qui postiamo messaggi JSON.
+    // ───────────────────────────────────────────────────────────────
+    function post(obj) {
+      try {
+        if (window.TSChannel && window.TSChannel.postMessage) {
+          window.TSChannel.postMessage(JSON.stringify(obj));
+        }
+      } catch (e) {}
+    }
+    function showError(msg) {
+      var e = document.getElementById('err');
+      e.style.display = 'block';
+      e.textContent = msg;
+      post({ type: 'error', message: msg });
+    }
+
+    var map = null;
+    var trackCoords = [];      // [[lng,lat,ele?], ...]
+    var cumDist = [];          // distanza cumulata in metri
+    var totalDist = 0;
+    var anim = null;           // requestAnimationFrame id
+    var playing = false;
+    var speed = 1.0;           // moltiplicatore velocità camera
+    var progressT = 0;         // 0..1 posizione corrente lungo il path
+    var lastFrameTs = 0;
+    var pitch = 65, zoom = 15;
+    // Durata "base" del fly-through a speed=1 (secondi). Scalata poi
+    // dalla lunghezza per non rendere infinite le tracce lunghe.
+    var BASE_DURATION_S = 40;
+    var flyDurationS = BASE_DURATION_S;
+
+    // Haversine in metri
+    function dist(a, b) {
+      var R = 6371000;
+      var dLat = (b[1]-a[1]) * Math.PI/180;
+      var dLng = (b[0]-a[0]) * Math.PI/180;
+      var la1 = a[1]*Math.PI/180, la2 = b[1]*Math.PI/180;
+      var h = Math.sin(dLat/2)*Math.sin(dLat/2) +
+              Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)*Math.sin(dLng/2);
+      return 2*R*Math.asin(Math.sqrt(h));
+    }
+    function bearing(a, b) {
+      var y = Math.sin((b[0]-a[0])*Math.PI/180) * Math.cos(b[1]*Math.PI/180);
+      var x = Math.cos(a[1]*Math.PI/180)*Math.sin(b[1]*Math.PI/180) -
+              Math.sin(a[1]*Math.PI/180)*Math.cos(b[1]*Math.PI/180)*Math.cos((b[0]-a[0])*Math.PI/180);
+      return (Math.atan2(y, x)*180/Math.PI + 360) % 360;
+    }
+
+    // Posizione interpolata lungo il path a frazione t (0..1)
+    function pointAt(t) {
+      if (trackCoords.length === 0) return null;
+      if (t <= 0) return { pos: trackCoords[0], idx: 0 };
+      if (t >= 1) return { pos: trackCoords[trackCoords.length-1], idx: trackCoords.length-1 };
+      var target = t * totalDist;
+      // binary search sull'array cumDist
+      var lo = 0, hi = cumDist.length-1;
+      while (lo < hi) {
+        var mid = (lo+hi)>>1;
+        if (cumDist[mid] < target) lo = mid+1; else hi = mid;
+      }
+      var i = Math.max(1, lo);
+      var d0 = cumDist[i-1], d1 = cumDist[i];
+      var seg = d1 - d0;
+      var f = seg > 0 ? (target - d0)/seg : 0;
+      var p0 = trackCoords[i-1], p1 = trackCoords[i];
+      return {
+        pos: [ p0[0]+(p1[0]-p0[0])*f, p0[1]+(p1[1]-p0[1])*f ],
+        idx: i
+      };
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    // API chiamata da Flutter
+    // ───────────────────────────────────────────────────────────────
+    window.tsInit = function(maptilerKey) {
+      try {
+        var styleUrl = 'https://api.maptiler.com/maps/hybrid/style.json?key=' + maptilerKey;
+        map = new maplibregl.Map({
+          container: 'map',
+          style: styleUrl,
+          center: [10.5, 45.9],
+          zoom: 10,
+          pitch: 0,
+          bearing: 0,
+          attributionControl: false,
+          maxPitch: 80
+        });
+        map.on('load', function() {
+          // Terrain 3D da MapTiler terrain-rgb
+          map.addSource('terrainSource', {
+            type: 'raster-dem',
+            url: 'https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=' + maptilerKey
+          });
+          map.setTerrain({ source: 'terrainSource', exaggeration: 1.4 });
+          // Sky per profondità all'orizzonte
+          try {
+            map.setSky({
+              'sky-color': '#a9d1ff', 'horizon-color': '#dfeaf6',
+              'fog-color': '#e8eef5', 'fog-ground-blend': 0.6,
+              'sky-horizon-blend': 0.6
+            });
+          } catch (e) {}
+          post({ type: 'ready' });
+        });
+        map.on('error', function(e) {
+          // Errori tile non fatali: logghiamo soltanto.
+          post({ type: 'maperror', message: (e && e.error && e.error.message) || 'tile error' });
+        });
+      } catch (e) {
+        showError('Init 3D fallito: ' + e.message);
+      }
+    };
+
+    window.tsLoadTrack = function(geojsonStr) {
+      try {
+        var gj = JSON.parse(geojsonStr);
+        var coords = gj.coordinates || (gj.geometry && gj.geometry.coordinates) || [];
+        if (!coords.length) { showError('Traccia senza punti'); return; }
+        trackCoords = coords;
+        // Precalcola distanze cumulate
+        cumDist = [0]; totalDist = 0;
+        for (var i=1; i<trackCoords.length; i++) {
+          totalDist += dist(trackCoords[i-1], trackCoords[i]);
+          cumDist.push(totalDist);
+        }
+        // Durata fly-through proporzionale alla lunghezza (clamp 25-70s)
+        var km = totalDist/1000;
+        flyDurationS = Math.max(25, Math.min(70, BASE_DURATION_S * Math.sqrt(km/5)));
+
+        // Sorgente + layer linea traccia
+        var lineGeo = { type:'Feature', geometry:{ type:'LineString', coordinates: trackCoords } };
+        if (map.getSource('track')) {
+          map.getSource('track').setData(lineGeo);
+        } else {
+          map.addSource('track', { type:'geojson', data: lineGeo });
+          map.addLayer({
+            id:'track-glow', type:'line', source:'track',
+            layout:{ 'line-cap':'round', 'line-join':'round' },
+            paint:{ 'line-color':'#E07B4C', 'line-width':10, 'line-opacity':0.25, 'line-blur':4 }
+          });
+          map.addLayer({
+            id:'track-line', type:'line', source:'track',
+            layout:{ 'line-cap':'round', 'line-join':'round' },
+            paint:{ 'line-color':'#E07B4C', 'line-width':4 }
+          });
+          // Marker start/end
+          map.addSource('endpoints', { type:'geojson', data:{ type:'FeatureCollection', features:[
+            { type:'Feature', properties:{ kind:'start' }, geometry:{ type:'Point', coordinates: trackCoords[0] } },
+            { type:'Feature', properties:{ kind:'end' }, geometry:{ type:'Point', coordinates: trackCoords[trackCoords.length-1] } }
+          ]}});
+          map.addLayer({ id:'pts', type:'circle', source:'endpoints', paint:{
+            'circle-radius':6,
+            'circle-color':['match',['get','kind'],'start','#2E7D32','#C62828'],
+            'circle-stroke-width':2, 'circle-stroke-color':'#fff'
+          }});
+        }
+
+        // Inquadra la traccia con un po' di pitch (preview interattiva)
+        var b = trackCoords.reduce(function(acc, c){
+          return [Math.min(acc[0],c[0]), Math.min(acc[1],c[1]),
+                  Math.max(acc[2],c[0]), Math.max(acc[3],c[1])];
+        }, [180,90,-180,-90]);
+        map.fitBounds([[b[0],b[1]],[b[2],b[3]]], { padding: 60, pitch: 45, duration: 1200 });
+
+        post({ type:'trackLoaded', distanceKm: +(km.toFixed(2)), durationS: Math.round(flyDurationS) });
+      } catch (e) {
+        showError('Caricamento traccia fallito: ' + e.message);
+      }
+    };
+
+    function frame(ts) {
+      if (!playing) return;
+      if (!lastFrameTs) lastFrameTs = ts;
+      var dt = (ts - lastFrameTs)/1000; // secondi
+      lastFrameTs = ts;
+      progressT += (dt * speed) / flyDurationS;
+      if (progressT >= 1) { progressT = 1; }
+
+      var p = pointAt(progressT);
+      if (p) {
+        // bearing verso un punto poco più avanti (lookahead)
+        var look = pointAt(Math.min(1, progressT + 0.01));
+        var brg = (look && look.pos) ? bearing(p.pos, look.pos) : map.getBearing();
+        map.jumpTo({ center: p.pos, bearing: brg, pitch: pitch, zoom: zoom });
+        post({ type:'progress', t: progressT });
+      }
+
+      if (progressT >= 1) {
+        playing = false;
+        post({ type:'ended' });
+        return;
+      }
+      anim = requestAnimationFrame(frame);
+    }
+
+    window.tsPlay = function() {
+      if (!map || trackCoords.length === 0) return;
+      if (progressT >= 1) progressT = 0; // replay dall'inizio
+      playing = true;
+      lastFrameTs = 0;
+      anim = requestAnimationFrame(frame);
+      post({ type:'playing' });
+    };
+    window.tsPause = function() {
+      playing = false;
+      if (anim) cancelAnimationFrame(anim);
+      post({ type:'paused' });
+    };
+    window.tsReset = function() {
+      window.tsPause();
+      progressT = 0;
+      if (trackCoords.length) {
+        var b = trackCoords.reduce(function(acc, c){
+          return [Math.min(acc[0],c[0]), Math.min(acc[1],c[1]),
+                  Math.max(acc[2],c[0]), Math.max(acc[3],c[1])];
+        }, [180,90,-180,-90]);
+        map.fitBounds([[b[0],b[1]],[b[2],b[3]]], { padding: 60, pitch: 45, duration: 1000 });
+      }
+      post({ type:'reset' });
+    };
+    window.tsSetSpeed = function(x) { speed = Math.max(0.25, Math.min(4, x)); };
+    window.tsSetExaggeration = function(x) {
+      try { map.setTerrain({ source:'terrainSource', exaggeration: Math.max(1, Math.min(2.5, x)) }); } catch(e){}
+    };
+
+    // Segnala a Flutter che il bridge JS è pronto a ricevere tsInit.
+    post({ type:'bridgeReady' });
+  </script>
+</body>
+</html>
