@@ -24,10 +24,15 @@ class Track3DPage extends StatefulWidget {
   ///   viewer fa un "salto volante" morbido (flyTo) tra l'uno e l'altro.
   final List<List<TrackPoint>> segments;
 
+  /// Nomi dei segmenti (es. nomi tappe/tracce di un tour). Se forniti,
+  /// quando il volo inizia un nuovo segmento compare un banner col nome.
+  final List<String>? segmentNames;
+
   const Track3DPage({
     super.key,
     required this.trackName,
     required this.segments,
+    this.segmentNames,
   });
 
   /// Convenience per una sola traccia (un solo segmento).
@@ -53,6 +58,8 @@ class _Track3DPageState extends State<Track3DPage> {
   double _distM = 0; // distanza dalla partenza (metri)
   double _eleM = 0; // quota corrente (m s.l.m.)
   String? _error;
+  String? _segmentBanner; // nome traccia corrente (banner temporaneo)
+  int _segmentBannerSeq = 0;
 
   @override
   void initState() {
@@ -121,6 +128,10 @@ class _Track3DPageState extends State<Track3DPage> {
             });
           }
           break;
+        case 'segment':
+          final name = data['name'] as String?;
+          if (name != null && name.isNotEmpty) _showSegmentBanner(name);
+          break;
         case 'playing':
           if (mounted) setState(() => _playing = true);
           break;
@@ -152,6 +163,19 @@ class _Track3DPageState extends State<Track3DPage> {
     }
   }
 
+  /// Mostra un banner temporaneo (~3s) col nome della traccia corrente,
+  /// usato nei tour quando il volo passa da una tappa all'altra.
+  void _showSegmentBanner(String name) {
+    if (!mounted) return;
+    final seq = ++_segmentBannerSeq;
+    setState(() => _segmentBanner = name);
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted && seq == _segmentBannerSeq) {
+        setState(() => _segmentBanner = null);
+      }
+    });
+  }
+
   void _loadTrack() {
     // Ogni segmento → array di [lng, lat, ele]. La quota (corretta DEM
     // dove disponibile) serve per il display; il volo è terrain-aware.
@@ -161,7 +185,10 @@ class _Track3DPageState extends State<Track3DPage> {
             .map((p) => [p.longitude, p.latitude, p.elevation ?? 0.0])
             .toList())
         .toList();
-    final payload = jsonEncode({'segments': segs});
+    final payload = jsonEncode({
+      'segments': segs,
+      if (widget.segmentNames != null) 'names': widget.segmentNames,
+    });
     _controller.runJavaScript('tsLoadTrack(${jsonEncode(payload)})');
   }
 
@@ -252,6 +279,47 @@ class _Track3DPageState extends State<Track3DPage> {
               ),
             ),
           ),
+
+          // Banner cambio tappa (tour): nome traccia corrente.
+          if (_segmentBanner != null)
+            Positioned(
+              top: 64,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: Container(
+                    key: ValueKey(_segmentBanner),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.route,
+                            color: Colors.white, size: 16),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            _segmentBanner!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
 
           // Controlli in basso (solo quando pronta)
           if (!loading && _error == null)

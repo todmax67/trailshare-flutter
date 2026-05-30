@@ -315,13 +315,13 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
 
     final isCollection = _tour?.type == TourType.collection;
     final List<List<TrackPoint>> segments;
+    List<String>? names;
     if (isCollection) {
       // Raccolta: ogni traccia è un segmento separato → salto volante
       // morbido tra una e l'altra (possono essere distanti).
-      segments = [
-        for (final s in stages)
-          if (s.points.length >= 2) stageToPoints(s),
-      ];
+      final valid = stages.where((s) => s.points.length >= 2).toList();
+      segments = [for (final s in valid) stageToPoints(s)];
+      names = [for (final s in valid) s.name];
     } else {
       // Cammino consecutivo: un unico segmento continuo.
       final all = <TrackPoint>[];
@@ -337,6 +337,7 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
         builder: (_) => Track3DPage(
           trackName: _tour?.title ?? 'Tour',
           segments: segments,
+          segmentNames: names,
         ),
       ),
     );

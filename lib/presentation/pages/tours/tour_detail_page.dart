@@ -284,12 +284,12 @@ class _TourDetailPageState extends State<TourDetailPage> {
     // Le tracce del tour privato hanno quota reale (DEM).
     final isCollection = _tour?.type == TourType.collection;
     final List<List<TrackPoint>> segments;
+    List<String>? names;
     if (isCollection) {
       // Raccolta: ogni traccia un segmento → salto volante tra loro.
-      segments = [
-        for (final t in _tracks)
-          if (t.points.length >= 2) t.points,
-      ];
+      final valid = _tracks.where((t) => t.points.length >= 2).toList();
+      segments = [for (final t in valid) t.points];
+      names = [for (final t in valid) t.name];
     } else {
       // Consecutivo: un unico segmento continuo.
       final all = <TrackPoint>[];
@@ -305,6 +305,7 @@ class _TourDetailPageState extends State<TourDetailPage> {
         builder: (_) => Track3DPage(
           trackName: _tour?.title ?? 'Tour',
           segments: segments,
+          segmentNames: names,
         ),
       ),
     );
