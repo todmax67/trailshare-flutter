@@ -46,6 +46,8 @@
     var segs = [];             // [{coords:[[lng,lat,ele],...], cum:[...], dist}]
     var totalAllDist = 0;      // somma delle distanze di tutti i segmenti
     var segNames = [];         // nomi dei segmenti (tappe tour)
+    var pois = [];             // Spazi Pro vicini [{name,lat,lng}]
+    var activePoi = null;      // nome Spazio Pro attualmente "raggiunto"
     var segIdx = 0;            // indice segmento corrente
     var segT = 0;              // 0..1 posizione nel segmento corrente
     var transitioning = false; // true durante il "salto volante" flyTo
@@ -310,6 +312,50 @@
       }
     }
 
+    // Spazi Pro (rifugi/business) vicini al percorso: marker + label.
+    window.tsLoadPois = function(jsonStr) {
+      try {
+        pois = JSON.parse(jsonStr) || [];
+        if (!pois.length) return;
+        var fc = { type:'FeatureCollection', features: pois.map(function(p){
+          return { type:'Feature', properties:{ name:p.name },
+                   geometry:{ type:'Point', coordinates:[p.lng, p.lat] } }; }) };
+        if (map.getSource('pois')) { map.getSource('pois').setData(fc); }
+        else {
+          map.addSource('pois', { type:'geojson', data: fc });
+          map.addLayer({ id:'poi-dot', type:'circle', source:'pois', paint:{
+            'circle-radius':7, 'circle-color':'#7C4DFF',
+            'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' }});
+          map.addLayer({ id:'poi-label', type:'symbol', source:'pois',
+            layout:{ 'text-field':['get','name'], 'text-size':12,
+              'text-offset':[0,1.3], 'text-anchor':'top',
+              'text-font':['Noto Sans Regular'], 'text-allow-overlap':false },
+            paint:{ 'text-color':'#ffffff', 'text-halo-color':'#1a1030',
+              'text-halo-width':1.6 }});
+        }
+        post({ type:'log', message: 'pois caricati: '+pois.length });
+      } catch (e) { post({ type:'log', message:'pois err: '+e.message }); }
+    };
+
+    // Rileva se il cursore raggiunge uno Spazio Pro (entro 250m). Posta
+    // una sola volta per ingresso (evita spam).
+    function checkPoiProximity(pos) {
+      if (!pois.length) return;
+      var best = null, bd = 1e9;
+      for (var i=0; i<pois.length; i++) {
+        var d = dist(pos, [pois[i].lng, pois[i].lat]);
+        if (d < bd) { bd = d; best = pois[i]; }
+      }
+      if (best && bd < 250) {
+        if (activePoi !== best.name) {
+          activePoi = best.name;
+          post({ type:'poi', name: best.name });
+        }
+      } else {
+        activePoi = null;
+      }
+    }
+
     // Inquadra la camera fly-over su (pos, bearing).
     function flyOverAt(pos, brg) {
       map.jumpTo({ center: pos, bearing: brg, pitch: CAM_PITCH,
@@ -372,6 +418,7 @@
         var brg = bearing(p.pos, lookPos);
         flyOverAt(p.pos, brg);
         setCursor(p.pos);
+        checkPoiProximity(p.pos);
         var dispEle = p.ele;
         if (!dispEle || dispEle < 1) {
           var te = terrainAt(p.pos, NaN);
@@ -436,7 +483,7 @@
     window.tsReset = function() {
       window.tsPause();
       transitioning = false;
-      segIdx = 0; segT = 0;
+      segIdx = 0; segT = 0; activePoi = null;
       if (segs.length) {
         setCursor(segs[0].coords[0]);
         var all = [];

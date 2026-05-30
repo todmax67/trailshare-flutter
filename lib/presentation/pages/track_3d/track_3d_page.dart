@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../core/constants/api_keys.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/track.dart';
+import '../../../data/repositories/business_repository.dart';
 
 /// Visualizzazione 3D di una traccia con fly-through animato
 /// (stile Relive), resa via MapLibre GL JS dentro una WebView con
@@ -60,10 +62,16 @@ class _Track3DPageState extends State<Track3DPage> {
   String? _error;
   String? _segmentBanner; // nome traccia corrente (banner temporaneo)
   int _segmentBannerSeq = 0;
+  String? _poiBanner; // Spazio Pro raggiunto (banner temporaneo)
+  int _poiBannerSeq = 0;
+
+  bool _mapReady = false;
+  List<Map<String, dynamic>>? _pois; // Spazi Pro vicini al percorso
 
   @override
   void initState() {
     super.initState();
+    _fetchPois();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       // La key MapTiler è ristretta per User-Agent (deve contenere
@@ -115,6 +123,8 @@ class _Track3DPageState extends State<Track3DPage> {
           break;
         case 'trackLoaded':
           if (mounted) setState(() => _trackLoaded = true);
+          _mapReady = true;
+          _sendPois(); // invia gli Spazi Pro se già caricati
           break;
         case 'progress':
           final t = (data['t'] as num?)?.toDouble() ?? 0;
@@ -131,6 +141,10 @@ class _Track3DPageState extends State<Track3DPage> {
         case 'segment':
           final name = data['name'] as String?;
           if (name != null && name.isNotEmpty) _showSegmentBanner(name);
+          break;
+        case 'poi':
+          final name = data['name'] as String?;
+          if (name != null && name.isNotEmpty) _showPoiBanner(name);
           break;
         case 'playing':
           if (mounted) setState(() => _playing = true);
@@ -161,6 +175,78 @@ class _Track3DPageState extends State<Track3DPage> {
     } catch (e) {
       debugPrint('[Track3D] msg parse error: $e — ${message.message}');
     }
+  }
+
+  /// Cerca gli Spazi Pro vicini al percorso e li manda al viewer 3D.
+  /// Filtra ai soli business entro ~350m da un punto della traccia
+  /// (quelli realmente lungo il percorso, non tutta l'area).
+  Future<void> _fetchPois() async {
+    try {
+      final pts = widget.segments.expand((s) => s).toList();
+      if (pts.length < 2) return;
+      double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      for (final p in pts) {
+        if (p.latitude < minLat) minLat = p.latitude;
+        if (p.latitude > maxLat) maxLat = p.latitude;
+        if (p.longitude < minLng) minLng = p.longitude;
+        if (p.longitude > maxLng) maxLng = p.longitude;
+      }
+      final cLat = (minLat + maxLat) / 2, cLng = (minLng + maxLng) / 2;
+      const dist = Distance();
+      final radiusKm = (dist.as(LengthUnit.Kilometer, LatLng(cLat, cLng),
+                  LatLng(maxLat, maxLng)) +
+              2)
+          .clamp(2.0, 60.0);
+      final businesses = await BusinessRepository().getNearby(
+        lat: cLat,
+        lng: cLng,
+        radiusKm: radiusKm,
+        limit: 150,
+      );
+      // Downsample punti per la verifica di vicinanza (perf).
+      final step = (pts.length / 400).ceil().clamp(1, 50);
+      final sampled = <TrackPoint>[];
+      for (var i = 0; i < pts.length; i += step) {
+        sampled.add(pts[i]);
+      }
+      final near = <Map<String, dynamic>>[];
+      for (final b in businesses) {
+        final bl = LatLng(b.location.lat, b.location.lng);
+        for (final p in sampled) {
+          if (dist.as(LengthUnit.Meter, bl,
+                  LatLng(p.latitude, p.longitude)) <
+              400) {
+            near.add({
+              'name': b.name,
+              'lat': b.location.lat,
+              'lng': b.location.lng,
+            });
+            break;
+          }
+        }
+      }
+      _pois = near;
+      _sendPois();
+    } catch (e) {
+      debugPrint('[Track3D] poi fetch error: $e');
+    }
+  }
+
+  void _sendPois() {
+    if (!_mapReady || _pois == null || _pois!.isEmpty) return;
+    _controller.runJavaScript('tsLoadPois(${jsonEncode(jsonEncode(_pois))})');
+  }
+
+  /// Banner temporaneo (~3s) quando il volo raggiunge uno Spazio Pro.
+  void _showPoiBanner(String name) {
+    if (!mounted) return;
+    final seq = ++_poiBannerSeq;
+    setState(() => _poiBanner = name);
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted && seq == _poiBannerSeq) {
+        setState(() => _poiBanner = null);
+      }
+    });
   }
 
   /// Mostra un banner temporaneo (~3s) col nome della traccia corrente,
@@ -306,6 +392,46 @@ class _Track3DPageState extends State<Track3DPage> {
                         Flexible(
                           child: Text(
                             _segmentBanner!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // Banner Spazio Pro raggiunto.
+          if (_poiBanner != null)
+            Positioned(
+              top: _segmentBanner != null ? 108 : 64,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: Container(
+                    key: ValueKey('poi_$_poiBanner'),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6D4AC4).withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.cabin, color: Colors.white, size: 16),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            _poiBanner!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
