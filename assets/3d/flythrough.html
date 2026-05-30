@@ -93,16 +93,17 @@
     // corrente lungo il bearing, a un'altitudine SOPRA il terreno, e
     // guarda un punto poco più avanti. Così non entra mai nella montagna.
     // Parametri camera fly-over (jumpTo center+pitch+zoom, terrain-aware).
-    // pitch 52 = vista dall'alto panoramica (non radente); zoom 13.2 =
-    // camera ben sopra il rilievo, traccia centrata e leggibile.
-    var CAM_PITCH = 52;
+    // pitch 46 = vista più dall'alto: sovrasta meglio il terreno (in
+    // discesa si vede oltre le creste) e stabilizza la posizione del
+    // cursore (un pitch alto, per prospettiva, lo spingeva verso l'alto).
+    // zoom 13.2 = camera ben sopra il rilievo, traccia leggibile.
+    var CAM_PITCH = 46;
     var CAM_ZOOM = 13.2;
-    // Con il pitch la prospettiva spinge il punto centrale in alto.
-    // Aggiungiamo padding in alto così il cursore viene "spostato"
-    // verso il centro-basso dello schermo (framing "guarda avanti").
+    // Padding in alto per portare il cursore verso il centro-basso
+    // dello schermo (framing "guarda avanti").
     function camPadding() {
       var h = window.innerHeight || 700;
-      return { top: Math.round(h * 0.45), bottom: 0, left: 0, right: 0 };
+      return { top: Math.round(h * 0.38), bottom: 0, left: 0, right: 0 };
     }
     var CAM_BACK_M = 350;    // (legacy chase-cam, non più usato)
     var CAM_HEIGHT_M = 220;  // (legacy chase-cam, non più usato)
