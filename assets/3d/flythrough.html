@@ -39,6 +39,7 @@
     }
 
     var map = null;
+    var TERRAIN_EXAG = 1.3;    // esagerazione terrain (vedi terrainAt)
     // Segmenti: ogni traccia è un segmento separato. Per una raccolta
     // (tour collection) sono più segmenti distanti; per una traccia
     // singola o un cammino consecutivo è un solo segmento.
@@ -86,15 +87,19 @@
       return [lng2*180/Math.PI, lat2*180/Math.PI];
     }
     // Quota terreno (m s.l.m.) sotto un punto, con fallback.
-    // exaggerated:false → quota REALE (senza il fattore di esagerazione
-    // 1.3 del terrain, che altrimenti gonfiava la quota mostrata es.
-    // 1915 → 2470 sui tour).
+    // queryTerrainElevation restituisce la quota MOLTIPLICATA per il
+    // fattore di esagerazione del terrain. L'opzione {exaggerated:false}
+    // non è supportata in MapLibre 4.7 → la dividiamo manualmente per
+    // TERRAIN_EXAG (deterministico, indipendente dalla versione).
+    // Senza, i tour pubblici (quota dal terrain) risultavano gonfiati:
+    // es. 1915 → 2470.
     function terrainAt(p, fallback) {
       try {
         var e = map.queryTerrainElevation
-          ? map.queryTerrainElevation({lng:p[0], lat:p[1]}, {exaggerated:false})
+          ? map.queryTerrainElevation({lng:p[0], lat:p[1]})
           : null;
-        return (e === null || e === undefined || isNaN(e)) ? fallback : e;
+        if (e === null || e === undefined || isNaN(e)) return fallback;
+        return e / TERRAIN_EXAG;
       } catch (err) { return fallback; }
     }
     // Posiziona la camera come "chase cam": l'occhio sta dietro il punto
@@ -180,7 +185,7 @@
               type: 'raster-dem',
               url: 'https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=' + maptilerKey
             });
-            map.setTerrain({ source: 'terrainSource', exaggeration: 1.3 });
+            map.setTerrain({ source: 'terrainSource', exaggeration: TERRAIN_EXAG });
             post({ type: 'log', message: 'terrain set' });
           } catch (e) {
             post({ type: 'log', message: 'terrain fallito: ' + e.message });
@@ -445,7 +450,8 @@
     };
     window.tsSetSpeed = function(x) { speed = Math.max(0.25, Math.min(4, x)); };
     window.tsSetExaggeration = function(x) {
-      try { map.setTerrain({ source:'terrainSource', exaggeration: Math.max(1, Math.min(2.5, x)) }); } catch(e){}
+      TERRAIN_EXAG = Math.max(1, Math.min(2.5, x));
+      try { map.setTerrain({ source:'terrainSource', exaggeration: TERRAIN_EXAG }); } catch(e){}
     };
 
     // Segnala a Flutter che il bridge JS è pronto a ricevere tsInit.
