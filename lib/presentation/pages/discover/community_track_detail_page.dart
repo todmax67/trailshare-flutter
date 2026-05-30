@@ -510,7 +510,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => Track3DPage(
+        builder: (_) => Track3DPage.single(
           trackName: track.name,
           points: track.points,
         ),

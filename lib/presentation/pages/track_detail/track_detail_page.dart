@@ -674,7 +674,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => Track3DPage(
+        builder: (_) => Track3DPage.single(
           trackName: _track.name,
           points: _track.points,
         ),

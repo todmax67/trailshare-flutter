@@ -281,18 +281,30 @@ class _TourDetailPageState extends State<TourDetailPage> {
       showPaywallSheet(context, trigger: PaywallTrigger.flythrough3d);
       return;
     }
-    // Concatena i punti di tutte le tracce del tour (hanno quota reale).
-    final points = <TrackPoint>[];
-    for (final t in _tracks) {
-      points.addAll(t.points);
+    // Le tracce del tour privato hanno quota reale (DEM).
+    final isCollection = _tour?.type == TourType.collection;
+    final List<List<TrackPoint>> segments;
+    if (isCollection) {
+      // Raccolta: ogni traccia un segmento → salto volante tra loro.
+      segments = [
+        for (final t in _tracks)
+          if (t.points.length >= 2) t.points,
+      ];
+    } else {
+      // Consecutivo: un unico segmento continuo.
+      final all = <TrackPoint>[];
+      for (final t in _tracks) {
+        all.addAll(t.points);
+      }
+      segments = [all];
     }
-    if (points.length < 2) return;
+    if (segments.every((s) => s.length < 2)) return;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => Track3DPage(
           trackName: _tour?.title ?? 'Tour',
-          points: points,
+          segments: segments,
         ),
       ),
     );

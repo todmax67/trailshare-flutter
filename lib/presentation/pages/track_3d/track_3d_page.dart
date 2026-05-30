@@ -17,13 +17,26 @@ import '../../../data/models/track.dart';
 /// via il JavaScriptChannel `TSChannel`.
 class Track3DPage extends StatefulWidget {
   final String trackName;
-  final List<TrackPoint> points;
+
+  /// Segmenti del percorso: ogni lista interna è una traccia separata.
+  /// - Traccia singola / cammino consecutivo → 1 segmento.
+  /// - Raccolta (tour collection) → più segmenti, anche distanti: il
+  ///   viewer fa un "salto volante" morbido (flyTo) tra l'uno e l'altro.
+  final List<List<TrackPoint>> segments;
 
   const Track3DPage({
     super.key,
     required this.trackName,
-    required this.points,
+    required this.segments,
   });
+
+  /// Convenience per una sola traccia (un solo segmento).
+  factory Track3DPage.single({
+    Key? key,
+    required String trackName,
+    required List<TrackPoint> points,
+  }) =>
+      Track3DPage(key: key, trackName: trackName, segments: [points]);
 
   @override
   State<Track3DPage> createState() => _Track3DPageState();
@@ -140,15 +153,15 @@ class _Track3DPageState extends State<Track3DPage> {
   }
 
   void _loadTrack() {
-    // GeoJSON-ish: [lng, lat, ele] — la quota (corretta DEM) serve alla
-    // camera 3D per posizionarsi sopra il terreno senza finire
-    // sottoterra (queryTerrainElevation può essere null se i tile DEM
-    // non sono ancora pronti).
-    final coords = widget.points
-        .map((p) => [p.longitude, p.latitude, p.elevation ?? 0.0])
-        .toList(growable: false);
-    final payload = jsonEncode({'coordinates': coords});
-    // jsonEncode(payload) → string literal JS sicura da passare.
+    // Ogni segmento → array di [lng, lat, ele]. La quota (corretta DEM
+    // dove disponibile) serve per il display; il volo è terrain-aware.
+    final segs = widget.segments
+        .where((s) => s.length >= 2)
+        .map((s) => s
+            .map((p) => [p.longitude, p.latitude, p.elevation ?? 0.0])
+            .toList())
+        .toList();
+    final payload = jsonEncode({'segments': segs});
     _controller.runJavaScript('tsLoadTrack(${jsonEncode(payload)})');
   }
 

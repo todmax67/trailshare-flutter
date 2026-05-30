@@ -302,27 +302,41 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
       showPaywallSheet(context, trigger: PaywallTrigger.flythrough3d);
       return;
     }
-    // Concatena i punti di tutte le tappe in un'unica traccia. I tour
-    // hanno solo lat/lng (niente quota): il 3D è terrain-aware e la
-    // quota mostrata viene presa dal DEM lato JS.
+    // Ogni tappa → lista di TrackPoint (i tour hanno solo lat/lng: il
+    // 3D è terrain-aware e la quota mostrata viene dal DEM lato JS).
     final now = DateTime.now();
-    final points = <TrackPoint>[];
-    for (final s in stages) {
-      for (final p in s.points) {
-        points.add(TrackPoint(
-          latitude: p.latitude,
-          longitude: p.longitude,
-          timestamp: now,
-        ));
+    List<TrackPoint> stageToPoints(TourStageSummary s) => s.points
+        .map((p) => TrackPoint(
+              latitude: p.latitude,
+              longitude: p.longitude,
+              timestamp: now,
+            ))
+        .toList();
+
+    final isCollection = _tour?.type == TourType.collection;
+    final List<List<TrackPoint>> segments;
+    if (isCollection) {
+      // Raccolta: ogni traccia è un segmento separato → salto volante
+      // morbido tra una e l'altra (possono essere distanti).
+      segments = [
+        for (final s in stages)
+          if (s.points.length >= 2) stageToPoints(s),
+      ];
+    } else {
+      // Cammino consecutivo: un unico segmento continuo.
+      final all = <TrackPoint>[];
+      for (final s in stages) {
+        all.addAll(stageToPoints(s));
       }
+      segments = [all];
     }
-    if (points.length < 2) return;
+    if (segments.every((s) => s.length < 2)) return;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => Track3DPage(
           trackName: _tour?.title ?? 'Tour',
-          points: points,
+          segments: segments,
         ),
       ),
     );

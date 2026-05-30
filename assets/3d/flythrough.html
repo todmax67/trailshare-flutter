@@ -39,19 +39,21 @@
     }
 
     var map = null;
-    var trackCoords = [];      // [[lng,lat,ele?], ...]
-    var cumDist = [];          // distanza cumulata in metri
-    var totalDist = 0;
+    // Segmenti: ogni traccia è un segmento separato. Per una raccolta
+    // (tour collection) sono più segmenti distanti; per una traccia
+    // singola o un cammino consecutivo è un solo segmento.
+    var segs = [];             // [{coords:[[lng,lat,ele],...], cum:[...], dist}]
+    var totalAllDist = 0;      // somma delle distanze di tutti i segmenti
+    var segIdx = 0;            // indice segmento corrente
+    var segT = 0;              // 0..1 posizione nel segmento corrente
+    var transitioning = false; // true durante il "salto volante" flyTo
     var anim = null;           // requestAnimationFrame id
     var playing = false;
     var speed = 1.0;           // moltiplicatore velocità camera
-    var progressT = 0;         // 0..1 posizione corrente lungo il path
     var lastFrameTs = 0;
-    var pitch = 65, zoom = 15;
-    // Durata "base" del fly-through a speed=1 (secondi). Scalata poi
-    // dalla lunghezza per non rendere infinite le tracce lunghe.
+    // Durata "base" del fly-through a speed=1 (secondi), scalata sulla
+    // lunghezza del segmento.
     var BASE_DURATION_S = 40;
-    var flyDurationS = BASE_DURATION_S;
 
     // Haversine in metri
     function dist(a, b) {
@@ -105,66 +107,45 @@
       var h = window.innerHeight || 700;
       return { top: Math.round(h * 0.38), bottom: 0, left: 0, right: 0 };
     }
-    var CAM_BACK_M = 350;    // (legacy chase-cam, non più usato)
-    var CAM_HEIGHT_M = 220;  // (legacy chase-cam, non più usato)
-    // Chase-cam: l'occhio sta dietro il cursore lungo il bearing, a
-    // un'altezza COSTANTE sopra il terreno (segue la salita → il gap
-    // resta uguale). L'inclinazione (pitch) è calcolata per puntare al
-    // cursore alla sua quota reale, evitando il bug di lookAtPoint che
-    // mirava a quota 0 (mare) → camera che guardava sottoterra.
-    function setChaseCamera(curPos, brg, curEle) {
-      var eye = destPoint(curPos, (brg + 180) % 360, CAM_BACK_M);
-      // Quota terreno sotto il cursore: quota traccia (DEM) come base,
-      // alzata alla terrain query se disponibile.
-      var ground = curEle || 0;
-      var tq = terrainAt(curPos, NaN);
-      if (!isNaN(tq)) ground = Math.max(ground, tq);
-      var eyeAlt = ground + CAM_HEIGHT_M;
-      // pitch MapLibre: 0 = nadir (giù), 90 = orizzonte. L'angolo verso
-      // il basso = atan(altezza/distanza); pitch = 90 - quell'angolo.
-      var downAngle = Math.atan2(CAM_HEIGHT_M, CAM_BACK_M) * 180/Math.PI;
-      var pitchDeg = 90 - downAngle;
-      if (!window._camLogged) {
-        window._camLogged = true;
-        post({ type:'log', message: 'cam#1 ground='+Math.round(ground)+
-              ' eyeAlt='+Math.round(eyeAlt)+' pitch='+Math.round(pitchDeg) });
-      }
-      try {
-        var cam = map.getFreeCameraOptions();
-        cam.position = maplibregl.MercatorCoordinate.fromLngLat(
-          { lng: eye[0], lat: eye[1] }, eyeAlt);
-        cam.setPitchBearing(pitchDeg, brg);
-        map.setFreeCameraOptions(cam);
-      } catch (err) {
-        map.jumpTo({ center: curPos, bearing: brg, pitch: pitchDeg, zoom: 14 });
-      }
-    }
-
     function ele(c) { return (c.length > 2 && !isNaN(c[2])) ? c[2] : 0; }
-    // Posizione interpolata lungo il path a frazione t (0..1).
-    // Ritorna anche la quota interpolata (m s.l.m.).
-    function pointAt(t) {
-      if (trackCoords.length === 0) return null;
-      if (t <= 0) return { pos: trackCoords[0], ele: ele(trackCoords[0]), idx: 0 };
-      if (t >= 1) { var last = trackCoords[trackCoords.length-1];
-        return { pos: last, ele: ele(last), idx: trackCoords.length-1 }; }
-      var target = t * totalDist;
-      // binary search sull'array cumDist
-      var lo = 0, hi = cumDist.length-1;
-      while (lo < hi) {
-        var mid = (lo+hi)>>1;
-        if (cumDist[mid] < target) lo = mid+1; else hi = mid;
-      }
+    // Posizione interpolata DENTRO il segmento si a frazione t (0..1).
+    function pointAtSeg(si, t) {
+      var s = segs[si];
+      if (!s || s.coords.length === 0) return null;
+      var cc = s.coords, cum = s.cum, tot = s.dist;
+      if (t <= 0) return { pos: cc[0], ele: ele(cc[0]) };
+      if (t >= 1) { var last = cc[cc.length-1];
+        return { pos: last, ele: ele(last) }; }
+      var target = t * tot;
+      var lo = 0, hi = cum.length-1;
+      while (lo < hi) { var mid=(lo+hi)>>1; if (cum[mid]<target) lo=mid+1; else hi=mid; }
       var i = Math.max(1, lo);
-      var d0 = cumDist[i-1], d1 = cumDist[i];
+      var d0 = cum[i-1], d1 = cum[i];
       var seg = d1 - d0;
       var f = seg > 0 ? (target - d0)/seg : 0;
-      var p0 = trackCoords[i-1], p1 = trackCoords[i];
+      var p0 = cc[i-1], p1 = cc[i];
       return {
         pos: [ p0[0]+(p1[0]-p0[0])*f, p0[1]+(p1[1]-p0[1])*f ],
-        ele: ele(p0) + (ele(p1)-ele(p0))*f,
-        idx: i
+        ele: ele(p0) + (ele(p1)-ele(p0))*f
       };
+    }
+    // Durata (s) del fly-over del segmento si, proporzionale alla
+    // lunghezza (clamp 12-70s), a speed=1.
+    function segDuration(si) {
+      var km = (segs[si] ? segs[si].dist : 0) / 1000;
+      return Math.max(12, Math.min(70, BASE_DURATION_S * Math.sqrt(km/5)));
+    }
+    // Distanza reale percorsa fino al segmento corrente (esclude i salti
+    // fra segmenti) — per il display "Distanza".
+    function distSoFar() {
+      var d = 0;
+      for (var i=0; i<segIdx; i++) d += segs[i].dist;
+      if (segs[segIdx]) d += segT * segs[segIdx].dist;
+      return d;
+    }
+    // Progresso complessivo 0..1 sul totale di tutti i segmenti.
+    function overallT() {
+      return totalAllDist > 0 ? distSoFar()/totalAllDist : 0;
     }
 
     // ───────────────────────────────────────────────────────────────
@@ -226,124 +207,149 @@
     window.tsLoadTrack = function(geojsonStr) {
       try {
         var gj = JSON.parse(geojsonStr);
-        var coords = gj.coordinates || (gj.geometry && gj.geometry.coordinates) || [];
-        if (!coords.length) { showError('Traccia senza punti'); return; }
-        trackCoords = coords;
-        // Precalcola distanze cumulate
-        cumDist = [0]; totalDist = 0;
-        for (var i=1; i<trackCoords.length; i++) {
-          totalDist += dist(trackCoords[i-1], trackCoords[i]);
-          cumDist.push(totalDist);
-        }
-        // Durata fly-through proporzionale alla lunghezza (clamp 25-70s)
-        var km = totalDist/1000;
-        flyDurationS = Math.max(25, Math.min(70, BASE_DURATION_S * Math.sqrt(km/5)));
+        // Accetta {segments:[[...],...]} (nuovo) o {coordinates:[...]}
+        // (retro-compat → singolo segmento).
+        var rawSegs = gj.segments ||
+          (gj.coordinates ? [gj.coordinates] : []);
+        rawSegs = rawSegs.filter(function(c){ return c && c.length >= 2; });
+        if (!rawSegs.length) { showError('Traccia senza punti'); return; }
 
-        // Diagnostica quote: se min/max ele sono ~0 la traccia non ha
-        // elevazione → la camera userà solo queryTerrainElevation.
-        var eMin = Infinity, eMax = -Infinity;
-        for (var k=0; k<trackCoords.length; k++) {
-          var z = ele(trackCoords[k]);
-          if (z < eMin) eMin = z; if (z > eMax) eMax = z;
+        // Costruisci i segmenti con distanze cumulate.
+        segs = []; totalAllDist = 0;
+        var allPts = [];
+        for (var si=0; si<rawSegs.length; si++) {
+          var cc = rawSegs[si];
+          var cum = [0], tot = 0;
+          for (var i=1; i<cc.length; i++) { tot += dist(cc[i-1], cc[i]); cum.push(tot); }
+          segs.push({ coords: cc, cum: cum, dist: tot });
+          totalAllDist += tot;
+          for (var j=0; j<cc.length; j++) allPts.push(cc[j]);
         }
-        post({ type:'log', message: 'quote traccia: min='+Math.round(eMin)+
-              ' max='+Math.round(eMax)+' n='+trackCoords.length });
+        segIdx = 0; segT = 0; transitioning = false;
 
-        // Sorgente + layer linea traccia
-        var lineGeo = { type:'Feature', geometry:{ type:'LineString', coordinates: trackCoords } };
+        var startPt = segs[0].coords[0];
+        var lastSeg = segs[segs.length-1];
+        var endPt = lastSeg.coords[lastSeg.coords.length-1];
+
+        // Track come MultiLineString: ogni segmento è una linea a sé,
+        // niente linea dritta di collegamento tra tracce distanti.
+        var multiGeo = { type:'Feature', geometry:{ type:'MultiLineString',
+          coordinates: segs.map(function(s){ return s.coords; }) } };
         if (map.getSource('track')) {
-          map.getSource('track').setData(lineGeo);
+          map.getSource('track').setData(multiGeo);
         } else {
-          map.addSource('track', { type:'geojson', data: lineGeo });
-          map.addLayer({
-            id:'track-glow', type:'line', source:'track',
+          map.addSource('track', { type:'geojson', data: multiGeo });
+          map.addLayer({ id:'track-glow', type:'line', source:'track',
             layout:{ 'line-cap':'round', 'line-join':'round' },
-            paint:{ 'line-color':'#E07B4C', 'line-width':10, 'line-opacity':0.25, 'line-blur':4 }
-          });
-          map.addLayer({
-            id:'track-line', type:'line', source:'track',
+            paint:{ 'line-color':'#E07B4C', 'line-width':10, 'line-opacity':0.25, 'line-blur':4 } });
+          map.addLayer({ id:'track-line', type:'line', source:'track',
             layout:{ 'line-cap':'round', 'line-join':'round' },
-            paint:{ 'line-color':'#E07B4C', 'line-width':4 }
-          });
-          // Marker start/end
+            paint:{ 'line-color':'#E07B4C', 'line-width':4 } });
           map.addSource('endpoints', { type:'geojson', data:{ type:'FeatureCollection', features:[
-            { type:'Feature', properties:{ kind:'start' }, geometry:{ type:'Point', coordinates: trackCoords[0] } },
-            { type:'Feature', properties:{ kind:'end' }, geometry:{ type:'Point', coordinates: trackCoords[trackCoords.length-1] } }
+            { type:'Feature', properties:{ kind:'start' }, geometry:{ type:'Point', coordinates: startPt } },
+            { type:'Feature', properties:{ kind:'end' }, geometry:{ type:'Point', coordinates: endPt } }
           ]}});
           map.addLayer({ id:'pts', type:'circle', source:'endpoints', paint:{
             'circle-radius':6,
             'circle-color':['match',['get','kind'],'start','#2E7D32','#C62828'],
-            'circle-stroke-width':2, 'circle-stroke-color':'#fff'
-          }});
-
-          // Cursore "tu sei qui": alone + pallino bianco bordato arancione,
-          // aggiornato a ogni frame del fly-through.
+            'circle-stroke-width':2, 'circle-stroke-color':'#fff' }});
           map.addSource('cursor', { type:'geojson', data:{
-            type:'Feature', geometry:{ type:'Point', coordinates: trackCoords[0] } } });
+            type:'Feature', geometry:{ type:'Point', coordinates: startPt } } });
           map.addLayer({ id:'cursor-halo', type:'circle', source:'cursor', paint:{
-            'circle-radius':16, 'circle-color':'#E07B4C', 'circle-opacity':0.30,
-            'circle-blur':0.4
-          }});
+            'circle-radius':16, 'circle-color':'#E07B4C', 'circle-opacity':0.30, 'circle-blur':0.4 }});
           map.addLayer({ id:'cursor-dot', type:'circle', source:'cursor', paint:{
             'circle-radius':7, 'circle-color':'#ffffff',
-            'circle-stroke-width':3, 'circle-stroke-color':'#E07B4C'
-          }});
+            'circle-stroke-width':3, 'circle-stroke-color':'#E07B4C' }});
         }
-        // Posiziona il cursore all'inizio a ogni (ri)caricamento traccia.
-        if (map.getSource('cursor')) {
-          map.getSource('cursor').setData({
-            type:'Feature', geometry:{ type:'Point', coordinates: trackCoords[0] } });
+        // Aggiorna endpoints + cursore al (ri)caricamento.
+        if (map.getSource('endpoints')) {
+          map.getSource('endpoints').setData({ type:'FeatureCollection', features:[
+            { type:'Feature', properties:{ kind:'start' }, geometry:{ type:'Point', coordinates: startPt } },
+            { type:'Feature', properties:{ kind:'end' }, geometry:{ type:'Point', coordinates: endPt } }
+          ]});
         }
+        setCursor(startPt);
 
-        // Inquadra la traccia con un po' di pitch (preview interattiva)
-        var b = trackCoords.reduce(function(acc, c){
+        // Inquadra tutto (tutti i segmenti) per la preview.
+        var b = allPts.reduce(function(acc, c){
           return [Math.min(acc[0],c[0]), Math.min(acc[1],c[1]),
-                  Math.max(acc[2],c[0]), Math.max(acc[3],c[1])];
-        }, [180,90,-180,-90]);
+                  Math.max(acc[2],c[0]), Math.max(acc[3],c[1])]; }, [180,90,-180,-90]);
         map.fitBounds([[b[0],b[1]],[b[2],b[3]]], { padding: 60, pitch: 45, duration: 1200 });
 
-        post({ type:'trackLoaded', distanceKm: +(km.toFixed(2)), durationS: Math.round(flyDurationS) });
+        post({ type:'trackLoaded',
+               distanceKm: +(totalAllDist/1000).toFixed(2),
+               segments: segs.length });
       } catch (e) {
         showError('Caricamento traccia fallito: ' + e.message);
       }
     };
 
+    function setCursor(pos) {
+      if (map.getSource('cursor')) {
+        map.getSource('cursor').setData({
+          type:'Feature', geometry:{ type:'Point', coordinates: pos } });
+      }
+    }
+
+    // Inquadra la camera fly-over su (pos, bearing).
+    function flyOverAt(pos, brg) {
+      map.jumpTo({ center: pos, bearing: brg, pitch: CAM_PITCH,
+                   zoom: CAM_ZOOM, padding: camPadding() });
+    }
+
+    // "Salto volante" morbido verso l'inizio del prossimo segmento:
+    // flyTo ad arco (zoom-out → in), poi riprende l'animazione.
+    function beginTransition() {
+      transitioning = true;
+      if (anim) cancelAnimationFrame(anim);
+      var nextStart = segs[segIdx+1].coords[0];
+      // bearing della partenza del prossimo segmento
+      var nextLook = pointAtSeg(segIdx+1, 0.02);
+      var brg = (nextLook && nextLook.pos) ? bearing(nextStart, nextLook.pos) : map.getBearing();
+      setCursor(nextStart);
+      map.flyTo({
+        center: nextStart, bearing: brg, pitch: CAM_PITCH,
+        zoom: CAM_ZOOM, padding: camPadding(),
+        speed: 0.8, curve: 1.6, // arco morbido (zoom-out e ritorno)
+        essential: true
+      });
+      map.once('moveend', function() {
+        segIdx++; segT = 0; transitioning = false;
+        lastFrameTs = 0;
+        if (playing) anim = requestAnimationFrame(frame);
+      });
+    }
+
     function frame(ts) {
-      if (!playing) return;
+      if (!playing || transitioning) return;
       if (!lastFrameTs) lastFrameTs = ts;
       var dt = (ts - lastFrameTs)/1000; // secondi
       lastFrameTs = ts;
-      progressT += (dt * speed) / flyDurationS;
-      if (progressT >= 1) { progressT = 1; }
+      segT += (dt * speed) / segDuration(segIdx);
+      if (segT >= 1) segT = 1;
 
-      var p = pointAt(progressT);
+      var p = pointAtSeg(segIdx, segT);
       if (p) {
-        // bearing verso un punto poco più avanti (lookahead)
-        var look = pointAt(Math.min(1, progressT + 0.02));
+        var look = pointAtSeg(segIdx, Math.min(1, segT + 0.02));
         var lookPos = (look && look.pos) ? look.pos : p.pos;
         var brg = bearing(p.pos, lookPos);
-        // Camera fly-over con jumpTo (terrain-aware e robusto, niente
-        // FreeCamera che dava problemi di sync → partenza fuori traccia).
-        // padding spinge il cursore al centro-basso dello schermo.
-        map.jumpTo({ center: p.pos, bearing: brg, pitch: CAM_PITCH,
-                     zoom: CAM_ZOOM, padding: camPadding() });
-        // Aggiorna il cursore "tu sei qui" alla posizione corrente.
-        if (map.getSource('cursor')) {
-          map.getSource('cursor').setData({
-            type:'Feature', geometry:{ type:'Point', coordinates: p.pos } });
-        }
-        // Quota da mostrare: quella della traccia (DEM) se presente,
-        // altrimenti quota terreno (es. tour, che hanno solo lat/lng).
+        flyOverAt(p.pos, brg);
+        setCursor(p.pos);
         var dispEle = p.ele;
         if (!dispEle || dispEle < 1) {
           var te = terrainAt(p.pos, NaN);
           if (!isNaN(te)) dispEle = te;
         }
-        post({ type:'progress', t: progressT,
-               dist: progressT*totalDist, ele: dispEle });
+        post({ type:'progress', t: overallT(), dist: distSoFar(), ele: dispEle });
       }
 
-      if (progressT >= 1) {
+      if (segT >= 1) {
+        if (segIdx < segs.length - 1) {
+          // C'è un altro segmento → salto volante morbido.
+          beginTransition();
+          return;
+        }
+        // Fine ultimo segmento.
         playing = false;
         post({ type:'ended' });
         return;
@@ -352,29 +358,24 @@
     }
 
     window.tsPlay = function() {
-      if (!map || trackCoords.length === 0) return;
-      if (progressT >= 1) progressT = 0; // replay dall'inizio
+      if (!map || segs.length === 0) return;
+      // Replay dall'inizio se eravamo a fine percorso.
+      if (segIdx >= segs.length - 1 && segT >= 1) { segIdx = 0; segT = 0; }
       post({ type:'playing' });
 
-      var p0 = pointAt(progressT);
-      var look0 = pointAt(Math.min(1, progressT + 0.02));
+      var p0 = pointAtSeg(segIdx, segT);
+      var look0 = pointAtSeg(segIdx, Math.min(1, segT + 0.02));
       var brg0 = (look0 && look0.pos) ? bearing(p0.pos, look0.pos) : 0;
 
-      // FONDAMENTALE: ferma qualsiasi animazione in corso (es. il
-      // fitBounds dell'apertura) e riposiziona la camera in modo PULITO
-      // sul punto di partenza. Senza map.stop()+jumpTo, la prima
-      // setFreeCameraOptions non si applicava (transform non
-      // sincronizzato → il fly partiva fuori traccia finché non si
-      // muoveva la mappa a mano).
+      // Ferma il fitBounds dell'apertura e riposiziona pulito (senza
+      // questo la prima inquadratura partiva fuori traccia).
       map.stop();
-      map.jumpTo({ center: p0.pos, bearing: brg0, pitch: CAM_PITCH,
-                   zoom: CAM_ZOOM, padding: camPadding() });
+      flyOverAt(p0.pos, brg0);
+      setCursor(p0.pos);
 
       playing = true;
       lastFrameTs = 0;
 
-      // Al primo avvio attende che i tile terrain siano pronti (idle)
-      // o max 900ms, poi anima. Dopo, parte subito.
       if (!window._warmedUp) {
         window._warmedUp = true;
         var started = false;
@@ -396,16 +397,15 @@
     };
     window.tsReset = function() {
       window.tsPause();
-      progressT = 0;
-      if (map.getSource('cursor') && trackCoords.length) {
-        map.getSource('cursor').setData({
-          type:'Feature', geometry:{ type:'Point', coordinates: trackCoords[0] } });
-      }
-      if (trackCoords.length) {
-        var b = trackCoords.reduce(function(acc, c){
+      transitioning = false;
+      segIdx = 0; segT = 0;
+      if (segs.length) {
+        setCursor(segs[0].coords[0]);
+        var all = [];
+        for (var i=0;i<segs.length;i++) for (var j=0;j<segs[i].coords.length;j++) all.push(segs[i].coords[j]);
+        var b = all.reduce(function(acc, c){
           return [Math.min(acc[0],c[0]), Math.min(acc[1],c[1]),
-                  Math.max(acc[2],c[0]), Math.max(acc[3],c[1])];
-        }, [180,90,-180,-90]);
+                  Math.max(acc[2],c[0]), Math.max(acc[3],c[1])]; }, [180,90,-180,-90]);
         map.fitBounds([[b[0],b[1]],[b[2],b[3]]], { padding: 60, pitch: 45, duration: 1000 });
       }
       post({ type:'reset' });
