@@ -44,6 +44,17 @@ class _Track3DPageState extends State<Track3DPage> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      // La key MapTiler è ristretta per User-Agent (deve contenere
+      // "TrailShareApp", vedi ApiKeys). Il WebView di default manda lo
+      // UA del browser → MapTiler risponde 403 su style/tiles. Settiamo
+      // uno UA browser-like che contiene il token richiesto, così le
+      // richieste MapTiler dal WebView passano la restrizione e MapLibre
+      // continua a funzionare (lo UA resta browser-like).
+      ..setUserAgent(
+        'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 '
+        '${ApiKeys.mapTilerUserAgent}',
+      )
       ..setBackgroundColor(const Color(0xFF0C1116))
       ..addJavaScriptChannel('TSChannel', onMessageReceived: _onJsMessage)
       ..setNavigationDelegate(
