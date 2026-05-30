@@ -69,6 +69,47 @@
               Math.sin(a[1]*Math.PI/180)*Math.cos(b[1]*Math.PI/180)*Math.cos((b[0]-a[0])*Math.PI/180);
       return (Math.atan2(y, x)*180/Math.PI + 360) % 360;
     }
+    // Punto di destinazione dato origine [lng,lat], bearing (gradi) e
+    // distanza (metri) — formula great-circle.
+    function destPoint(origin, brgDeg, distM) {
+      var R = 6371000;
+      var d = distM / R;
+      var brg = brgDeg * Math.PI/180;
+      var lat1 = origin[1]*Math.PI/180, lng1 = origin[0]*Math.PI/180;
+      var lat2 = Math.asin(Math.sin(lat1)*Math.cos(d) +
+                 Math.cos(lat1)*Math.sin(d)*Math.cos(brg));
+      var lng2 = lng1 + Math.atan2(Math.sin(brg)*Math.sin(d)*Math.cos(lat1),
+                 Math.cos(d) - Math.sin(lat1)*Math.sin(lat2));
+      return [lng2*180/Math.PI, lat2*180/Math.PI];
+    }
+    // Quota terreno (m s.l.m.) sotto un punto, con fallback.
+    function terrainAt(p, fallback) {
+      try {
+        var e = map.queryTerrainElevation ? map.queryTerrainElevation({lng:p[0], lat:p[1]}) : null;
+        return (e === null || e === undefined || isNaN(e)) ? fallback : e;
+      } catch (err) { return fallback; }
+    }
+    // Posiziona la camera come "chase cam": l'occhio sta dietro il punto
+    // corrente lungo il bearing, a un'altitudine SOPRA il terreno, e
+    // guarda un punto poco più avanti. Così non entra mai nella montagna.
+    var CAM_BACK_M = 320;   // distanza camera dietro il punto (metri)
+    var CAM_HEIGHT_M = 240; // altezza camera sopra il terreno (metri)
+    function setChaseCamera(curPos, lookPos, brg) {
+      var eye = destPoint(curPos, (brg + 180) % 360, CAM_BACK_M);
+      var teEye = terrainAt(eye, 0);
+      var teCur = terrainAt(curPos, 0);
+      var eyeAlt = Math.max(teEye, teCur) + CAM_HEIGHT_M;
+      try {
+        var cam = map.getFreeCameraOptions();
+        cam.position = maplibregl.MercatorCoordinate.fromLngLat(
+          { lng: eye[0], lat: eye[1] }, eyeAlt);
+        cam.lookAtPoint({ lng: lookPos[0], lat: lookPos[1] });
+        map.setFreeCameraOptions(cam);
+      } catch (err) {
+        // Fallback al vecchio metodo se FreeCamera non disponibile.
+        map.jumpTo({ center: curPos, bearing: brg, pitch: 65, zoom: 15 });
+      }
+    }
 
     // Posizione interpolata lungo il path a frazione t (0..1)
     function pointAt(t) {
@@ -235,9 +276,11 @@
       var p = pointAt(progressT);
       if (p) {
         // bearing verso un punto poco più avanti (lookahead)
-        var look = pointAt(Math.min(1, progressT + 0.01));
-        var brg = (look && look.pos) ? bearing(p.pos, look.pos) : map.getBearing();
-        map.jumpTo({ center: p.pos, bearing: brg, pitch: pitch, zoom: zoom });
+        var look = pointAt(Math.min(1, progressT + 0.02));
+        var lookPos = (look && look.pos) ? look.pos : p.pos;
+        var brg = bearing(p.pos, lookPos);
+        // Chase cam sopra il terreno (no clipping nella montagna).
+        setChaseCamera(p.pos, lookPos, brg);
         // Aggiorna il cursore "tu sei qui" alla posizione corrente.
         if (map.getSource('cursor')) {
           map.getSource('cursor').setData({
