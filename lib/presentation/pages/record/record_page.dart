@@ -1992,10 +1992,27 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     final nameController = TextEditingController(text: defaultName);
 
     // Pre-check Strava: solo se connesso mostriamo lo switch nel dialog.
-    // Default dello switch = preferenza utente (autoUploadEnabled).
-    final stravaService = StravaService();
-    final stravaConnected = await stravaService.isConnected();
-    bool uploadToStrava = stravaConnected && await stravaService.isAutoUploadEnabled();
+    // ⚠️ CRITICO: questi sono .get() Firestore che su segnale DEBOLE
+    // (es. auto in valle) possono bloccarsi a lungo aspettando il
+    // server → il dialog di salvataggio non appariva mai e il bottone
+    // Salva sembrava morto. Avvolgiamo in un timeout: se non rispondono
+    // entro 3s procediamo SENZA lo switch Strava (il salvataggio della
+    // traccia è prioritario e funziona offline).
+    bool stravaConnected = false;
+    bool uploadToStrava = false;
+    try {
+      final stravaService = StravaService();
+      stravaConnected = await stravaService
+          .isConnected()
+          .timeout(const Duration(seconds: 3), onTimeout: () => false);
+      if (stravaConnected) {
+        uploadToStrava = await stravaService
+            .isAutoUploadEnabled()
+            .timeout(const Duration(seconds: 3), onTimeout: () => false);
+      }
+    } catch (e) {
+      debugPrint('[RecordPage] Strava pre-check fallito/timeout: $e');
+    }
     if (!mounted) return;
 
     // 3. Mostra dialog di conferma (lo stato è in pausa, non perso)
