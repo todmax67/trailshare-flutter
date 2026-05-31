@@ -194,7 +194,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
   Future<void> _showDownloadDialog(MapBounds bounds) async {
     final nameController = TextEditingController();
     int minZoom = 10;
-    int maxZoom = 15;
+    int maxZoom = 16; // default più alto: dettaglio sentiero (era 15)
     String nameValue = '';
 
     final confirmed = await showDialog<bool>(

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart' hide ActivityType;
@@ -2860,7 +2861,70 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
 
   /// Handler del tap sul bottone START. Gestisce l'avvio Lifeline
   /// (se il toggle è attivo) prima di avviare la registrazione.
+  /// Verifica che l'app sia esente dall'ottimizzazione batteria. Senza
+  /// questa esenzione, Android (specie su OEM aggressivi: Xiaomi, Oppo,
+  /// Samsung, Huawei) UCCIDE l'app/foreground service durante le pause
+  /// lunghe → la registrazione si interrompe, si crea un buco nella
+  /// traccia e Lifeline smette di aggiornare. Bug critico riscontrato
+  /// sul campo (pausa caffè al Curò → app killata).
+  ///
+  /// Prompt una volta sola finché non concesso (flag SharedPreferences
+  /// per non insistere se l'utente rifiuta consapevolmente).
+  Future<void> _ensureBatteryOptimizationExemption() async {
+    try {
+      final ignoring =
+          await FlutterForegroundTask.isIgnoringBatteryOptimizations;
+      if (ignoring) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      const key = 'battery_opt_prompt_dismissed';
+      if (prefs.getBool(key) == true) return;
+      if (!mounted) return;
+
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Registrazione affidabile'),
+          content: const Text(
+            'Per non perdere la traccia durante le pause (caffè, pranzo, '
+            'soste lunghe), Android deve poter tenere attiva la '
+            'registrazione in background.\n\n'
+            'Senza questa autorizzazione il sistema può chiudere l\'app '
+            'durante le soste e interrompere il tracciamento.\n\n'
+            'Vuoi consentirlo? (consigliato)',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                prefs.setBool(key, true);
+                Navigator.pop(ctx, false);
+              },
+              child: const Text('Non ora'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Consenti'),
+            ),
+          ],
+        ),
+      );
+      if (go == true) {
+        await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+      }
+    } catch (e) {
+      debugPrint('[RecordPage] battery opt check error: $e');
+    }
+  }
+
   Future<void> _onStartPressed() async {
+    // CRITICO: prima di registrare, assicura l'esenzione batteria così
+    // il sistema non uccide l'app durante le pause (bug del Curò).
+    await _ensureBatteryOptimizationExemption();
+
     // Se Lifeline richiesto: disclaimer al primo utilizzo + avvio
     if (_lifelineToggleOn && _emergencyContacts.isNotEmpty) {
       final accepted = await _ensureLifelineDisclaimerAccepted();
