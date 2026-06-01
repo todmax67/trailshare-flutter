@@ -18,9 +18,16 @@ class StravaService {
   static final StravaService _instance = StravaService._();
   factory StravaService() => _instance;
 
+  // Il client_id OAuth NON è un segreto: viaggia in chiaro nell'URL
+  // oauth/authorize aperto nel browser. L'unico segreto è il client_secret,
+  // custodito nelle Cloud Functions. Lo hardcodiamo come defaultValue così
+  // NESSUNA build può uscire senza (in passato le build store dimenticavano
+  // il --dart-define → "Impossibile aprire Strava" per tutti gli utenti che
+  // non avevano connesso da build locale). Override via --dart-define resta
+  // possibile per ambienti di test.
   static const String _stravaClientId = String.fromEnvironment(
     'STRAVA_CLIENT_ID',
-    defaultValue: '',
+    defaultValue: '237999',
   );
 
   /// URL della Cloud Function `stravaCallback` (region europe-west3).
@@ -106,7 +113,25 @@ class StravaService {
       },
     );
     debugPrint('[Strava] launching: $uri');
-    return launchUrl(uri, mode: LaunchMode.externalApplication);
+    // Tenta prima il browser esterno (flusso OAuth più affidabile per il
+    // redirect deep-link di ritorno). Se il device non riesce ad aprirlo
+    // (browser default assente/anomalo su certi Android), ripiega su Custom
+    // Tabs in-app invece di fallire silenziosamente.
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (ok) return true;
+      debugPrint('[Strava] externalApplication ha ritornato false, '
+          'fallback su platformDefault');
+    } catch (e) {
+      debugPrint('[Strava] externalApplication ha lanciato $e, '
+          'fallback su platformDefault');
+    }
+    try {
+      return await launchUrl(uri, mode: LaunchMode.platformDefault);
+    } catch (e) {
+      debugPrint('[Strava] anche platformDefault è fallito: $e');
+      return false;
+    }
   }
 
   Future<bool> disconnect() async {
