@@ -308,40 +308,44 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     if (projected.isEmpty) return const [];
 
     // La cima più centrata è la prima della lista (projectAll ordina per
-    // centratura): la evidenziamo (colore + dimensione) ovunque finisca
-    // dopo il re-ordinamento per X del layout.
+    // centratura): la evidenziamo (colore + dimensione) e le garantiamo
+    // sempre un'etichetta.
     final centeredId = projected.first.peak.id;
-    final layouts = _layoutPins(projected);
+
+    // Etichette decluttered: solo le cime più importanti (quota maggiore)
+    // ricevono un nome; le altre restano solo come dot. Evita il muro di
+    // testo quando molte cime cadono nello stesso settore.
+    final labelLayouts = _layoutLabels(projected, centeredId);
 
     return [
       // Steli connettori dot → ancoraggio etichetta (sotto tutto, no tap).
       Positioned.fill(
         child: IgnorePointer(
           child: CustomPaint(
-            painter: _PinLinesPainter(layouts),
+            painter: _PinLinesPainter(labelLayouts),
           ),
         ),
       ),
-      // Dot punto fisso alla posizione reale della cima.
-      for (final l in layouts)
+      // Dot per TUTTE le cime visibili (anche quelle senza etichetta).
+      for (final p in projected)
         AnimatedPositioned(
-          key: ValueKey('dot_${l.peak.peak.id}'),
+          key: ValueKey('dot_${p.peak.id}'),
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
-          left: l.dotX - 5,
-          top: l.dotY - 5,
+          left: p.screenX - 5,
+          top: p.screenY - 5,
           width: 10,
           height: 10,
           child: IgnorePointer(
             child: _PeakDot(
-              isVolcano: l.peak.peak.type == 'volcano',
-              isCentered: l.peak.peak.id == centeredId,
+              isVolcano: p.peak.type == 'volcano',
+              isCentered: p.peak.id == centeredId,
             ),
           ),
         ),
       // Etichette diagonali (stile PeakFinder): testo ruotato che sale
       // verso destra dall'ancoraggio dello stelo.
-      for (final l in layouts)
+      for (final l in labelLayouts)
         _DiagonalPeakLabel(
           key: ValueKey('label_${l.peak.peak.id}'),
           layout: l,
@@ -351,54 +355,67 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     ];
   }
 
-  /// Layout etichette diagonali stile PeakFinder.
+  /// Selezione + layout delle etichette diagonali con **decluttering per
+  /// importanza** (regola: vince la cima più alta).
   ///
-  /// Ogni cima ha un dot alla posizione reale e uno **stelo verticale** che
-  /// sale fino a un ancoraggio; dall'ancoraggio il nome è scritto in
-  /// diagonale (verso l'alto-destra). Per evitare sovrapposizioni quando
-  /// più cime sono vicine in orizzontale, allunghiamo lo stelo (stagger):
-  /// le cime vicine in X ricevono ancoraggi a quote diverse, così i testi
-  /// diagonali non si calpestano.
-  List<_PinLayout> _layoutPins(List<ProjectedPeak> peaks) {
-    const baseStem = 26.0; // lunghezza stelo minima (px sopra il dot)
-    const stemStep = 30.0; // incremento per separare cime vicine
-    const minDx = 52.0; // distanza X sotto la quale due ancoraggi collidono
-    const maxStem = 280.0; // tetto di sicurezza
+  /// Strategia: si processano le cime in ordine di quota decrescente (la
+  /// cima centrale ha priorità assoluta). Ognuna prova ad ancorarsi sopra il
+  /// suo dot; se collide con un'etichetta già piazzata nello stesso settore
+  /// orizzontale, sale di un gradino (stelo più lungo) fino a un massimo di
+  /// gradini. Se anche così non c'è spazio, la cima **non riceve etichetta**
+  /// (resta solo il dot). Così nei cluster fitti sopravvivono i nomi delle
+  /// vette più importanti invece di un muro illeggibile.
+  List<_PinLayout> _layoutLabels(
+      List<ProjectedPeak> peaks, String centeredId) {
+    const baseStem = 24.0; // stelo minimo (px sopra il dot)
+    const stemStep = 34.0; // gradino verticale tra etichette dello stesso settore
+    const minDx = 72.0; // sotto questa distanza X due etichette sono "stesso settore"
+    const maxStackLevels = 4; // max etichette impilate per settore
+    final maxStem = baseStem + stemStep * maxStackLevels;
 
-    // Ordina sinistra→destra per una lettura stabile e per dare priorità di
-    // "stelo corto" alle cime già piazzate a sinistra.
-    final sorted = [...peaks]..sort((a, b) => a.screenX.compareTo(b.screenX));
+    // Ordine di importanza: quota decrescente (null = bassa priorità),
+    // tiebreak sulla più vicina. La cima centrale va sempre per prima.
+    final ranked = [...peaks]
+      ..sort((a, b) {
+        final ea = a.peak.elevation ?? -1;
+        final eb = b.peak.elevation ?? -1;
+        final c = eb.compareTo(ea);
+        if (c != 0) return c;
+        return a.distanceMeters.compareTo(b.distanceMeters);
+      });
+    final ci = ranked.indexWhere((p) => p.peak.id == centeredId);
+    if (ci > 0) ranked.insert(0, ranked.removeAt(ci));
 
     final placed = <_PinLayout>[];
-    for (final p in sorted) {
+    for (final p in ranked) {
       double stem = baseStem;
-      bool collides = true;
-      int safety = 0;
-      while (collides && safety < 40) {
-        collides = false;
+      bool placedOk = false;
+      while (stem <= maxStem) {
         final anchorY = p.screenY - stem;
+        bool collides = false;
         for (final pl in placed) {
           if ((p.screenX - pl.dotX).abs() < minDx &&
-              (anchorY - pl.labelY).abs() < stemStep - 4) {
-            stem += stemStep;
-            if (stem > maxStem) {
-              collides = false;
-              break;
-            }
+              (anchorY - pl.labelY).abs() < stemStep - 6) {
             collides = true;
             break;
           }
         }
-        safety++;
+        if (!collides) {
+          placedOk = true;
+          break;
+        }
+        stem += stemStep;
       }
-
-      placed.add(_PinLayout(
-        peak: p,
-        dotX: p.screenX,
-        dotY: p.screenY,
-        labelX: p.screenX,
-        labelY: p.screenY - stem,
-      ));
+      if (placedOk) {
+        placed.add(_PinLayout(
+          peak: p,
+          dotX: p.screenX,
+          dotY: p.screenY,
+          labelX: p.screenX,
+          labelY: p.screenY - stem,
+        ));
+      }
+      // else: cluster troppo fitto qui → niente etichetta, resta il dot.
     }
 
     return placed;
