@@ -55,6 +55,12 @@
     var playing = false;
     var speed = 1.0;           // moltiplicatore velocità camera
     var lastFrameTs = 0;
+    // Bearing camera "smussato": invece di puntare istantaneamente verso il
+    // punto subito avanti (che su tracce piene di curvette fa ruotare la
+    // mappa a scatti), inseguiamo un bearing-obiettivo con smoothing
+    // esponenziale. camBearing è il valore corrente applicato alla camera.
+    var camBearing = 0;
+    var camBearingInit = false; // false finché non è agganciato al play
     // Durata "base" del fly-through a speed=1 (secondi), scalata sulla
     // lunghezza del segmento.
     var BASE_DURATION_S = 40;
@@ -74,6 +80,12 @@
       var x = Math.cos(a[1]*Math.PI/180)*Math.sin(b[1]*Math.PI/180) -
               Math.sin(a[1]*Math.PI/180)*Math.cos(b[1]*Math.PI/180)*Math.cos((b[0]-a[0])*Math.PI/180);
       return (Math.atan2(y, x)*180/Math.PI + 360) % 360;
+    }
+    // Differenza angolare minima con segno (-180..180), gestisce il wrap.
+    function angDelta(target, cur) {
+      var d = (target - cur) % 360;
+      if (d > 180) d -= 360; else if (d < -180) d += 360;
+      return d;
     }
     // Punto di destinazione dato origine [lng,lat], bearing (gradi) e
     // distanza (metri) — formula great-circle.
@@ -114,6 +126,14 @@
     // zoom 13.2 = camera ben sopra il rilievo, traccia leggibile.
     var CAM_PITCH = 46;
     var CAM_ZOOM = 13.2;
+    // Look-ahead in metri per il calcolo del bearing: guardare ~90m avanti
+    // (invece del punto immediatamente successivo) media le micro-curve e dà
+    // una direzione "di marcia" stabile.
+    var LOOKAHEAD_M = 90;
+    // Costante di tempo (s) dello smoothing del bearing. Più alta = camera
+    // che ruota più dolcemente (e più "in ritardo") sulle curve. ~0.55s è un
+    // buon compromesso naturale per un fly-over.
+    var BEARING_TAU = 0.55;
     // Padding in alto per portare il cursore verso il centro-basso
     // dello schermo (framing "guarda avanti").
     function camPadding() {
@@ -398,6 +418,9 @@
       map.once('moveend', function() {
         segIdx++; segT = 0; transitioning = false;
         lastFrameTs = 0;
+        // Allinea il bearing smussato a quello del salto, così il primo
+        // frame del nuovo segmento non ruota di colpo.
+        camBearing = brg; camBearingInit = true;
         postSegment(segIdx);
         if (playing) anim = requestAnimationFrame(frame);
       });
@@ -413,10 +436,23 @@
 
       var p = pointAtSeg(segIdx, segT);
       if (p) {
-        var look = pointAtSeg(segIdx, Math.min(1, segT + 0.02));
+        // Look-ahead a distanza fissa (≈LOOKAHEAD_M) per una direzione di
+        // marcia stabile sulle tracce sinuose.
+        var segDist = (segs[segIdx] && segs[segIdx].dist) ? segs[segIdx].dist : 1;
+        var aheadFrac = Math.max(0.01, LOOKAHEAD_M / segDist);
+        var look = pointAtSeg(segIdx, Math.min(1, segT + aheadFrac));
         var lookPos = (look && look.pos) ? look.pos : p.pos;
-        var brg = bearing(p.pos, lookPos);
-        flyOverAt(p.pos, brg);
+        // Se il look-ahead coincide col punto corrente (fine segmento),
+        // mantieni il bearing precedente invece di azzerarlo.
+        var targetBrg = (lookPos[0] === p.pos[0] && lookPos[1] === p.pos[1])
+          ? camBearing : bearing(p.pos, lookPos);
+        // Smoothing esponenziale frame-rate independent verso targetBrg.
+        if (!camBearingInit) { camBearing = targetBrg; camBearingInit = true; }
+        else {
+          var k = 1 - Math.exp(-dt / BEARING_TAU);
+          camBearing = (camBearing + angDelta(targetBrg, camBearing) * k + 360) % 360;
+        }
+        flyOverAt(p.pos, camBearing);
         setCursor(p.pos);
         checkPoiProximity(p.pos);
         var dispEle = p.ele;
@@ -450,6 +486,10 @@
       var p0 = pointAtSeg(segIdx, segT);
       var look0 = pointAtSeg(segIdx, Math.min(1, segT + 0.02));
       var brg0 = (look0 && look0.pos) ? bearing(p0.pos, look0.pos) : 0;
+
+      // Aggancia il bearing smussato alla direzione iniziale (niente
+      // rotazione spuria al primo frame).
+      camBearing = brg0; camBearingInit = true;
 
       // Ferma il fitBounds dell'apertura e riposiziona pulito (senza
       // questo la prima inquadratura partiva fuori traccia).
