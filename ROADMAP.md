@@ -1,8 +1,43 @@
 # TrailShare — Roadmap di sviluppo
 
-Ultimo aggiornamento: 2026-05-16  ·  Versione corrente: `v2.4.5+72` (build artifact pronto per upload Apple+Play; serie hotfix da 2.4.3 per profilo OOM, mappa Positioned, OSM UA, foto post-import EXIF, Spazi Pro discovery, modalità illustrativa percorsi gruppo, vetrina QR web, gating admin "Crea Spazio Pro", ProGate web-safe) · **Epic 12 Home Smart Sections** aggiunto post-confronto con Komoot 2026-05-14
+Ultimo aggiornamento: 2026-06-02  ·  Versione corrente: `v2.6.6+91` (beta in upload Apple TestFlight + Play Internal)
 
 Documento vivo. Le voci sono ordinate per priorità all'interno di ogni categoria. Stima sforzo indicativa in giornate uomo.
+
+---
+
+> ## 🧭 STATO PRODOTTO — 2026-06-02
+>
+> **L'app è da considerarsi funzionalmente COMPLETA.** Il lavoro sul prodotto
+> entra nella fase di **messa a punto** (tuning, stabilità, rifiniture), non
+> più di costruzione di moduli nuovi. In questi giorni sono stati chiusi:
+> fly-through 3D (con camera fluida), Mountain Finder con viewshed di default +
+> etichette diagonali, mappe offline style-aware + selettore mappa uniforme,
+> fix registrazione (esenzione batteria, salvataggio, auto-pausa), fix
+> abbinamento Strava, correzione quote DEM, tour a tappe ricchi.
+>
+> ### 🎯 OBIETTIVO #1 DEL FUTURO: DISTRIBUZIONE / DIFFUSIONE
+> Il vero e unico limite strutturale **non è il prodotto, è la massa**:
+> contenuti, recensioni, utenti — lo storico che app con 10-15 anni di vita
+> hanno e una app giovane no. È un gap **destinato a calare nel tempo** in
+> funzione di quanto l'app si diffonde. Da qui in avanti la priorità assoluta
+> è la **crescita** (vedi [Strategia diffusione 2026-05-22] nella memoria:
+> ASO, ground game QR, influencer, press, riempimento two-sided B2B).
+>
+> Le voci di prodotto mancanti/migliorabili qui sotto restano **importanti ma
+> non bloccanti** e tutte risolvibili: si affrontano in parallelo, senza che
+> rubino il focus alla diffusione.
+>
+> ### Backlog prodotto prioritario (post-completamento, non bloccante)
+> 1. **Routing proprietario** (Epic 11.D) — oggi ORS, il gap più sentito vs Komoot
+> 2. **Export video fly 3D** cross-platform (task #21, screen recording nativo)
+> 3. **Offline DEM/viewshed** per uso reale senza rete in cresta
+> 4. **Migrazione tecnica Strava** (header auth + base URL + oauth/revoke) entro 2027-06-01
+> 5. **`validateGoogleReceipt`** server-side (Fase C, entro ~60gg da rilascio Android Pro)
+> 6. **Allineamento prezzi** app+sito post-setup Play Console (IVA)
+> 7. **Offline maps multi-stile** (oggi solo Standard scaricabile)
+
+---
 
 > **Nota sulla v2.2.0+57**: introduceva i **gruppi business L1** con tier sul gruppo (`Group.isBusinessGroup` + `businessTier`). Dal 2026-05-10 quel modello è considerato **legacy**: il B2B è stato refattorizzato come entity dedicata (`businesses/{id}` — "Spazi Pro"). Vedi [Epic 7](#epic-7--spazi-pro-business-target-v235--v260) per il nuovo approccio. La transizione gruppi-business → Spazi-Pro è descritta nel [Sprint B](#sprint-b--strategia-3-piani-target-v235).
 
@@ -876,52 +911,74 @@ Goal: tassonomia pulita, schema Spazi Pro come canonical, gruppi business legacy
 | v2.1.1+56 | Apple Review cancellata, Play Store rilasciata | 3 stili mappa Pro (Topo, Hybrid, Inverno) MapTiler |
 | v2.2.0+57 | Produzione | B2B Groups L1 (logo + badge verificato) — schema poi superseded da v2.3.5 |
 | **v2.3.0** | **Produzione (Pro Apple LIVE)** | Sblocco subscription Pro consumer su App Store — Apple Review approvata |
-| **v2.3.5** | **In sviluppo (next release)** | Spazi Pro entity B2B + Wearable bidirezionale + AI Manager + refactor gruppi legacy |
+| v2.3.5 | Produzione | Spazi Pro entity B2B + Wearable bidirezionale + AI Manager + refactor gruppi legacy |
+| v2.4.x | Produzione | Serie hotfix (profilo OOM, mappa, OSM UA, EXIF) + Spazi Pro discovery + QR web |
+| v2.5.x | Produzione | Komoot foundations (difficoltà T1-T5, terrain enrichment, ETA terrain-aware) + correzione quote DEM (EU-DEM 25m) |
+| v2.6.0 | Produzione | Tour a tappe ricchi (Epic 11): gallery, sezioni, alloggi, chart cumulativo, lista community |
+| v2.6.1 | Produzione | Android Pro + policy Grandfather (utenti pre-cutoff Pro a vita, iOS+Android) |
+| v2.6.5 | Produzione | **Fly-through 3D Relive-style (Pro)** — tracce, community, tour + Spazi Pro sulla mappa |
+| **v2.6.6+91** | **Beta (TestFlight + Play Internal)** | Mappe offline style-aware + selettore uniforme · Mountain Finder viewshed default + etichette diagonali · fly 3D camera fluida · fix Strava/batteria/salvataggio |
 
-### Prossimi target
+### Prossimi target — il prodotto è completo, ora si lavora su DIFFUSIONE + tuning
 
-- **v2.3.5** (in sviluppo) — Sprint A + B chiusi:
-  - Epic 7 (Spazi Pro mobile + web admin) → store
-  - Epic 9 (Wearable: Health + Strava bidirezionale) → store
-  - Epic 10 (AI Manager) integrazione lato app TrailShare
-    (manager runtime già live su Firebase project separato)
-  - Polish residuo + percorsi consigliati + reviews + stats business
-  - Refactor gruppi business legacy
-- **v2.4.0** — Sprint C + D:
-  - Acquisition outreach (Sprint C)
-  - Stripe B2B (Sprint D, dipende da P.IVA)
-  - Webhook V2 Apple + Google receipt validate
-  - Mini-sprint web vanilla (`/pro.html`, `/business.html`)
-- **v2.5.0** — Sprint E:
-  - Komoot Foundations (highlights, difficulty, surface)
-  - Pro features consumer (HR per zone, PR personale)
-  - Lifecycle premium (benefit reminder, lifetime discount)
-- **v2.6.0** — Sprint F + G iniziale:
-  - Tour Collections curate (Epic 11.B)
-  - Pagine pubbliche `/track/{slug}` e `/b/{slug}` (Epic 8.C)
-  - Bulk import + card invito PDF (Epic 7)
-- **v2.7.0** — Sprint G chiuso:
-  - Multi-day Tour Planner integrato Spazi Pro (Epic 11.C)
-  - 3D fly-through, time-lapse video, AI route recommendation (Epic 6.3, 6.7, 6.8)
-  - Referral Pro (Epic 6.C5)
-- **v2.8.0+** — Sprint H:
-  - Routing engine ML in shadow mode (Epic 11.D)
-  - Custom domain Spazi Pro Enterprise (Epic 7.D5)
+> Cambio di fase: non si pianificano più "Epic" di costruzione. Le release
+> future sono **tuning** (stabilità, rifiniture, fix da feedback) + abilitatori
+> della **crescita**. La roadmap di prodotto serve la roadmap di distribuzione,
+> non viceversa.
 
-### Criteri di rilascio v2.3.5
+**Filone A — DISTRIBUZIONE (priorità assoluta, vedi memoria Strategia diffusione 2026-05-22)**
+- ASO (store listing, screenshot, keyword, video anteprima fly 3D)
+- Ground game QR sul campo (rifugi/noleggi = anche acquisizione Spazi Pro)
+- Outreach influencer outdoor + press locale
+- Riempimento two-sided: seed clients Spazi Pro + contenuti/tracce di qualità
+- Newsletter service-update (infra già live) per riattivazione utenti
 
-1. Spazi Pro: 2 seed clients onboardati (rifugio + noleggio) con feedback positivo raccolto
-2. Wearable: Strava bidirezionale verificato end-to-end con utenti reali
-3. AI Manager: `socialFeaturingOptIn` flag in app + 4 settimane di pubblicazione automatica IG+FB senza intervento umano
-4. Web admin: nessun crash su login + dashboard + creazione/edit business
-5. Refactor gruppi legacy: zero clienti business attivi paganti coinvolti (zero rischio)
-6. Polish UX: percorsi consigliati + reviews + stats business funzionanti dal mobile e web
+**Filone B — TUNING & STABILITÀ (continuo)**
+- Fix da feedback beta 2.6.6 (Strava, mappe offline, peak finder, fly 3D)
+- Field bugs residui (task #20: reconnect Lifeline al recovery)
+- Monitor Crashlytics, performance, batteria
+
+**Filone C — BACKLOG PRODOTTO (importante, non bloccante — a strappi)**
+- **v2.6.x / 2.7.0**: export video fly 3D (task #21) · allineamento prezzi (task #9) · offline maps multi-stile
+- **Compliance/scadenze**: `validateGoogleReceipt` (task #11/#16, ~60gg) · migrazione tecnica Strava (entro 2027-06-01)
+- **Routing proprietario** (Epic 11.D, esplorativo) — il gap di prodotto più sentito vs Komoot; vedi nota dedicata in memoria `project_routing_engine_ml`
+- **Esplorativi rimandati**: Trail Connectivity Graph (Epic 13), Home Smart Sections (Epic 12), offline DEM/viewshed
+
+### Criteri di rilascio v2.6.6 (beta → produzione)
+
+1. Abbinamento Strava verificato su più telefoni (era il bug bloccante) — incluso il tester che non riusciva
+2. Mappe offline: zona scaricata mostra correttamente gli altri stili; fallback Standard ok
+3. Mountain Finder: etichette leggibili nei vari orientamenti, viewshed coerente
+4. Fly 3D: rotazione fluida sulle tracce sinuose, nessuna regressione camera
+5. Registrazione: nessun kill in pausa lunga (test sul campo), salvataggio sempre disponibile
+6. Crashlytics pulito su entrambe le piattaforme dopo la beta
 
 ---
 
 ## Storico versioni (release notes essenziali)
 
-### v2.3.5 (in sviluppo, 2026-05-10)
+### v2.6.6+91 (beta, 2026-06-02)
+- Mappe offline **style-aware**: nella zona scaricata si vedono anche gli altri stili (no più override OSM su tutto)
+- **Selettore stile mappa uniforme** in tutte le schermate (incl. registrazione) + persistenza globale
+- Mountain Finder: **viewshed ON di default** (solo cime realmente visibili dalla quota) + riconoscimento su tutta la larghezza + **etichette diagonali** con declutter "la più alta vince" (collisione su ingombro reale OBB)
+- Fly 3D: **camera fluida** (look-ahead 90m + smoothing esponenziale del bearing)
+- Fix: abbinamento **Strava** (client_id hardcodato + launch robusto), **esenzione batteria** (app non killata in pausa), salvataggio sbloccato con segnale debole, icona mappa distinta in registrazione
+
+### v2.6.5 (produzione, 2026-05)
+- **Fly-through 3D Relive-style (Pro)**: tracce singole, community, tour a tappe con salto fluido tra tracce; Spazi Pro sulla mappa + banner; distanza/quota live; quote DEM-corrette
+
+### v2.6.0 / v2.6.1 (produzione, 2026-05)
+- Tour a tappe ricchi (Epic 11): gallery, descrizioni per sezione, difficoltà/periodo, alloggi per tappa, chart altimetrico cumulativo, lista community con filtri
+- Android Pro attivato + policy **Grandfather** (utenti pre-cutoff Pro a vita su iOS+Android)
+
+### v2.5.x (produzione, 2026-05)
+- Komoot foundations: difficoltà computed **T1-T5**, terrain enrichment OSM, ETA terrain-aware, toggle Pendenza/Terreno
+- Correzione quote GPS via **DEM** (EU-DEM 25m primario, Mapzen fallback)
+
+### v2.4.x (produzione, 2026-05)
+- Serie hotfix (profilo OOM, mappa Positioned, OSM UA, foto EXIF post-import) + Spazi Pro discovery + vetrina QR web + gating admin
+
+### v2.3.5 (produzione, 2026-05-10)
 
 **Epic 7 — Spazi Pro Business**
 - Nuova entity `businesses/{id}` separata dai gruppi
