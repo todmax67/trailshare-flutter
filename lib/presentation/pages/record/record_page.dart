@@ -1835,6 +1835,10 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             right: 12,
             child: MapLayerButton(
               currentIndex: _currentMapStyle,
+              // Icona fissa "layers": in registrazione il bottone Mountain
+              // Finder usa già terrain, l'icona dinamica dello stile (terrain
+              // su Topografica/Topo Pro) si confondeva.
+              icon: Icons.layers,
               onChanged: (i) => setState(() => _currentMapStyle = i),
             ),
           ),

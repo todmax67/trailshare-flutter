@@ -51,10 +51,18 @@ class MapLayerButton extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onChanged;
 
+  /// Icona opzionale fissa. Se null usa l'icona dello stile corrente
+  /// (mostra a colpo d'occhio la mappa attiva). Va forzata a un'icona
+  /// neutra (es. `Icons.layers`) dove l'icona dinamica potrebbe coincidere
+  /// con un altro bottone — es. nella record page, dove lo stile "terrain"
+  /// si confondeva col bottone Mountain Finder (anch'esso terrain).
+  final IconData? icon;
+
   const MapLayerButton({
     super.key,
     required this.currentIndex,
     required this.onChanged,
+    this.icon,
   });
 
   Future<void> _openPicker(BuildContext context) async {
@@ -81,7 +89,7 @@ class MapLayerButton extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(10),
             child: Icon(
-              style.icon,
+              icon ?? style.icon,
               size: 22,
               color: Colors.black87,
             ),
