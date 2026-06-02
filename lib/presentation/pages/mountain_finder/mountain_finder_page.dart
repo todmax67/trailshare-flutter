@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -95,6 +96,13 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   Position? _lastCandidatePosition;
   static const double _candidateRefreshThresholdMeters = 5000;
 
+  /// Cap di etichette mostrate live nel viewfinder. Prima era 5 (solo le più
+  /// centrate → effetto "riconosce solo il centro"). Col viewshed attivo la
+  /// lista effettiva è già filtrata alle cime realmente visibili (≤10 free),
+  /// quindi un cap alto mostra tutte le cime su tutta la larghezza schermo
+  /// senza affollare. Limite di sicurezza per zone densissime / viewshed off.
+  static const int _maxLiveLabels = 30;
+
   /// True durante la cattura+annotazione foto (overlay loader).
   bool _processingCapture = false;
 
@@ -103,11 +111,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// label senza muoversi. Toggle dall'icona lock nell'HUD.
   bool _arLocked = false;
 
-  // ── Viewshed filter (PRO feature, free limitato) ────────────────────
+  // ── Viewshed filter (default ON, esteso con Pro) ────────────────────
   /// Quando true, mostriamo solo le cime effettivamente visibili dalla
-  /// posizione utente (no occlusione da crinali). Free: raggio 20km, max 10
-  /// cime. Pro: 100km, illimitato, disk-cache.
-  bool _viewshedOnly = false;
+  /// posizione utente (occlusione da crinali calcolata su DEM). È il
+  /// comportamento DI DEFAULT: senza, il finder elencava tutte le cime
+  /// entro il raggio anche se nascoste dietro un monte. Free: raggio 20km,
+  /// max 10 cime. Pro: 100km, illimitato, disk-cache. L'utente può
+  /// disattivarlo dall'icona occhio per rivedere tutte le cime nel cono.
+  bool _viewshedOnly = true;
   /// Set di peak.id che il viewshed considera visibili. Vuoto = nessun filtro.
   Set<String> _viewshedVisibleIds = const {};
   /// Loading flag mentre gira il compute viewshed.
@@ -296,10 +307,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   List<Widget> _buildPinLayer(List<ProjectedPeak> projected) {
     if (projected.isEmpty) return const [];
 
+    // La cima più centrata è la prima della lista (projectAll ordina per
+    // centratura): la evidenziamo (colore + dimensione) ovunque finisca
+    // dopo il re-ordinamento per X del layout.
+    final centeredId = projected.first.peak.id;
     final layouts = _layoutPins(projected);
 
     return [
-      // Linee connettrici (sotto tutto, non assorbono tap).
+      // Steli connettori dot → ancoraggio etichetta (sotto tutto, no tap).
       Positioned.fill(
         child: IgnorePointer(
           child: CustomPaint(
@@ -308,61 +323,68 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         ),
       ),
       // Dot punto fisso alla posizione reale della cima.
-      for (var i = 0; i < layouts.length; i++)
+      for (final l in layouts)
         AnimatedPositioned(
-          key: ValueKey('dot_${layouts[i].peak.peak.id}'),
+          key: ValueKey('dot_${l.peak.peak.id}'),
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
-          left: layouts[i].dotX - 6,
-          top: layouts[i].dotY - 6,
-          width: 12,
-          height: 12,
+          left: l.dotX - 5,
+          top: l.dotY - 5,
+          width: 10,
+          height: 10,
           child: IgnorePointer(
             child: _PeakDot(
-              isVolcano: layouts[i].peak.peak.type == 'volcano',
-              isCentered: i == 0,
+              isVolcano: l.peak.peak.type == 'volcano',
+              isCentered: l.peak.peak.id == centeredId,
             ),
           ),
         ),
-      // Label box (separabile dal dot, può essere offset verticalmente).
-      for (var i = 0; i < layouts.length; i++)
-        _AnimatedPeakLabel(
-          key: ValueKey('label_${layouts[i].peak.peak.id}'),
-          layout: layouts[i],
-          rank: i,
-          viewport: Size.zero, // viewport non più necessario per centratura
-          isCentered: i == 0,
-          onTap: () => _showPeakDetail(layouts[i].peak),
+      // Etichette diagonali (stile PeakFinder): testo ruotato che sale
+      // verso destra dall'ancoraggio dello stelo.
+      for (final l in layouts)
+        _DiagonalPeakLabel(
+          key: ValueKey('label_${l.peak.peak.id}'),
+          layout: l,
+          isCentered: l.peak.peak.id == centeredId,
+          onTap: () => _showPeakDetail(l.peak),
         ),
     ];
   }
 
-  /// Algoritmo di layout: spinge verso l'alto le label che collidono
-  /// con quelle già piazzate. Iterativo con safety counter per evitare
-  /// loop infiniti su casi pathological.
+  /// Layout etichette diagonali stile PeakFinder.
+  ///
+  /// Ogni cima ha un dot alla posizione reale e uno **stelo verticale** che
+  /// sale fino a un ancoraggio; dall'ancoraggio il nome è scritto in
+  /// diagonale (verso l'alto-destra). Per evitare sovrapposizioni quando
+  /// più cime sono vicine in orizzontale, allunghiamo lo stelo (stagger):
+  /// le cime vicine in X ricevono ancoraggi a quote diverse, così i testi
+  /// diagonali non si calpestano.
   List<_PinLayout> _layoutPins(List<ProjectedPeak> peaks) {
-    // Costanti di dimensione label coerenti con _AnimatedPeakLabel.
-    const labelHalfWidth = 88.0; // metà larghezza label box (176/2)
-    const labelHeight = 56.0; // altezza label box
-    const gap = 6.0;
-    const defaultLabelOffsetY = 42.0; // label centrata sopra il dot
+    const baseStem = 26.0; // lunghezza stelo minima (px sopra il dot)
+    const stemStep = 30.0; // incremento per separare cime vicine
+    const minDx = 52.0; // distanza X sotto la quale due ancoraggi collidono
+    const maxStem = 280.0; // tetto di sicurezza
+
+    // Ordina sinistra→destra per una lettura stabile e per dare priorità di
+    // "stelo corto" alle cime già piazzate a sinistra.
+    final sorted = [...peaks]..sort((a, b) => a.screenX.compareTo(b.screenX));
 
     final placed = <_PinLayout>[];
-
-    for (final p in peaks) {
-      double labelY = p.screenY - defaultLabelOffsetY;
+    for (final p in sorted) {
+      double stem = baseStem;
       bool collides = true;
       int safety = 0;
-      while (collides && safety < 30) {
+      while (collides && safety < 40) {
         collides = false;
+        final anchorY = p.screenY - stem;
         for (final pl in placed) {
-          final dx = (p.screenX - pl.labelX).abs();
-          final dy = (labelY - pl.labelY).abs();
-          // Considera collisione se i centri label sono entro la
-          // bounding box reciproca con un piccolo overlap minimo.
-          if (dx < (labelHalfWidth * 2 - 30) && dy < labelHeight + gap) {
-            // Spostamento verso l'alto
-            labelY = pl.labelY - labelHeight - gap;
+          if ((p.screenX - pl.dotX).abs() < minDx &&
+              (anchorY - pl.labelY).abs() < stemStep - 4) {
+            stem += stemStep;
+            if (stem > maxStem) {
+              collides = false;
+              break;
+            }
             collides = true;
             break;
           }
@@ -375,7 +397,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         dotX: p.screenX,
         dotY: p.screenY,
         labelX: p.screenX,
-        labelY: labelY,
+        labelY: p.screenY - stem,
       ));
     }
 
@@ -457,15 +479,12 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     debugPrint('[MountainFinder] candidate peaks aggiornate: '
         '${_candidatePeaks.length} entro ${radius}km');
 
-    // Se il viewshed è attivo, ricalcola (i candidate sono cambiati).
-    // Tabella tier: auto-refresh on-move è feature Pro. Free deve toggle
-    // off/on manualmente per ricalcolare dopo spostamento.
+    // Viewshed ON di default: ricalcola le cime visibili ad ogni refresh
+    // delle candidate (ogni ~5km di spostamento), per tutti gli utenti. Il
+    // tier (raggio/limite cime) resta differenziato Free vs Pro dentro
+    // _recomputeViewshedIfNeeded. Pro aggiunge raggio 100km e nessun cap.
     if (_viewshedOnly) {
-      final isPro = ProGateService().isPro;
-      final isAdmin = await AdminRepository.isCurrentUserAdmin();
-      if (isPro || isAdmin) {
-        unawaited(_recomputeViewshedIfNeeded(pos, force: true));
-      }
+      unawaited(_recomputeViewshedIfNeeded(pos, force: true));
     }
   }
 
@@ -833,7 +852,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                 phoneHeadingDeg: heading,
                 phonePitchDeg: _pitchDeg,
                 viewport: viewport,
-                maxVisible: 5,
+                maxVisible: _maxLiveLabels,
                 horizontalFovDeg: effectiveHFov,
                 verticalFovDeg: effectiveVFov,
               )
@@ -1234,15 +1253,14 @@ class _PinLinesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.55)
+      ..color = Colors.white.withValues(alpha: 0.6)
       ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
 
     for (final l in layouts) {
-      // Salta linea se label e dot sono allineati (no offset).
-      if ((l.labelY - l.dotY).abs() < 30) continue;
-      final from = Offset(l.labelX, l.labelY + 18); // bottom della label
-      final to = Offset(l.dotX, l.dotY - 5); // top del dot
+      // Stelo verticale dal dot all'ancoraggio dell'etichetta diagonale.
+      final from = Offset(l.dotX, l.dotY - 4); // appena sopra il dot
+      final to = Offset(l.labelX, l.labelY); // ancoraggio etichetta
       canvas.drawLine(from, to, paint);
     }
   }
@@ -1286,130 +1304,99 @@ class _PeakDot extends StatelessWidget {
   }
 }
 
-/// Label box animata della cima con tap → bottom sheet dettagli.
-/// Spostabile verticalmente dall'algoritmo anti-collisione.
-class _AnimatedPeakLabel extends StatelessWidget {
+/// Etichetta cima in **diagonale** (stile PeakFinder): testo ancorato in
+/// cima allo stelo verticale e ruotato verso l'alto-destra. Riduce molto la
+/// sovrapposizione quando si mostrano molte cime su tutta la larghezza, e dà
+/// il look "professionale" delle app concorrenti. Tap → bottom sheet.
+class _DiagonalPeakLabel extends StatelessWidget {
   final _PinLayout layout;
-  final int rank;
-  final Size viewport;
   final bool isCentered;
   final VoidCallback onTap;
 
-  const _AnimatedPeakLabel({
+  const _DiagonalPeakLabel({
     super.key,
     required this.layout,
-    required this.rank,
-    required this.viewport,
     required this.isCentered,
     required this.onTap,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    final scale = rank == 0 ? 1.0 : (1.0 - rank * 0.07).clamp(0.78, 1.0);
-    final opacity = rank == 0 ? 1.0 : (1.0 - rank * 0.06).clamp(0.74, 1.0);
+  /// -45° → il testo sale verso destra (in Flutter l'angolo positivo è
+  /// orario perché l'asse Y punta in basso, quindi negativo = antiorario).
+  static const double _angleRad = -45 * math.pi / 180;
 
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      left: layout.labelX - 88,
-      top: layout.labelY - 28, // centratura sulla labelY (height/2)
-      width: 176,
-      height: 56,
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutBack,
-        scale: scale,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
-          opacity: opacity,
-          child: GestureDetector(
-            onTap: onTap,
-            behavior: HitTestBehavior.opaque,
-            child: _LabelBox(
-              projected: layout.peak,
-              isCentered: isCentered,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LabelBox extends StatelessWidget {
-  final ProjectedPeak projected;
-  final bool isCentered;
-
-  const _LabelBox({required this.projected, required this.isCentered});
+  static const List<Shadow> _shadows = [
+    Shadow(color: Colors.black, blurRadius: 3, offset: Offset(0, 1)),
+    Shadow(color: Colors.black87, blurRadius: 6),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final isVolcano = projected.peak.type == 'volcano';
+    final p = layout.peak;
+    final isVolcano = p.peak.type == 'volcano';
     final accent = isVolcano
         ? AppColors.danger
         : (isCentered ? AppColors.warning : Colors.white);
 
-    return Center(
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: isCentered ? 0.85 : 0.6),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: accent.withValues(alpha: 0.7),
-            width: isCentered ? 1.5 : 1,
-          ),
-          boxShadow: isCentered
-              ? [
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.4),
-                    blurRadius: 12,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              projected.peak.name,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: isCentered ? 15 : 14,
-                height: 1.1,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _subtitle(projected),
-              style: TextStyle(
-                color: accent,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                height: 1.1,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _subtitle(ProjectedPeak p) {
     final ele = p.peak.elevation;
     final dist = p.distanceMeters / 1000;
     final distStr =
         dist < 10 ? dist.toStringAsFixed(1) : dist.toStringAsFixed(0);
-    if (ele == null) return '$distStr km';
-    return '${ele.round()} m · $distStr km';
+    final meta = ele != null ? '${ele.round()} m · $distStr km' : '$distStr km';
+
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      left: layout.labelX,
+      top: layout.labelY,
+      child: Transform.rotate(
+        // Pivot in alto-sinistra = ancoraggio dello stelo: il testo parte da
+        // lì e sale verso destra, indipendentemente dalla sua lunghezza.
+        angle: _angleRad,
+        alignment: Alignment.topLeft,
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            // Stacca il testo di qualche px dall'ancoraggio dello stelo.
+            padding: const EdgeInsets.only(left: 6, bottom: 3),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  p.peak.name,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.visible,
+                  style: TextStyle(
+                    color: isCentered ? accent : Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: isCentered ? 16 : 14,
+                    height: 1.0,
+                    shadows: _shadows,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  meta,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                    color: accent,
+                    fontWeight: FontWeight.w600,
+                    fontSize: isCentered ? 12 : 11,
+                    height: 1.0,
+                    shadows: _shadows,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
