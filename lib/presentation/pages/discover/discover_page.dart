@@ -16,6 +16,7 @@ import '../../../core/services/location_service.dart';
 import '../../../core/constants/api_keys.dart';
 import '../../../core/constants/italian_regions.dart';
 import '../../../core/constants/map_styles.dart';
+import '../../../core/services/map_style_prefs.dart';
 import '../../widgets/map_layer_button.dart';
 import 'models/discover_filters.dart';
 import 'widgets/discover_filter_sheet.dart';
@@ -49,7 +50,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   double? _pendingZoom;
 
   // UI
-  int _currentMapStyle = 0;
+  int _currentMapStyle = MapStylePrefs().index;
   bool _showMap = true;
   DiscoverFilters _filters = const DiscoverFilters.empty();
   final TextEditingController _searchController = TextEditingController();
@@ -1069,7 +1070,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
             children: [
               MapLayerButton(
                 currentIndex: _currentMapStyle,
-                onChanged: (i) => setState(() => _currentMapStyle = i),
+                onChanged: (i) {
+                  MapStylePrefs().setIndex(i);
+                  setState(() => _currentMapStyle = i);
+                },
               ),
               const SizedBox(height: 8),
               // Epic 3.4 — toggle Heatmap trail popolari

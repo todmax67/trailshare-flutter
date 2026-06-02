@@ -4,15 +4,19 @@ import 'dart:math' as math;
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 
+import 'offline_tile_provider.dart' show kOfflineStyleUrlTemplate;
+
 /// Servizio per la gestione delle mappe offline
-/// 
+///
 /// Permette di scaricare e gestire tile di mappe per uso offline.
 class OfflineMapsService {
   static final OfflineMapsService _instance = OfflineMapsService._internal();
   factory OfflineMapsService() => _instance;
   OfflineMapsService._internal();
 
-  static const String _tileUrlTemplate = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  // Stile dei tile scaricati: condiviso con OfflineFallbackTileProvider così
+  // download e fallback restano sempre sullo stesso stile (Standard/OSM).
+  static const String _tileUrlTemplate = kOfflineStyleUrlTemplate;
   static const String _tilesFolder = 'offline_tiles';
   
   String? _basePath;

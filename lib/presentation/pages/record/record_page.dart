@@ -23,6 +23,9 @@ import '../../../core/services/hud_prefs_service.dart';
 import '../../../core/utils/eta_estimator.dart';
 import '../../../core/services/recording_status_service.dart';
 import '../../widgets/map_heading_toggle.dart';
+import '../../widgets/map_layer_button.dart';
+import '../../../core/constants/map_styles.dart';
+import '../../../core/services/map_style_prefs.dart';
 import '../../widgets/map_overlays.dart';
 import '../../../core/services/track_photos_service.dart';
 import '../../widgets/photo_gallery_widget.dart';
@@ -85,6 +88,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   final RecordingPersistenceService _persistence = RecordingPersistenceService.instance;
   
   bool _followUser = true;
+  int _currentMapStyle = MapStylePrefs().index;
   bool _isSaving = false;
   bool _isRestoringState = false;
   bool _showRecTutorial = false;
@@ -1824,6 +1828,16 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
             right: 12,
             child: _buildMountainFinderButton(),
           ),
+          // Selettore stile mappa (uniforme col resto dell'app: stili Pro
+          // con gating). Sotto il Mountain Finder.
+          Positioned(
+            top: _topRightControlsOffset() + 66 + 64 + 64,
+            right: 12,
+            child: MapLayerButton(
+              currentIndex: _currentMapStyle,
+              onChanged: (i) => setState(() => _currentMapStyle = i),
+            ),
+          ),
           // Scrim sotto i controlli: protegge leggibilita del bottone REC
           // (e di eventuali toast) su tile mappa ad alta luminosita.
           const Positioned(
@@ -2197,7 +2211,18 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       mapController: _mapController,
       options: MapOptions(initialCenter: center, initialZoom: 16, minZoom: 4, maxZoom: 18, onPositionChanged: (position, hasGesture) { if (hasGesture) { _followUser = false; _bumpHudActivity(); } }),
       children: [
-        TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.trailshare.app', tileProvider: OfflineFallbackTileProvider()),
+        TileLayer(
+          urlTemplate: mapStyles[_currentMapStyle.clamp(0, mapStyles.length - 1)].urlTemplate,
+          subdomains: mapStyles[_currentMapStyle.clamp(0, mapStyles.length - 1)].subdomains,
+          userAgentPackageName: 'com.trailshare.app',
+          tileProvider: OfflineFallbackTileProvider(),
+          tileBuilder: mapStyles[_currentMapStyle.clamp(0, mapStyles.length - 1)].tileColorFilter != null
+              ? (context, tileWidget, tile) => ColorFiltered(
+                    colorFilter: mapStyles[_currentMapStyle.clamp(0, mapStyles.length - 1)].tileColorFilter!,
+                    child: tileWidget,
+                  )
+              : null,
+        ),
         // Polyline di riferimento (sotto la traccia utente) quando in modalità guidata
         if (_isGuided && widget.reference!.polyline.length >= 2)
           PolylineLayer(polylines: [

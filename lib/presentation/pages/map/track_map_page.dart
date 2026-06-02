@@ -13,6 +13,9 @@ import '../../../data/repositories/public_trails_repository.dart';
 import '../../../data/repositories/osm_pois_repository.dart';
 import '../business/business_profile_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
+import '../../../core/constants/map_styles.dart';
+import '../../../core/services/map_style_prefs.dart';
+import '../../widgets/map_layer_button.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../widgets/osm_attribution.dart';
 import '../../widgets/osm_poi_detail_sheet.dart';
@@ -118,22 +121,9 @@ class _TrackMapPageState extends State<TrackMapPage> {
     showOsmPoiDetailSheet(context, poi: poi);
   }
 
-  int _currentLayer = 0;
-  final List<_MapLayer> _layers = [
-    _MapLayer(
-      name: 'OpenStreetMap',
-      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    ),
-    _MapLayer(
-      name: 'Topografica',
-      url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-      subdomains: ['a', 'b', 'c'],
-    ),
-    _MapLayer(
-      name: 'Satellite',
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    ),
-  ];
+  // Stile mappa condiviso con il resto dell'app (incl. stili Pro con
+  // gating). Inizializza dalla preferenza globale.
+  int _currentMapStyle = MapStylePrefs().index;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // GETTERS per dati unificati (Track o CommunityTrack)
@@ -273,10 +263,11 @@ class _TrackMapPageState extends State<TrackMapPage> {
     }
   }
 
-  void _cycleLayer() {
-    setState(() {
-      _currentLayer = (_currentLayer + 1) % _layers.length;
-    });
+  Future<void> _openMapStylePicker() async {
+    final selected = await showMapStylePicker(context, _currentMapStyle);
+    if (selected != null && mounted) {
+      setState(() => _currentMapStyle = selected);
+    }
   }
 
   void _toggleGradientColors() {
@@ -427,7 +418,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
 
   @override
   Widget build(BuildContext context) {
-    final layer = _layers[_currentLayer];
+    final style = mapStyles[_currentMapStyle.clamp(0, mapStyles.length - 1)];
     final elevations = _elevations;
 
     return Scaffold(
@@ -475,8 +466,8 @@ class _TrackMapPageState extends State<TrackMapPage> {
             ),
             child: IconButton(
               icon: Icon(Icons.layers, color: context.textPrimary),
-              onPressed: _cycleLayer,
-              tooltip: layer.name,
+              onPressed: _openMapStylePicker,
+              tooltip: style.name,
             ),
           ),
           // Centra traccia
@@ -508,10 +499,16 @@ class _TrackMapPageState extends State<TrackMapPage> {
             ),
             children: [
               TileLayer(
-                urlTemplate: layer.url,
-                subdomains: layer.subdomains,
+                urlTemplate: style.urlTemplate,
+                subdomains: style.subdomains,
                 userAgentPackageName: 'com.trailshare.app',
                 tileProvider: OfflineFallbackTileProvider(),
+                tileBuilder: style.tileColorFilter != null
+                    ? (context, tileWidget, tile) => ColorFiltered(
+                          colorFilter: style.tileColorFilter!,
+                          child: tileWidget,
+                        )
+                    : null,
               ),
 
               // Polyline con colori pendenza
@@ -710,7 +707,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)],
               ),
               child: Text(
-                layer.name,
+                style.name,
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
               ),
             ),
@@ -1027,18 +1024,6 @@ class _TrackMapPageState extends State<TrackMapPage> {
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER CLASSES
 // ═══════════════════════════════════════════════════════════════════════════
-
-class _MapLayer {
-  final String name;
-  final String url;
-  final List<String> subdomains;
-
-  const _MapLayer({
-    required this.name,
-    required this.url,
-    this.subdomains = const [],
-  });
-}
 
 class _StatItem extends StatelessWidget {
   final IconData icon;

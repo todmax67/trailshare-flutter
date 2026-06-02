@@ -13,6 +13,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/api_keys.dart';
 import '../../../core/constants/map_styles.dart';
+import '../../../core/services/map_style_prefs.dart';
 import '../../widgets/map_layer_button.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../data/models/track.dart';
@@ -87,7 +88,7 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
 
   // UI
   bool _followUser = true; // auto-centra su utente
-  int _currentMapStyle = 0;
+  int _currentMapStyle = MapStylePrefs().index;
 
   // Off-trail
   static const double _offTrailThreshold = 50.0; // metri
@@ -1174,7 +1175,10 @@ class _TrailFollowPageState extends State<TrailFollowPage> {
           // gestendo il gating Pro per stili premium)
           MapLayerButton(
             currentIndex: _currentMapStyle,
-            onChanged: (i) => setState(() => _currentMapStyle = i),
+            onChanged: (i) {
+              MapStylePrefs().setIndex(i);
+              setState(() => _currentMapStyle = i);
+            },
           ),
           const SizedBox(height: 8),
           // Centra su traccia

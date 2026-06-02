@@ -21,6 +21,16 @@ import '../constants/api_keys.dart';
 const String _osmUserAgent =
     'TrailShare/2.5.0 (+https://trailshare.app; info@trailshare.app)';
 
+/// urlTemplate dello stile con cui vengono scaricati i tile offline.
+/// I download (OfflineMapsService) salvano SOLO tile OSM Standard, quindi
+/// la cache offline appartiene a questo stile. Il provider serve i tile
+/// salvati esclusivamente quando lo stile attivo è questo: con qualsiasi
+/// altro stile (Satellite, Topo Pro, ecc.) va in rete, così nella zona
+/// scaricata l'utente vede davvero lo stile selezionato e non i tile OSM
+/// che "coprono" tutto.
+const String kOfflineStyleUrlTemplate =
+    'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
 /// TileProvider che cerca prima offline, poi in rete
 class OfflineFallbackTileProvider extends TileProvider {
   static String? _cachedBasePath;
@@ -50,7 +60,12 @@ class OfflineFallbackTileProvider extends TileProvider {
   }
 
   ImageProvider _resolve(TileCoordinates coordinates, TileLayer options) {
-    if (_cachedBasePath != null) {
+    // I tile offline appartengono allo stile Standard (vedi
+    // kOfflineStyleUrlTemplate). Serviamo la cache SOLO se lo stile
+    // attivo è quello: con gli altri stili andiamo in rete, così la
+    // zona scaricata non "copre" più Satellite/Topo/Pro.
+    final isOfflineStyle = options.urlTemplate == kOfflineStyleUrlTemplate;
+    if (isOfflineStyle && _cachedBasePath != null) {
       final file = File('$_cachedBasePath/${coordinates.z}/${coordinates.x}/${coordinates.y}.png');
       if (file.existsSync()) {
         return FileImage(file);

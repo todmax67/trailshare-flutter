@@ -14,6 +14,7 @@ import '../../../data/models/track.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/constants/api_keys.dart';
 import '../../../core/constants/map_styles.dart';
+import '../../../core/services/map_style_prefs.dart';
 import '../../widgets/map_layer_button.dart';
 import '../record/record_page.dart';
 import '../../../data/models/recording_reference.dart';
@@ -52,7 +53,7 @@ class _PlannerTabState extends State<PlannerTab> {
   RoutingProfile _profile = RoutingProfile.hiking;
   bool _showElevationProfile = true;
   LatLng? _userPosition;
-  int _currentMapStyle = 0;
+  int _currentMapStyle = MapStylePrefs().index;
 
   // Ricerca punto di partenza
   final TextEditingController _searchController = TextEditingController();
@@ -758,7 +759,10 @@ class _PlannerTabState extends State<PlannerTab> {
           padding: const EdgeInsets.only(bottom: 8),
           child: MapLayerButton(
             currentIndex: _currentMapStyle,
-            onChanged: (i) => setState(() => _currentMapStyle = i),
+            onChanged: (i) {
+              MapStylePrefs().setIndex(i);
+              setState(() => _currentMapStyle = i);
+            },
           ),
         ),
         // Fit-route (solo se c'è qualcosa da fittare)

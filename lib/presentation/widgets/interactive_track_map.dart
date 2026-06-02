@@ -4,6 +4,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/map_styles.dart';
+import '../../core/services/map_style_prefs.dart';
+import 'map_layer_button.dart';
 import '../../data/models/track.dart';
 import '../../data/repositories/community_tracks_repository.dart';
 import '../pages/map/track_map_page.dart';
@@ -794,7 +796,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
   LatLng? _tappedPoint;
   double? _tappedDistance;
   double? _tappedElevation;
-  int _currentMapStyle = 0;
+  int _currentMapStyle = MapStylePrefs().index;
   late List<TrailPoi> _pois;
 
   @override
@@ -895,10 +897,11 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
     }
   }
 
-  void _cycleMapStyle() {
-    setState(() {
-      _currentMapStyle = (_currentMapStyle + 1) % mapStyles.length;
-    });
+  Future<void> _openMapStylePicker() async {
+    final selected = await showMapStylePicker(context, _currentMapStyle);
+    if (selected != null && mounted) {
+      setState(() => _currentMapStyle = selected);
+    }
   }
 
   @override
@@ -915,7 +918,7 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
           // Cambio stile mappa
           IconButton(
             icon: const Icon(Icons.layers),
-            onPressed: _cycleMapStyle,
+            onPressed: _openMapStylePicker,
             tooltip: mapStyles[_currentMapStyle].name,
           ),
         ],

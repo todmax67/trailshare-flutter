@@ -1,8 +1,39 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/map_styles.dart';
+import '../../core/services/map_style_prefs.dart';
 import '../../core/services/pro_gate_service.dart';
 import 'paywall_sheet.dart';
+
+/// Apre il bottom sheet di scelta stile mappa con gating Pro e restituisce
+/// l'indice selezionato in [mapStyles], oppure `null` se l'utente annulla o
+/// tocca uno stile Pro senza esserlo (in quel caso apre il PaywallSheet).
+///
+/// Persiste automaticamente la scelta in [MapStylePrefs] così lo stile è
+/// condiviso tra tutte le interfacce mappa dell'app. È il punto unico di
+/// verità per il picker: usato sia da [MapLayerButton] sia dalle pagine che
+/// hanno un proprio affordance (AppBar icon, ecc.).
+Future<int?> showMapStylePicker(BuildContext context, int currentIndex) async {
+  final styles = mapStyles;
+  final selected = await showModalBottomSheet<int>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.of(context).size.height * 0.8,
+    ),
+    builder: (ctx) => _MapStylePickerSheet(
+      styles: styles,
+      currentIndex: currentIndex,
+    ),
+  );
+  if (selected != null && selected != currentIndex) {
+    MapStylePrefs().setIndex(selected);
+    return selected;
+  }
+  return null;
+}
 
 /// Bottone circolare per cambiare stile mappa.
 ///
@@ -27,23 +58,8 @@ class MapLayerButton extends StatelessWidget {
   });
 
   Future<void> _openPicker(BuildContext context) async {
-    final styles = mapStyles;
-    final selected = await showModalBottomSheet<int>(
-      context: context,
-      // isScrollControlled + constraint a 80% schermo: con 7 stili il
-      // contenuto eccede la metà schermo default, va reso scrollabile.
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.8,
-      ),
-      builder: (ctx) => _MapStylePickerSheet(
-        styles: styles,
-        currentIndex: currentIndex,
-      ),
-    );
-    if (selected != null && selected != currentIndex) {
+    final selected = await showMapStylePicker(context, currentIndex);
+    if (selected != null) {
       onChanged(selected);
     }
   }
