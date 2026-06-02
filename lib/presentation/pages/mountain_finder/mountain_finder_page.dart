@@ -355,26 +355,44 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     ];
   }
 
+  /// Stima la lunghezza in pixel dell'etichetta (nome + meta) per la
+  /// collisione. Sovrastima leggermente (è meglio scartare un'etichetta in
+  /// più che lasciarne due sovrapposte). Coerente con `_DiagonalPeakLabel`.
+  static double _estLabelLength(ProjectedPeak p, bool centered) {
+    final nameF = centered ? 16.0 : 14.0;
+    final metaF = centered ? 12.0 : 11.0;
+    final meta = _peakLabelMeta(p, full: centered);
+    final nameW = p.peak.name.length * nameF * 0.56;
+    final metaW = meta.isEmpty ? 0.0 : 6 + meta.length * metaF * 0.56;
+    return 8 + nameW + metaW + 10;
+  }
+
   /// Selezione + layout delle etichette diagonali con **decluttering per
   /// importanza** (regola: vince la cima più alta).
   ///
-  /// Strategia: si processano le cime in ordine di quota decrescente (la
-  /// cima centrale ha priorità assoluta). Ognuna prova ad ancorarsi sopra il
-  /// suo dot; se collide con un'etichetta già piazzata nello stesso settore
-  /// orizzontale, sale di un gradino (stelo più lungo) fino a un massimo di
-  /// gradini. Se anche così non c'è spazio, la cima **non riceve etichetta**
-  /// (resta solo il dot). Così nei cluster fitti sopravvivono i nomi delle
-  /// vette più importanti invece di un muro illeggibile.
+  /// Le etichette condividono lo stesso angolo (-45°), quindi modelliamo
+  /// ognuna come un rettangolo orientato e proiettiamo l'ancoraggio su due
+  /// assi: `pu` lungo la direzione del testo, `pn` perpendicolare. Due
+  /// etichette si sovrappongono solo se sono vicine in `pn` (entro l'altezza
+  /// del testo) E i loro intervalli lungo `pu` si intersecano — controllo
+  /// dell'ingombro REALE del testo ruotato, non solo della distanza degli
+  /// ancoraggi (era il bug: nomi lunghi che si incrociavano).
+  ///
+  /// Si processano le cime per quota decrescente (la centrale per prima, così
+  /// ha sempre l'etichetta). Ognuna prova lo stelo base; se collide, allunga
+  /// lo stelo di qualche gradino per cercare una banda libera; se non la
+  /// trova, **niente etichetta** (resta il dot) → nei cluster fitti
+  /// sopravvivono i nomi delle vette più alte.
   List<_PinLayout> _layoutLabels(
       List<ProjectedPeak> peaks, String centeredId) {
-    const baseStem = 24.0; // stelo minimo (px sopra il dot)
-    const stemStep = 34.0; // gradino verticale tra etichette dello stesso settore
-    const minDx = 72.0; // sotto questa distanza X due etichette sono "stesso settore"
-    const maxStackLevels = 4; // max etichette impilate per settore
-    final maxStem = baseStem + stemStep * maxStackLevels;
+    const baseStem = 22.0; // stelo minimo (px sopra il dot)
+    const stemStep = 30.0; // allungamento stelo per cercare una banda libera
+    const maxExtraLevels = 3; // tentativi di stelo più lungo prima di scartare
+    const labelThickness = 24.0; // ingombro perpendicolare del testo (px)
+    const gap = 8.0; // margine minimo lungo la direzione del testo
+    const s = 0.70710678; // 1/√2 (proiezione a 45°)
 
-    // Ordine di importanza: quota decrescente (null = bassa priorità),
-    // tiebreak sulla più vicina. La cima centrale va sempre per prima.
+    // Ordine di importanza: quota decrescente; tiebreak sulla più vicina.
     final ranked = [...peaks]
       ..sort((a, b) {
         final ea = a.peak.elevation ?? -1;
@@ -386,39 +404,51 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     final ci = ranked.indexWhere((p) => p.peak.id == centeredId);
     if (ci > 0) ranked.insert(0, ranked.removeAt(ci));
 
-    final placed = <_PinLayout>[];
+    // Rettangoli orientati già piazzati: (pu inizio, pu fine, pn).
+    final placed = <(double, double, double)>[];
+    final result = <_PinLayout>[];
+
     for (final p in ranked) {
+      final centered = p.peak.id == centeredId;
+      final len = _estLabelLength(p, centered);
       double stem = baseStem;
-      bool placedOk = false;
-      while (stem <= maxStem) {
-        final anchorY = p.screenY - stem;
+      bool ok = false;
+
+      for (var lvl = 0; lvl <= maxExtraLevels; lvl++) {
+        final ax = p.screenX;
+        final ay = p.screenY - stem;
+        final pu = (ax - ay) * s; // coord lungo il testo
+        final pn = (ax + ay) * s; // coord perpendicolare
+
         bool collides = false;
-        for (final pl in placed) {
-          if ((p.screenX - pl.dotX).abs() < minDx &&
-              (anchorY - pl.labelY).abs() < stemStep - 6) {
+        for (final r in placed) {
+          if ((pn - r.$3).abs() < labelThickness &&
+              pu < r.$2 + gap &&
+              r.$1 < pu + len + gap) {
             collides = true;
             break;
           }
         }
+
         if (!collides) {
-          placedOk = true;
+          placed.add((pu, pu + len, pn));
+          result.add(_PinLayout(
+            peak: p,
+            dotX: p.screenX,
+            dotY: p.screenY,
+            labelX: p.screenX,
+            labelY: ay,
+          ));
+          ok = true;
           break;
         }
         stem += stemStep;
       }
-      if (placedOk) {
-        placed.add(_PinLayout(
-          peak: p,
-          dotX: p.screenX,
-          dotY: p.screenY,
-          labelX: p.screenX,
-          labelY: p.screenY - stem,
-        ));
-      }
-      // else: cluster troppo fitto qui → niente etichetta, resta il dot.
+      // !ok → cluster troppo fitto: nessuna etichetta, resta il dot.
+      if (!ok) continue;
     }
 
-    return placed;
+    return result;
   }
 
   /// Apre un bottom sheet con i dettagli completi della cima toccata.
@@ -1325,6 +1355,19 @@ class _PeakDot extends StatelessWidget {
 /// cima allo stelo verticale e ruotato verso l'alto-destra. Riduce molto la
 /// sovrapposizione quando si mostrano molte cime su tutta la larghezza, e dà
 /// il look "professionale" delle app concorrenti. Tap → bottom sheet.
+/// Metadati cima per l'etichetta diagonale. [full] (cima selezionata) =
+/// quota + distanza; altrimenti solo quota → etichetta più corta, meno
+/// sovrapposizioni nei cluster. Condiviso tra rendering e stima ingombro
+/// nel layout anti-collisione, così le due cose restano coerenti.
+String _peakLabelMeta(ProjectedPeak p, {required bool full}) {
+  final ele = p.peak.elevation;
+  final dist = p.distanceMeters / 1000;
+  final distStr =
+      dist < 10 ? dist.toStringAsFixed(1) : dist.toStringAsFixed(0);
+  if (ele == null) return full ? '$distStr km' : '';
+  return full ? '${ele.round()} m · $distStr km' : '${ele.round()} m';
+}
+
 class _DiagonalPeakLabel extends StatelessWidget {
   final _PinLayout layout;
   final bool isCentered;
@@ -1354,11 +1397,7 @@ class _DiagonalPeakLabel extends StatelessWidget {
         ? AppColors.danger
         : (isCentered ? AppColors.warning : Colors.white);
 
-    final ele = p.peak.elevation;
-    final dist = p.distanceMeters / 1000;
-    final distStr =
-        dist < 10 ? dist.toStringAsFixed(1) : dist.toStringAsFixed(0);
-    final meta = ele != null ? '${ele.round()} m · $distStr km' : '$distStr km';
+    final meta = _peakLabelMeta(p, full: isCentered);
 
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 200),
@@ -1394,20 +1433,22 @@ class _DiagonalPeakLabel extends StatelessWidget {
                     shadows: _shadows,
                   ),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  meta,
-                  maxLines: 1,
-                  softWrap: false,
-                  style: TextStyle(
-                    color: accent,
-                    fontWeight: FontWeight.w600,
-                    fontSize: isCentered ? 12 : 11,
-                    height: 1.0,
-                    shadows: _shadows,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                if (meta.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    meta,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w600,
+                      fontSize: isCentered ? 12 : 11,
+                      height: 1.0,
+                      shadows: _shadows,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
