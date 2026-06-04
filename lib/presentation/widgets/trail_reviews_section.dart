@@ -105,8 +105,6 @@ class _TrailReviewsSectionState extends State<TrailReviewsSection> {
     final otherReviews = _reviews.where((r) => r.userId != _myReview?.userId).toList();
 
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

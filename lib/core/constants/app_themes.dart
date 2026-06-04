@@ -55,6 +55,12 @@ class AppThemes {
       // Scaffold
       scaffoldBackgroundColor: const Color(0xFFFAF9F7),
 
+      // Feedback al tocco: ripple tinto col brand (non il grigio Material di default).
+      // Vale per InkWell/ListTile/Card/tab in tutta l'app.
+      splashFactory: InkRipple.splashFactory,
+      splashColor: primaryColor.withValues(alpha: 0.10),
+      highlightColor: primaryColor.withValues(alpha: 0.04),
+
       // AppBar
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -64,21 +70,35 @@ class AppThemes {
         iconTheme: IconThemeData(color: Color(0xFF1A1A1A)),
       ),
 
-      // Card
+      // Card — piatte con bordo a filo di capello (look editoriale, niente ombra).
       cardTheme: CardThemeData(
         color: Colors.white,
-        elevation: 2,
+        elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFE8E3DD), width: 1),
         ),
       ),
 
-      // Bottoni
+      // Bottoni — piatti (stile FilledButton M3): nessuna ombra "galleggiante".
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
-          elevation: 2,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+
+      // FilledButton allineato a ElevatedButton: stesso aspetto, così i due
+      // tipi di bottone convivono senza incoerenza visiva.
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -204,6 +224,12 @@ class AppThemes {
       // Scaffold
       scaffoldBackgroundColor: const Color(0xFF121212),
 
+      // Feedback al tocco: ripple tinto col brand (non il grigio Material di default).
+      // Vale per InkWell/ListTile/Card/tab in tutta l'app.
+      splashFactory: InkRipple.splashFactory,
+      splashColor: primaryLight.withValues(alpha: 0.12),
+      highlightColor: primaryLight.withValues(alpha: 0.05),
+
       // AppBar
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -213,21 +239,35 @@ class AppThemes {
         iconTheme: IconThemeData(color: Color(0xFFE0E0E0)),
       ),
 
-      // Card
+      // Card — piatte con bordo a filo di capello (look editoriale, niente ombra).
       cardTheme: CardThemeData(
         color: const Color(0xFF1E1E1E),
-        elevation: 4,
+        elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF333333), width: 1),
         ),
       ),
 
-      // Bottoni
+      // Bottoni — piatti (stile FilledButton M3): nessuna ombra "galleggiante".
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryLight,
           foregroundColor: Colors.black,
-          elevation: 2,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+
+      // FilledButton allineato a ElevatedButton: stesso aspetto, così i due
+      // tipi di bottone convivono senza incoerenza visiva.
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: primaryLight,
+          foregroundColor: Colors.black,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),

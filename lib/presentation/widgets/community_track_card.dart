@@ -62,10 +62,10 @@ class CommunityTrackCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       clipBehavior: Clip.antiAlias,
-      elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.2),
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFE8E3DD), width: 1),
       ),
       child: InkWell(
         onTap: onTap,

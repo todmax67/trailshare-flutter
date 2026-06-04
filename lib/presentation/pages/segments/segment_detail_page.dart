@@ -131,7 +131,6 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
 
   Widget _buildStats(Segment seg) {
     return Card(
-      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
