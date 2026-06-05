@@ -1,4 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -85,6 +87,11 @@ class _HomeFeedPageState extends State<HomeFeedPage>
 
   // ── Sections ────────────────────────────────────────────────────────
 
+  /// Striscia "conoscitiva" tra le sezioni: consiglio rotante (per giorno).
+  Widget _tip(int offset) => _TipBanner(
+        text: _homeTips[(DateTime.now().day + offset) % _homeTips.length],
+      );
+
   Widget _buildSections(HomeFeedData data, bool geoPending) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -114,6 +121,7 @@ class _HomeFeedPageState extends State<HomeFeedPage>
             onTap: () => _openTour(data.editorialTour!),
           ),
         ],
+        _tip(0),
         // 3) I tuoi seguiti — sempre visibile; CTA se non segui nessuno.
         _SectionHeader(
           title: context.l10n.homeSectionFollowing,
@@ -127,6 +135,7 @@ class _HomeFeedPageState extends State<HomeFeedPage>
           )
         else
           _FollowingEmptyCta(onTap: _openCommunity),
+        _tip(1),
         // ── Sezioni geo (Fase 2) ──
         // Mentre geoPending, mostriamo header + loader per dare
         // feedback "sto cercando vicino a te". Quando arrivano i dati,
@@ -204,9 +213,14 @@ class _HeroCard extends StatelessWidget {
 
   String _greeting(BuildContext context) {
     final h = DateTime.now().hour;
-    if (h < 12) return context.l10n.homeGreetingMorning;
-    if (h < 18) return context.l10n.homeGreetingAfternoon;
-    return context.l10n.homeGreetingEvening;
+    final base = h < 12
+        ? context.l10n.homeGreetingMorning
+        : h < 18
+            ? context.l10n.homeGreetingAfternoon
+            : context.l10n.homeGreetingEvening;
+    final name = FirebaseAuth.instance.currentUser?.displayName?.trim();
+    if (name == null || name.isEmpty) return base;
+    return '$base, ${name.split(' ').first}';
   }
 
   @override
@@ -234,6 +248,14 @@ class _HeroCard extends StatelessWidget {
                         color: context.textSecondary,
                       ),
                 ),
+                // DIAGNOSTICO TEMPORANEO (solo debug): mostra la posizione
+                // effettivamente risolta dalla Home, per capire il bug Travagliato.
+                if (kDebugMode && data.userLocation != null)
+                  Text(
+                    '📍 ${data.userLocation!.latitude.toStringAsFixed(4)}, '
+                    '${data.userLocation!.longitude.toStringAsFixed(4)}',
+                    style: TextStyle(fontSize: 11, color: context.textMuted),
+                  ),
               ],
             ),
           ),
@@ -251,6 +273,47 @@ class _HeroCard extends StatelessWidget {
                 ),
               ],
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tip banner
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Consigli/curiosità mostrati tra una sezione e l'altra.
+const List<String> _homeTips = [
+  'Tocca una traccia per vederla colorata per pendenza: verde in piano, rosso in salita.',
+  'Segui altri escursionisti per riempire "Dai tuoi seguiti".',
+  'Rifugi, sorgenti e punti panoramici lungo il percorso compaiono sulla mappa.',
+  'Apri una traccia a schermo intero per il grafico di elevazione interattivo.',
+  'Salva una traccia tra i preferiti per ritrovarla anche offline.',
+];
+
+class _TipBanner extends StatelessWidget {
+  final String text;
+  const _TipBanner({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.lightbulb_outline, size: 17, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+            ),
+          ),
         ],
       ),
     );
