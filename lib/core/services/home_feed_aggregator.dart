@@ -102,18 +102,19 @@ class HomeFeedAggregator {
   /// risolto una posizione accurata via [resolveLocation].
   Future<HomeFeedGeo> loadGeo(LatLng loc) async {
     final results = await Future.wait<dynamic>([
-      // NB: il `limit` di getNearby strozza il PREFILTRO geohash (ordinato
-      // per stringa geohash, non per distanza). Passandone uno piccolo (6)
-      // scartavamo candidati vicini come Gazzaniga prima dell'ordinamento →
-      // restavano spazi lontani (Travagliato). Prendiamo un pool ampio e poi
-      // teniamo i 6 più vicini (come fa CommunityPage con limit 100).
+      // NB CRUCIALE: il `limit` di getNearby tronca il PREFILTRO geohash, che
+      // è ordinato per STRINGA geohash (non per distanza). Con l'import OSM
+      // (migliaia di rifugi come business) la fascia geohash è affollata: un
+      // limit basso (6, 100) si esaurisce su celle lontane PRIMA di arrivare
+      // alla cella dell'utente → si perdono i vicini (Due Erre a 0.7km mentre
+      // restava roba a 16km). Come la pagina Spazi Pro (BusinessDiscoveryPage),
+      // NON passiamo limit → default ampio (1000), poi teniamo i 6 più vicini.
       _safe<List<Business>>(
           () async {
             final pool = await _businessRepo.getNearby(
               lat: loc.latitude,
               lng: loc.longitude,
               radiusKm: 50,
-              limit: 100,
             );
             return pool.take(6).toList();
           },
