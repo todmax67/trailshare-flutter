@@ -53,7 +53,9 @@ class HomeFeedBloc extends ChangeNotifier {
 
     try {
       // ── Fase 1: non-geo (veloce) ──
+      final sw = Stopwatch()..start(); // ⏱️ temporaneo
       final core = await _aggregator.loadCore();
+      debugPrint('[HomeTime] loadCore (Fase 1): ${sw.elapsedMilliseconds}ms');
       _data = core;
       _geoPending = true;
       _status = HomeFeedStatus.ready;

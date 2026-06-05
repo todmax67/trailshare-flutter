@@ -24,14 +24,30 @@ class _HomePageState extends State<HomePage> {
   // Legacy: tab 0 = Scopri, default = Community (index 1).
   int _currentIndex = AppConfig.useNewHomeFeed ? 0 : 1;
 
-  final List<Widget> _pages = [
-    // 0 — Home Feed (nuova) oppure Scopri (legacy)
-    AppConfig.useNewHomeFeed ? const HomeFeedPage() : const DiscoverPage(),
-    const CommunityPage(),      // 1 - Community
-    const RecordPage(),         // 2 - Registra
-    const TracksPage(),         // 3 - Tracce
-    const ProfilePage(),        // 4 - Profilo
-  ];
+  // Tab LAZY: una tab si costruisce solo alla prima visita. All'avvio si
+  // costruisce SOLO la tab corrente (Home) → le altre (Community/Tracce/
+  // Profilo) NON sparano le loro query Firestore simultaneamente. Era questa
+  // la causa dell'avvio lento su Android (tanti doc-traccia pesanti, con
+  // `points` GPS embedded, scaricati tutti insieme). Le query di una tab
+  // partono quando ci entri davvero.
+  late final Set<int> _built = {_currentIndex};
+
+  Widget _pageFor(int i) {
+    switch (i) {
+      case 0:
+        return AppConfig.useNewHomeFeed
+            ? const HomeFeedPage()
+            : const DiscoverPage();
+      case 1:
+        return const CommunityPage();
+      case 2:
+        return const RecordPage();
+      case 3:
+        return const TracksPage();
+      default:
+        return const ProfilePage();
+    }
+  }
 
   StreamSubscription? _garminSub;
 
@@ -71,10 +87,17 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Marca come "costruita" la tab corrente prima di renderizzare (così
+    // le tab selezionate via nav o via Garmin si materializzano). Le tab
+    // non ancora visitate restano un placeholder vuoto → nessuna query.
+    _built.add(_currentIndex);
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _pages,
+        children: [
+          for (int i = 0; i < 5; i++)
+            _built.contains(i) ? _pageFor(i) : const SizedBox.shrink(),
+        ],
       ),
       bottomNavigationBar: _buildBottomNavBar(context),
     );

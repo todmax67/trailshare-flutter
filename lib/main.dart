@@ -21,6 +21,10 @@ import 'core/services/deep_link_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ⏱️ TEMPORANEO — misura il tempo di boot per step (diagnostica avvio lento).
+  final bootSw = Stopwatch()..start();
+  void mark(String s) => debugPrint('[BootTime] +${bootSw.elapsedMilliseconds}ms — $s');
+
   // Overflow hunter — solo in debug. Stampa un log evidente quando un
   // RenderFlex/Box overflow, con file:linea del widget colpevole nello
   // stack. Da rimuovere/spegnere quando avremo chiuso tutti i casi.
@@ -58,6 +62,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  mark('Firebase.initializeApp');
 
   // 2.4.6 — Firestore cache cap a 20MB (era 40 in 2.4.5, default 100).
   //
@@ -85,9 +90,11 @@ void main() async {
   // clearPersistence al boot successivo per ripartire pulito (la
   // perdita è solo l'offline cache, niente dati utente).
   await _maybeRecoverFromCrash();
+  mark('_maybeRecoverFromCrash');
 
   // Inizializza tema
   await ThemeService().initialize();
+  mark('ThemeService');
   
   // Inizializza notifiche push (non blocca l'avvio)
   PushNotificationService().initialize().catchError((e) {
@@ -111,6 +118,7 @@ void main() async {
   } catch (e) {
     debugPrint('[OfflineTile] Init fallita: $e');
   }
+  mark('OfflineFallbackTileProvider');
 
   // Inizializza alert notifica Lifeline (canale max priority + permessi)
   LifelineAlertService().initialize().catchError((e) {
@@ -120,13 +128,16 @@ void main() async {
   // Carica stato Pro persistito (da SharedPreferences) prima di runApp
   // così la UI parte con il valore corretto, niente flicker di paywall.
   await ProGateService().load();
+  mark('ProGateService.load');
 
   // 1.D4 — preferenze auto-hide HUD (record page). Caricamento veloce,
   // legge solo 2 chiavi da SharedPreferences.
   await HudPrefsService().load();
+  mark('HudPrefsService.load');
 
   // Stile mappa preferito condiviso tra tutte le interfacce mappa.
   await MapStylePrefs().load();
+  mark('MapStylePrefs.load');
 
   // Apre il sync con Firestore: ascolta authStateChanges e allinea Pro
   // con users/{uid}.proStatus (sorgente autorevole, scritta da
@@ -152,6 +163,7 @@ void main() async {
   // tracce/gruppi. Niente record GPS, paywall, health/strava sync —
   // tutto ciò è mobile-only. La shell mobile (TrailShareApp) resta
   // intatta per iOS/Android.
+  mark('PRIMA di runApp (totale main async)');
   runApp(kIsWeb ? const BusinessWebApp() : const TrailShareApp());
 
   // Marca boot-success dopo che l'app è running. Se l'app crasha
