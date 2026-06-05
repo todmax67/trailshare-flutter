@@ -8,6 +8,7 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/business.dart';
 import '../../../data/models/home_feed_data.dart';
 import '../../../data/models/home_resume_item.dart';
+import '../../../data/models/tour.dart';
 import '../../../data/repositories/community_tracks_repository.dart'
     show CommunityTrack;
 import '../../../data/repositories/public_trails_repository.dart'
@@ -18,6 +19,7 @@ import '../../pages/community/community_page.dart';
 import '../../pages/discover/community_track_detail_page.dart';
 import '../../pages/discover/discover_page.dart';
 import '../../pages/record/record_page.dart';
+import '../../pages/tours/community_tour_detail_page.dart';
 import '../../widgets/route_thumbnail.dart';
 
 /// Home Feed prototype — aggrega in sezioni separate i building block
@@ -102,6 +104,13 @@ class _HomeFeedPageState extends State<HomeFeedPage>
             onTap: _openCommunityTrack,
           ),
         ],
+        if (data.editorialTour != null) ...[
+          _SectionHeader(title: context.l10n.homeSectionTour),
+          _EditorialTourCard(
+            tour: data.editorialTour!,
+            onTap: () => _openTour(data.editorialTour!),
+          ),
+        ],
         // ── Sezioni geo (Fase 2) ──
         // Mentre geoPending, mostriamo header + loader per dare
         // feedback "sto cercando vicino a te". Quando arrivano i dati,
@@ -152,6 +161,13 @@ class _HomeFeedPageState extends State<HomeFeedPage>
   void _openCommunityTrack(CommunityTrack t) => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => CommunityTrackDetailPage(track: t)),
+      );
+
+  void _openTour(Tour tour) => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CommunityTourDetailPage(tourId: tour.id),
+        ),
       );
 
   void _openBusiness(Business b) => Navigator.push(
@@ -323,73 +339,148 @@ class _FollowingStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _FeatureCarousel(
+      height: 200,
+      itemCount: posts.length,
+      itemBuilder: (context, i) {
+        final t = posts[i];
+        final cover = t.photoUrls.isNotEmpty ? t.photoUrls.first : null;
+        return _FeaturedCard(
+          onTap: () => onTap(t),
+          title: t.name,
+          subtitle:
+              '${t.activityIcon} ${t.ownerUsername} · ${t.distanceKm.toStringAsFixed(1)} km',
+          cover: cover != null
+              ? CachedNetworkImage(
+                  imageUrl: cover,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => RouteThumbnail(
+                    points: t.points,
+                    borderRadius: BorderRadius.zero,
+                  ),
+                )
+              : RouteThumbnail(
+                  points: t.points,
+                  borderRadius: BorderRadius.zero,
+                ),
+        );
+      },
+    );
+  }
+}
+
+/// Carosello a card **full-width** con swipe (PageView). Il `viewportFraction`
+/// < 1 lascia sbirciare la card successiva → segnala che si scorre.
+class _FeatureCarousel extends StatefulWidget {
+  final int itemCount;
+  final double height;
+  final Widget Function(BuildContext, int) itemBuilder;
+  const _FeatureCarousel({
+    required this.itemCount,
+    required this.height,
+    required this.itemBuilder,
+  });
+
+  @override
+  State<_FeatureCarousel> createState() => _FeatureCarouselState();
+}
+
+class _FeatureCarouselState extends State<_FeatureCarousel> {
+  final PageController _controller = PageController(viewportFraction: 0.92);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
-      height: 168,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: posts.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, i) {
-          final t = posts[i];
-          final cover = t.photoUrls.isNotEmpty ? t.photoUrls.first : null;
-          return GestureDetector(
-            onTap: () => onTap(t),
-            child: SizedBox(
-              width: 220,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: cover != null
-                        ? CachedNetworkImage(
-                            imageUrl: cover,
-                            height: 110,
-                            width: 220,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, _, _) => RouteThumbnail(
-                              points: t.points,
-                              height: 110,
-                              width: 220,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          )
-                        : RouteThumbnail(
-                            points: t.points,
-                            height: 110,
-                            width: 220,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    t.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    '${t.activityIcon} ${t.ownerUsername} · ${t.distanceKm.toStringAsFixed(1)} km',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: context.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+      height: widget.height,
+      child: PageView.builder(
+        controller: _controller,
+        itemCount: widget.itemCount,
+        itemBuilder: widget.itemBuilder,
       ),
     );
   }
+}
 
+/// Card "featured" full-width: copertina che riempie + scrim in basso +
+/// titolo/sottotitolo sovrapposti (lo stile "completo" dei tour).
+class _FeaturedCard extends StatelessWidget {
+  final Widget cover;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  const _FeaturedCard({
+    required this.cover,
+    required this.title,
+    this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: GestureDetector(
+        onTap: onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              cover,
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.center,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Color(0xCC000000)],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 12,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -403,65 +494,27 @@ class _ProStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 150,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: items.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, i) {
-          final b = items[i];
-          final cover = b.branding.heroPhotoUrl ?? b.branding.logoUrl;
-          final city = b.location.city;
-          return GestureDetector(
-            onTap: () => onTap(b),
-            child: SizedBox(
-              width: 180,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: cover != null
-                        ? CachedNetworkImage(
-                            imageUrl: cover,
-                            height: 100,
-                            width: 180,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, _, _) => _ProPlaceholder(business: b),
-                          )
-                        : _ProPlaceholder(business: b),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    b.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  if (city != null)
-                    Text(
-                      city,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: context.textSecondary),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+    return _FeatureCarousel(
+      height: 170,
+      itemCount: items.length,
+      itemBuilder: (context, i) {
+        final b = items[i];
+        final cover = b.branding.heroPhotoUrl ?? b.branding.logoUrl;
+        return _FeaturedCard(
+          onTap: () => onTap(b),
+          title: b.name,
+          subtitle: b.location.city,
+          cover: cover != null
+              ? CachedNetworkImage(
+                  imageUrl: cover,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => _ProPlaceholder(business: b),
+                )
+              : _ProPlaceholder(business: b),
+        );
+      },
     );
   }
-
 }
 
 /// Placeholder per Spazi Pro senza logo/foto: usa il colore brand del
@@ -486,8 +539,6 @@ class _ProPlaceholder extends StatelessWidget {
     final base = _brandColor();
     final rating = business.rating;
     return Container(
-      height: 100,
-      width: 180,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -556,6 +607,90 @@ class _ProPlaceholder extends StatelessWidget {
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Editorial tour
+// ═══════════════════════════════════════════════════════════════════════
+
+class _EditorialTourCard extends StatelessWidget {
+  final Tour tour;
+  final VoidCallback onTap;
+  const _EditorialTourCard({required this.tour, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cover = tour.coverPhotoUrl;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: GestureDetector(
+        onTap: onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            children: [
+              cover != null
+                  ? CachedNetworkImage(
+                      imageUrl: cover,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, _, _) => _fallback(context),
+                    )
+                  : _fallback(context),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.center,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.65),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tour.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${tour.daysCount} ${tour.daysCount == 1 ? "giorno" : "giorni"} · '
+                      '${tour.totalDistanceKm.toStringAsFixed(0)} km · ${tour.ownerName}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fallback(BuildContext context) => Container(
+        height: 180,
+        width: double.infinity,
+        color: context.themedSurfaceVariant,
+        child: Icon(Icons.map, color: context.textMuted, size: 40),
+      );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
