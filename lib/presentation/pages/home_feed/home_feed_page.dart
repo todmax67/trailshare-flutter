@@ -18,6 +18,7 @@ import '../../pages/community/community_page.dart';
 import '../../pages/discover/community_track_detail_page.dart';
 import '../../pages/discover/discover_page.dart';
 import '../../pages/record/record_page.dart';
+import '../../widgets/route_thumbnail.dart';
 
 /// Home Feed prototype — aggrega in sezioni separate i building block
 /// esistenti (recovery, sfida, seguiti, tour, Spazi Pro, scopri).
@@ -347,10 +348,19 @@ class _FollowingStrip extends StatelessWidget {
                             height: 110,
                             width: 220,
                             fit: BoxFit.cover,
-                            errorWidget: (_, _, _) =>
-                                _coverFallback(context),
+                            errorWidget: (_, _, _) => RouteThumbnail(
+                              points: t.points,
+                              height: 110,
+                              width: 220,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           )
-                        : _coverFallback(context),
+                        : RouteThumbnail(
+                            points: t.points,
+                            height: 110,
+                            width: 220,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -380,42 +390,6 @@ class _FollowingStrip extends StatelessWidget {
     );
   }
 
-  Widget _coverFallback(BuildContext context) =>
-      _TrailCoverPlaceholder(height: 110, width: 220);
-}
-
-/// Placeholder gradevole per tracce/sentieri senza foto: gradiente
-/// "topografico" verde→primario con icona montagna leggera. Sostituisce
-/// il vecchio box grigio piatto che risultava respingente.
-class _TrailCoverPlaceholder extends StatelessWidget {
-  final double height;
-  final double width;
-  const _TrailCoverPlaceholder({required this.height, required this.width});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      width: width,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF4C8C5A).withValues(alpha: 0.85),
-            AppColors.primary.withValues(alpha: 0.75),
-          ],
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.landscape_outlined,
-          color: Colors.white.withValues(alpha: 0.85),
-          size: 34,
-        ),
-      ),
-    );
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -510,8 +484,7 @@ class _ProPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = _brandColor();
-    final initial =
-        business.name.isNotEmpty ? business.name[0].toUpperCase() : '?';
+    final rating = business.rating;
     return Container(
       height: 100,
       width: 180,
@@ -522,15 +495,64 @@ class _ProPlaceholder extends StatelessWidget {
           colors: [base, base.withValues(alpha: 0.7)],
         ),
       ),
-      child: Center(
-        child: Text(
-          initial,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 40,
-            fontWeight: FontWeight.w800,
+      child: Stack(
+        children: [
+          Center(
+            child: Icon(
+              Icons.storefront_outlined,
+              color: Colors.white.withValues(alpha: 0.9),
+              size: 32,
+            ),
           ),
-        ),
+          // Badge "Spazio Pro" in alto a sinistra (identità, non iniziale)
+          Positioned(
+            top: 8,
+            left: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.28),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Spazio Pro',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          // Rating in basso a sinistra, se disponibile (info-density)
+          if (rating != null)
+            Positioned(
+              bottom: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.star, size: 12, color: Color(0xFFFFC107)),
+                    const SizedBox(width: 3),
+                    Text(
+                      rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
