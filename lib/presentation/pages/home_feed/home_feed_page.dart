@@ -140,7 +140,7 @@ class _HomeFeedPageState extends State<HomeFeedPage>
         // 4) Rifugi da visitare — aspirazionale, dal bundle POI, non geo.
         if (data.rifugi.isNotEmpty) ...[
           const _SectionHeader(title: 'Rifugi da visitare'),
-          _RifugiStrip(items: data.rifugi),
+          _RifugiStrip(items: data.rifugi, userLocation: data.userLocation),
         ],
         // 5) I sentieri più amati — criterio popolarità, non distanza.
         if (data.popularTracks.isNotEmpty) ...[
@@ -636,24 +636,104 @@ class _FollowingEmptyCta extends StatelessWidget {
 // Rifugi strip
 // ═══════════════════════════════════════════════════════════════════════
 
-class _RifugiStrip extends StatelessWidget {
+enum _RifugioFilter { altitude, nearby }
+
+class _RifugiStrip extends StatefulWidget {
   final List<OsmPoi> items;
-  const _RifugiStrip({required this.items});
+  final LatLng? userLocation;
+  const _RifugiStrip({required this.items, this.userLocation});
+
+  @override
+  State<_RifugiStrip> createState() => _RifugiStripState();
+}
+
+class _RifugiStripState extends State<_RifugiStrip> {
+  _RifugioFilter _filter = _RifugioFilter.altitude;
+  static const Distance _distance = Distance();
+
+  double _distM(OsmPoi p) => _distance.as(LengthUnit.Meter,
+      widget.userLocation!, LatLng(p.latitude, p.longitude));
+
+  List<OsmPoi> get _shown {
+    final list = [...widget.items];
+    if (_filter == _RifugioFilter.nearby && widget.userLocation != null) {
+      list.sort((a, b) => _distM(a).compareTo(_distM(b)));
+    } else {
+      list.sort((a, b) => (b.elevation ?? 0).compareTo(a.elevation ?? 0));
+    }
+    return list.take(12).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return _FeatureCarousel(
-      height: 160,
-      itemCount: items.length,
-      itemBuilder: (context, i) {
-        final r = items[i];
-        return _FeaturedCard(
-          onTap: () => showOsmPoiDetailSheet(context, poi: r),
-          title: r.name,
-          subtitle: r.elevation != null ? '${r.elevation!.round()} m s.l.m.' : null,
-          cover: _RifugioCover(poi: r),
-        );
-      },
+    final canNearby = widget.userLocation != null;
+    final shown = _shown;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: Wrap(
+            spacing: 8,
+            children: [
+              _chip('I più alti', _RifugioFilter.altitude),
+              if (canNearby) _chip('I più vicini', _RifugioFilter.nearby),
+            ],
+          ),
+        ),
+        _FeatureCarousel(
+          height: 160,
+          itemCount: shown.length,
+          itemBuilder: (context, i) {
+            final r = shown[i];
+            final showDist =
+                _filter == _RifugioFilter.nearby && widget.userLocation != null;
+            return _FeaturedCard(
+              onTap: () => showOsmPoiDetailSheet(context, poi: r),
+              title: r.name,
+              subtitle: showDist ? _distLabel(r) : _eleLabel(r),
+              cover: _RifugioCover(poi: r),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  String? _eleLabel(OsmPoi r) =>
+      r.elevation != null ? '${r.elevation!.round()} m s.l.m.' : null;
+
+  String _distLabel(OsmPoi r) {
+    final km = _distM(r) / 1000;
+    final d = km < 1 ? '${(_distM(r)).round()} m' : '${km.toStringAsFixed(1)} km';
+    final ele = r.elevation != null ? ' · ${r.elevation!.round()} m' : '';
+    return '$d da te$ele';
+  }
+
+  Widget _chip(String label, _RifugioFilter f) {
+    final selected = _filter == f;
+    return GestureDetector(
+      onTap: () => setState(() => _filter = f),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? AppColors.primary
+                : Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : context.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 }

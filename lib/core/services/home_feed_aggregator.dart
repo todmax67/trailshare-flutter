@@ -192,12 +192,14 @@ class HomeFeedAggregator {
     try {
       final repo = OsmPoisRepository();
       await repo.ensureLoaded();
+      // Tutti i rifugi (con quota): il filtro UI sceglie come ordinarli
+      // (più alti / più vicini). Ordinati per quota come default.
       final rifugi = repo
           .all(types: {OsmPoiType.alpineHut, OsmPoiType.wildernessHut})
           .where((p) => p.elevation != null)
           .toList()
         ..sort((a, b) => (b.elevation ?? 0).compareTo(a.elevation ?? 0));
-      return rifugi.take(12).toList();
+      return rifugi;
     } catch (_) {
       return const [];
     }
