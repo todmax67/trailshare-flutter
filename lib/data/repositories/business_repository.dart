@@ -220,7 +220,7 @@ class BusinessRepository {
     }).toList();
 
     debugPrint('[getNearby] center=($lat,$lng) radius=${radiusKm}km '
-        'limit=$limit precision=$precision centerHash=$centerHash '
+        'precision=$precision centerHash=$centerHash '
         'hashes=${hashes.length} ranges=${ranges.length} '
         'rangesList=${ranges.map((r) => "${r.start}-${r.end}").toList()}');
 
