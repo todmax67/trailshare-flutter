@@ -76,12 +76,14 @@ class HomeFeedAggregator {
           const []),
       _safe<Tour?>(_loadEditorialTour, null),
       // Community generale: sempre ricca → risolve il cold-start del
-      // nuovo utente (che non ha ancora seguiti).
+      // nuovo utente (che non ha ancora seguiti). Limit contenuto: i doc
+      // traccia hanno i points GPS embedded (pesanti) → meno doc = avvio
+      // più rapido su Android.
       _safe<List<CommunityTrack>>(
-          () => _communityRepo.getRecentTracks(limit: 8), const []),
+          () => _communityRepo.getRecentTracks(limit: 5), const []),
       // I sentieri più amati (popolarità/rating) — criterio non geografico.
       _safe<List<CommunityTrack>>(
-          () => _communityRepo.getPopularTracks(limit: 8), const []),
+          () => _communityRepo.getPopularTracks(limit: 5), const []),
       // NB: i Rifugi NON sono qui — il parsing del bundle 20k POI è pesante e
       // bloccherebbe il primo paint. Caricati in differita via loadRifugi().
     ]);
