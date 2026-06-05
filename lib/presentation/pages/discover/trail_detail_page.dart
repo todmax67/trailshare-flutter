@@ -111,14 +111,8 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                 ),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                trail.displayName,
-                style: const TextStyle(
-                  fontSize: 16,
-                  shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
-                ),
-              ),
-              background: _buildMap(),
+              // Titolo spostato nell'area contenuto sottostante (mappa pulita).
+              background: _fullBleedMap(_buildMap()),
             ),
           ),
 
@@ -129,79 +123,95 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Titolo traccia — spostato qui dall'overlay mappa,
+                  // valorizza la tipografia bold del design system.
+                  Text(
+                    trail.displayName,
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+
+                  const SizedBox(height: 16),
+
                   // Info card
-                  _buildInfoCard(),
-                  
+                  _onSage(_buildInfoCard()),
+
                   const SizedBox(height: 16),
-                  
+
                   // Stats principali
-                  _buildMainStats(),
+                  _onSage(_buildMainStats()),
 
                   const SizedBox(height: 16),
 
-                  // 6.6 — Trail Conditions AI Summary (Pro feature):
-                  // riassume in linguaggio naturale le segnalazioni
-                  // recenti. Si auto-nasconde se 0 segnalazioni.
-                  TrailConditionsAiCard(
-                    trailId: widget.trail.id,
-                    trailName: widget.trail.displayName,
-                  ),
+                  // Sezioni contenuto — look minimalista "a lista":
+                  // stesso sfondo salvia, niente cornici, separate da linea leggera.
+                  _onSage(Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 6.6 — Trail Conditions AI Summary (Pro, si auto-nasconde)
+                      TrailConditionsAiCard(
+                        trailId: widget.trail.id,
+                        trailName: widget.trail.displayName,
+                      ),
 
-                  // Condizioni sentiero community (avviso sicurezza in cima)
-                  TrailConditionsSection(trailId: widget.trail.id),
+                      // Condizioni sentiero community
+                      TrailConditionsSection(trailId: widget.trail.id),
 
-                  const SizedBox(height: 16),
+                      _sectionDivider(),
 
-                  // POI community + POI OSM (rifugi, bivacchi, fontane,
-                  // sorgenti, panorami, ecc.) lungo il percorso.
-                  TrailPoisSection(
-                    trailId: widget.trail.id,
-                    allowAdd: true,
-                    defaultLatitude: widget.trail.startLat,
-                    defaultLongitude: widget.trail.startLng,
-                    polyline: _displayPoints
-                        .map((p) => LatLng(p.latitude, p.longitude))
-                        .toList(),
-                    loadOsmPois: true,
-                  ),
+                      // POI community + POI OSM lungo il percorso
+                      TrailPoisSection(
+                        trailId: widget.trail.id,
+                        allowAdd: true,
+                        defaultLatitude: widget.trail.startLat,
+                        defaultLongitude: widget.trail.startLng,
+                        polyline: _displayPoints
+                            .map((p) => LatLng(p.latitude, p.longitude))
+                            .toList(),
+                        loadOsmPois: true,
+                      ),
 
-                  const SizedBox(height: 16),
+                      _sectionDivider(),
 
-                  // Previsioni meteo per il punto di partenza del sentiero
-                  WeatherForecastCard(
-                    lat: widget.trail.startLat,
-                    lng: widget.trail.startLng,
-                  ),
+                      // Previsioni meteo
+                      WeatherForecastCard(
+                        lat: widget.trail.startLat,
+                        lng: widget.trail.startLng,
+                      ),
 
-                  const SizedBox(height: 16),
+                      _sectionDivider(),
 
-                  // Foto community
-                  TrailPhotosSection(trailId: widget.trail.id),
+                      // Foto community
+                      TrailPhotosSection(trailId: widget.trail.id),
 
-                  const SizedBox(height: 16),
+                      _sectionDivider(),
 
-                  // Recensioni e rating
-                  TrailReviewsSection(trailId: widget.trail.id),
+                      // Recensioni e rating
+                      TrailReviewsSection(trailId: widget.trail.id),
 
-                  const SizedBox(height: 16),
+                      _sectionDivider(),
 
-                  // Segmenti cronometrati
-                  TrailSegmentsSection(
-                    trail: widget.trail,
-                    trailPoints: _displayPoints,
-                  ),
+                      // Segmenti cronometrati
+                      TrailSegmentsSection(
+                        trail: widget.trail,
+                        trailPoints: _displayPoints,
+                      ),
+                    ],
+                  )),
 
                   const SizedBox(height: 16),
 
                   // Grafici (elevazione, velocità, combinato) con sync mappa
                   if (_displayPoints.length > 1) ...[
-                    TrackChartsWidget(
+                    _onSage(TrackChartsWidget(
                       points: _displayPoints,
                       height: 180,
                       onPointTap: (index, distance) {
                         setState(() => _selectedPointIndex = index);
                       },
-                    ),
+                    )),
                     if (_isLoadingFull)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
@@ -216,7 +226,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                   const SizedBox(height: 16),
                   
                   // Dettagli
-                  _buildDetails(),
+                  _onSage(_buildDetails()),
 
                   const SizedBox(height: 24),
 
@@ -265,6 +275,53 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
         setState(() => _selectedPointIndex = index);
       },
       track: track, // ⭐ Abilita TrackMapPage fullscreen con grafico elevazione
+    );
+  }
+
+  /// Linea leggera che separa le sezioni nella vista "a lista".
+  Widget _sectionDivider() => const Divider(
+        height: 16,
+        thickness: 1,
+        color: Color(0xFFD6D9C5), // salvia leggermente più scuro dello sfondo
+      );
+
+  /// Avvolge una sezione perché sieda direttamente sullo sfondo salvia:
+  /// card trasparente, e neutralizza anche `surface`/`outlineVariant` così i
+  /// container basati sui ruoli tema (es. POI) perdono fondo bianco e cornice.
+  Widget _onSage(Widget child) {
+    final cs = Theme.of(context).colorScheme;
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardTheme: Theme.of(context).cardTheme.copyWith(
+              color: Colors.transparent,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+                side: BorderSide.none,
+              ),
+            ),
+        colorScheme: cs.copyWith(
+          surface: Colors.transparent,        // Container(surface) → salvia
+          outlineVariant: Colors.transparent, // cornici sezioni → via
+        ),
+      ),
+      child: child,
+    );
+  }
+
+  /// Mappa a tutta larghezza: card senza margine, senza bordo, angoli vivi.
+  Widget _fullBleedMap(Widget child) {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        cardTheme: Theme.of(context).cardTheme.copyWith(
+              margin: EdgeInsets.zero,
+              color: Colors.transparent,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
+                side: BorderSide.none,
+              ),
+            ),
+      ),
+      child: child,
     );
   }
 

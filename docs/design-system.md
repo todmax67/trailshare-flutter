@@ -72,7 +72,96 @@ Tutto nel solo tema + appiattimento delle card di contenuto che lo scavalcavano.
 
 ---
 
+### 2026-06-05 — Scheletro moderno: tipografia + bottoni pillola
+Tutto nel solo tema (`app_themes.dart`), zero call-site.
+- **Tipografia**: titoli Outfit più grassi con tracking negativo (display/headline
+  `w700`, title `w600`, `letterSpacing` da `-1.0` a `-0.2`). Gerarchia premium/editoriale
+  al posto dei pesi Material di default. Body/label restano sistema.
+- **Bottoni a pillola**: `ElevatedButton`/`FilledButton`/`OutlinedButton` → `StadiumBorder`
+  (era radius 12). Segnale "moderno" più riconoscibile su un CTA.
+
+> Principio aggiunto: **titoli grassi + tracking stretto** = firma tipografica del brand.
+
+### 2026-06-05 — Superfici tonali calde (addio bianco piatto)
+L'app era "interamente bianca": sfondo `#FAF9F7` + card bianche → tutto piatto.
+Introdotto un **sistema tonale caldo a livelli** nel `ColorScheme` (`app_themes.dart`),
+che alimenta anche `theme_colors_extension.dart` (prima ereditava i default lavanda di M3).
+
+Scala superfici **chiaro** (sabbia → bianco caldo):
+- sfondo pagina (scaffold / `surfaceContainer`): `#E7E9D9` (sabbia-salvia, undertone verde)
+- card / dialog / sheet (`surface`): `#FBF9F5` (bianco caldo)
+- input well (`surfaceContainerHigh`): `#ECE6DD`
+- bubble/placeholder (`surfaceContainerHighest`): `#E6DFD4`
+- hairline (`outlineVariant`): `#E8E3DD` · testo secondario (`onSurfaceVariant`): `#6E665C`
+
+Le card "galleggiano" per **contrasto di tono** (bianco caldo su sabbia), non per ombra.
+**Scuro**: definiti gli stessi ruoli `surfaceContainer*` con grigi neutri (no lavanda M3).
+`AppColors.background`/`surface` allineati per i consumer hardcoded.
+
+> Tunabile: per più caldo/profondo basta scurire il sabbia; per più freddo, ridurre la
+> componente gialla. Tutto centralizzato nel `ColorScheme`.
+
+### 2026-06-05 — Sezioni "a lista" minimaliste (PROVA, reversibile)
+Nella pagina dettaglio trail (`trail_detail_page.dart`) **tutte** le sezioni contenuto sono
+sullo stesso salvia, **senza cornice**, separate da una **linea leggera** — look editoriale
+/ settings-app invece della colonna di card.
+
+Tecnica:
+- helper `_onSage(child)` = `Theme` locale con `cardTheme.color: transparent` + shape senza
+  bordo. Avvolge l'**intera** colonna di sezioni → tutte le card interne spariscono.
+- helper `_sectionDivider()` = `Divider` 1px colore `#D6D9C5` (salvia più scuro) tra le sezioni.
+- **Zero modifiche ai widget di sezione** (riusati altrove intatti, conservano la card).
+
+Esteso poi a **tutta** la pagina: `_onSage` ora neutralizza anche `colorScheme.surface` e
+`outlineVariant` (per i `Container` basati sui ruoli tema, es. POI), ed è applicato anche a
+**info card**, **stat tiles**, **grafico**. La **mappa** è full-bleed via `_fullBleedMap`
+(card senza margine/bordo, angoli vivi) → edge-to-edge nell'header.
+
+**Titolo** spostato dall'overlay sulla mappa a **headline grande** nella prima area sotto
+(valorizza la tipografia bold). Tradeoff: la app-bar collassata non mostra più il nome
+(da rivalutare con un titolo collapse-aware se serve). Scheda "Informazioni" in fondo
+(`_buildDetails`) anch'essa unificata a salvia.
+
+> ⚠️ In prova: `_onSage` rende trasparenti **tutte** le card/`surface` annidate e azzera
+> `outlineVariant` (spariscono anche separatori interni, es. tra item POI). Se qualcosa
+> perde troppa leggibilità → revert facile. Non ancora replicato su `track_detail_page.dart`.
+
+---
+
+### 2026-06-05 — Helper condivisi + estensione a track_detail_page
+Estratti gli helper in `lib/presentation/widgets/flat_section.dart` (riutilizzabili in
+tutte le pagine): `SageSurface` (sezione frameless su sfondo), `SectionDivider` (linea
+leggera), `FullBleedCard` (mappa edge-to-edge).
+
+Applicati a **`track_detail_page.dart`** (la traccia personale): contenuto avvolto in
+`SageSurface` (tutto frameless su salvia), mappa header `FullBleedCard` (rimossi overlay
+titolo + gradient), titolo come headline grande sotto la mappa. **Spaziatura via SizedBox
+esistenti** (non ancora i `SectionDivider` — da aggiungere se si vuole parità piena con
+trail_detail; rinviato per via delle molte sezioni condizionali).
+
+### 2026-06-05 — Estensione completata a tutte le pagine dettaglio
+- **`community_track_detail_page`**: ricetta piena (uguale a track) — `SageSurface` su tutto
+  il contenuto, mappa `FullBleedCard` (rimossi overlay titolo + gradient), titolo headline sotto.
+- **`tour_detail_page`** e **`community_tour_detail_page`** (struttura diversa: `ListView` +
+  `AppBar` classica + `TourHero`): titolo già OK nell'AppBar, header `TourHero` lasciato com'è.
+  Trattamento mirato: le **tappe** (`_StageTile`) ora sono lista pulita su salvia
+  (`SageSurface` + `SectionDivider` tra una tappa e l'altra).
+
+> Da rifinire: trail_detail usa ancora gli helper locali `_onSage`/`_sectionDivider`/
+> `_fullBleedMap` (identici a `flat_section.dart`) — migrabili per pulizia.
+> Da verificare nelle pagine tour: `TourRichHeaderSections` (widget esterno) potrebbe avere
+> card/superfici proprie che restano bianche su salvia → eventuale follow-up.
+
+---
+
 ## Backlog (ordinato per ROI)
+
+### ⚠️ Sweep `Colors.white` hardcoded (follow-up diretto del tonale)
+~415 `color: Colors.white` + 19 `backgroundColor: Colors.white` + ~396 `0xFFFFFFFF` nei
+widget. Molti sono **testo/icone bianchi su sfondo colorato** (vanno lasciati!), ma quelli
+usati come **sfondo di Container/BoxDecoration** ora stoneranno come isole bianche sul
+sabbia. Serve uno sweep **discernente** (sfondo vs primo piano), non un replace cieco.
+
 
 ### Zona grigia — da verificare una a una
 Card con `elevation` esplicita che **potrebbero** essere contenuto travestito da flottante.

@@ -18,6 +18,7 @@ import 'widgets/expandable_description.dart';
 import 'widgets/multi_stage_elevation_chart.dart';
 import 'widgets/tour_hero.dart';
 import 'widgets/tour_rich_sections.dart';
+import '../../widgets/flat_section.dart';
 
 /// Vista community (read-only) di un tour pubblico.
 ///
@@ -245,11 +246,14 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
                   ),
                   const SizedBox(height: 8),
                   for (var i = 0; i < stages.length; i++) ...[
-                    _StageTile(
-                      index: i + 1,
-                      stage: stages[i],
-                      color: _stageColors[i % _stageColors.length],
-                      onTap: _isStageTappable(stages[i]) ? () => _openStage(stages[i]) : null,
+                    if (i > 0) const SectionDivider(),
+                    SageSurface(
+                      child: _StageTile(
+                        index: i + 1,
+                        stage: stages[i],
+                        color: _stageColors[i % _stageColors.length],
+                        onTap: _isStageTappable(stages[i]) ? () => _openStage(stages[i]) : null,
+                      ),
                     ),
                     if (stages[i].accommodationBusinessId != null)
                       Padding(

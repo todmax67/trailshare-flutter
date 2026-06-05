@@ -34,6 +34,7 @@ import '../../../data/repositories/admin_repository.dart';
 import '../../../data/models/recording_reference.dart';
 import '../record/record_page.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/flat_section.dart';
 
 class CommunityTrackDetailPage extends StatefulWidget {
   final CommunityTrack track;
@@ -151,63 +152,24 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
             flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsetsDirectional.only(
-                  start: 56, bottom: 14, end: 16),
-              title: Text(
-                track.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black87,
-                      blurRadius: 6,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
+              // Titolo spostato nell'area contenuto sotto (mappa pulita, full-bleed).
+              background: FullBleedCard(
+                child: InteractiveTrackMap(
+                  points: track.points,
+                  height: 300,
+                  photoMarkers: _buildPhotoMarkers(),
+                  title: track.name,
+                  showUserLocation: true,
+                  highlightedPointIndex: _selectedPointIndex,
+                  poiTrackId: track.id,
+                  poiIncludePrivate:
+                      FirebaseAuth.instance.currentUser?.uid == track.ownerId,
+                  loadOsmPois: true, // POI OSM lungo la traccia
+                  onPointTap: (index) {
+                    setState(() => _selectedPointIndex = index);
+                  },
+                  communityTrack: track, // ⭐ Per fullscreen con TrackMapPage
                 ),
-              ),
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  InteractiveTrackMap(
-                    points: track.points,
-                    height: 300,
-                    photoMarkers: _buildPhotoMarkers(),
-                    title: track.name,
-                    showUserLocation: true,
-                    highlightedPointIndex: _selectedPointIndex,
-                    poiTrackId: track.id,
-                    poiIncludePrivate:
-                        FirebaseAuth.instance.currentUser?.uid == track.ownerId,
-                    loadOsmPois: true, // POI OSM lungo la traccia
-                    onPointTap: (index) {
-                      setState(() => _selectedPointIndex = index);
-                    },
-                    communityTrack: track, // ⭐ Per fullscreen con TrackMapPage
-                  ),
-                  // Gradient nero in basso per leggibilità titolo +
-                  // separazione netta dal contenuto bianco sottostante.
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.center,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.55),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
@@ -216,9 +178,21 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
+              child: SageSurface(
+                  child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Titolo traccia — spostato qui dall'overlay mappa.
+                  Text(
+                    track.name,
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+
+                  const SizedBox(height: 16),
+
                   // Info autore
                   _buildAuthorCard(),
 
@@ -345,7 +319,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     ownerId: widget.track.ownerId,
                   ),
                 ],
-              ),
+              )),
             ),
           ),
         ],

@@ -8,21 +8,47 @@ class AppThemes {
   static const Color primaryLight = Color(0xFFF5A67E);    // Arancione chiaro
   static const Color primaryDark = Color(0xFFC4683F);     // Arancione scuro
 
-  /// TextTheme con Outfit per titoli, sistema per body
+  /// TextTheme con Outfit per titoli, sistema per body.
+  ///
+  /// Gerarchia "moderna": titoli grassi con tracking negativo (le lettere si
+  /// stringono ai corpi grandi → look premium/editoriale, non Material default).
   static TextTheme _buildTextTheme(TextTheme base) {
     return base.copyWith(
-      // Display - titoli molto grandi
-      displayLarge: GoogleFonts.outfit(textStyle: base.displayLarge),
-      displayMedium: GoogleFonts.outfit(textStyle: base.displayMedium),
-      displaySmall: GoogleFonts.outfit(textStyle: base.displaySmall),
-      // Headline - titoli sezioni
-      headlineLarge: GoogleFonts.outfit(textStyle: base.headlineLarge),
-      headlineMedium: GoogleFonts.outfit(textStyle: base.headlineMedium),
-      headlineSmall: GoogleFonts.outfit(textStyle: base.headlineSmall),
-      // Title - AppBar, card titles, ecc.
-      titleLarge: GoogleFonts.outfit(textStyle: base.titleLarge),
-      titleMedium: GoogleFonts.outfit(textStyle: base.titleMedium),
-      titleSmall: GoogleFonts.outfit(textStyle: base.titleSmall),
+      // Display - titoli molto grandi: bold + tracking molto stretto
+      displayLarge: GoogleFonts.outfit(
+          textStyle: base.displayLarge,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -1.0),
+      displayMedium: GoogleFonts.outfit(
+          textStyle: base.displayMedium,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.5),
+      displaySmall: GoogleFonts.outfit(
+          textStyle: base.displaySmall,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.5),
+      // Headline - titoli sezioni: bold + tracking stretto
+      headlineLarge: GoogleFonts.outfit(
+          textStyle: base.headlineLarge,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.5),
+      headlineMedium: GoogleFonts.outfit(
+          textStyle: base.headlineMedium,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.3),
+      headlineSmall: GoogleFonts.outfit(
+          textStyle: base.headlineSmall,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.3),
+      // Title - AppBar, card titles, ecc.: semibold
+      titleLarge: GoogleFonts.outfit(
+          textStyle: base.titleLarge,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2),
+      titleMedium: GoogleFonts.outfit(
+          textStyle: base.titleMedium, fontWeight: FontWeight.w600),
+      titleSmall: GoogleFonts.outfit(
+          textStyle: base.titleSmall, fontWeight: FontWeight.w600),
       // Body e Label - restano font di sistema per leggibilità
     );
   }
@@ -38,22 +64,30 @@ class AppThemes {
       // Tipografia: Outfit per titoli, sistema per body
       textTheme: _buildTextTheme(ThemeData.light().textTheme),
 
-      // Colori principali
+      // Colori principali — scala tonale calda (sabbia/pietra), non bianco piatto.
       colorScheme: ColorScheme.light(
         primary: primaryColor,
         primaryContainer: primaryLight,
         secondary: const Color(0xFF2E7D32),           // Verde - accento successo
         secondaryContainer: const Color(0xFFC8E6C9),
-        surface: Colors.white,          // Sfondo caldo (da AppColors)
+        // Scala superfici calde (chiaro → profondo):
+        surface: const Color(0xFFFBF9F5),             // card: bianco caldo
+        surfaceContainerLowest: const Color(0xFFFFFFFF),
+        surfaceContainerLow: const Color(0xFFF7F3EC),
+        surfaceContainer: const Color(0xFFE7E9D9),    // = sfondo pagina (sabbia-salvia)
+        surfaceContainerHigh: const Color(0xFFECE6DD), // input well, field fill
+        surfaceContainerHighest: const Color(0xFFE6DFD4), // bubble, placeholder
         error: const Color(0xFFD32F2F),
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: const Color(0xFF2D3436),
+        onSurfaceVariant: const Color(0xFF6E665C),    // testo secondario caldo
+        outlineVariant: const Color(0xFFE8E3DD),      // hairline border caldo
         onError: Colors.white,
       ),
 
-      // Scaffold
-      scaffoldBackgroundColor: const Color(0xFFFAF9F7),
+      // Scaffold — sabbia-salvia (più profondo delle card, così galleggiano per tono)
+      scaffoldBackgroundColor: const Color(0xFFE7E9D9),
 
       // Feedback al tocco: ripple tinto col brand (non il grigio Material di default).
       // Vale per InkWell/ListTile/Card/tab in tutta l'app.
@@ -72,7 +106,7 @@ class AppThemes {
 
       // Card — piatte con bordo a filo di capello (look editoriale, niente ombra).
       cardTheme: CardThemeData(
-        color: Colors.white,
+        color: const Color(0xFFFBF9F5),   // bianco caldo, non bianco clinico
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -87,9 +121,7 @@ class AppThemes {
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: const StadiumBorder(),
         ),
       ),
 
@@ -100,9 +132,7 @@ class AppThemes {
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: const StadiumBorder(),
         ),
       ),
 
@@ -111,9 +141,7 @@ class AppThemes {
           foregroundColor: primaryColor,
           side: const BorderSide(color: primaryColor),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: const StadiumBorder(),
         ),
       ),
 
@@ -129,17 +157,17 @@ class AppThemes {
         foregroundColor: Colors.white,
       ),
 
-      // Input
+      // Input — well caldo incassato (non bianco)
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: const Color(0xFFECE6DD),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+          borderSide: const BorderSide(color: Color(0xFFE0DACF)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+          borderSide: const BorderSide(color: Color(0xFFE0DACF)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -180,7 +208,7 @@ class AppThemes {
 
       // Dialog
       dialogTheme: DialogThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFBF9F5),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
         ),
@@ -188,7 +216,7 @@ class AppThemes {
 
       // BottomSheet
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: Color(0xFFFBF9F5),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
@@ -207,17 +235,25 @@ class AppThemes {
       // Tipografia: Outfit per titoli, sistema per body
       textTheme: _buildTextTheme(ThemeData.dark().textTheme),
 
-      // Colori principali
+      // Colori principali — scala superfici scure deterministica (no default lavanda M3).
       colorScheme: ColorScheme.dark(
         primary: primaryLight,                          // Arancione chiaro su sfondo scuro
         primaryContainer: primaryColor,
         secondary: const Color(0xFF81C784),             // Verde chiaro - accento successo
         secondaryContainer: const Color(0xFF2E7D32),
-        surface: const Color(0xFF1E1E1E),
+        // Scala superfici (profondo → chiaro):
+        surface: const Color(0xFF1E1E1E),             // card
+        surfaceContainerLowest: const Color(0xFF161616),
+        surfaceContainerLow: const Color(0xFF1E1E1E),
+        surfaceContainer: const Color(0xFF222222),
+        surfaceContainerHigh: const Color(0xFF2A2A2A), // input well, field fill
+        surfaceContainerHighest: const Color(0xFF333333), // bubble, placeholder
         error: const Color(0xFFEF5350),
         onPrimary: Colors.black,
         onSecondary: Colors.black,
         onSurface: const Color(0xFFE0E0E0),
+        onSurfaceVariant: const Color(0xFFB0A99F),    // testo secondario leggermente caldo
+        outlineVariant: const Color(0xFF333333),      // hairline border
         onError: Colors.black,
       ),
 
@@ -256,9 +292,7 @@ class AppThemes {
           foregroundColor: Colors.black,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: const StadiumBorder(),
         ),
       ),
 
@@ -269,9 +303,7 @@ class AppThemes {
           backgroundColor: primaryLight,
           foregroundColor: Colors.black,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: const StadiumBorder(),
         ),
       ),
 
@@ -280,9 +312,7 @@ class AppThemes {
           foregroundColor: primaryLight,
           side: const BorderSide(color: primaryLight),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: const StadiumBorder(),
         ),
       ),
 

@@ -13,9 +13,9 @@ class AppColors {
   static const Color warning = Color(0xFFFFA726);      // Arancione warning
   static const Color info = Color(0xFF29B6F6);         // Azzurro
 
-  // Grigi e neutri
-  static const Color background = Color(0xFFFAF9F7);
-  static const Color surface = Color(0xFFFFFFFF);
+  // Grigi e neutri — scala tonale calda (sabbia per lo sfondo, bianco caldo per le superfici)
+  static const Color background = Color(0xFFE7E9D9);   // sabbia-salvia (sfondo pagina)
+  static const Color surface = Color(0xFFFBF9F5);      // bianco caldo (card/superfici)
   static const Color textPrimary = Color(0xFF2D3436);
   static const Color textSecondary = Color(0xFF636E72);
   static const Color textMuted = Color(0xFFB2BEC3);

@@ -19,6 +19,7 @@ import '../track_3d/track_3d_page.dart';
 import '../../widgets/paywall_sheet.dart';
 import '../../../core/services/pro_gate_service.dart';
 import 'tour_edit_page.dart';
+import '../../widgets/flat_section.dart';
 
 /// Pagina di dettaglio di un tour: mappa aggregata con una polyline per tappa
 /// + totali + lista tappe tappabili.
@@ -223,13 +224,16 @@ class _TourDetailPageState extends State<TourDetailPage> {
                 ),
                 const SizedBox(height: 8),
                 for (var i = 0; i < _tracks.length; i++) ...[
-                  _StageTile(
-                    index: i + 1,
-                    track: _tracks[i],
-                    color: _stageColors[i % _stageColors.length],
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => TrackDetailPage(track: _tracks[i])),
+                  if (i > 0) const SectionDivider(),
+                  SageSurface(
+                    child: _StageTile(
+                      index: i + 1,
+                      track: _tracks[i],
+                      color: _stageColors[i % _stageColors.length],
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => TrackDetailPage(track: _tracks[i])),
+                      ),
                     ),
                   ),
                   if (tour.stageAccommodations[_tracks[i].id] != null)
