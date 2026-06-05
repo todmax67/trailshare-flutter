@@ -106,8 +106,7 @@ class HomeFeedAggregator {
   }
 
   /// Risolve una posizione **accurata** (non last-known) per le sezioni
-  /// geo. Usa accuratezza media (sufficiente per "entro 12-50 km") con
-  /// timeout breve; fallback a last-known solo se il fix fallisce.
+  /// geo. Usa accuratezza media (sufficiente per "entro 12-50 km").
   /// Eseguito in Fase 2, quindi la lentezza non blocca le sezioni
   /// non-geo già a schermo.
   Future<LatLng?> resolveLocation() async {
@@ -115,16 +114,15 @@ class HomeFeedAggregator {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 8),
+          timeLimit: Duration(seconds: 10),
         ),
       );
       return LatLng(pos.latitude, pos.longitude);
     } catch (_) {
-      // Fix fallito (timeout/permesso): ripiega su last-known.
-      try {
-        final last = await Geolocator.getLastKnownPosition();
-        if (last != null) return LatLng(last.latitude, last.longitude);
-      } catch (_) {}
+      // NIENTE fallback su last-known: una posizione vecchia di km
+      // centrerebbe "Spazi Pro vicini / Scopri" sul posto sbagliato
+      // (bug: spazi mostrati spostati di km). Allineato a CommunityPage,
+      // che su fix fallito semplicemente non mostra le sezioni geo.
       return null;
     }
   }
