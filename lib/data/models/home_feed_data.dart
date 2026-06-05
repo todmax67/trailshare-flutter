@@ -4,6 +4,7 @@ import '../repositories/community_tracks_repository.dart' show CommunityTrack;
 import '../repositories/public_trails_repository.dart' show PublicTrail;
 import 'business.dart';
 import 'home_resume_item.dart';
+import 'osm_poi.dart';
 import 'tour.dart';
 import 'weather_data.dart';
 import 'weekly_challenge.dart';
@@ -25,6 +26,7 @@ class HomeFeedData {
   final WeeklyChallenge? challenge;
   final List<CommunityTrack> community;
   final List<CommunityTrack> popularTracks;
+  final List<OsmPoi> rifugi;
   final List<CommunityTrack> followingPosts;
   final Tour? editorialTour;
   final List<Business> nearbyPro;
@@ -38,6 +40,7 @@ class HomeFeedData {
     this.challenge,
     this.community = const [],
     this.popularTracks = const [],
+    this.rifugi = const [],
     this.followingPosts = const [],
     this.editorialTour,
     this.nearbyPro = const [],
@@ -75,6 +78,7 @@ class HomeFeedData {
         challenge: challenge,
         community: community,
         popularTracks: popularTracks,
+        rifugi: rifugi,
         followingPosts: followingPosts,
         editorialTour: editorialTour,
         nearbyPro: geo.nearbyPro,

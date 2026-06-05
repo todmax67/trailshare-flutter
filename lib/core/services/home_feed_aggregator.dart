@@ -5,12 +5,14 @@ import 'package:latlong2/latlong.dart';
 import '../../data/models/business.dart';
 import '../../data/models/home_feed_data.dart';
 import '../../data/models/home_resume_item.dart';
+import '../../data/models/osm_poi.dart';
 import '../../data/models/tour.dart';
 import '../../data/models/weather_data.dart';
 import '../../data/models/weekly_challenge.dart';
 import '../../data/repositories/business_repository.dart';
 import '../../data/repositories/community_tracks_repository.dart';
 import '../../data/repositories/follow_repository.dart';
+import '../../data/repositories/osm_pois_repository.dart';
 import '../../data/repositories/public_trails_repository.dart';
 import '../../data/repositories/tours_repository.dart';
 import '../../data/repositories/weekly_challenges_repository.dart';
@@ -80,6 +82,8 @@ class HomeFeedAggregator {
       // I sentieri più amati (popolarità/rating) — criterio non geografico.
       _safe<List<CommunityTrack>>(
           () => _communityRepo.getPopularTracks(limit: 8), const []),
+      // Rifugi da visitare (bundle POI) — aspirazionale, indipendente dal GPS.
+      _safe<List<OsmPoi>>(_loadRifugi, const []),
     ]);
     return HomeFeedData(
       resume: results[0] as HomeResumeItem?,
@@ -88,6 +92,7 @@ class HomeFeedAggregator {
       editorialTour: results[3] as Tour?,
       community: results[4] as List<CommunityTrack>,
       popularTracks: results[5] as List<CommunityTrack>,
+      rifugi: results[6] as List<OsmPoi>,
       fetchedAt: DateTime.now(),
     );
   }
@@ -165,6 +170,20 @@ class HomeFeedAggregator {
     final followingIds = await _followRepo.getFollowing(uid);
     if (followingIds.isEmpty) return const [];
     return _communityRepo.getFollowingActivityFeed(followingIds, limit: 5);
+  }
+
+  /// Rifugi "da visitare" dal bundle POI (20.4k POI italiani), ordinati per
+  /// quota (i più alti/iconici prima). Criterio NON geografico: interessante
+  /// per chiunque, ovunque, indipendente dalla precisione del GPS.
+  Future<List<OsmPoi>> _loadRifugi() async {
+    final repo = OsmPoisRepository();
+    await repo.ensureLoaded();
+    final rifugi = repo
+        .all(types: {OsmPoiType.alpineHut, OsmPoiType.wildernessHut})
+        .where((p) => p.elevation != null)
+        .toList()
+      ..sort((a, b) => (b.elevation ?? 0).compareTo(a.elevation ?? 0));
+    return rifugi.take(12).toList();
   }
 
   Future<Tour?> _loadEditorialTour() async {

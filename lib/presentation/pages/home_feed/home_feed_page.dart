@@ -10,6 +10,7 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/business.dart';
 import '../../../data/models/home_feed_data.dart';
 import '../../../data/models/home_resume_item.dart';
+import '../../../data/models/osm_poi.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/repositories/community_tracks_repository.dart'
     show CommunityTrack;
@@ -22,6 +23,7 @@ import '../../pages/discover/community_track_detail_page.dart';
 import '../../pages/discover/discover_page.dart';
 import '../../pages/record/record_page.dart';
 import '../../pages/tours/community_tour_detail_page.dart';
+import '../../widgets/osm_poi_detail_sheet.dart';
 import '../../widgets/route_thumbnail.dart';
 
 /// Home Feed prototype — aggrega in sezioni separate i building block
@@ -136,7 +138,12 @@ class _HomeFeedPageState extends State<HomeFeedPage>
         else
           _FollowingEmptyCta(onTap: _openCommunity),
         _tip(1),
-        // 4) I sentieri più amati — criterio popolarità, non distanza.
+        // 4) Rifugi da visitare — aspirazionale, dal bundle POI, non geo.
+        if (data.rifugi.isNotEmpty) ...[
+          const _SectionHeader(title: 'Rifugi da visitare'),
+          _RifugiStrip(items: data.rifugi),
+        ],
+        // 5) I sentieri più amati — criterio popolarità, non distanza.
         if (data.popularTracks.isNotEmpty) ...[
           _SectionHeader(
             title: 'I sentieri più amati',
@@ -628,6 +635,59 @@ class _FollowingEmptyCta extends StatelessWidget {
               Icon(Icons.chevron_right, color: context.textMuted),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Rifugi strip
+// ═══════════════════════════════════════════════════════════════════════
+
+class _RifugiStrip extends StatelessWidget {
+  final List<OsmPoi> items;
+  const _RifugiStrip({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return _FeatureCarousel(
+      height: 160,
+      itemCount: items.length,
+      itemBuilder: (context, i) {
+        final r = items[i];
+        return _FeaturedCard(
+          onTap: () => showOsmPoiDetailSheet(context, poi: r),
+          title: r.name,
+          subtitle: r.elevation != null ? '${r.elevation!.round()} m s.l.m.' : null,
+          cover: _RifugioCover(poi: r),
+        );
+      },
+    );
+  }
+}
+
+/// Copertina generata per un rifugio (niente foto nel bundle POI): gradiente
+/// "alpino" + icona del tipo. On-brand e sempre disponibile.
+class _RifugioCover extends StatelessWidget {
+  final OsmPoi poi;
+  const _RifugioCover({required this.poi});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2E5E4E), Color(0xFF6BA368)],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          poi.type.icon,
+          color: Colors.white.withValues(alpha: 0.85),
+          size: 36,
         ),
       ),
     );
