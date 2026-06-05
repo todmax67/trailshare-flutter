@@ -85,6 +85,22 @@ class HomeFeedData {
         nearbyTrails: geo.nearbyTrails,
         fetchedAt: fetchedAt,
       );
+
+  /// Copia con i [rifugi] popolati (caricamento differito, off critical path).
+  HomeFeedData withRifugi(List<OsmPoi> r) => HomeFeedData(
+        userLocation: userLocation,
+        weather: weather,
+        resume: resume,
+        challenge: challenge,
+        community: community,
+        popularTracks: popularTracks,
+        rifugi: r,
+        followingPosts: followingPosts,
+        editorialTour: editorialTour,
+        nearbyPro: nearbyPro,
+        nearbyTrails: nearbyTrails,
+        fetchedAt: fetchedAt,
+      );
 }
 
 /// Risultato della Fase 2 (geo) dell'aggregator: solo i campi che

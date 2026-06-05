@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../core/services/home_feed_aggregator.dart';
@@ -57,11 +59,23 @@ class HomeFeedBloc extends ChangeNotifier {
       _status = HomeFeedStatus.ready;
       notifyListeners(); // la Home appare con le sezioni non-geo
 
+      // ── Differita: Rifugi (parsing bundle 20k POI = pesante) — NON blocca
+      // il primo paint. Aggiorna _data quando pronto. ──
+      unawaited(_aggregator.loadRifugi().then((rifugi) {
+        final d = _data;
+        if (d != null && rifugi.isNotEmpty) {
+          _data = d.withRifugi(rifugi);
+          notifyListeners();
+        }
+      }));
+
       // ── Fase 2: geo (posizione accurata + fetch) ──
       final loc = await _aggregator.resolveLocation();
       if (loc != null) {
         final geo = await _aggregator.loadGeo(loc);
-        _data = core.withGeo(userLocation: loc, geo: geo);
+        // Parte da _data (non da core) per non sovrascrivere i rifugi
+        // eventualmente arrivati nel frattempo dal caricamento differito.
+        _data = (_data ?? core).withGeo(userLocation: loc, geo: geo);
       }
       _geoPending = false;
       notifyListeners(); // le sezioni geo si riempiono

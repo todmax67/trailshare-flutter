@@ -82,8 +82,8 @@ class HomeFeedAggregator {
       // I sentieri più amati (popolarità/rating) — criterio non geografico.
       _safe<List<CommunityTrack>>(
           () => _communityRepo.getPopularTracks(limit: 8), const []),
-      // Rifugi da visitare (bundle POI) — aspirazionale, indipendente dal GPS.
-      _safe<List<OsmPoi>>(_loadRifugi, const []),
+      // NB: i Rifugi NON sono qui — il parsing del bundle 20k POI è pesante e
+      // bloccherebbe il primo paint. Caricati in differita via loadRifugi().
     ]);
     return HomeFeedData(
       resume: results[0] as HomeResumeItem?,
@@ -92,7 +92,6 @@ class HomeFeedAggregator {
       editorialTour: results[3] as Tour?,
       community: results[4] as List<CommunityTrack>,
       popularTracks: results[5] as List<CommunityTrack>,
-      rifugi: results[6] as List<OsmPoi>,
       fetchedAt: DateTime.now(),
     );
   }
@@ -182,17 +181,24 @@ class HomeFeedAggregator {
   }
 
   /// Rifugi "da visitare" dal bundle POI (20.4k POI italiani), ordinati per
-  /// quota (i più alti/iconici prima). Criterio NON geografico: interessante
-  /// per chiunque, ovunque, indipendente dalla precisione del GPS.
-  Future<List<OsmPoi>> _loadRifugi() async {
-    final repo = OsmPoisRepository();
-    await repo.ensureLoaded();
-    final rifugi = repo
-        .all(types: {OsmPoiType.alpineHut, OsmPoiType.wildernessHut})
-        .where((p) => p.elevation != null)
-        .toList()
-      ..sort((a, b) => (b.elevation ?? 0).compareTo(a.elevation ?? 0));
-    return rifugi.take(12).toList();
+  /// quota (i più alti/iconici prima). Criterio NON geografico.
+  ///
+  /// Caricato in **DIFFERITA** (non in loadCore): `ensureLoaded` fa jsonDecode +
+  /// parsing di 20k POI sul thread principale → bloccherebbe il primo paint.
+  /// Il Bloc lo chiama dopo aver già mostrato la Home.
+  Future<List<OsmPoi>> loadRifugi() async {
+    try {
+      final repo = OsmPoisRepository();
+      await repo.ensureLoaded();
+      final rifugi = repo
+          .all(types: {OsmPoiType.alpineHut, OsmPoiType.wildernessHut})
+          .where((p) => p.elevation != null)
+          .toList()
+        ..sort((a, b) => (b.elevation ?? 0).compareTo(a.elevation ?? 0));
+      return rifugi.take(12).toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<Tour?> _loadEditorialTour() async {
