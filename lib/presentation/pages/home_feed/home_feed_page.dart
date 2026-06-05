@@ -136,7 +136,19 @@ class _HomeFeedPageState extends State<HomeFeedPage>
         else
           _FollowingEmptyCta(onTap: _openCommunity),
         _tip(1),
-        // ── Sezioni geo (Fase 2) ──
+        // 4) I sentieri più amati — criterio popolarità, non distanza.
+        if (data.popularTracks.isNotEmpty) ...[
+          _SectionHeader(
+            title: 'I sentieri più amati',
+            actionLabel: context.l10n.homeViewAll,
+            onAction: _openCommunity,
+          ),
+          _FollowingStrip(
+            posts: data.popularTracks,
+            onTap: _openCommunityTrack,
+          ),
+        ],
+        // ── Sezioni geo (Fase 2) — complemento: vicino a te ──
         // Mentre geoPending, mostriamo header + loader per dare
         // feedback "sto cercando vicino a te". Quando arrivano i dati,
         // si riempiono; se restano vuote a fine fase, si nascondono.

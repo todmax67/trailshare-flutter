@@ -77,6 +77,9 @@ class HomeFeedAggregator {
       // nuovo utente (che non ha ancora seguiti).
       _safe<List<CommunityTrack>>(
           () => _communityRepo.getRecentTracks(limit: 8), const []),
+      // I sentieri più amati (popolarità/rating) — criterio non geografico.
+      _safe<List<CommunityTrack>>(
+          () => _communityRepo.getPopularTracks(limit: 8), const []),
     ]);
     return HomeFeedData(
       resume: results[0] as HomeResumeItem?,
@@ -84,6 +87,7 @@ class HomeFeedAggregator {
       followingPosts: results[2] as List<CommunityTrack>,
       editorialTour: results[3] as Tour?,
       community: results[4] as List<CommunityTrack>,
+      popularTracks: results[5] as List<CommunityTrack>,
       fetchedAt: DateTime.now(),
     );
   }

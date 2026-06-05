@@ -24,6 +24,7 @@ class HomeFeedData {
   final HomeResumeItem? resume;
   final WeeklyChallenge? challenge;
   final List<CommunityTrack> community;
+  final List<CommunityTrack> popularTracks;
   final List<CommunityTrack> followingPosts;
   final Tour? editorialTour;
   final List<Business> nearbyPro;
@@ -36,6 +37,7 @@ class HomeFeedData {
     this.resume,
     this.challenge,
     this.community = const [],
+    this.popularTracks = const [],
     this.followingPosts = const [],
     this.editorialTour,
     this.nearbyPro = const [],
@@ -72,6 +74,7 @@ class HomeFeedData {
         resume: resume,
         challenge: challenge,
         community: community,
+        popularTracks: popularTracks,
         followingPosts: followingPosts,
         editorialTour: editorialTour,
         nearbyPro: geo.nearbyPro,
