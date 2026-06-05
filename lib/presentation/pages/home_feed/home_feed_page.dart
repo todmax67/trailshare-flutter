@@ -9,7 +9,6 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/business.dart';
 import '../../../data/models/home_feed_data.dart';
 import '../../../data/models/home_resume_item.dart';
-import '../../../data/models/osm_poi.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/repositories/community_tracks_repository.dart'
     show CommunityTrack;
@@ -22,7 +21,6 @@ import '../../pages/discover/community_track_detail_page.dart';
 import '../../pages/discover/discover_page.dart';
 import '../../pages/record/record_page.dart';
 import '../../pages/tours/community_tour_detail_page.dart';
-import '../../widgets/osm_poi_detail_sheet.dart';
 import '../../widgets/route_thumbnail.dart';
 
 /// Home Feed prototype — aggrega in sezioni separate i building block
@@ -140,7 +138,11 @@ class _HomeFeedPageState extends State<HomeFeedPage>
         // 4) Rifugi da visitare — aspirazionale, dal bundle POI, non geo.
         if (data.rifugi.isNotEmpty) ...[
           const _SectionHeader(title: 'Rifugi da visitare'),
-          _RifugiStrip(items: data.rifugi, userLocation: data.userLocation),
+          _RifugiStrip(
+            items: data.rifugi,
+            userLocation: data.userLocation,
+            onTap: _openBusiness,
+          ),
         ],
         // 5) I sentieri più amati — criterio popolarità, non distanza.
         if (data.popularTracks.isNotEmpty) ...[
@@ -639,9 +641,14 @@ class _FollowingEmptyCta extends StatelessWidget {
 enum _RifugioFilter { altitude, nearby }
 
 class _RifugiStrip extends StatefulWidget {
-  final List<OsmPoi> items;
+  final List<Business> items;
   final LatLng? userLocation;
-  const _RifugiStrip({required this.items, this.userLocation});
+  final void Function(Business) onTap;
+  const _RifugiStrip({
+    required this.items,
+    required this.onTap,
+    this.userLocation,
+  });
 
   @override
   State<_RifugiStrip> createState() => _RifugiStripState();
@@ -651,15 +658,16 @@ class _RifugiStripState extends State<_RifugiStrip> {
   _RifugioFilter _filter = _RifugioFilter.altitude;
   static const Distance _distance = Distance();
 
-  double _distM(OsmPoi p) => _distance.as(LengthUnit.Meter,
-      widget.userLocation!, LatLng(p.latitude, p.longitude));
+  double _distM(Business b) => _distance.as(LengthUnit.Meter,
+      widget.userLocation!, LatLng(b.location.lat, b.location.lng));
 
-  List<OsmPoi> get _shown {
+  List<Business> get _shown {
     final list = [...widget.items];
     if (_filter == _RifugioFilter.nearby && widget.userLocation != null) {
       list.sort((a, b) => _distM(a).compareTo(_distM(b)));
     } else {
-      list.sort((a, b) => (b.elevation ?? 0).compareTo(a.elevation ?? 0));
+      list.sort((a, b) =>
+          (b.location.elevation ?? 0).compareTo(a.location.elevation ?? 0));
     }
     return list.take(12).toList();
   }
@@ -686,13 +694,20 @@ class _RifugiStripState extends State<_RifugiStrip> {
           itemCount: shown.length,
           itemBuilder: (context, i) {
             final r = shown[i];
+            final photo = r.branding.heroPhotoUrl ?? r.branding.logoUrl;
             final showDist =
                 _filter == _RifugioFilter.nearby && widget.userLocation != null;
             return _FeaturedCard(
-              onTap: () => showOsmPoiDetailSheet(context, poi: r),
+              onTap: () => widget.onTap(r),
               title: r.name,
               subtitle: showDist ? _distLabel(r) : _eleLabel(r),
-              cover: _RifugioCover(poi: r),
+              cover: photo != null
+                  ? CachedNetworkImage(
+                      imageUrl: photo,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, _, _) => const _RifugioCover(),
+                    )
+                  : const _RifugioCover(),
             );
           },
         ),
@@ -700,13 +715,17 @@ class _RifugiStripState extends State<_RifugiStrip> {
     );
   }
 
-  String? _eleLabel(OsmPoi r) =>
-      r.elevation != null ? '${r.elevation!.round()} m s.l.m.' : null;
+  String? _eleLabel(Business b) => b.location.elevation != null
+      ? '${b.location.elevation!.round()} m s.l.m.'
+      : null;
 
-  String _distLabel(OsmPoi r) {
-    final km = _distM(r) / 1000;
-    final d = km < 1 ? '${(_distM(r)).round()} m' : '${km.toStringAsFixed(1)} km';
-    final ele = r.elevation != null ? ' · ${r.elevation!.round()} m' : '';
+  String _distLabel(Business b) {
+    final m = _distM(b);
+    final km = m / 1000;
+    final d = km < 1 ? '${m.round()} m' : '${km.toStringAsFixed(1)} km';
+    final ele = b.location.elevation != null
+        ? ' · ${b.location.elevation!.round()} m'
+        : '';
     return '$d da te$ele';
   }
 
@@ -738,11 +757,10 @@ class _RifugiStripState extends State<_RifugiStrip> {
   }
 }
 
-/// Copertina generata per un rifugio (niente foto nel bundle POI): gradiente
-/// "alpino" + icona del tipo. On-brand e sempre disponibile.
+/// Copertina generata per un rifugio (Spazio Pro) senza foto: gradiente
+/// "alpino" + icona. Sostituita dalla foto quando il gestore la carica.
 class _RifugioCover extends StatelessWidget {
-  final OsmPoi poi;
-  const _RifugioCover({required this.poi});
+  const _RifugioCover();
 
   @override
   Widget build(BuildContext context) {
@@ -756,7 +774,7 @@ class _RifugioCover extends StatelessWidget {
       ),
       child: Center(
         child: Icon(
-          poi.type.icon,
+          Icons.cabin,
           color: Colors.white.withValues(alpha: 0.85),
           size: 36,
         ),

@@ -5,14 +5,12 @@ import 'package:latlong2/latlong.dart';
 import '../../data/models/business.dart';
 import '../../data/models/home_feed_data.dart';
 import '../../data/models/home_resume_item.dart';
-import '../../data/models/osm_poi.dart';
 import '../../data/models/tour.dart';
 import '../../data/models/weather_data.dart';
 import '../../data/models/weekly_challenge.dart';
 import '../../data/repositories/business_repository.dart';
 import '../../data/repositories/community_tracks_repository.dart';
 import '../../data/repositories/follow_repository.dart';
-import '../../data/repositories/osm_pois_repository.dart';
 import '../../data/repositories/public_trails_repository.dart';
 import '../../data/repositories/tours_repository.dart';
 import '../../data/repositories/weekly_challenges_repository.dart';
@@ -182,24 +180,20 @@ class HomeFeedAggregator {
     return _communityRepo.getFollowingActivityFeed(followingIds, limit: 5);
   }
 
-  /// Rifugi "da visitare" dal bundle POI (20.4k POI italiani), ordinati per
-  /// quota (i più alti/iconici prima). Criterio NON geografico.
+  /// Rifugi "da visitare" dagli **Spazi Pro** (Business `type: rifugio`), NON
+  /// dai POI OSM: così sono **editabili dal gestore/utente** (foto, descrizione,
+  /// contatti) e mostrano le immagini caricate. La collection contiene già i
+  /// ~2200 rifugi OSM importati. Il filtro UI ordina per quota o distanza.
   ///
-  /// Caricato in **DIFFERITA** (non in loadCore): `ensureLoaded` fa jsonDecode +
-  /// parsing di 20k POI sul thread principale → bloccherebbe il primo paint.
-  /// Il Bloc lo chiama dopo aver già mostrato la Home.
-  Future<List<OsmPoi>> loadRifugi() async {
+  /// Caricato in **DIFFERITA** (non in loadCore) per non pesare sul primo paint.
+  /// NB: i doc Business sono piccoli (niente points GPS) → fetch leggero, e con
+  /// la persistence Firestore i load successivi vengono dalla cache.
+  Future<List<Business>> loadRifugi() async {
     try {
-      final repo = OsmPoisRepository();
-      await repo.ensureLoaded();
-      // Tutti i rifugi (con quota): il filtro UI sceglie come ordinarli
-      // (più alti / più vicini). Ordinati per quota come default.
-      final rifugi = repo
-          .all(types: {OsmPoiType.alpineHut, OsmPoiType.wildernessHut})
-          .where((p) => p.elevation != null)
-          .toList()
-        ..sort((a, b) => (b.elevation ?? 0).compareTo(a.elevation ?? 0));
-      return rifugi;
+      return await _businessRepo.getAllNationwide(
+        type: BusinessType.rifugio,
+        limit: 2000,
+      );
     } catch (_) {
       return const [];
     }

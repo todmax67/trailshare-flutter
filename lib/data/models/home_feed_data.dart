@@ -4,7 +4,6 @@ import '../repositories/community_tracks_repository.dart' show CommunityTrack;
 import '../repositories/public_trails_repository.dart' show PublicTrail;
 import 'business.dart';
 import 'home_resume_item.dart';
-import 'osm_poi.dart';
 import 'tour.dart';
 import 'weather_data.dart';
 import 'weekly_challenge.dart';
@@ -26,7 +25,7 @@ class HomeFeedData {
   final WeeklyChallenge? challenge;
   final List<CommunityTrack> community;
   final List<CommunityTrack> popularTracks;
-  final List<OsmPoi> rifugi;
+  final List<Business> rifugi;
   final List<CommunityTrack> followingPosts;
   final Tour? editorialTour;
   final List<Business> nearbyPro;
@@ -87,7 +86,7 @@ class HomeFeedData {
       );
 
   /// Copia con i [rifugi] popolati (caricamento differito, off critical path).
-  HomeFeedData withRifugi(List<OsmPoi> r) => HomeFeedData(
+  HomeFeedData withRifugi(List<Business> r) => HomeFeedData(
         userLocation: userLocation,
         weather: weather,
         resume: resume,
