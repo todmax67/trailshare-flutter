@@ -8,7 +8,6 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/business.dart';
 import '../../../data/models/home_feed_data.dart';
 import '../../../data/models/home_resume_item.dart';
-import '../../../data/models/tour.dart';
 import '../../../data/repositories/community_tracks_repository.dart'
     show CommunityTrack;
 import '../../../data/repositories/public_trails_repository.dart'
@@ -19,8 +18,6 @@ import '../../pages/community/community_page.dart';
 import '../../pages/discover/community_track_detail_page.dart';
 import '../../pages/discover/discover_page.dart';
 import '../../pages/record/record_page.dart';
-import '../../pages/tours/community_tour_detail_page.dart';
-import '../../widgets/weekly_challenge_card.dart';
 
 /// Home Feed prototype — aggrega in sezioni separate i building block
 /// esistenti (recovery, sfida, seguiti, tour, Spazi Pro, scopri).
@@ -93,13 +90,6 @@ class _HomeFeedPageState extends State<HomeFeedPage>
         _HeroCard(data: data),
         if (data.resume != null)
           _ResumeCard(item: data.resume!, onTap: _openRecord),
-        if (data.challenge != null) ...[
-          _SectionHeader(title: context.l10n.homeSectionChallenge),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: WeeklyChallengeCard(),
-          ),
-        ],
         if (data.followingPosts.isNotEmpty) ...[
           _SectionHeader(
             title: context.l10n.homeSectionFollowing,
@@ -109,13 +99,6 @@ class _HomeFeedPageState extends State<HomeFeedPage>
           _FollowingStrip(
             posts: data.followingPosts,
             onTap: _openCommunityTrack,
-          ),
-        ],
-        if (data.editorialTour != null) ...[
-          _SectionHeader(title: context.l10n.homeSectionTour),
-          _EditorialTourCard(
-            tour: data.editorialTour!,
-            onTap: () => _openTour(data.editorialTour!),
           ),
         ],
         // ── Sezioni geo (Fase 2) ──
@@ -168,13 +151,6 @@ class _HomeFeedPageState extends State<HomeFeedPage>
   void _openCommunityTrack(CommunityTrack t) => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => CommunityTrackDetailPage(track: t)),
-      );
-
-  void _openTour(Tour tour) => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => CommunityTourDetailPage(tourId: tour.id),
-        ),
       );
 
   void _openBusiness(Business b) => Navigator.push(
@@ -440,90 +416,6 @@ class _TrailCoverPlaceholder extends StatelessWidget {
       ),
     );
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Editorial tour
-// ═══════════════════════════════════════════════════════════════════════
-
-class _EditorialTourCard extends StatelessWidget {
-  final Tour tour;
-  final VoidCallback onTap;
-  const _EditorialTourCard({required this.tour, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final cover = tour.coverPhotoUrl;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-      child: GestureDetector(
-        onTap: onTap,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            children: [
-              cover != null
-                  ? CachedNetworkImage(
-                      imageUrl: cover,
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => _fallback(context),
-                    )
-                  : _fallback(context),
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.65),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 14,
-                right: 14,
-                bottom: 12,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tour.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${tour.daysCount} ${tour.daysCount == 1 ? "giorno" : "giorni"} · '
-                      '${tour.totalDistanceKm.toStringAsFixed(0)} km · ${tour.ownerName}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _fallback(BuildContext context) => Container(
-        height: 180,
-        width: double.infinity,
-        color: context.themedSurfaceVariant,
-        child: Icon(Icons.map, color: context.textMuted, size: 40),
-      );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
