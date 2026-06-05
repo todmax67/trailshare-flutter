@@ -171,10 +171,17 @@ Controllare il contesto prima di appiattire:
 - `community_page.dart:1307`
 - `group_tracks_tab.dart:185`
 
-### Elemento-firma (il vero margine d'identità)
-Le **tracce colorate per velocità/pendenza** (gradienti già in `AppColors`) sono l'unico
-elemento davvero distintivo vs Strava/Komoot. Da valorizzare come segno ricorrente del
-brand, non solo come dettaglio funzionale sulla mappa.
+### Elemento-firma (tracce colorate per pendenza) — FATTO inline ✅
+Logica estratta in `lib/core/utils/track_gradient_colors.dart` (`slopeBetween`, `slopeColor`,
+`slopeGradientPolylines`, `trackHasElevation`, widget `SlopeLegend`). Il fullscreen
+(`track_map_page`) ora delega al condiviso (single source). La **mappa inline**
+`InteractiveTrackMap` colora la traccia per pendenza di **default** (`colorBySlope = true`)
+con **mini-legenda** in basso-centro (solo se la traccia ha quota; fallback `AppColors.primary`).
+Ora la firma colorata è visibile a tutti senza aprire il fullscreen.
+
+Rimanenti (secondari):
+- **Velocità**: `speedGradient` definito ma mai usato (mancano timestamp per-punto).
+- Gradiente a fasce discrete, non continuo (Color.lerp) → rifinitura.
 
 ### Densità delle superfici
 313 `Card` in totale: il pattern "tutto è una card" resta. Valutare liste con separatori

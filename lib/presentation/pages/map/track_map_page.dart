@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/track_gradient_colors.dart';
 import '../../../data/models/osm_poi.dart';
 import '../../../data/models/terrain_segment.dart';
 import '../../../data/models/track.dart';
@@ -280,91 +281,18 @@ class _TrackMapPageState extends State<TrackMapPage> {
   // CALCOLO PENDENZA E COLORI
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Calcola la pendenza tra due punti (in percentuale)
-  double _calculateGradient(TrackPoint p1, TrackPoint p2) {
-    if (p1.elevation == null || p2.elevation == null) return 0;
-    
-    final distance = const Distance().as(
-      LengthUnit.Meter,
-      LatLng(p1.latitude, p1.longitude),
-      LatLng(p2.latitude, p2.longitude),
-    );
-    
-    if (distance < 1) return 0; // Evita divisione per zero
-    
-    final elevDiff = p2.elevation! - p1.elevation!;
-    return (elevDiff / distance) * 100; // Pendenza in percentuale
-  }
+  /// Colore in base alla pendenza — delega all'helper condiviso.
+  Color _getGradientColor(double gradient) => slopeColor(gradient);
 
-  /// Restituisce il colore in base alla pendenza
-  Color _getGradientColor(double gradient) {
-    // Salita (positivo) -> Rosso/Arancione/Giallo
-    // Piano -> Verde
-    // Discesa (negativo) -> Azzurro/Blu
-    
-    if (gradient > 15) {
-      return const Color(0xFFB71C1C); // Rosso scuro - salita ripida
-    } else if (gradient > 10) {
-      return const Color(0xFFD32F2F); // Rosso - salita forte
-    } else if (gradient > 6) {
-      return const Color(0xFFFF5722); // Arancione - salita moderata
-    } else if (gradient > 3) {
-      return const Color(0xFFFF9800); // Arancione chiaro - salita leggera
-    } else if (gradient > -3) {
-      return const Color(0xFF4CAF50); // Verde - piano
-    } else if (gradient > -6) {
-      return const Color(0xFF00BCD4); // Ciano - discesa leggera
-    } else if (gradient > -10) {
-      return const Color(0xFF2196F3); // Blu - discesa moderata
-    } else if (gradient > -15) {
-      return const Color(0xFF1976D2); // Blu scuro - discesa forte
-    } else {
-      return const Color(0xFF0D47A1); // Blu molto scuro - discesa ripida
-    }
-  }
-
-  /// Genera i segmenti colorati per la polyline
+  /// Segmenti colorati per pendenza — delega all'helper condiviso.
   List<Polyline> _buildGradientPolylines() {
-    if (_points.length < 2 || !_showGradientColors) {
-      // Polyline singola senza gradiente
+    final fallback = _isPlanned ? AppColors.info : AppColors.primary;
+    if (!_showGradientColors) {
       return [
-        Polyline(
-          points: _trackPoints,
-          strokeWidth: 5,
-          color: _isPlanned ? AppColors.info : AppColors.primary,
-        ),
+        Polyline(points: _trackPoints, strokeWidth: 5, color: fallback),
       ];
     }
-
-    final polylines = <Polyline>[];
-    
-    // Raggruppa punti con pendenza simile per ridurre il numero di segmenti
-    int startIndex = 0;
-    Color? currentColor;
-    
-    for (int i = 0; i < _points.length - 1; i++) {
-      final gradient = _calculateGradient(_points[i], _points[i + 1]);
-      final color = _getGradientColor(gradient);
-      
-      if (currentColor == null) {
-        currentColor = color;
-        startIndex = i;
-      } else if (color != currentColor || i == _points.length - 2) {
-        // Colore cambiato o ultimo segmento: crea polyline
-        final endIndex = (i == _points.length - 2) ? i + 2 : i + 1;
-        polylines.add(
-          Polyline(
-            points: _trackPoints.sublist(startIndex, endIndex),
-            strokeWidth: 5,
-            color: currentColor,
-          ),
-        );
-        currentColor = color;
-        startIndex = i;
-      }
-    }
-
-    return polylines;
+    return slopeGradientPolylines(_points, strokeWidth: 5, fallbackColor: fallback);
   }
 
   /// Komoot K1b — costruisce polyline a tratti coi colori del terreno.

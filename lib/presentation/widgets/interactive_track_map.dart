@@ -20,6 +20,7 @@ import 'osm_poi_detail_sheet.dart';
 import 'poi_marker_layer.dart';
 import 'poi_detail_sheet.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/utils/track_gradient_colors.dart';
 
 /// Widget mappa interattiva per visualizzare tracce GPS
 /// 
@@ -79,6 +80,10 @@ class InteractiveTrackMap extends StatefulWidget {
   final bool loadOsmPois;
   final double osmRadiusMeters;
 
+  /// Colora la traccia per pendenza (verde piano → rosso salita → blu
+  /// discesa) invece del colore singolo. Default true: è l'elemento-firma.
+  final bool colorBySlope;
+
   const InteractiveTrackMap({
     super.key,
     required this.points,
@@ -96,6 +101,7 @@ class InteractiveTrackMap extends StatefulWidget {
     this.poiIncludePrivate = false,
     this.loadOsmPois = false,
     this.osmRadiusMeters = 500,
+    this.colorBySlope = true,
   });
 
   @override
@@ -401,15 +407,18 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                   tileProvider: _tileProvider,
                 ),
                 
-                // Percorso
+                // Percorso — colorato per pendenza (elemento-firma) o singolo
                 PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: polylinePoints,
-                      strokeWidth: 4,
-                      color: AppColors.primary,
-                    ),
-                  ],
+                  polylines: widget.colorBySlope
+                      ? slopeGradientPolylines(widget.points,
+                          strokeWidth: 4, fallbackColor: AppColors.primary)
+                      : [
+                          Polyline(
+                            points: polylinePoints,
+                            strokeWidth: 4,
+                            color: AppColors.primary,
+                          ),
+                        ],
                 ),
 
                 // POI OSM (rifugi, sorgenti, fontane, panorami…) — sotto
@@ -703,6 +712,15 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                     ],
                   ),
                 ),
+              ),
+
+            // Legenda pendenza (elemento-firma) — solo se coloriamo e c'è quota.
+            if (widget.colorBySlope && trackHasElevation(widget.points))
+              const Positioned(
+                bottom: 8,
+                left: 0,
+                right: 0,
+                child: Center(child: SlopeLegend()),
               ),
           ],
         ),
