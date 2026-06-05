@@ -220,7 +220,7 @@ class BusinessRepository {
     }).toList();
 
     debugPrint('[getNearby] center=($lat,$lng) radius=${radiusKm}km '
-        'precision=$precision centerHash=$centerHash '
+        'limit=$limit precision=$precision centerHash=$centerHash '
         'hashes=${hashes.length} ranges=${ranges.length} '
         'rangesList=${ranges.map((r) => "${r.start}-${r.end}").toList()}');
 
@@ -256,6 +256,8 @@ class BusinessRepository {
       final db = _haversineKm(lat, lng, b.location.lat, b.location.lng);
       return da.compareTo(db);
     });
+
+    debugPrint('[getNearby] nearest: ${filtered.take(6).map((b) => "${b.name}=${_haversineKm(lat, lng, b.location.lat, b.location.lng).toStringAsFixed(1)}km gh=${b.location.geohash}").join(" | ")}');
 
     return filtered.take(limit).toList();
   }
