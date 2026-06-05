@@ -102,13 +102,21 @@ class HomeFeedAggregator {
   /// risolto una posizione accurata via [resolveLocation].
   Future<HomeFeedGeo> loadGeo(LatLng loc) async {
     final results = await Future.wait<dynamic>([
+      // NB: il `limit` di getNearby strozza il PREFILTRO geohash (ordinato
+      // per stringa geohash, non per distanza). Passandone uno piccolo (6)
+      // scartavamo candidati vicini come Gazzaniga prima dell'ordinamento →
+      // restavano spazi lontani (Travagliato). Prendiamo un pool ampio e poi
+      // teniamo i 6 più vicini (come fa CommunityPage con limit 100).
       _safe<List<Business>>(
-          () => _businessRepo.getNearby(
-                lat: loc.latitude,
-                lng: loc.longitude,
-                radiusKm: 50,
-                limit: 6,
-              ),
+          () async {
+            final pool = await _businessRepo.getNearby(
+              lat: loc.latitude,
+              lng: loc.longitude,
+              radiusKm: 50,
+              limit: 100,
+            );
+            return pool.take(6).toList();
+          },
           const []),
       _safe<List<PublicTrail>>(() => _loadNearbyTrails(loc), const []),
       _safe<WeatherData?>(
