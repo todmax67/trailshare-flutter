@@ -257,8 +257,6 @@ class BusinessRepository {
       return da.compareTo(db);
     });
 
-    debugPrint('[getNearby] nearest: ${filtered.take(6).map((b) => "${b.name}=${_haversineKm(lat, lng, b.location.lat, b.location.lng).toStringAsFixed(1)}km gh=${b.location.geohash}").join(" | ")}');
-
     return filtered.take(limit).toList();
   }
 

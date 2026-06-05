@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -267,14 +266,6 @@ class _HeroCard extends StatelessWidget {
                         color: context.textSecondary,
                       ),
                 ),
-                // DIAGNOSTICO TEMPORANEO (solo debug): mostra la posizione
-                // effettivamente risolta dalla Home, per capire il bug Travagliato.
-                if (kDebugMode && data.userLocation != null)
-                  Text(
-                    '📍 ${data.userLocation!.latitude.toStringAsFixed(4)}, '
-                    '${data.userLocation!.longitude.toStringAsFixed(4)}',
-                    style: TextStyle(fontSize: 11, color: context.textMuted),
-                  ),
               ],
             ),
           ),
