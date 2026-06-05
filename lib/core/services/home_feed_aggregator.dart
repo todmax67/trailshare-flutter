@@ -73,12 +73,17 @@ class HomeFeedAggregator {
           () => uid == null ? Future.value(const []) : _loadFollowing(uid),
           const []),
       _safe<Tour?>(_loadEditorialTour, null),
+      // Community generale: sempre ricca → risolve il cold-start del
+      // nuovo utente (che non ha ancora seguiti).
+      _safe<List<CommunityTrack>>(
+          () => _communityRepo.getRecentTracks(limit: 8), const []),
     ]);
     return HomeFeedData(
       resume: results[0] as HomeResumeItem?,
       challenge: results[1] as WeeklyChallenge?,
       followingPosts: results[2] as List<CommunityTrack>,
       editorialTour: results[3] as Tour?,
+      community: results[4] as List<CommunityTrack>,
       fetchedAt: DateTime.now(),
     );
   }

@@ -93,17 +93,20 @@ class _HomeFeedPageState extends State<HomeFeedPage>
         _HeroCard(data: data),
         if (data.resume != null)
           _ResumeCard(item: data.resume!, onTap: _openRecord),
-        if (data.followingPosts.isNotEmpty) ...[
+        // 1) Community generale — sempre ricca: la prima cosa che vede
+        // anche il nuovo utente senza seguiti (risolve il cold-start).
+        if (data.community.isNotEmpty) ...[
           _SectionHeader(
-            title: context.l10n.homeSectionFollowing,
+            title: 'Dalla community',
             actionLabel: context.l10n.homeViewAll,
             onAction: _openCommunity,
           ),
           _FollowingStrip(
-            posts: data.followingPosts,
+            posts: data.community,
             onTap: _openCommunityTrack,
           ),
         ],
+        // 2) Tour del mese.
         if (data.editorialTour != null) ...[
           _SectionHeader(title: context.l10n.homeSectionTour),
           _EditorialTourCard(
@@ -111,6 +114,19 @@ class _HomeFeedPageState extends State<HomeFeedPage>
             onTap: () => _openTour(data.editorialTour!),
           ),
         ],
+        // 3) I tuoi seguiti — sempre visibile; CTA se non segui nessuno.
+        _SectionHeader(
+          title: context.l10n.homeSectionFollowing,
+          actionLabel: context.l10n.homeViewAll,
+          onAction: _openCommunity,
+        ),
+        if (data.followingPosts.isNotEmpty)
+          _FollowingStrip(
+            posts: data.followingPosts,
+            onTap: _openCommunityTrack,
+          )
+        else
+          _FollowingEmptyCta(onTap: _openCommunity),
         // ── Sezioni geo (Fase 2) ──
         // Mentre geoPending, mostriamo header + loader per dare
         // feedback "sto cercando vicino a te". Quando arrivano i dati,
@@ -475,6 +491,66 @@ class _FeaturedCard extends StatelessWidget {
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Following empty CTA
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Mostrata nella sezione "I tuoi seguiti" quando l'utente non segue ancora
+/// nessuno: invito all'azione verso la community invece di una sezione vuota.
+class _FollowingEmptyCta extends StatelessWidget {
+  final VoidCallback onTap;
+  const _FollowingEmptyCta({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.group_add_outlined,
+                  color: AppColors.primary, size: 26),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Non segui ancora nessuno',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Esplora la community e trova escursionisti da seguire',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: context.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: context.textMuted),
             ],
           ),
         ),

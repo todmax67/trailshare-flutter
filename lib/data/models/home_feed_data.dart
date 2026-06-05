@@ -23,6 +23,7 @@ class HomeFeedData {
   final WeatherData? weather;
   final HomeResumeItem? resume;
   final WeeklyChallenge? challenge;
+  final List<CommunityTrack> community;
   final List<CommunityTrack> followingPosts;
   final Tour? editorialTour;
   final List<Business> nearbyPro;
@@ -34,6 +35,7 @@ class HomeFeedData {
     this.weather,
     this.resume,
     this.challenge,
+    this.community = const [],
     this.followingPosts = const [],
     this.editorialTour,
     this.nearbyPro = const [],
@@ -47,6 +49,7 @@ class HomeFeedData {
   bool get isCompletelyEmpty =>
       resume == null &&
       challenge == null &&
+      community.isEmpty &&
       followingPosts.isEmpty &&
       editorialTour == null &&
       nearbyPro.isEmpty &&
@@ -68,6 +71,7 @@ class HomeFeedData {
         weather: geo.weather,
         resume: resume,
         challenge: challenge,
+        community: community,
         followingPosts: followingPosts,
         editorialTour: editorialTour,
         nearbyPro: geo.nearbyPro,
