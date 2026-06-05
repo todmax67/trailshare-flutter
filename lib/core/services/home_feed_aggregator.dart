@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../data/models/business.dart';
@@ -15,6 +14,7 @@ import '../../data/repositories/follow_repository.dart';
 import '../../data/repositories/public_trails_repository.dart';
 import '../../data/repositories/tours_repository.dart';
 import '../../data/repositories/weekly_challenges_repository.dart';
+import 'location_service.dart';
 import 'recording_persistence_service.dart';
 import 'weather_service.dart';
 
@@ -33,13 +33,15 @@ class HomeFeedAggregator {
     ToursRepository? toursRepo,
     WeeklyChallengesRepository? challengesRepo,
     WeatherService? weatherService,
+    LocationService? locationService,
   })  : _businessRepo = businessRepo ?? BusinessRepository(),
         _communityRepo = communityRepo ?? CommunityTracksRepository(),
         _followRepo = followRepo ?? FollowRepository(),
         _trailsRepo = trailsRepo ?? PublicTrailsRepository(),
         _toursRepo = toursRepo ?? ToursRepository(),
         _challengesRepo = challengesRepo ?? WeeklyChallengesRepository(),
-        _weatherService = weatherService ?? WeatherService();
+        _weatherService = weatherService ?? WeatherService(),
+        _locationService = locationService ?? LocationService();
 
   final BusinessRepository _businessRepo;
   final CommunityTracksRepository _communityRepo;
@@ -48,6 +50,7 @@ class HomeFeedAggregator {
   final ToursRepository _toursRepo;
   final WeeklyChallengesRepository _challengesRepo;
   final WeatherService _weatherService;
+  final LocationService _locationService;
 
   /// Bounding box ~12 km attorno alla posizione utente.
   /// 1° lat ≈ 111 km → 12 km ≈ 0.11°. Più stretto di prima (era 0.18)
@@ -105,26 +108,17 @@ class HomeFeedAggregator {
     );
   }
 
-  /// Risolve una posizione **accurata** (non last-known) per le sezioni
-  /// geo. Usa accuratezza media (sufficiente per "entro 12-50 km").
-  /// Eseguito in Fase 2, quindi la lentezza non blocca le sezioni
-  /// non-geo già a schermo.
+  /// Risolve una posizione **accurata** per le sezioni geo.
+  ///
+  /// Usa il `LocationService` condiviso (`LocationAccuracy.high` = GPS, non
+  /// la rete): al cold start `accuracy.medium` poteva tornare una posizione
+  /// network/cella anche di decine di km → Spazi Pro/Scopri sul posto
+  /// sbagliato (es. Travagliato invece di Gazzaniga). `getCurrentPosition`
+  /// gestisce anche permessi; ritorna null su fallimento (niente sezioni geo).
   Future<LatLng?> resolveLocation() async {
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 10),
-        ),
-      );
-      return LatLng(pos.latitude, pos.longitude);
-    } catch (_) {
-      // NIENTE fallback su last-known: una posizione vecchia di km
-      // centrerebbe "Spazi Pro vicini / Scopri" sul posto sbagliato
-      // (bug: spazi mostrati spostati di km). Allineato a CommunityPage,
-      // che su fix fallito semplicemente non mostra le sezioni geo.
-      return null;
-    }
+    final tp = await _locationService.getCurrentPosition();
+    if (tp == null) return null;
+    return LatLng(tp.latitude, tp.longitude);
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────
