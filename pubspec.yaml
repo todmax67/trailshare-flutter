@@ -120,6 +120,7 @@ dependencies:
   # Prompt nativo "Valuta app" (StoreKit / Play in-app review)
   in_app_review: ^2.0.10
   webview_flutter: ^4.13.1
+  flutter_screen_recording: ^2.0.25
 
 dev_dependencies:
   flutter_test:

@@ -1,13 +1,18 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../core/constants/api_keys.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/fly_export_service.dart';
+import '../../../core/services/pro_gate_service.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/business_repository.dart';
+import '../../widgets/app_snackbar.dart';
 
 /// Visualizzazione 3D di una traccia con fly-through animato
 /// (stile Relive), resa via MapLibre GL JS dentro una WebView con
@@ -68,6 +73,11 @@ class _Track3DPageState extends State<Track3DPage> {
   bool _mapReady = false;
   List<Map<String, dynamic>>? _pois; // Spazi Pro vicini al percorso
 
+  // Export video: modalità "pulita" (nasconde i controlli, mostra watermark)
+  // mentre la registrazione schermo cattura un play completo dall'inizio.
+  bool _recording = false;
+  bool _exportPending = false;
+
   @override
   void initState() {
     super.initState();
@@ -100,6 +110,17 @@ class _Track3DPageState extends State<Track3DPage> {
         ),
       )
       ..loadFlutterAsset('assets/3d/flythrough.html');
+  }
+
+  @override
+  void dispose() {
+    // Safety: se si esce mentre si registra, ferma la cattura e ripristina
+    // la system UI (evita di lasciare l'app in modalità immersiva).
+    if (_recording) {
+      FlyExportService.stop();
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+    super.dispose();
   }
 
   void _onJsMessage(JavaScriptMessage message) {
@@ -165,6 +186,8 @@ class _Track3DPageState extends State<Track3DPage> {
               _progress = 1;
             });
           }
+          // Se stiamo esportando, il play è finito → chiudi la registrazione.
+          if (_exportPending) _finishExport();
           break;
         case 'error':
           if (mounted) {
@@ -293,6 +316,68 @@ class _Track3DPageState extends State<Track3DPage> {
     _controller.runJavaScript('tsSetSpeed($s)');
   }
 
+  // ─────────────────────────────────────────────────────────────────
+  // Export video (registrazione schermo nativa di un play completo)
+  // ─────────────────────────────────────────────────────────────────
+
+  Future<void> _exportVideo() async {
+    if (_recording || _exportPending) return;
+
+    // Modalità pulita: nasconde controlli + system UI, mostra il watermark.
+    setState(() {
+      _recording = true;
+      _exportPending = true;
+    });
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // Lascia respirare un frame perché la UI pulita sia già a schermo prima
+    // che parta la cattura.
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    final started = await FlyExportService.start('trailshare_fly');
+    if (!started) {
+      await _exitRecordingMode();
+      if (mounted) {
+        AppSnackBar.info(context, 'Registrazione annullata o non disponibile');
+      }
+      return;
+    }
+
+    // Riparti dall'inizio e lascia scorrere: l'export si chiude sull'evento
+    // 'ended' del fly → _finishExport().
+    _controller.runJavaScript('tsReset()');
+    await Future.delayed(const Duration(milliseconds: 300));
+    _controller.runJavaScript('tsPlay()');
+  }
+
+  Future<void> _finishExport() async {
+    final path = await FlyExportService.stop();
+    await _exitRecordingMode();
+    if (path == null) {
+      if (mounted) AppSnackBar.error(context, 'Export video non riuscito');
+      return;
+    }
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(path, mimeType: 'video/mp4')],
+          text: 'Il mio percorso in 3D con TrailShare 🏔️',
+        ),
+      );
+    } catch (e) {
+      if (mounted) AppSnackBar.error(context, 'Condivisione non riuscita');
+    }
+  }
+
+  Future<void> _exitRecordingMode() async {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    if (mounted) {
+      setState(() {
+        _recording = false;
+        _exportPending = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final loading = !_ready || !_trackLoaded;
@@ -344,10 +429,15 @@ class _Track3DPageState extends State<Track3DPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
+                    // In registrazione nascondiamo la X (resta solo il
+                    // titolo per il branding nel video).
+                    if (!_recording)
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      )
+                    else
+                      const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         widget.trackName,
@@ -447,14 +537,107 @@ class _Track3DPageState extends State<Track3DPage> {
               ),
             ),
 
-          // Controlli in basso (solo quando pronta)
+          // Controlli in basso (solo quando pronta). In registrazione
+          // mostriamo una HUD slim senza pulsanti (video pulito).
           if (!loading && _error == null)
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              child: SafeArea(child: _buildControls()),
+              child: SafeArea(
+                child: _recording ? _buildRecordingHud() : _buildControls(),
+              ),
             ),
+
+          // Watermark TrailShare: impresso nel video per gli utenti free
+          // (i Pro esportano pulito). Mostrato solo durante la cattura.
+          if (_recording && !ProGateService().isPro)
+            Positioned(
+              right: 14,
+              bottom: 90,
+              child: SafeArea(child: _buildWatermark()),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWatermark() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.terrain, color: Colors.white, size: 16),
+          SizedBox(width: 6),
+          Text(
+            'TrailShare',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              letterSpacing: 0.2,
+              shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// HUD ridotta durante la cattura: distanza/quota + progress, niente
+  /// pulsanti interattivi → il video resta pulito.
+  Widget _buildRecordingHud() {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              _InfoStat(
+                icon: Icons.straighten,
+                value: _distM < 1000
+                    ? '${_distM.round()} m'
+                    : '${(_distM / 1000).toStringAsFixed(1)} km',
+                label: 'Distanza',
+              ),
+              const SizedBox(width: 18),
+              _InfoStat(
+                icon: Icons.terrain,
+                value: '${_eleM.round()} m',
+                label: 'Quota',
+              ),
+              const Spacer(),
+              const Icon(Icons.fiber_manual_record,
+                  color: Colors.redAccent, size: 12),
+              const SizedBox(width: 6),
+              const Text('REC',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: _progress,
+              minHeight: 4,
+              backgroundColor: Colors.white24,
+              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+            ),
+          ),
         ],
       ),
     );
@@ -517,6 +700,12 @@ class _Track3DPageState extends State<Track3DPage> {
               IconButton(
                 icon: const Icon(Icons.replay, color: Colors.white70),
                 onPressed: _reset,
+              ),
+              IconButton(
+                icon: const Icon(Icons.movie_creation_outlined,
+                    color: Colors.white70),
+                tooltip: 'Esporta video',
+                onPressed: _exportVideo,
               ),
               const Spacer(),
               // Velocità — pill con contrasto netto attivo/inattivo.
