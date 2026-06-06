@@ -506,23 +506,48 @@ class CommunityTracksRepository {
     }
   }
 
-  /// Ottieni tracce più apprezzate
+  /// "I sentieri più amati (questo mese)": ordina per cheer ricevuti nel mese
+  /// corrente (`cheersThisMonth`, mantenuto dalle Cloud Function con reset lazy),
+  /// con fallback all-time (`cheerCount`) per riempire a inizio mese o se
+  /// l'indice composito non è ancora attivo. Resta a `limit` letture.
   Future<List<CommunityTrack>> getPopularTracks({int limit = 10}) async {
+    final now = DateTime.now().toUtc();
+    final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final result = <CommunityTrack>[];
+    final seen = <String>{};
+
+    // 1) Più amati DEL MESE corrente.
     try {
-      final snapshot = await _tracksCollection
-          .orderBy('cheerCount', descending: true)
+      final monthly = await _tracksCollection
+          .where('cheersMonthKey', isEqualTo: monthKey)
+          .orderBy('cheersThisMonth', descending: true)
           .limit(limit)
           .get();
-
-      return snapshot.docs
-          .map((doc) => _docToTrack(doc))
-          .where((track) => track != null)
-          .cast<CommunityTrack>()
-          .toList();
+      for (final doc in monthly.docs) {
+        final t = _docToTrack(doc);
+        if (t != null && seen.add(t.id)) result.add(t);
+      }
     } catch (e) {
-      debugPrint('[CommunityTracks] Errore: $e');
-      return [];
+      // Indice composito mancante (pre-deploy) o altro → si va di fallback.
+      debugPrint('[CommunityTracks] getPopularTracks mensile fallita: $e');
     }
+    if (result.length >= limit) return result;
+
+    // 2) Fallback all-time (cheerCount) per completare fino a `limit`.
+    try {
+      final allTime = await _tracksCollection
+          .orderBy('cheerCount', descending: true)
+          .limit(limit + result.length)
+          .get();
+      for (final doc in allTime.docs) {
+        if (result.length >= limit) break;
+        final t = _docToTrack(doc);
+        if (t != null && seen.add(t.id)) result.add(t);
+      }
+    } catch (e) {
+      debugPrint('[CommunityTracks] getPopularTracks all-time fallita: $e');
+    }
+    return result;
   }
 
   /// Cerca tracce per nome

@@ -329,9 +329,22 @@ exports.oncheersCreated = onDocumentCreated("published_tracks/{trackId}/cheers/{
 
     const trackRef = admin.firestore().collection("published_tracks").doc(trackId);
     
-    // 1. Increment Counter
-    await trackRef.update({ cheerCount: admin.firestore.FieldValue.increment(1) });
-    logger.info(`Contatore cheer incrementato per traccia ${trackId}`);
+    // 1. Counter all-time + bucket mensile (reset lazy al cambio mese) per la
+    //    sezione home "I sentieri più amati (questo mese)".
+    const monthKey = new Date().toISOString().slice(0, 7); // "YYYY-MM" (UTC)
+    await admin.firestore().runTransaction(async (tx) => {
+        const snap = await tx.get(trackRef);
+        if (!snap.exists) return;
+        const sameMonth = snap.data().cheersMonthKey === monthKey;
+        tx.update(trackRef, {
+            cheerCount: admin.firestore.FieldValue.increment(1),
+            cheersMonthKey: monthKey,
+            cheersThisMonth: sameMonth
+                ? admin.firestore.FieldValue.increment(1)
+                : 1,
+        });
+    });
+    logger.info(`Cheer +1 (mese ${monthKey}) per traccia ${trackId}`);
 
     // 2. Fetch Track Data
     const trackDoc = await trackRef.get();
@@ -609,12 +622,24 @@ exports.onCommentCreated = onDocumentCreated(
     }
 );
 
-exports.onCheerDeleted = onDocumentDeleted("published_tracks/{trackId}/cheers/{userId}", (event) => {
-    // ... il codice di questa funzione rimane invariato
+exports.onCheerDeleted = onDocumentDeleted("published_tracks/{trackId}/cheers/{userId}", async (event) => {
     const trackId = event.params.trackId;
     const trackRef = admin.firestore().collection("published_tracks").doc(trackId);
-    functions.logger.info(`Contatore cheer decrementato per traccia ${trackId}`);
-    return trackRef.update({ cheerCount: admin.firestore.FieldValue.increment(-1) });
+    const monthKey = new Date().toISOString().slice(0, 7);
+    return admin.firestore().runTransaction(async (tx) => {
+        const snap = await tx.get(trackRef);
+        if (!snap.exists) return;
+        const d = snap.data();
+        const update = { cheerCount: admin.firestore.FieldValue.increment(-1) };
+        // Decrementa il bucket mensile solo se appartiene al mese corrente ed
+        // è > 0 (un-cheer di un cheer dato in un mese passato non tocca il
+        // bucket corrente — approssimazione accettabile per un ranking soft).
+        if (d.cheersMonthKey === monthKey && (d.cheersThisMonth || 0) > 0) {
+            update.cheersThisMonth = admin.firestore.FieldValue.increment(-1);
+        }
+        tx.update(trackRef, update);
+        functions.logger.info(`Cheer -1 (mese ${monthKey}) per traccia ${trackId}`);
+    });
 });
 
 exports.sendFollowerNotification = onDocumentUpdated("user_profiles/{followedId}", async (event) => {

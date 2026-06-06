@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "published_tracks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cheersMonthKey", "order": "ASCENDING" },
+        { "fieldPath": "cheersThisMonth", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "business_claim_requests",
       "queryScope": "COLLECTION",
       "fields": [

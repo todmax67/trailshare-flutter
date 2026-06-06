@@ -160,6 +160,9 @@ class PostTrackSaveService {
 
       for (final doc in publishedSnapshot.docs) {
         final data = doc.data();
+        // `cheerCount` è la fonte autorevole (Cloud Function). Il vecchio
+        // `cheersCount` client è deprecato; teniamo il max come fallback per i
+        // doc storici non ancora riallineati.
         final c1 = (data['cheerCount'] as num?)?.toInt() ?? 0;
         final c2 = (data['cheersCount'] as num?)?.toInt() ?? 0;
         cheersReceived += c1 > c2 ? c1 : c2;

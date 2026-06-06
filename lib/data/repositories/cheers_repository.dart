@@ -109,26 +109,21 @@ class CheersRepository {
       final cheerDoc = await cheerRef.get();
 
       if (cheerDoc.exists) {
-        // Rimuovi cheer (unlike)
+        // Rimuovi cheer (unlike). Il contatore `cheerCount` (+ bucket mensile
+        // `cheersThisMonth`) è mantenuto server-side dalla Cloud Function
+        // onCheerDeleted: niente scrittura client (evita doppi contatori).
         await cheerRef.delete();
-        
-        // Aggiorna contatore sulla traccia (opzionale, per query veloci)
-        await _updateCheerCount(trackId, -1);
-        
         return CheerResult(
           success: true,
           isNowCheered: false,
         );
       } else {
-        // Aggiungi cheer (like)
+        // Aggiungi cheer (like). `cheerCount` + `cheersThisMonth` li aggiorna
+        // la Cloud Function oncheersCreated (server-authoritative).
         await cheerRef.set({
           'userId': user.uid,
           'createdAt': FieldValue.serverTimestamp(),
         });
-        
-        // Aggiorna contatore sulla traccia
-        await _updateCheerCount(trackId, 1);
-        
         return CheerResult(
           success: true,
           isNowCheered: true,
@@ -140,21 +135,6 @@ class CheersRepository {
         success: false,
         error: 'Errore durante l\'operazione. Riprova.',
       );
-    }
-  }
-
-  /// Aggiorna il contatore cheers sulla traccia pubblicata
-  Future<void> _updateCheerCount(String trackId, int delta) async {
-    try {
-      await _firestore
-          .collection('published_tracks')
-          .doc(trackId)
-          .update({
-        'cheersCount': FieldValue.increment(delta),
-      });
-    } catch (e) {
-      // Non critico se fallisce, il conteggio può essere ricalcolato
-      debugPrint('[CheersRepository] Errore aggiornamento contatore: $e');
     }
   }
 
