@@ -232,6 +232,11 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       }
       _lastHrSampleAt = now;
       _liveHeartRate[now] = data.bpm;
+      // Diagnostica: conferma in diretta che l'accumulo sta funzionando.
+      if (_liveHeartRate.length == 1 || _liveHeartRate.length % 10 == 0) {
+        debugPrint('[RecordPage] ❤️ HR live catturati: '
+            '${_liveHeartRate.length} (ultimo ${data.bpm} bpm)');
+      }
     });
   }
 

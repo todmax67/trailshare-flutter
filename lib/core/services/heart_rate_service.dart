@@ -105,24 +105,38 @@ class HeartRateService {
         }
       });
 
-      final services = await device.discoverServices();
+      final hrServiceGuid = Guid(heartRateServiceUuid);
+      final hrMeasurementGuid = Guid(heartRateMeasurementUuid);
 
+      // Discovery robusta: confronto per Guid (NON per stringa: i UUID
+      // standard a 16 bit si stampano come "180d", non in forma estesa →
+      // il vecchio confronto falliva anche col servizio presente) + retry
+      // perché su Android i servizi a volte non sono pronti al 1° tentativo.
       BluetoothService? hrService;
-      for (final service in services) {
-        if (service.uuid.toString().toLowerCase() == heartRateServiceUuid) {
-          hrService = service;
-          break;
+      for (int attempt = 0; attempt < 3 && hrService == null; attempt++) {
+        if (attempt > 0) {
+          await Future.delayed(const Duration(milliseconds: 700));
+        }
+        final services = await device.discoverServices();
+        debugPrint('[HeartRate] Discovery #${attempt + 1}: '
+            '${services.length} servizi → '
+            '${services.map((s) => s.uuid.toString()).join(", ")}');
+        for (final service in services) {
+          if (service.uuid == hrServiceGuid) {
+            hrService = service;
+            break;
+          }
         }
       }
 
       if (hrService == null) {
-        debugPrint('[HeartRate] Servizio Heart Rate non trovato');
+        debugPrint('[HeartRate] Servizio Heart Rate non trovato dopo 3 tentativi');
         await disconnect();
         return false;
       }
 
       for (final char in hrService.characteristics) {
-        if (char.uuid.toString().toLowerCase() == heartRateMeasurementUuid) {
+        if (char.uuid == hrMeasurementGuid) {
           _heartRateCharacteristic = char;
           break;
         }
