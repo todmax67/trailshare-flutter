@@ -28,6 +28,9 @@ class TcxService {
       String name = fileName?.replaceAll('.tcx', '') ?? 'Attività importata';
       String? sport;
       List<TrackPoint> points = [];
+      // ❤️ Battito: TCX lo mette in <HeartRateBpm><Value>N</Value></...> dentro
+      // ogni Trackpoint. Lo raccogliamo (timestamp punto → bpm).
+      final heartRateData = <DateTime, int>{};
 
       // Struttura: Activities > Activity > Lap > Track > Trackpoint
       final activities = root.findAllElements('Activity');
@@ -55,6 +58,8 @@ class TcxService {
               final point = _parseTrackpoint(tp);
               if (point != null) {
                 points.add(point);
+                final bpm = _parseHr(tp);
+                if (bpm != null) heartRateData[point.timestamp] = bpm;
               }
             }
           }
@@ -77,6 +82,8 @@ class TcxService {
               final point = _parseTrackpoint(tp);
               if (point != null) {
                 points.add(point);
+                final bpm = _parseHr(tp);
+                if (bpm != null) heartRateData[point.timestamp] = bpm;
               }
             }
           }
@@ -91,7 +98,8 @@ class TcxService {
       final activityType = _mapSportToActivityType(sport);
       final stats = _calculateStats(points);
 
-      debugPrint('[TcxService] Parsati ${points.length} punti da "$name" (sport: $sport)');
+      debugPrint('[TcxService] Parsati ${points.length} punti da "$name" '
+          '(sport: $sport, HR: ${heartRateData.length})');
 
       return Track(
         id: 'imported_tcx_${DateTime.now().millisecondsSinceEpoch}',
@@ -101,11 +109,22 @@ class TcxService {
         activityType: activityType,
         createdAt: _extractTime(points) ?? DateTime.now(),
         stats: stats,
+        heartRateData: heartRateData.isNotEmpty ? heartRateData : null,
       );
     } catch (e) {
       debugPrint('[TcxService] Errore parsing TCX: $e');
       return null;
     }
+  }
+
+  /// Battito di un Trackpoint: <HeartRateBpm><Value>N</Value></HeartRateBpm>.
+  int? _parseHr(XmlElement tp) {
+    final hrEl = tp.findElements('HeartRateBpm').firstOrNull;
+    final valStr = hrEl?.findElements('Value').firstOrNull?.innerText ??
+        hrEl?.innerText;
+    final bpm = int.tryParse((valStr ?? '').trim());
+    if (bpm == null || bpm <= 0 || bpm > 250) return null;
+    return bpm;
   }
 
   /// Parsa un singolo Trackpoint

@@ -31,6 +31,7 @@ class FitService {
       String? sport;
       DateTime? startTime;
       List<TrackPoint> points = [];
+      final heartRateData = <DateTime, int>{}; // ❤️ battito dai Record FIT
       int recordCount = 0;
       // Per Garmin recenti: coordinate in GpsMetadata, altri dati in Record
       double? pendingLat, pendingLon;
@@ -84,6 +85,17 @@ class FitService {
           case 'Record':
             if (recordCount < 2) {
               recordCount++;
+            }
+            // ❤️ Battito: FIT lo mette nei Record (campo heart_rate).
+            int? recHr;
+            DateTime? recTs;
+            for (final f in mesg.fields) {
+              if (f.value == null) continue;
+              if (f.name == 'heart_rate') recHr = _toDouble(f.value)?.round();
+              if (f.name == 'timestamp') recTs = _fitTimestampToDateTime(f.value);
+            }
+            if (recHr != null && recHr > 0 && recHr <= 250 && recTs != null) {
+              heartRateData[recTs] = recHr;
             }
             final point = _parseRecordMessage(mesg);
             if (point != null) {
@@ -147,7 +159,8 @@ class FitService {
       // Statistiche
       final stats = _calculateStats(points);
 
-      debugPrint('[FitService] Parsati ${points.length} punti da "$trackName" (sport: $sport)');
+      debugPrint('[FitService] Parsati ${points.length} punti da "$trackName" '
+          '(sport: $sport, HR: ${heartRateData.length})');
 
       return Track(
         id: 'imported_fit_${DateTime.now().millisecondsSinceEpoch}',
@@ -157,6 +170,7 @@ class FitService {
         activityType: activityType,
         createdAt: startTime ?? _extractTime(points) ?? DateTime.now(),
         stats: stats,
+        heartRateData: heartRateData.isNotEmpty ? heartRateData : null,
       );
     } catch (e) {
       return null;
