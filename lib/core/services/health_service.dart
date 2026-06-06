@@ -19,6 +19,7 @@ class HealthService {
   // Tipi di dati che leggiamo/scriviamo
   static final List<HealthDataType> _readTypes = [
     HealthDataType.WORKOUT,
+    HealthDataType.WORKOUT_ROUTE, // import tracce GPS dall'orologio (B)
     HealthDataType.STEPS,
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.HEART_RATE,
@@ -261,6 +262,7 @@ class HealthService {
             totalCalories: wv.totalEnergyBurned?.toDouble(),
             sourceName: dp.sourceName,
             sourceId: dp.sourceId,
+            uuid: dp.uuid,
           ));
         }
       }
@@ -272,6 +274,44 @@ class HealthService {
       return workouts;
     } catch (e) {
       debugPrint('[HealthService] Errore lettura workout: $e');
+      return [];
+    }
+  }
+
+  /// Legge la rotta GPS (WORKOUT_ROUTE) di un workout per importarlo come
+  /// traccia. Su iOS = HKWorkoutRoute (Apple Watch); su Android = ExerciseRoute
+  /// di Health Connect. Filtra per [workoutUuid] quando disponibile.
+  Future<List<WorkoutRouteLocation>> getWorkoutRoute({
+    required DateTime start,
+    required DateTime end,
+    String? workoutUuid,
+  }) async {
+    await configure();
+    try {
+      final points = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.WORKOUT_ROUTE],
+        startTime: start.subtract(const Duration(minutes: 2)),
+        endTime: end.add(const Duration(minutes: 2)),
+      );
+      final locations = <WorkoutRouteLocation>[];
+      for (final dp in points) {
+        final v = dp.value;
+        if (v is WorkoutRouteHealthValue) {
+          // Se conosciamo l'uuid del workout, prendi solo la sua rotta.
+          if (workoutUuid != null &&
+              v.workoutUuid != null &&
+              v.workoutUuid != workoutUuid) {
+            continue;
+          }
+          locations.addAll(v.locations);
+        }
+      }
+      locations.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      debugPrint('[HealthService] Route: ${locations.length} punti GPS '
+          '(workout ${workoutUuid ?? "?"})');
+      return locations;
+    } catch (e) {
+      debugPrint('[HealthService] Errore lettura route: $e');
       return [];
     }
   }
@@ -733,6 +773,7 @@ class HealthWorkout {
   final double? totalCalories;
   final String sourceName;
   final String sourceId;
+  final String? uuid; // per legare la rotta GPS (WORKOUT_ROUTE) al workout
 
   HealthWorkout({
     required this.type,
@@ -742,6 +783,7 @@ class HealthWorkout {
     this.totalCalories,
     required this.sourceName,
     required this.sourceId,
+    this.uuid,
   });
 
   Duration get duration => endTime.difference(startTime);

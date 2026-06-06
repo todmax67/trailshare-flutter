@@ -29,6 +29,7 @@ import 'package:health/health.dart';
 import '../../../core/services/health_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'health_dashboard_page.dart';
+import '../wearable/watch_import_page.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/services/push_notification_service.dart';
@@ -322,6 +323,19 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ],
+          // Importa attività dall'orologio (Apple Watch / Garmin & co. via
+          // Health) — sempre visibile, non richiede la sync-write attiva.
+          ListTile(
+            leading: Icon(Icons.watch, color: AppColors.primary),
+            title: const Text('Importa dall\'orologio'),
+            subtitle: const Text(
+                'Apple Watch, Garmin e altri: importa i giri da Salute'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const WatchImportPage()),
+            ),
+          ),
           const Divider(height: 32),
 
           // Sezione Strava

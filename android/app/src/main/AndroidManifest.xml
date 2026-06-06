@@ -40,6 +40,10 @@
     <!-- Health Connect -->
         <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
         <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
+        <!-- Percorso GPS dei workout (import dall'orologio). Su Health Connect
+             è "special access": richiede consenso utente dedicato e, per la
+             pubblicazione, il modulo Google sull'accesso ai dati. -->
+        <uses-permission android:name="android.permission.health.READ_EXERCISE_ROUTES"/>
         <uses-permission android:name="android.permission.health.READ_DISTANCE"/>
         <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED"/>
         <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
