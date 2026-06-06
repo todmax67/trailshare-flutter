@@ -8,6 +8,7 @@ import '../../../core/services/strava_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../settings/health_dashboard_page.dart';
 import '../tracks/import_gpx_page.dart';
+import 'garmin_pairing_page.dart';
 import 'watch_import_page.dart';
 
 /// Hub unico, scopribile, di **Dispositivi & sincronizzazione**: documenta in
@@ -186,6 +187,9 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
             color: AppColors.primary,
             title: 'Garmin (e altri orologi)',
             children: [
+              _bullet('Registra dal polso: con l\'app TrailShare per Connect IQ '
+                  'sul Garmin, le attività arrivano qui automaticamente '
+                  '(percorso + battito). Abbina l\'orologio col codice.'),
               _bullet('Importa un\'attività: in Garmin Connect apri l\'attività → '
                   'Esporta/Condividi il file (FIT o GPX) → "Apri con TrailShare". '
                   'Funziona con qualsiasi orologio (Garmin, Suunto, Coros…).'),
@@ -193,16 +197,27 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
                   'e usalo come fascia durante la registrazione (battito live).'),
               Padding(
                 padding: const EdgeInsets.only(top: 6),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.tonalIcon(
-                    icon: const Icon(Icons.upload_file, size: 18),
-                    label: const Text('Importa file attività'),
-                    onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ImportGpxPage())),
-                  ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    FilledButton.tonalIcon(
+                      icon: const Icon(Icons.watch, size: 18),
+                      label: const Text('Abbina il tuo Garmin'),
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const GarminPairingPage())),
+                    ),
+                    FilledButton.tonalIcon(
+                      icon: const Icon(Icons.upload_file, size: 18),
+                      label: const Text('Importa file attività'),
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ImportGpxPage())),
+                    ),
+                  ],
                 ),
               ),
             ],

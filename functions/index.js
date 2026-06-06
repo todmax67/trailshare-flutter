@@ -1807,13 +1807,27 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
     try {
         const data = req.body;
 
-        if (!data || !data.userId || !data.points || !Array.isArray(data.points)) {
+        if (!data || !data.points || !Array.isArray(data.points)) {
             logger.warn('[GarminSync] Dati invalidi ricevuti');
             res.status(400).json({ error: 'Dati invalidi' });
             return;
         }
 
-        const userId = data.userId;
+        // Risolvi l'utente dal TOKEN di abbinamento (sicuro): niente più
+        // userId arbitrario dal body (era un buco: chiunque poteva scrivere
+        // su qualsiasi account).
+        const token = data.token;
+        if (!token) {
+            res.status(400).json({ error: 'Token di abbinamento mancante' });
+            return;
+        }
+        const pairSnap = await db.collection('garmin_pairings').doc(String(token)).get();
+        if (!pairSnap.exists) {
+            logger.warn('[GarminSync] Token non valido/revocato');
+            res.status(403).json({ error: 'Token non valido o revocato' });
+            return;
+        }
+        const userId = pairSnap.data().uid;
         const points = data.points;
         const name = data.name || 'Garmin TrailShare';
         const sport = data.sport || 'trekking';
@@ -1938,6 +1952,68 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
         logger.error('[GarminSync] Errore:', error);
         res.status(500).json({ error: 'Errore interno' });
     }
+});
+
+// ===================================================================
+// GARMIN PAIRING — token per legare la watch app (Connect IQ) all'utente
+// ===================================================================
+
+function _genGarminPairCode() {
+    // Alfabeto senza caratteri ambigui (no 0/O/1/I) — facile da incollare.
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const bytes = crypto.randomBytes(8);
+    let s = "";
+    for (let i = 0; i < 8; i++) s += alphabet[bytes[i] % alphabet.length];
+    return s;
+}
+
+// Genera (o rigenera) il codice di abbinamento dell'utente loggato. Il codice
+// si incolla nelle impostazioni dell'app TrailShare per Connect IQ (via Garmin
+// Connect Mobile). La watch app lo invia al posto dello userId.
+exports.createGarminPairing = onCall(async (request) => {
+    const uid = request.auth && request.auth.uid;
+    if (!uid) {
+        throw new functions.https.HttpsError('unauthenticated', 'Devi essere loggato.');
+    }
+    const userRef = db.collection('users').doc(uid);
+    const userSnap = await userRef.get();
+    const prev = userSnap.exists ? userSnap.data().garminPairingToken : null;
+    if (prev) {
+        await db.collection('garmin_pairings').doc(prev).delete().catch(() => {});
+    }
+    let token;
+    for (let i = 0; i < 6; i++) {
+        token = _genGarminPairCode();
+        const exists = await db.collection('garmin_pairings').doc(token).get();
+        if (!exists.exists) break;
+    }
+    await db.collection('garmin_pairings').doc(token).set({
+        uid: uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await userRef.set({ garminPairingToken: token }, { merge: true });
+    logger.info(`[GarminPair] Token creato per ${uid}`);
+    return { token: token };
+});
+
+// Revoca il codice di abbinamento dell'utente (l'orologio smette di poter
+// inviare finché non se ne genera uno nuovo).
+exports.revokeGarminPairing = onCall(async (request) => {
+    const uid = request.auth && request.auth.uid;
+    if (!uid) {
+        throw new functions.https.HttpsError('unauthenticated', 'Devi essere loggato.');
+    }
+    const userRef = db.collection('users').doc(uid);
+    const snap = await userRef.get();
+    const token = snap.exists ? snap.data().garminPairingToken : null;
+    if (token) {
+        await db.collection('garmin_pairings').doc(token).delete().catch(() => {});
+        await userRef.set(
+            { garminPairingToken: admin.firestore.FieldValue.delete() },
+            { merge: true });
+    }
+    logger.info(`[GarminPair] Token revocato per ${uid}`);
+    return { ok: true };
 });
 
 // ===================================================================
