@@ -26,6 +26,7 @@ class FlyExportService {
       // Solo video (audio silenzioso per scelta di prodotto: chi condivide
       // aggiunge la propria musica). Niente permesso microfono.
       final ok = await FlutterScreenRecording.startRecordScreen(name);
+      debugPrint('[FlyExport] startRecordScreen → $ok');
       _recording = ok;
       return ok;
     } catch (e) {

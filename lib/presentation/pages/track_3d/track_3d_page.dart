@@ -9,7 +9,6 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../core/constants/api_keys.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/fly_export_service.dart';
-import '../../../core/services/pro_gate_service.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../widgets/app_snackbar.dart';
@@ -77,6 +76,10 @@ class _Track3DPageState extends State<Track3DPage> {
   // mentre la registrazione schermo cattura un play completo dall'inizio.
   bool _recording = false;
   bool _exportPending = false;
+  // Cover brandizzata mostrata all'avvio dell'export: nasconde la chiusura
+  // del dialog di sistema (MediaProjection) che altrimenti finisce nei primi
+  // frame del video, e fa da intro.
+  bool _exportIntro = false;
 
   @override
   void initState() {
@@ -323,14 +326,14 @@ class _Track3DPageState extends State<Track3DPage> {
   Future<void> _exportVideo() async {
     if (_recording || _exportPending) return;
 
-    // Modalità pulita: nasconde controlli + system UI, mostra il watermark.
+    // Modalità pulita + cover intro: nasconde controlli/system UI e copre lo
+    // schermo finché il dialog di sistema non è del tutto chiuso.
     setState(() {
       _recording = true;
       _exportPending = true;
+      _exportIntro = true;
     });
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    // Lascia respirare un frame perché la UI pulita sia già a schermo prima
-    // che parta la cattura.
     await Future.delayed(const Duration(milliseconds: 400));
 
     final started = await FlyExportService.start('trailshare_fly');
@@ -342,20 +345,34 @@ class _Track3DPageState extends State<Track3DPage> {
       return;
     }
 
-    // Riparti dall'inizio e lascia scorrere: l'export si chiude sull'evento
-    // 'ended' del fly → _finishExport().
+    // La cattura è partita ma il dialog MediaProjection si sta ancora
+    // chiudendo: teniamo su la cover intro abbastanza a lungo perché (a) sia
+    // leggibile e (b) il popup di sistema sparisca prima del fly. Il primo
+    // ~0.3s di dialog resta inevitabile (la cattura OS parte al consenso).
+    await Future.delayed(const Duration(milliseconds: 2600));
     _controller.runJavaScript('tsReset()');
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 450));
+    if (mounted) setState(() => _exportIntro = false);
+    // Riparti dall'inizio: l'export si chiude sull'evento 'ended' del fly.
     _controller.runJavaScript('tsPlay()');
   }
 
   Future<void> _finishExport() async {
+    if (!_exportPending) return; // anti doppio-trigger su 'ended' ripetuti
+    _exportPending = false;
+    debugPrint('[FlyExport] finish: stop registrazione…');
     final path = await FlyExportService.stop();
+    debugPrint('[FlyExport] finish: stop completato, path=$path');
     await _exitRecordingMode();
     if (path == null) {
       if (mounted) AppSnackBar.error(context, 'Export video non riuscito');
       return;
     }
+    // Piccola attesa: garantisce che il file sia finalizzato e che la
+    // proiezione sia davvero giù prima di aprire lo share sheet (così il
+    // selettore app non finisce nel video).
+    await Future.delayed(const Duration(milliseconds: 600));
+    debugPrint('[FlyExport] finish: apro share sheet');
     try {
       await SharePlus.instance.share(
         ShareParams(
@@ -374,6 +391,7 @@ class _Track3DPageState extends State<Track3DPage> {
       setState(() {
         _recording = false;
         _exportPending = false;
+        _exportIntro = false;
       });
     }
   }
@@ -549,13 +567,61 @@ class _Track3DPageState extends State<Track3DPage> {
               ),
             ),
 
-          // Watermark TrailShare: impresso nel video per gli utenti free
-          // (i Pro esportano pulito). Mostrato solo durante la cattura.
-          if (_recording && !ProGateService().isPro)
+          // Watermark TrailShare: impresso SEMPRE nel video (anche Pro) —
+          // ogni clip condivisa porta il brand, è la leva di diffusione.
+          if (_recording)
             Positioned(
               right: 14,
               bottom: 90,
               child: SafeArea(child: _buildWatermark()),
+            ),
+
+          // Cover intro: copre la chiusura del dialog di sistema all'avvio
+          // della registrazione (e fa da intro brandizzata nel video).
+          if (_exportIntro)
+            Positioned.fill(
+              child: Container(
+                color: const Color(0xFF0C1116),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/icons/app_icon_foreground.png',
+                        width: 168,
+                        height: 168,
+                        filterQuality: FilterQuality.medium,
+                      ),
+                      const SizedBox(height: 14),
+                      Padding(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          widget.trackName,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'TrailShare',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
         ],
       ),
@@ -571,15 +637,20 @@ class _Track3DPageState extends State<Track3DPage> {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(Icons.terrain, color: Colors.white, size: 16),
-          SizedBox(width: 6),
-          Text(
+        children: [
+          Image.asset(
+            'assets/icons/app_icon_foreground.png',
+            width: 36,
+            height: 36,
+            filterQuality: FilterQuality.medium,
+          ),
+          const SizedBox(width: 7),
+          const Text(
             'TrailShare',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
-              fontSize: 14,
+              fontSize: 15,
               letterSpacing: 0.2,
               shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
             ),
@@ -617,15 +688,6 @@ class _Track3DPageState extends State<Track3DPage> {
                 value: '${_eleM.round()} m',
                 label: 'Quota',
               ),
-              const Spacer(),
-              const Icon(Icons.fiber_manual_record,
-                  color: Colors.redAccent, size: 12),
-              const SizedBox(width: 6),
-              const Text('REC',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12)),
             ],
           ),
           const SizedBox(height: 8),
