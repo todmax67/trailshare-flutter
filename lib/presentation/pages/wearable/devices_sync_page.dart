@@ -7,6 +7,7 @@ import '../../../core/services/health_service.dart';
 import '../../../core/services/strava_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../settings/health_dashboard_page.dart';
+import '../tracks/import_gpx_page.dart';
 import 'watch_import_page.dart';
 
 /// Hub unico, scopribile, di **Dispositivi & sincronizzazione**: documenta in
@@ -183,15 +184,27 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
           _card(
             icon: Icons.watch,
             color: AppColors.primary,
-            title: 'Garmin',
+            title: 'Garmin (e altri orologi)',
             children: [
-              _bullet(Platform.isAndroid
-                  ? 'Registra dall\'orologio: con l\'app TrailShare per ConnectIQ, '
-                      'i giri arrivano qui automaticamente (con percorso GPS).'
-                  : 'Su iPhone: sincronizza le attività via Strava, oppure '
-                      'importa un file FIT/TCX dalla traccia.'),
+              _bullet('Importa un\'attività: in Garmin Connect apri l\'attività → '
+                  'Esporta/Condividi il file (FIT o GPX) → "Apri con TrailShare". '
+                  'Funziona con qualsiasi orologio (Garmin, Suunto, Coros…).'),
               _bullet('Trasmetti FC: attiva la trasmissione cardio sull\'orologio '
                   'e usalo come fascia durante la registrazione (battito live).'),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.tonalIcon(
+                    icon: const Icon(Icons.upload_file, size: 18),
+                    label: const Text('Importa file attività'),
+                    onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ImportGpxPage())),
+                  ),
+                ),
+              ),
             ],
           ),
 
