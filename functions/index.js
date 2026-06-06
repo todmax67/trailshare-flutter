@@ -1853,9 +1853,10 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
             const hr = p.hr || 0;
             const timestamp = new Date(startTime.getTime() + (i * durationMs / Math.max(points.length - 1, 1)));
 
-            // HR
+            // HR — chiave = millisecondi epoch (come legge l'app:
+            // DateTime.fromMillisecondsSinceEpoch(int.parse(key))).
             if (hr > 0) {
-                heartRateData[timestamp.toISOString()] = hr;
+                heartRateData[String(timestamp.getTime())] = hr;
             }
 
             // Elevazione
@@ -1920,6 +1921,14 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
             isPlanned: false,
             source: 'garmin',
             heartRateData: heartRateData,
+            // Stat anche a livello top-level: è lo schema che l'app legge
+            // (tracks_repository). Distanze/dislivelli in metri, durata in
+            // SECONDI (non ms), coerente con Track.toMap().
+            distance: totalDistance,
+            elevationGain: elevationGain,
+            elevationLoss: elevationLoss,
+            duration: Math.round(durationSecs),
+            movingTime: Math.round(durationSecs),
             stats: {
                 distance: totalDistance,
                 elevationGain: elevationGain,
