@@ -17,6 +17,7 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/tracks_repository.dart';
 import '../../widgets/live_track_button.dart';
 import '../../widgets/heart_rate_widget.dart';
+import '../../../core/services/heart_rate_service.dart';
 import '../../../core/services/feature_tips.dart';
 import '../../../core/services/heading_service.dart';
 import '../../../core/services/hud_prefs_service.dart';
@@ -182,6 +183,13 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   bool _lastIsIdle = true;
 
   StreamSubscription<LifelineState>? _lifelineSub;
+
+  // ❤️ Cardio LIVE dalla fascia BLE catturato DURANTE la registrazione e
+  // salvato nella traccia (prima il dato si perdeva: veniva solo backfillato
+  // da Health post-save, quindi con una fascia BLE "pura" i battiti sparivano).
+  StreamSubscription<HeartRateData>? _hrSub;
+  final Map<DateTime, int> _liveHeartRate = {};
+  DateTime? _lastHrSampleAt;
   bool _inactivityDialogShown = false;
 
   @override
@@ -206,7 +214,25 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _loadQuickStats();
     _loadLifelineConfig();
     _subscribeLifelineEvents();
+    _subscribeHeartRate();
     if (!_isGuided) _checkFirstRecordTutorial();
+  }
+
+  /// Accumula i battiti dalla fascia cardio BLE nel buffer [_liveHeartRate]
+  /// mentre è in corso una registrazione (max ~1 campione ogni 3s per non far
+  /// crescere troppo la mappa su attività lunghe). Salvato nella traccia al
+  /// momento del save, con priorità sui dati Health.
+  void _subscribeHeartRate() {
+    _hrSub = HeartRateService().heartRateStream.listen((data) {
+      if (!_trackingBloc.state.isRecording) return;
+      final now = data.timestamp;
+      if (_lastHrSampleAt != null &&
+          now.difference(_lastHrSampleAt!).inSeconds < 3) {
+        return;
+      }
+      _lastHrSampleAt = now;
+      _liveHeartRate[now] = data.bpm;
+    });
   }
 
   /// Se l'utente non ha mai visto il tutorial di primo avvio, lo segnala
@@ -931,6 +957,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     }
     _batterySubscription?.cancel();
     _lifelineSub?.cancel();
+    _hrSub?.cancel();
     _hudHideTimer?.cancel();
     _voice?.dispose();
     _trackingBloc.dispose();
@@ -2114,6 +2141,19 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         });
       }
 
+      // ❤️ Cardio LIVE dalla fascia BLE catturato in registrazione: ha la
+      // PRIORITÀ sul backfill da Health (è il dato diretto della fascia).
+      // Lo salviamo subito; il blocco Health sotto fa l'HR solo se questo è
+      // vuoto (es. nessuna fascia BLE collegata).
+      final liveHr = Map<DateTime, int>.from(_liveHeartRate);
+      if (liveHr.isNotEmpty) {
+        _repository.updateTrackHeartRate(trackId, liveHr).then((_) {
+          debugPrint('[RecordPage] ❤️ ${liveHr.length} campioni HR LIVE (fascia BLE) salvati');
+        }).catchError((e) {
+          debugPrint('[RecordPage] ❤️ Errore salvataggio HR live: $e');
+        });
+      }
+
       /// ❤️ Recupera battito cardiaco da Health Connect/Apple Health
       // Attende 15 secondi per dare tempo al wearable di sincronizzare
       () async {
@@ -2123,17 +2163,19 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           final healthService = HealthService();
           final startTime = trackToSave.createdAt;
           final endTime = startTime.add(trackToSave.stats.duration);
-          
-          final hrData = await healthService.getHeartRateForTimeRange(
-            start: startTime,
-            end: endTime,
-          );
-          
-          if (hrData.isNotEmpty) {
-            await _repository.updateTrackHeartRate(trackId, hrData);
-            debugPrint('[RecordPage] ❤️ ${hrData.length} campioni HR salvati sulla traccia');
-          } else {
-            debugPrint('[RecordPage] ❤️ Nessun dato HR trovato per questo intervallo');
+
+          // Solo se NON abbiamo già il cardio live dalla fascia BLE.
+          if (liveHr.isEmpty) {
+            final hrData = await healthService.getHeartRateForTimeRange(
+              start: startTime,
+              end: endTime,
+            );
+            if (hrData.isNotEmpty) {
+              await _repository.updateTrackHeartRate(trackId, hrData);
+              debugPrint('[RecordPage] ❤️ ${hrData.length} campioni HR da Health salvati');
+            } else {
+              debugPrint('[RecordPage] ❤️ Nessun dato HR (né fascia né Health)');
+            }
           }
 
           // 🔥 Recupera calorie reali
@@ -2985,6 +3027,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         }
       }
     }
+    // Reset buffer cardio per la nuova registrazione.
+    _liveHeartRate.clear();
+    _lastHrSampleAt = null;
     await _trackingBloc.startRecording(activityType: _selectedActivity);
   }
 
