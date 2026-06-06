@@ -61,7 +61,8 @@ class _WatchImportPageState extends State<WatchImportPage> {
       if (!mounted) return;
       if (id == null) {
         AppSnackBar.info(context,
-            'Questa attività non ha una traccia GPS (indoor?) e non è importabile');
+            'Nessun percorso GPS in Salute per questa attività. Apple Watch lo '
+            'salva; Garmin & co. no — per quelli usa l\'import diretto o Strava.');
       } else {
         setState(() => _imported.add(key));
         AppSnackBar.success(context, 'Attività importata nelle tue tracce ✓');
@@ -133,7 +134,9 @@ class _WatchImportPageState extends State<WatchImportPage> {
             padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: Text(
               'Attività degli ultimi 30 giorni da Apple Health / Health Connect. '
-              'Tocca per importarle come tracce (con percorso GPS e battito).',
+              'Importabili come traccia solo quelle con percorso GPS in Salute '
+              '(Apple Watch lo include; Garmin & co. salvano solo il riepilogo '
+              '— per quelli usa l\'import diretto o Strava).',
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
           );
