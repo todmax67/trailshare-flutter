@@ -16,8 +16,6 @@ import 'widgets/tour_hero.dart';
 import 'widgets/tour_rich_sections.dart';
 import '../track_detail/track_detail_page.dart';
 import '../track_3d/track_3d_page.dart';
-import '../../widgets/paywall_sheet.dart';
-import '../../../core/services/pro_gate_service.dart';
 import 'tour_edit_page.dart';
 import '../../widgets/flat_section.dart';
 
@@ -261,13 +259,12 @@ class _TourDetailPageState extends State<TourDetailPage> {
   Widget _build3DButton() {
     final total = _tracks.fold<int>(0, (n, t) => n + t.points.length);
     if (total < 2) return const SizedBox.shrink();
-    final isPro = ProGateService().isPro;
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: _open3D,
         icon: const Icon(Icons.threed_rotation, size: 20),
-        label: Text(isPro ? 'Vedi in 3D' : 'Vedi in 3D (Pro)'),
+        label: const Text('Vedi in 3D'),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
           side: const BorderSide(color: AppColors.primary, width: 1.5),
@@ -281,10 +278,8 @@ class _TourDetailPageState extends State<TourDetailPage> {
   }
 
   void _open3D() {
-    if (!ProGateService().isPro) {
-      showPaywallSheet(context, trigger: PaywallTrigger.flythrough3d);
-      return;
-    }
+    // Modello 1: fly 3D gratis da guardare (gancio diffusione); il Pro
+    // vale solo per l'export senza watermark (gestito in Track3DPage).
     // Le tracce del tour privato hanno quota reale (DEM).
     // Ogni traccia è un segmento con il suo nome. Il viewer 3D decide
     // salto volante (raccolta) vs continuità liscia (cammino) dal gap.

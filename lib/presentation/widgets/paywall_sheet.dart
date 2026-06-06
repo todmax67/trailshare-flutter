@@ -171,7 +171,7 @@ class _PaywallSheetState extends State<PaywallSheet> {
       case PaywallTrigger.mapStylePro:
         return 'Sblocca le mappe Pro';
       case PaywallTrigger.flythrough3d:
-        return 'Rivivi le tue tracce in 3D';
+        return 'Esporta il video 3D senza watermark';
       case PaywallTrigger.discoveryUpsell:
         return 'Porta TrailShare al livello Pro';
       case PaywallTrigger.onboarding:
@@ -194,8 +194,8 @@ class _PaywallSheetState extends State<PaywallSheet> {
         return 'Topografica dettagliata, satellite con etichette e mappa '
             'invernale per scialpinismo. Pensate per la montagna.';
       case PaywallTrigger.flythrough3d:
-        return 'Guarda il tuo percorso sorvolare il terreno 3D con un '
-            'fly-through animato — come esserci di nuovo.';
+        return 'Il fly-through 3D è gratis da guardare. Con Pro esporti il '
+            'video in alta qualità e senza watermark, pronto da condividere.';
       case PaywallTrigger.discoveryUpsell:
         return 'Funzioni AR, photo mode professionale e tutte le novità future, '
             'sempre incluse.';

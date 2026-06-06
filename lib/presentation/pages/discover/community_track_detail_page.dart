@@ -4,10 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/discovery_prompt_service.dart';
-import '../../../core/services/pro_gate_service.dart';
 import '../../../core/services/track_export_service.dart';
 import '../track_3d/track_3d_page.dart';
-import '../../widgets/paywall_sheet.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/difficulty_badge.dart';
 import '../../widgets/expandable_description.dart';
@@ -444,7 +442,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     );
   }
 
-  /// Pulsante "3D" — fly-through 3D (Pro). Non-Pro → paywall.
+  /// Pulsante "3D" — fly-through 3D (gratis da guardare; export Pro).
   Widget _build3DButton(CommunityTrack track) {
     return Material(
       color: AppColors.primary.withValues(alpha: 0.12),
@@ -465,10 +463,6 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                       color: AppColors.primary,
                       fontWeight: FontWeight.w800,
                       fontSize: 13)),
-              if (!ProGateService().isPro) ...[
-                const SizedBox(width: 4),
-                const Icon(Icons.lock, size: 12, color: AppColors.primary),
-              ],
             ],
           ),
         ),
@@ -477,10 +471,8 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
   }
 
   void _open3D(CommunityTrack track) {
-    if (!ProGateService().isPro) {
-      showPaywallSheet(context, trigger: PaywallTrigger.flythrough3d);
-      return;
-    }
+    // Modello 1: fly 3D gratis da guardare; il Pro vale solo per l'export
+    // senza watermark (gestito in Track3DPage).
     Navigator.push(
       context,
       MaterialPageRoute(

@@ -16,7 +16,6 @@ import '../../../core/services/track_photos_service.dart';
 import '../../../core/utils/difficulty_calculator.dart';
 import '../track_3d/track_3d_page.dart';
 import '../../widgets/difficulty_badge.dart';
-import '../../widgets/paywall_sheet.dart';
 import '../../widgets/expandable_description.dart';
 import '../../widgets/export_format_sheet.dart';
 import '../../../data/models/track.dart';
@@ -641,10 +640,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   }
 
   void _open3D() {
-    if (!ProGateService().isPro) {
-      showPaywallSheet(context, trigger: PaywallTrigger.flythrough3d);
-      return;
-    }
+    // Modello 1: il fly 3D è gratis da guardare (gancio per la diffusione).
+    // Il gating Pro si applica solo all'EXPORT senza watermark, dentro
+    // Track3DPage.
     Navigator.push(
       context,
       MaterialPageRoute(
