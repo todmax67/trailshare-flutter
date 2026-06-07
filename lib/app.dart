@@ -261,20 +261,43 @@ class _UsernameGateState extends State<_UsernameGate> {
     }
   }
 
-  /// Pre-carica user_profiles in cache locale così le query successive
-  /// non pagano un round-trip. Fire-and-forget, no errori critici.
-  void _warmupProfileCache() {
-    FirebaseFirestore.instance
-        .collection('user_profiles')
-        .doc(widget.user.uid)
-        .get(const GetOptions(source: Source.server))
-        .catchError((e) {
-      debugPrint('[UsernameGate] warmup error: $e');
-      return FirebaseFirestore.instance
+  /// Pre-carica user_profiles in cache locale e, se manca lo username,
+  /// lo persiste dal displayName di FirebaseAuth (login social Google/Apple).
+  /// Senza questo, il fast-path entrava in app fidandosi del displayName di
+  /// Auth ma non scriveva mai `user_profiles.username`: il profilo restava
+  /// senza username e l'utente appariva come "Utente" in admin, community e
+  /// follower. Fire-and-forget, idempotente. No errori critici.
+  Future<void> _warmupProfileCache() async {
+    try {
+      final ref = FirebaseFirestore.instance
           .collection('user_profiles')
-          .doc(widget.user.uid)
-          .get();
-    });
+          .doc(widget.user.uid);
+      DocumentSnapshot doc;
+      try {
+        doc = await ref.get(const GetOptions(source: Source.server));
+      } catch (_) {
+        doc = await ref.get();
+      }
+      final data = doc.data() as Map<String, dynamic>?;
+      final existing = (data?['username'] as String?)?.trim();
+      final hasValidUsername =
+          existing != null && existing.isNotEmpty && existing != 'Utente';
+      final displayName = widget.user.displayName?.trim();
+      if (!hasValidUsername &&
+          displayName != null &&
+          displayName.isNotEmpty &&
+          displayName != 'Utente') {
+        final patch = <String, dynamic>{'username': displayName};
+        if (data == null || data['createdAt'] == null) {
+          patch['createdAt'] = FieldValue.serverTimestamp();
+        }
+        await ref.set(patch, SetOptions(merge: true));
+        debugPrint(
+            '[UsernameGate] username persistito da displayName=$displayName');
+      }
+    } catch (e) {
+      debugPrint('[UsernameGate] warmup/persist error: $e');
+    }
   }
 
   @override
