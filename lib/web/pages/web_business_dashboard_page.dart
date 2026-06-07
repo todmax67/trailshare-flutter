@@ -402,12 +402,104 @@ class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
                   icon: const Icon(Icons.group_add, size: 18),
                   label: const Text('Aggiungi co-admin'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: () => _confirmAndDelete(b),
+                  icon: const Icon(Icons.delete_forever, size: 18),
+                  label: const Text('Elimina Spazio Pro'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: BorderSide(
+                        color: AppColors.danger.withValues(alpha: 0.5)),
+                  ),
+                ),
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// Eliminazione definitiva di uno Spazio Pro (solo platform admin).
+  /// Conferma type-to-confirm: l'admin deve riscrivere il nome esatto.
+  /// Nota: cancella il doc business; eventuali sotto-collezioni (post,
+  /// recensioni, follower) restano orfane ma non più accessibili.
+  Future<void> _confirmAndDelete(Business b) async {
+    final confirmCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final matches = confirmCtrl.text.trim() == b.name.trim();
+            return AlertDialog(
+              title: const Text('Elimina Spazio Pro'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Stai per eliminare definitivamente "${b.name}". '
+                    'L\'operazione NON è reversibile: la scheda sparirà da '
+                    'app e web. Foto e recensioni collegate restano orfane '
+                    '(non più accessibili).',
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Per confermare, riscrivi il nome esatto della scheda:',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: confirmCtrl,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: b.name,
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onChanged: (_) => setLocal(() {}),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Annulla'),
+                ),
+                FilledButton(
+                  onPressed:
+                      matches ? () => Navigator.pop(ctx, true) : null,
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.danger),
+                  child: const Text('Elimina definitivamente'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (ok != true) return;
+    try {
+      await _repo.deleteBusiness(b.id!);
+      if (!mounted) return;
+      _snack('Spazio Pro "${b.name}" eliminato', error: false);
+      // La dashboard non ha più nulla da mostrare: torna al picker.
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const WebHomePage(initialTab: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) _snack('Errore eliminazione: $e', error: true);
+    }
   }
 
   Future<void> _showTransferOwnershipDialog(Business b) async {
