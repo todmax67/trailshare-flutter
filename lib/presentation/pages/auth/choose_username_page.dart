@@ -72,9 +72,17 @@ class _ChooseUsernamePageState extends State<ChooseUsernamePage> {
       if (user == null) return;
 
       // Salva
-      await _firestore.collection('user_profiles').doc(user.uid).set({
-        'username': username,
-      }, SetOptions(merge: true));
+      final profileRef = _firestore.collection('user_profiles').doc(user.uid);
+      final data = <String, dynamic>{'username': username};
+      // Imposta createdAt SOLO alla prima creazione del profilo (se manca):
+      // senza questo campo l'utente non compariva in "Ultimi utenti registrati"
+      // (la query admin usa orderBy('createdAt'), che esclude i doc privi del
+      // campo). Non lo sovrascriviamo se l'utente cambia username in seguito.
+      final profileSnap = await profileRef.get();
+      if (!profileSnap.exists || profileSnap.data()?['createdAt'] == null) {
+        data['createdAt'] = FieldValue.serverTimestamp();
+      }
+      await profileRef.set(data, SetOptions(merge: true));
 
       if (mounted) {
         widget.onUsernameChosen();
