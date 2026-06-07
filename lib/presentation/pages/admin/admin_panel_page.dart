@@ -65,9 +65,22 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     }
   }
 
+  /// Quanti utenti mostrare di default (senza ricerca): solo i più recenti.
+  static const int _recentUsersLimit = 20;
+
   Future<void> _loadUsers() async {
     setState(() => _isLoadingUsers = true);
-    final users = await _adminRepo.getUsers(limit: 100);
+    // Carichiamo tutti gli utenti una sola volta (sono pochi) e ordiniamo in
+    // memoria per data di registrazione (più recenti prima, null in fondo):
+    // così la ricerca copre TUTTI gli utenti, non solo i primi caricati.
+    final users = await _adminRepo.getUsers(limit: 1000);
+    users.sort((a, b) {
+      final da = a.createdAt, db = b.createdAt;
+      if (da == null && db == null) return 0;
+      if (da == null) return 1; // senza data → in fondo
+      if (db == null) return -1;
+      return db.compareTo(da); // più recente prima
+    });
     if (mounted) {
       setState(() {
         _users = users;
@@ -77,7 +90,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   List<AppUser> get _filteredUsers {
-    if (_searchQuery.isEmpty) return _users;
+    if (_searchQuery.isEmpty) {
+      // Default: solo gli ultimi N registrati. Per gli altri usa la ricerca.
+      return _users.take(_recentUsersLimit).toList();
+    }
     final q = _searchQuery.toLowerCase();
     return _users.where((u) =>
         u.username.toLowerCase().contains(q) ||
@@ -2687,6 +2703,16 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           ),
         ),
         const SizedBox(height: 12),
+
+        // Avviso: di default mostriamo solo gli ultimi N registrati.
+        if (_searchQuery.isEmpty && _users.length > _recentUsersLimit)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8, left: 4),
+            child: Text(
+              'Ultimi $_recentUsersLimit di ${_users.length} utenti · cerca per trovare gli altri',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ),
 
         // Lista
         if (_isLoadingUsers)
