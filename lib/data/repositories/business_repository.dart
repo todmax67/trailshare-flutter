@@ -409,9 +409,12 @@ class BusinessRepository {
   /// "vede solo se è admin" deve essere applicato lato chiamante via
   /// `AdminRepository.isCurrentUserAdmin()`. La query lato server è
   /// solo `whereStatusActive` ordinata client-side per
-  /// `createdAt desc`. Limit alto (3000) per coprire tutto il volume
-  /// nazionale dopo gli import OSM.
-  Stream<List<Business>> watchAllBusinesses({int limit = 3000}) {
+  /// `createdAt desc`. Limit alto (10000) per coprire tutto il volume
+  /// nazionale dopo gli import OSM: a ~3900 doc il vecchio limite 3000 ne
+  /// tagliava ~900 (in ordine arbitrario per doc-id), rendendoli
+  /// irraggiungibili dalla ricerca admin. Oltre questa soglia servirà una
+  /// ricerca server-side (campo nameLower + prefix query).
+  Stream<List<Business>> watchAllBusinesses({int limit = 10000}) {
     return _businesses
         .where('status', isEqualTo: 'active')
         .limit(limit)
