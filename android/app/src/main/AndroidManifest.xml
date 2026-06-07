@@ -61,6 +61,14 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Android 15+: vietato avviare un FGS "location" da BOOT_COMPLETED.
+         flutter_foreground_task aggiunge RECEIVE_BOOT_COMPLETED + un receiver
+         di boot, ma la registrazione è SEMPRE avviata dall'utente
+         (autoRunOnBoot=false): rimuoviamo permesso e receiver dal manifest
+         finale per evitare il crash su Android 15+ segnalato da Play. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"
+        tools:node="remove" />
+
     <!-- Lifeline alert di inattività: notifica + vibrazione per svegliare
          il telefono in standby. Senza questi permessi l'alarm non suona. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -157,6 +165,12 @@
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="location"
             android:exported="false" />
+        <!-- Rimuove il receiver BOOT_COMPLETED del plugin: su Android 15+ non
+             si può avviare un FGS "location" dal boot. autoRunOnBoot è già
+             false, quindi questo receiver non serve. -->
+        <receiver
+            android:name="com.pravera.flutter_foreground_task.service.RebootReceiver"
+            tools:node="remove" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
