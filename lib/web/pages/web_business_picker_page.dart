@@ -30,6 +30,8 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
   bool _isAdmin = false;
   String _searchQuery = '';
   BusinessTier? _filterTier;
+  BusinessType? _filterType;
+  String? _filterRegion;
 
   // Stream Firestore memoizzato: senza questa cache, build() veniva
   // chiamato ad ogni keystroke della search bar (setState) e ricreava
@@ -144,10 +146,25 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
   }
 
   Widget _buildList(List<Business> businesses) {
-    // Filtri applicati in-memory: search query (nome + città) + tier.
+    // Regioni distinte presenti (per il filtro a tendina), ordinate.
+    final regions = businesses
+        .map((b) => b.location.region)
+        .whereType<String>()
+        .where((r) => r.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    // Filtri in-memory: search (nome + città) + tier + tipo + regione.
     Iterable<Business> filtered = businesses;
     if (_filterTier != null) {
       filtered = filtered.where((b) => b.tier == _filterTier);
+    }
+    if (_filterType != null) {
+      filtered = filtered.where((b) => b.type == _filterType);
+    }
+    if (_filterRegion != null) {
+      filtered = filtered.where((b) => b.location.region == _filterRegion);
     }
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
@@ -184,33 +201,33 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
           // singolo non servono — di solito ha 1-3 schede).
           if (_isAdmin) ...[
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Cerca per nome o città…',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: _searchCtrl.text.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.close, size: 18),
-                              onPressed: () {
-                                _searchCtrl.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            ),
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+            TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Cerca per nome o città…',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _searchCtrl.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _searchQuery = '');
+                        },
                       ),
-                    ),
-                    onChanged: (v) =>
-                        setState(() => _searchQuery = v.trim()),
-                  ),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(width: 12),
+              ),
+              onChanged: (v) => setState(() => _searchQuery = v.trim()),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
                 DropdownButton<BusinessTier?>(
                   value: _filterTier,
                   hint: const Text('Tutti i tier'),
@@ -227,6 +244,43 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
                     ),
                   ],
                   onChanged: (v) => setState(() => _filterTier = v),
+                ),
+                DropdownButton<BusinessType?>(
+                  value: _filterType,
+                  hint: const Text('Tutti i tipi'),
+                  items: [
+                    const DropdownMenuItem<BusinessType?>(
+                      value: null,
+                      child: Text('Tutti i tipi'),
+                    ),
+                    ...BusinessType.values.map(
+                      (t) => DropdownMenuItem<BusinessType?>(
+                        value: t,
+                        child: Text(t.displayName),
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _filterType = v),
+                ),
+                DropdownButton<String?>(
+                  value: (_filterRegion != null &&
+                          regions.contains(_filterRegion))
+                      ? _filterRegion
+                      : null,
+                  hint: const Text('Tutte le regioni'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Tutte le regioni'),
+                    ),
+                    ...regions.map(
+                      (r) => DropdownMenuItem<String?>(
+                        value: r,
+                        child: Text(r),
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _filterRegion = v),
                 ),
               ],
             ),
