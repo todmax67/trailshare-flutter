@@ -140,7 +140,16 @@ class TourPhotosService {
       final storagePath =
           'tours/$tourId/${kind.pathSegment}/$photoId$extension';
       final ref = _storage.ref().child(storagePath);
-      await ref.putData(bytes).whenComplete(() {});
+      // Sul web putData senza metadata carica come application/octet-stream:
+      // le Storage rules richiedono contentType image/* → 403. Esplicitiamo.
+      final contentType = extension == '.png'
+          ? 'image/png'
+          : extension == '.webp'
+              ? 'image/webp'
+              : 'image/jpeg';
+      await ref
+          .putData(bytes, SettableMetadata(contentType: contentType))
+          .whenComplete(() {});
       return await ref.getDownloadURL();
     } catch (e) {
       debugPrint('[TourPhotos] uploadBytes error (try ${retryCount + 1}): $e');
