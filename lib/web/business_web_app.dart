@@ -28,6 +28,7 @@ class WebRoutes {
   static const String groups = '/groups';
   static const String discover = '/discover';
   static const String admin = '/admin';
+  static const String tours = '/tours';
 
   static int tabFromPath(String path) {
     if (path == dashboard || path == '/') return 0;
@@ -38,6 +39,7 @@ class WebRoutes {
     if (path == groups) return 5;
     if (path == discover) return 6;
     if (path == admin) return 7;
+    if (path == tours || path.startsWith('$tours/')) return 8;
     return 0;
   }
 
@@ -57,6 +59,8 @@ class WebRoutes {
         return discover;
       case 7:
         return admin;
+      case 8:
+        return tours;
       case 0:
       default:
         return dashboard;

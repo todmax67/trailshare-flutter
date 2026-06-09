@@ -15,6 +15,7 @@ import 'web_groups_picker_page.dart';
 import 'web_planner_page.dart';
 import 'web_profile_page.dart';
 import 'web_tracks_list_page.dart';
+import 'web_tours_picker_page.dart';
 
 /// Home della dashboard web autenticata. Sostituisce la vecchia
 /// destinazione "picker gruppi business diretta" con una shell che
@@ -155,6 +156,8 @@ class _WebHomePageState extends State<WebHomePage> {
         return _isPlatformAdmin
             ? const AdminPanelPage()
             : const Center(child: Text('Accesso riservato'));
+      case 8:
+        return const WebToursPickerPage();
       default:
         return const SizedBox.shrink();
     }
@@ -240,6 +243,12 @@ class _Sidebar extends StatelessWidget {
             iconActive: Icons.route,
             label: 'Le mie tracce',
             index: 1,
+          ),
+          _navItem(
+            icon: Icons.map_outlined,
+            iconActive: Icons.map,
+            label: 'Tour',
+            index: 8,
           ),
           _navItem(
             icon: Icons.edit_road_outlined,
