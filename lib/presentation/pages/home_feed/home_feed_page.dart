@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../widgets/trail_route_thumb.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/business.dart';
@@ -1031,7 +1032,7 @@ class _DiscoverPreview extends StatelessWidget {
           for (final t in preview)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.route, color: AppColors.primary),
+              leading: _TrailThumb(trail: t),
               title: Text(
                 t.name,
                 maxLines: 1,
@@ -1051,6 +1052,26 @@ class _DiscoverPreview extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Miniatura quadrata del tracciato nelle righe sentiero della Home.
+/// Immagine statica leggera; fallback icona se non disponibile.
+class _TrailThumb extends StatelessWidget {
+  final PublicTrail trail;
+  const _TrailThumb({required this.trail});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!TrailRouteThumb.canRender(trail.points)) {
+      return const Icon(Icons.route, color: AppColors.primary);
+    }
+    return TrailRouteThumb(
+      points: trail.points,
+      width: 52,
+      height: 52,
+      borderRadius: BorderRadius.circular(8),
     );
   }
 }

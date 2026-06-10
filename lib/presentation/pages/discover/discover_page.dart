@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../widgets/trail_route_thumb.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/utils/text_search.dart';
@@ -1739,6 +1740,21 @@ class _TrailCard extends StatelessWidget {
       );
     }
 
+    // "Firma del tracciato" disegnata client-side (CustomPainter): leggera,
+    // istantanea, offline — niente FlutterMap viva per ogni card.
+    if (TrailRouteThumb.canRender(trail.points)) {
+      return SizedBox(
+        height: 120,
+        width: double.infinity,
+        child: TrailRouteThumb(points: trail.points),
+      );
+    }
+    return _buildLiveMapPreview(context);
+  }
+
+  /// Fallback: mini-mappa interattiva disattivata (usata solo se la
+  /// miniatura statica non è disponibile).
+  Widget _buildLiveMapPreview(BuildContext context) {
     // Calcola bounding box
     double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
     final latLngPoints = <LatLng>[];
