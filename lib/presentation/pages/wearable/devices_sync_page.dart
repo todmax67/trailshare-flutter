@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/health_service.dart';
+import '../../../core/services/polar_service.dart';
 import '../../../core/services/strava_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../settings/health_dashboard_page.dart';
@@ -23,6 +24,7 @@ class DevicesSyncPage extends StatefulWidget {
 
 class _DevicesSyncPageState extends State<DevicesSyncPage> {
   final _strava = StravaService();
+  final _polar = PolarService();
   bool _healthSync = false;
   bool _busyHealth = false;
   bool _autoUpload = false;
@@ -172,6 +174,61 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
                               if (!ok && context.mounted) {
                                 AppSnackBar.info(
                                     context, 'Impossibile aprire Strava');
+                              }
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          // ── Polar ─────────────────────────────────────────────────
+          StreamBuilder<bool>(
+            stream: _polar.connectedStream(),
+            builder: (context, snap) {
+              final connected = snap.data ?? false;
+              return _card(
+                icon: Icons.watch,
+                color: const Color(0xFFD10027),
+                title: 'Polar',
+                badge: connected ? 'Connesso' : null,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      connected
+                          ? 'Collegato a Polar Flow: gli allenamenti con GPS '
+                              '(e battito) arrivano qui automaticamente appena '
+                              'l\'orologio sincronizza.'
+                          : 'Collega il tuo account Polar Flow: gli allenamenti '
+                              'con GPS e battito arrivano in TrailShare '
+                              'automaticamente, senza esportare nulla.',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: connected
+                        ? TextButton.icon(
+                            icon: const Icon(Icons.link_off, size: 18),
+                            label: const Text('Disconnetti'),
+                            onPressed: () async {
+                              final ok = await _polar.disconnect();
+                              if (!ok && context.mounted) {
+                                AppSnackBar.info(
+                                    context, 'Disconnessione non riuscita');
+                              }
+                            },
+                          )
+                        : FilledButton.tonalIcon(
+                            icon: const Icon(Icons.link, size: 18),
+                            label: const Text('Collega Polar'),
+                            onPressed: () async {
+                              final ok = await _polar.connect();
+                              if (!ok && context.mounted) {
+                                AppSnackBar.info(
+                                    context, 'Impossibile aprire Polar Flow');
                               }
                             },
                           ),

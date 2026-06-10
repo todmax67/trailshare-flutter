@@ -6193,3 +6193,399 @@ exports.staticMapProxy = onRequest(
     }
   }
 );
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POLAR ACCESSLINK — sync automatico allenamenti (GPS + battito)
+// ═══════════════════════════════════════════════════════════════════════════
+// Architettura = clone dell'integrazione Strava (vedi sezione sopra), ma su
+// Polar AccessLink v3:
+//  1. polarAuthStart  → redirect a flow.polar.com/oauth2 (client_id solo qui,
+//     mai nell'app) con state=uid.
+//  2. polarCallback   → scambio code→token (Basic auth), registrazione utente
+//     AccessLink (POST /v3/users), salvataggio integrazione + mapping
+//     polar_user_map/{polarUserId} = {uid} per il webhook.
+//  3. polarWebhook    → evento EXERCISE → import TCX (GPS+HR) → track doc.
+//  4. polarSubscribeWebhook (admin, one-shot) → crea la subscription.
+//
+// Setup (founder):
+//   - admin.polaraccesslink.com → Create client, redirect URI = URL di
+//     polarCallback.
+//   - firebase functions:secrets:set POLAR_CLIENT_ID / POLAR_CLIENT_SECRET /
+//     POLAR_WEBHOOK_SIGNATURE_SECRET (placeholder "pending" finché la
+//     subscription non restituisce la chiave vera).
+const polarClientId = defineSecret('POLAR_CLIENT_ID');
+const polarClientSecret = defineSecret('POLAR_CLIENT_SECRET');
+const polarWebhookSignatureSecret = defineSecret('POLAR_WEBHOOK_SIGNATURE_SECRET');
+
+const POLAR_AUTH_URL = 'https://flow.polar.com/oauth2/authorization';
+const POLAR_TOKEN_URL = 'https://polarremote.com/v2/oauth2/token';
+const POLAR_API_BASE = 'https://www.polaraccesslink.com/v3';
+
+// Sport Polar → activityType TrailShare. Solo attività con route GPS arrivano
+// qui (has_route check), quindi il fallback 'trekking' è ragionevole.
+const POLAR_TO_TRAILSHARE_ACTIVITY = {
+  HIKING: 'trekking',
+  TREKKING: 'trekking',
+  WALKING: 'walking',
+  NORDIC_WALKING: 'walking',
+  RUNNING: 'running',
+  JOGGING: 'running',
+  ROAD_RUNNING: 'running',
+  TRAIL_RUNNING: 'trailRunning',
+  CYCLING: 'cycling',
+  ROAD_BIKING: 'cycling',
+  MOUNTAIN_BIKING: 'mountainBiking',
+  DOWNHILL_SKIING: 'alpineSkiing',
+  CROSS_COUNTRY_SKIING: 'nordicSkiing',
+  CLASSIC_XC_SKIING: 'nordicSkiing',
+  FREESTYLE_XC_SKIING: 'nordicSkiing',
+  SKI_TOURING: 'skiTouring',
+  SNOWSHOE_TREKKING: 'snowshoeing',
+};
+
+function polarBasicAuthHeader() {
+  const raw = `${polarClientId.value()}:${polarClientSecret.value()}`;
+  return `Basic ${Buffer.from(raw).toString('base64')}`;
+}
+
+// "PT2H44M45S" → secondi. Polar usa ISO8601 duration.
+function polarParseDuration(iso) {
+  if (!iso) return 0;
+  const m = String(iso).match(/PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?/);
+  if (!m) return 0;
+  return Math.round((Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0));
+}
+
+// Parser TCX minimale (regex): i TCX Polar sono machine-generated e regolari.
+// Estrae trackpoint con time/lat/lng/ele/hr. Niente dipendenze XML.
+function parseTcxTrackpoints(xml) {
+  const points = [];
+  const heartRateData = {};
+  const tpRegex = /<Trackpoint>([\s\S]*?)<\/Trackpoint>/g;
+  let m;
+  while ((m = tpRegex.exec(xml)) !== null) {
+    const tp = m[1];
+    const time = (tp.match(/<Time>([^<]+)<\/Time>/) || [])[1];
+    const lat = (tp.match(/<LatitudeDegrees>([^<]+)</) || [])[1];
+    const lon = (tp.match(/<LongitudeDegrees>([^<]+)</) || [])[1];
+    if (!time || lat == null || lon == null) continue;
+    const ele = (tp.match(/<AltitudeMeters>([^<]+)</) || [])[1];
+    const hr = (tp.match(/<HeartRateBpm>[\s\S]*?<Value>(\d+)<\/Value>/) || [])[1];
+    const tsMs = new Date(time).getTime();
+    if (!Number.isFinite(tsMs)) continue;
+    points.push({
+      lat: Number(lat),
+      lng: Number(lon),
+      ele: ele != null ? Number(ele) : null,
+      time: new Date(tsMs).toISOString(),
+      speed: null,
+    });
+    const bpm = Number(hr);
+    if (bpm > 30 && bpm < 250) heartRateData[String(tsMs)] = Math.round(bpm);
+  }
+  return { points, heartRateData };
+}
+
+// Entry point OAuth: l'app apre questa URL (con state=uid) e noi rediretiamo
+// a Polar. Così il client_id resta solo nei secrets.
+exports.polarAuthStart = onRequest(
+  { secrets: [polarClientId], cors: false },
+  async (req, res) => {
+    const state = String(req.query.state || '');
+    if (!state) return res.status(400).send('missing state');
+    const url = `${POLAR_AUTH_URL}?response_type=code&client_id=${encodeURIComponent(polarClientId.value())}&state=${encodeURIComponent(state)}`;
+    return res.redirect(302, url);
+  }
+);
+
+exports.polarCallback = onRequest(
+  { secrets: [polarClientId, polarClientSecret], cors: false },
+  async (req, res) => {
+    const { code, state, error: polarError } = req.query;
+    const redirectOk = 'trailshare://polar/connected';
+    const redirectErr = (msg) => `trailshare://polar/error?msg=${encodeURIComponent(msg || 'unknown')}`;
+
+    if (polarError) {
+      logger.warn(`[polar] OAuth denied: ${polarError}`);
+      return res.redirect(302, redirectErr(String(polarError)));
+    }
+    if (!code || !state) return res.redirect(302, redirectErr('missing_params'));
+    const uid = String(state);
+
+    try {
+      const tokenResp = await axios.post(
+        POLAR_TOKEN_URL,
+        new URLSearchParams({ grant_type: 'authorization_code', code: String(code) }).toString(),
+        {
+          headers: {
+            'Authorization': polarBasicAuthHeader(),
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json;charset=UTF-8',
+          },
+        },
+      );
+      const t = tokenResp.data || {};
+      if (!t.access_token || !t.x_user_id) {
+        logger.error('[polar] token response incompleta', t);
+        return res.redirect(302, redirectErr('no_tokens'));
+      }
+      const polarUserId = Number(t.x_user_id);
+
+      // Registra l'utente su AccessLink (obbligatorio prima di leggere dati).
+      // 409 = già registrato (es. riconnessione) → ok.
+      try {
+        await axios.post(`${POLAR_API_BASE}/users`,
+          { 'member-id': uid },
+          { headers: { 'Authorization': `Bearer ${t.access_token}`, 'Content-Type': 'application/json' } });
+      } catch (regErr) {
+        if (regErr?.response?.status !== 409) throw regErr;
+      }
+
+      await db.collection('users').doc(uid).collection('integrations').doc('polar').set({
+        polarUserId: polarUserId,
+        accessToken: t.access_token,
+        expiresIn: t.expires_in || null,
+        importEnabled: true,
+        connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      // Mapping per il webhook (niente collectionGroup/index).
+      await db.collection('polar_user_map').doc(String(polarUserId)).set({
+        uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      logger.info(`[polar] connected uid=${uid} polarUser=${polarUserId}`);
+      return res.redirect(302, redirectOk);
+    } catch (e) {
+      logger.error('[polar] callback error', e?.response?.data || e?.message);
+      return res.redirect(302, redirectErr('exchange_failed'));
+    }
+  }
+);
+
+exports.polarDisconnect = onCall(
+  { region: 'europe-west3', secrets: [polarClientId, polarClientSecret] },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error('unauthenticated');
+    const ref = db.collection('users').doc(uid).collection('integrations').doc('polar');
+    const snap = await ref.get();
+    if (snap.exists) {
+      const d = snap.data();
+      // Best effort: deregistra l'utente da AccessLink (revoca il consenso).
+      try {
+        await axios.delete(`${POLAR_API_BASE}/users/${d.polarUserId}`, {
+          headers: { 'Authorization': `Bearer ${d.accessToken}` },
+        });
+      } catch (e) {
+        logger.warn(`[polar] deregister fallita uid=${uid}: ${e?.response?.status}`);
+      }
+      if (d.polarUserId != null) {
+        await db.collection('polar_user_map').doc(String(d.polarUserId)).delete().catch(() => {});
+      }
+      await ref.delete();
+    }
+    logger.info(`[polar] disconnected uid=${uid}`);
+    return { ok: true };
+  }
+);
+
+// Import di un esercizio Polar → track TrailShare. Schema identico a
+// importStravaActivity: stats FLAT top-level (durata in SECONDI) e
+// heartRateData con chiavi ms-epoch.
+async function importPolarExercise(uid, exerciseId, integration) {
+  const auth = { headers: { 'Authorization': `Bearer ${integration.accessToken}` } };
+
+  // 1) Summary
+  const meta = await axios.get(`${POLAR_API_BASE}/exercises/${exerciseId}`, auth);
+  const a = meta.data || {};
+
+  if (a.has_route === false) {
+    logger.info(`[polarImport] skip no_route exercise=${exerciseId}`);
+    return { skipped: 'no_gps' };
+  }
+  const sport = String(a.sport || '').toUpperCase();
+  const activityType = POLAR_TO_TRAILSHARE_ACTIVITY[sport] || 'trekking';
+
+  // Già importato?
+  const existing = await db.collection('users').doc(uid).collection('tracks')
+    .where('polarExerciseId', '==', String(exerciseId)).limit(1).get();
+  if (!existing.empty) {
+    logger.info(`[polarImport] already imported exercise=${exerciseId}`);
+    return { skipped: 'already_imported' };
+  }
+
+  // 2) TCX (GPS + HR). Può arrivare gzippato: gunzip se magic bytes 1f 8b.
+  const tcxResp = await axios.get(`${POLAR_API_BASE}/exercises/${exerciseId}/tcx`, {
+    headers: {
+      'Authorization': `Bearer ${integration.accessToken}`,
+      'Accept': 'application/vnd.garmin.tcx+xml',
+    },
+    responseType: 'arraybuffer',
+  });
+  let buf = Buffer.from(tcxResp.data);
+  if (buf.length > 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
+    buf = require('zlib').gunzipSync(buf);
+  }
+  const { points, heartRateData } = parseTcxTrackpoints(buf.toString('utf8'));
+  if (points.length === 0) {
+    logger.warn(`[polarImport] TCX senza trackpoint GPS exercise=${exerciseId}`);
+    return { skipped: 'no_gps' };
+  }
+
+  // 3) Stats: distanza/durata dal summary; dislivello dai punti (soglia 3m).
+  let elevationGain = 0; let elevationLoss = 0;
+  let maxElevation = -Infinity; let minElevation = Infinity;
+  let lastEle = null;
+  for (const p of points) {
+    if (p.ele == null) continue;
+    if (p.ele > maxElevation) maxElevation = p.ele;
+    if (p.ele < minElevation) minElevation = p.ele;
+    if (lastEle != null) {
+      const diff = p.ele - lastEle;
+      if (diff > 3) { elevationGain += diff; lastEle = p.ele; }
+      else if (diff < -3) { elevationLoss += -diff; lastEle = p.ele; }
+    } else {
+      lastEle = p.ele;
+    }
+  }
+  if (maxElevation === -Infinity) maxElevation = 0;
+  if (minElevation === Infinity) minElevation = 0;
+
+  const durationSec = polarParseDuration(a.duration);
+  const distance = Number(a.distance) || 0;
+  const startDate = a.start_time ? new Date(a.start_time) : new Date(points[0].time);
+  const sportPretty = sport ? sport.replace(/_/g, ' ').toLowerCase() : 'allenamento';
+
+  const track = {
+    userId: uid,
+    name: `Polar ${sportPretty}`,
+    description: 'Importata da Polar Flow',
+    activityType: activityType,
+    points: points,
+    createdAt: admin.firestore.Timestamp.fromDate(startDate),
+    isPublic: false,
+    isPlanned: false,
+    photos: [],
+    groupIds: [],
+    // Stats flat (schema app: durata in secondi)
+    distance: distance,
+    elevationGain: Math.round(elevationGain),
+    elevationLoss: Math.round(elevationLoss),
+    maxElevation: maxElevation,
+    minElevation: minElevation,
+    duration: durationSec,
+    movingTime: durationSec,
+    avgSpeed: durationSec > 0 ? (distance / 1000) / (durationSec / 3600) : 0,
+    maxSpeed: 0,
+    heartRateData: Object.keys(heartRateData).length > 0 ? heartRateData : null,
+    healthCalories: a.calories || null,
+    // Polar metadata
+    importedFromPolar: true,
+    polarExerciseId: String(exerciseId),
+  };
+
+  const ref = await db.collection('users').doc(uid).collection('tracks').add(track);
+  logger.info(`[polarImport] imported exercise=${exerciseId} → track=${ref.id} uid=${uid} (${points.length} pts, HR ${Object.keys(heartRateData).length})`);
+  return { imported: true, trackId: ref.id };
+}
+
+exports.polarWebhook = onRequest(
+  {
+    secrets: [polarClientId, polarClientSecret, polarWebhookSignatureSecret],
+    cors: false,
+    timeoutSeconds: 120,
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+
+    // Verifica firma (HMAC-SHA256 del raw body). "pending" = subscription non
+    // ancora creata → solo warn (il webhook può comunque solo far importare
+    // all'utente i SUOI dati reali da Polar).
+    const sigSecret = polarWebhookSignatureSecret.value();
+    const signature = req.get('Polar-Webhook-Signature');
+    if (sigSecret && sigSecret !== 'pending' && signature) {
+      const computed = require('crypto')
+        .createHmac('sha256', sigSecret)
+        .update(req.rawBody || Buffer.from(''))
+        .digest('hex');
+      if (computed !== signature) {
+        logger.warn('[polarWebhook] firma non valida, evento scartato');
+        return res.status(403).send('invalid signature');
+      }
+    } else if (sigSecret === 'pending') {
+      logger.warn('[polarWebhook] signature secret non configurato (pending): skip verifica');
+    }
+
+    const event = req.body || {};
+    logger.info(`[polarWebhook] event=${event.event} user=${event.user_id} entity=${event.entity_id}`);
+
+    // PING di verifica alla creazione della subscription.
+    if (event.event === 'PING') return res.status(200).send('OK');
+
+    // Rispondi subito, importa async.
+    res.status(200).send('OK');
+    if (event.event !== 'EXERCISE' || !event.user_id || !event.entity_id) return;
+
+    try {
+      const mapSnap = await db.collection('polar_user_map').doc(String(event.user_id)).get();
+      if (!mapSnap.exists) {
+        logger.info(`[polarWebhook] nessun utente per polarUser=${event.user_id}`);
+        return;
+      }
+      const uid = mapSnap.data().uid;
+      const intSnap = await db.collection('users').doc(uid).collection('integrations').doc('polar').get();
+      if (!intSnap.exists) {
+        logger.info(`[polarWebhook] integrazione mancante uid=${uid}`);
+        return;
+      }
+      const integration = intSnap.data();
+      if (integration.importEnabled === false) {
+        logger.info(`[polarWebhook] import disabilitato uid=${uid}`);
+        return;
+      }
+      await importPolarExercise(uid, event.entity_id, integration);
+    } catch (e) {
+      logger.error(`[polarWebhook] import error entity=${event.entity_id}: ${e?.message}`, e?.response?.data);
+    }
+  }
+);
+
+// One-shot (super-admin): crea la webhook subscription su Polar.
+// Ritorna signature_secret_key → va salvata con
+//   firebase functions:secrets:set POLAR_WEBHOOK_SIGNATURE_SECRET
+// e poi redeploy di polarWebhook.
+exports.polarSubscribeWebhook = onCall(
+  { region: 'europe-west3', secrets: [polarClientId, polarClientSecret] },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error('unauthenticated');
+    const adminDoc = await db.collection('user_profiles').doc(uid).get();
+    const email = request.auth?.token?.email || '';
+    const isAdmin = adminDoc.data()?.admin === true ||
+      ['admin@trailshare.app', 'info@trailshare.app', 'todde.massimiliano@gmail.com', 'info@bluspose.it'].includes(email);
+    if (!isAdmin) throw new Error('permission-denied');
+
+    const webhookUrl = String(request.data?.url || '').trim();
+    if (!webhookUrl) throw new Error('url mancante (URL della function polarWebhook)');
+
+    try {
+      const resp = await axios.post(`${POLAR_API_BASE}/webhooks`,
+        { events: ['EXERCISE'], url: webhookUrl },
+        { headers: { 'Authorization': polarBasicAuthHeader(), 'Content-Type': 'application/json' } });
+      logger.info('[polar] webhook subscription creata', resp.data);
+      return resp.data; // contiene data.signature_secret_key
+    } catch (e) {
+      // 409 = esiste già: restituisci quella esistente.
+      if (e?.response?.status === 409) {
+        const list = await axios.get(`${POLAR_API_BASE}/webhooks`, {
+          headers: { 'Authorization': polarBasicAuthHeader() },
+        });
+        return { existing: true, ...list.data };
+      }
+      logger.error('[polar] subscribe error', e?.response?.data || e?.message);
+      throw new Error(`subscribe failed: ${e?.response?.status}`);
+    }
+  }
+);
