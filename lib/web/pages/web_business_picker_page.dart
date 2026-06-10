@@ -7,6 +7,7 @@ import '../../data/repositories/admin_repository.dart';
 import '../../data/repositories/business_repository.dart';
 import '../../presentation/pages/business/business_create_page.dart';
 import 'web_business_dashboard_page.dart';
+import 'web_ai_drafts_review_page.dart';
 
 /// Lista degli Spazi Pro di cui l'utente è owner. Se ne ha 1, redirige
 /// direttamente alla dashboard. Se più, picker. Se zero, CTA "Contatta
@@ -281,6 +282,16 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
                     ),
                   ],
                   onChanged: (v) => setState(() => _filterRegion = v),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const WebAiDraftsReviewPage(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.auto_awesome, size: 16),
+                  label: const Text('Bozze AI'),
                 ),
               ],
             ),
