@@ -485,11 +485,11 @@ class PublicTrailsRepository {
 
       List<TrackPoint> points = [];
       
-      if (metadataOnly) {
-        // Solo metadati: skip parsing coordinate per velocità
-      } else {
       // PREFERITO (nuovo schema): simplifiedPoints inline nel doc index.
-      // Lista di {lng, lat}, max ~30 pt — basta per render mappa.
+      // Lista di {lng, lat}, max ~30 pt — parsing banale, lo facciamo
+      // SEMPRE (anche in metadataOnly): alimenta la firma del tracciato
+      // nelle card. metadataOnly salta solo la geometry legacy qui sotto
+      // (jsonDecode + semplificazione: quella sì costosa).
       final simplifiedPointsRaw = data['simplifiedPoints'];
       if (simplifiedPointsRaw is List && simplifiedPointsRaw.isNotEmpty) {
         for (final p in simplifiedPointsRaw) {
@@ -504,6 +504,7 @@ class PublicTrailsRepository {
         }
       }
 
+      if (!metadataOnly) {
       // LEGACY (pre-split): geometry.coordinatesJson inline. Mantenuto per
       // backward-compat finché la migrazione non sposta tutto in
       // public_trail_geometries/.
