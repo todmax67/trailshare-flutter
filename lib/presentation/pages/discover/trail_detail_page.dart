@@ -8,6 +8,7 @@ import '../../../data/repositories/public_trails_repository.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../widgets/weather_forecast_card.dart';
+import '../../widgets/expandable_description.dart';
 import '../../widgets/trail_reviews_section.dart';
 import '../../widgets/trail_photos_section.dart';
 import '../../widgets/trail_segments_section.dart';
@@ -47,11 +48,32 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
 
   bool _isAdmin = false;
 
+  /// Descrizione del sentiero. Caricata direttamente dal doc Firestore:
+  /// il modello PublicTrail arriva spesso dalla cache locale, che non
+  /// trasporta la description (popolata dall'arricchimento AI/manuale).
+  String? _trailDescription;
+
   @override
   void initState() {
     super.initState();
     _loadFullGeometry();
     _loadAdminStatus();
+    _loadDescription();
+  }
+
+  Future<void> _loadDescription() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('public_trails')
+          .doc(widget.trail.id)
+          .get();
+      final desc = doc.data()?['description']?.toString().trim();
+      if (mounted && desc != null && desc.length >= 20) {
+        setState(() => _trailDescription = desc);
+      }
+    } catch (e) {
+      debugPrint('[TrailDetail] Errore caricamento descrizione: $e');
+    }
   }
 
   Future<void> _loadAdminStatus() async {
@@ -132,6 +154,15 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                         .headlineMedium
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),
+
+                  // Descrizione (arricchimento AI revisionato o manuale)
+                  if (_trailDescription != null) ...[
+                    const SizedBox(height: 10),
+                    ExpandableDescription(
+                      text: _trailDescription!,
+                      maxCollapsedLines: 4,
+                    ),
+                  ],
 
                   const SizedBox(height: 16),
 
