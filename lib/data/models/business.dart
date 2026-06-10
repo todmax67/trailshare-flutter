@@ -326,6 +326,12 @@ class Business {
   /// function.
   final String? outreachStatus;
 
+  /// Attribuzione della foto hero quando proviene da Wikimedia Commons
+  /// (pipeline di arricchimento). Chiavi: `author`, `license`, `source`,
+  /// `sourceUrl`, `file`. Le licenze CC richiedono di mostrare il credito
+  /// in UI ovunque la foto sia visibile a schermo intero.
+  final Map<String, dynamic>? photoAttribution;
+
   const Business({
     this.id,
     required this.name,
@@ -355,6 +361,7 @@ class Business {
     this.funnelCounters = const {},
     this.outreachEmailSentAt,
     this.outreachStatus,
+    this.photoAttribution,
   });
 
   bool get isOwnedBy => false; // placeholder, l'owner check è nel repo
@@ -409,6 +416,7 @@ class Business {
       if (pendingSelfManagement) 'pendingSelfManagement': true,
       if (sourceUrl != null) 'sourceUrl': sourceUrl,
       if (disclaimerVisible) 'disclaimerVisible': true,
+      if (photoAttribution != null) 'photoAttribution': photoAttribution,
     };
   }
 
@@ -479,6 +487,8 @@ class Business {
           ? ts(m['outreachEmailSentAt'])
           : null,
       outreachStatus: m['outreachStatus']?.toString(),
+      photoAttribution: (m['photoAttribution'] as Map?)
+          ?.map((k, v) => MapEntry(k.toString(), v)),
     );
   }
 
@@ -506,6 +516,7 @@ class Business {
     bool? pendingSelfManagement,
     String? sourceUrl,
     bool? disclaimerVisible,
+    Map<String, dynamic>? photoAttribution,
   }) {
     return Business(
       id: id,
@@ -534,6 +545,7 @@ class Business {
           pendingSelfManagement ?? this.pendingSelfManagement,
       sourceUrl: sourceUrl ?? this.sourceUrl,
       disclaimerVisible: disclaimerVisible ?? this.disclaimerVisible,
+      photoAttribution: photoAttribution ?? this.photoAttribution,
     );
   }
 }

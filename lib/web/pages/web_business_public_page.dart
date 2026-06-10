@@ -12,6 +12,7 @@ import '../../data/models/business.dart';
 import '../../data/repositories/business_repository.dart';
 import '../../presentation/widgets/business_claim_banner.dart';
 import 'web_claim_request_page.dart';
+import '../../presentation/widgets/photo_credit_chip.dart';
 
 /// Epic 7.D1 — Landing pubblica `/b/{slug}` di uno Spazio Pro.
 ///
@@ -316,6 +317,13 @@ class _WebBusinessPublicPageState extends State<WebBusinessPublicPage> {
             ),
           ),
         ),
+        // Credito CC per foto da Wikimedia Commons (arricchimento)
+        if (hero != null && b.photoAttribution != null)
+          Positioned(
+            right: 8,
+            bottom: 8,
+            child: PhotoCreditChip(attribution: b.photoAttribution!),
+          ),
         // Logo (se presente)
         if (b.branding.logoUrl != null && b.branding.logoUrl!.isNotEmpty)
           Positioned(

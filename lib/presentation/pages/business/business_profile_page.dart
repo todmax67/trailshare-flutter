@@ -11,6 +11,7 @@ import '../../../data/repositories/admin_repository.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../widgets/business_claim_banner.dart';
+import '../../widgets/photo_credit_chip.dart';
 import '../../widgets/expandable_description.dart';
 import '../../widgets/star_rating.dart';
 import 'business_claim_request_page.dart';
@@ -164,12 +165,27 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
       pinned: true,
       flexibleSpace: FlexibleSpaceBar(
         background: b.branding.heroPhotoUrl != null
-            ? CachedNetworkImage(
-                imageUrl: b.branding.heroPhotoUrl!,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(color: AppColors.border),
-                errorWidget: (_, __, ___) =>
-                    Container(color: AppColors.border),
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: b.branding.heroPhotoUrl!,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) =>
+                        Container(color: AppColors.border),
+                    errorWidget: (_, __, ___) =>
+                        Container(color: AppColors.border),
+                  ),
+                  // Credito obbligatorio per le foto con licenza CC
+                  // (Wikimedia Commons) aggiunte dall'arricchimento.
+                  if (b.photoAttribution != null)
+                    Positioned(
+                      right: 6,
+                      bottom: 6,
+                      child: PhotoCreditChip(
+                          attribution: b.photoAttribution!),
+                    ),
+                ],
               )
             : Container(
                 decoration: BoxDecoration(

@@ -13,6 +13,7 @@ import '../../presentation/pages/business/business_profile_page.dart';
 import '../../presentation/pages/business/business_qr_card_page.dart';
 import '../../presentation/pages/business/business_services_manager_page.dart';
 import 'web_home_page.dart';
+import '../../presentation/widgets/photo_credit_chip.dart';
 
 /// Dashboard web del singolo Spazio Pro: panoramica + azioni rapide.
 /// Le azioni di edit/post/listino aprono le pagine mobile in dialog
@@ -157,6 +158,13 @@ class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
               ),
             ),
           ),
+          // Credito CC per foto da Wikimedia Commons (arricchimento)
+          if (b.branding.heroPhotoUrl != null && b.photoAttribution != null)
+            Positioned(
+              right: 8,
+              top: 8,
+              child: PhotoCreditChip(attribution: b.photoAttribution!),
+            ),
           Positioned(
             left: 24,
             bottom: 20,
