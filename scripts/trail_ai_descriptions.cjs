@@ -21,6 +21,11 @@ const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; };
 const LIMIT = Number(opt('limit', 25));
 const ONLY_RIFUGIO_ROUTE = args.includes('--rifugioroute');
+// --autopublish: scrive direttamente description (descriptionSource
+// 'ai_facts') invece della coda di revisione. Da usare SOLO dopo che il
+// formato è stato validato dal founder sul pilota.
+const AUTOPUBLISH = args.includes('--autopublish');
+const CONCURRENCY = Number(opt('concurrency', 6));
 
 // ── Regioni (point-in-polygon, riuso pipeline schede) ─────────────────────
 const gj = JSON.parse(fs.readFileSync('/tmp/it_regions.geojson', 'utf8'));
@@ -149,8 +154,9 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
 
   let ok = 0, unreliable = 0, errors = 0, regionsSet = 0;
   let inTok = 0, outTok = 0;
-  for (const [i, t] of cands.entries()) {
-    process.stdout.write(`[${i + 1}/${cands.length}] ${String(t.name).slice(0, 50)} ... `);
+  let nextIdx = 0;
+  async function processOne(t, i) {
+    const label = `[${i + 1}/${cands.length}] ${String(t.name).slice(0, 50)}`;
     try {
       const pts = trailPoints(t);
       // regione (backfill se mancante)
@@ -180,26 +186,43 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
       if (!parsed.affidabile || !parsed.description || parsed.description.length < 40) {
         unreliable++;
         await t.docRef.update({ aiDraft: { status: 'unreliable', generatedAt: admin.firestore.FieldValue.serverTimestamp() } });
-        console.log('fatti troppo scarni, skip');
-        continue;
+        console.log(label + ' ... fatti troppo scarni, skip');
+        return;
       }
-      await t.docRef.update({
-        aiDraft: {
-          status: 'pending',
+      if (AUTOPUBLISH) {
+        await t.docRef.update({
           description: String(parsed.description).trim(),
-          nearbyRifugi: nearNames,
-          model: MODEL,
-          generatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-      });
+          descriptionSource: 'ai_facts',
+          aiNearbyRifugi: nearNames,
+          aiGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        await t.docRef.update({
+          aiDraft: {
+            status: 'pending',
+            description: String(parsed.description).trim(),
+            nearbyRifugi: nearNames,
+            model: MODEL,
+            generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        });
+      }
       ok++;
-      console.log('bozza creata' + (nearNames.length ? ` (rifugi: ${nearNames.join(', ')})` : ''));
+      console.log(label + ' ... ' + (AUTOPUBLISH ? 'pubblicata' : 'bozza creata') + (nearNames.length ? ` (rifugi: ${nearNames.join(', ')})` : ''));
     } catch (e) {
       errors++;
-      console.log('errore:', e.message.slice(0, 120));
+      console.log(label + ' ... errore: ' + e.message.slice(0, 120));
     }
-    await sleep(300);
+    await sleep(120);
   }
+
+  async function worker() {
+    while (nextIdx < cands.length) {
+      const i = nextIdx++;
+      await processOne(cands[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, cands.length) }, () => worker()));
   const cost = (inTok / 1e6) * 1 + (outTok / 1e6) * 5;
   console.log(`\n=== SENTIERI BATCH COMPLETO ===`);
   console.log(`bozze: ${ok} | scarni: ${unreliable} | errori: ${errors} | regioni backfillate: ${regionsSet}`);
