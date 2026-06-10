@@ -650,6 +650,19 @@
   "faqCategorySocial": "👥 Social",
   "faqCategoryGamification": "🏆 Gamification",
   "faqCategoryTechnical": "⚙️ Technical",
+  "faqCategoryDevices": "⌚ Watches & devices",
+  "faqDevicesQ1": "How do I connect my Garmin?",
+  "faqDevicesA1": "Install the TrailShare app on your watch from the Connect IQ Store. Then, in the phone app, go to Profile → Devices & sync → Pair your Garmin and generate the pairing code: enter it in the Connect IQ app settings (via Garmin Connect Mobile). From then on you record from your wrist and activities — GPS route and heart rate — arrive in your account automatically.",
+  "faqDevicesQ2": "How do I connect a Polar watch?",
+  "faqDevicesA2": "Go to Profile → Devices & sync → Connect Polar and authorize TrailShare on your Polar Flow account. From then on, workouts with GPS (and heart rate) arrive in TrailShare automatically every time your watch syncs with Polar Flow.",
+  "faqDevicesQ3": "I have a Suunto, Coros or another watch: can I use it?",
+  "faqDevicesA3": "Yes, in two ways. 1) Export the activity from your watch's app as a FIT, TCX or GPX file and open it with TrailShare: we import route and heart rate. 2) Connect Strava in Devices & sync: activities your watch sends to Strava are imported automatically. You can also use the watch as a heart-rate strap while recording.",
+  "faqDevicesQ4": "Does Apple Watch work with TrailShare?",
+  "faqDevicesA4": "Yes: record your workout with the Apple Watch Workout app, then in TrailShare go to Devices & sync → Import from watch to import sessions complete with GPS route from the Health database.",
+  "faqDevicesQ5": "I recorded with my Garmin but the track didn't arrive: what should I check?",
+  "faqDevicesA5": "The watch uploads through your phone: it must be nearby, with Garmin Connect active and an internet connection. If you see \"queued\" when saving, the track is safe on the watch: reopen the TrailShare app on the watch when the phone is connected and the upload resumes automatically. Also check that the pairing code is set in the Connect IQ settings.",
+  "faqDevicesQ6": "Can I use my watch as a heart-rate strap?",
+  "faqDevicesA6": "Yes. Enable heart-rate broadcasting on your watch (e.g. \"Broadcast HR\" on Garmin, \"HR visible to other devices\" on Polar), then while recording tap the heart widget: your heart rate is shown live and saved with the track.",
   "faqNoAnswer": "Didn't find your answer?",
   "faqContactPrompt": "Contact us and we'll get back to you shortly",
   "faqContactSupport": "Contact support",
@@ -2371,7 +2384,13 @@
   "paywallAnnotatedPeakPhotos": "Photos labeled with peak names.",
   "paywallUnlimitedSavedPeaks": "Unlimited saved peaks",
   "contactNoMoreLifelineNotif": "{name} will no longer receive Lifeline notifications.",
-  "@contactNoMoreLifelineNotif": { "placeholders": { "name": {"type": "String"} } },
+  "@contactNoMoreLifelineNotif": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "settingsAddBusinessProfileSub": "Add a new business profile (hut, rental, etc.)",
   "settingsEnterBusinessId": "Enter business ID to test the profile",
   "trackFollowAndRecord": "Follow and record",
@@ -2409,11 +2428,9 @@
   "reportCondition": "Report a condition",
   "deletePoiQuestion": "Delete POI?",
   "deletePhotoQuestion": "Delete photo?",
-
   "mfViewshedOnTooltip": "Visibility filter ON — tap to disable",
   "mfViewshedOffTooltip": "Visibility filter OFF — show only non-occluded peaks",
   "locationTimeout": "Cannot get position (GPS timeout). Try again outdoors.",
-
   "stravaSyncNow": "Sync now",
   "stravaSyncNowSubtitle": "Pull the last 10 Strava activities if the webhook is delayed",
   "stravaSyncing": "Strava sync in progress…",

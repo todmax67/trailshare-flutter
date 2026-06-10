@@ -315,6 +315,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                           fallbackActivity: _track.activityType,
                         ),
                       const Spacer(),
+                      // Pubblica nella community — scorciatoia visibile
+                      // (prima era solo nel menu ⋮): owner + traccia privata.
+                      if (_isOwner && !_track.isPublic && !_track.isPlanned) ...[
+                        _buildPublishButton(),
+                        const SizedBox(width: 8),
+                      ],
                       // Vedi in 3D (Pro) — visibile se la traccia ha
                       // abbastanza punti per un fly-through sensato.
                       if (_track.points.length >= 2)
@@ -601,6 +607,38 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         backgroundColor: AppColors.danger,
       ));
     }
+  }
+
+  /// Pulsante "Pubblica" — scorciatoia visibile per condividere la traccia
+  /// nella community (stessa azione del menu ⋮ → Pubblica). Solo per
+  /// l'owner quando la traccia è ancora privata.
+  Widget _buildPublishButton() {
+    return Material(
+      color: AppColors.success.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: _showPublishDialog,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.public, size: 18, color: AppColors.success),
+              SizedBox(width: 6),
+              Text(
+                'Pubblica',
+                style: TextStyle(
+                  color: AppColors.success,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// Pulsante "3D" — apre il fly-through 3D (Pro). Per i non-Pro mostra

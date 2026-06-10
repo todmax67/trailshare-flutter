@@ -1523,6 +1523,53 @@ class AppLocalizationsIt extends AppLocalizations {
   String get faqCategoryTechnical => '⚙️ Tecnico';
 
   @override
+  String get faqCategoryDevices => '⌚ Orologi e dispositivi';
+
+  @override
+  String get faqDevicesQ1 => 'Come collego il mio Garmin?';
+
+  @override
+  String get faqDevicesA1 =>
+      'Installa l\'app TrailShare sull\'orologio dal Connect IQ Store. Poi, nell\'app sul telefono, vai in Profilo → Dispositivi & sync → Abbina il tuo Garmin e genera il codice di abbinamento: inseriscilo nelle impostazioni dell\'app Connect IQ (da Garmin Connect Mobile). Da quel momento registri dal polso e le attività, con percorso GPS e battito, arrivano da sole nel tuo account.';
+
+  @override
+  String get faqDevicesQ2 => 'Come collego un orologio Polar?';
+
+  @override
+  String get faqDevicesA2 =>
+      'Vai in Profilo → Dispositivi & sync → Collega Polar e autorizza TrailShare sul tuo account Polar Flow. Da lì in poi gli allenamenti con GPS (e battito) arrivano automaticamente in TrailShare ogni volta che l\'orologio sincronizza con Polar Flow.';
+
+  @override
+  String get faqDevicesQ3 =>
+      'Ho un Suunto, Coros o un altro orologio: posso usarlo?';
+
+  @override
+  String get faqDevicesA3 =>
+      'Sì, in due modi. 1) Esporta l\'attività dall\'app del tuo orologio come file FIT, TCX o GPX e aprila con TrailShare: importiamo percorso e battito. 2) Collega Strava in Dispositivi & sync: le attività che il tuo orologio manda a Strava vengono importate automaticamente. In più puoi usare l\'orologio come fascia cardio durante la registrazione.';
+
+  @override
+  String get faqDevicesQ4 => 'Apple Watch funziona con TrailShare?';
+
+  @override
+  String get faqDevicesA4 =>
+      'Sì: registra l\'allenamento con l\'app Allenamento di Apple Watch, poi in TrailShare vai in Dispositivi & sync → Importa dall\'orologio per importare i giri completi di percorso GPS dal database Salute.';
+
+  @override
+  String get faqDevicesQ5 =>
+      'Ho registrato col Garmin ma la traccia non è arrivata: cosa controllo?';
+
+  @override
+  String get faqDevicesA5 =>
+      'L\'orologio invia la traccia tramite il telefono: serve che il telefono sia vicino, con Garmin Connect attivo e una connessione internet. Se al salvataggio vedi \"in coda\", la traccia è al sicuro sull\'orologio: riapri l\'app TrailShare sull\'orologio quando il telefono è connesso e l\'invio riparte da solo. Verifica anche che il codice di abbinamento sia inserito nelle impostazioni Connect IQ.';
+
+  @override
+  String get faqDevicesQ6 => 'Posso usare l\'orologio come fascia cardio?';
+
+  @override
+  String get faqDevicesA6 =>
+      'Sì. Attiva sulla tua watch la trasmissione della frequenza cardiaca (es. \"Trasmetti FC\" sui Garmin, \"HR visibile ad altri dispositivi\" sui Polar), poi durante la registrazione tocca il widget del cuore: il battito viene mostrato in diretta e salvato nella traccia.';
+
+  @override
   String get faqNoAnswer => 'Non hai trovato la risposta?';
 
   @override

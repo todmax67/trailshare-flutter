@@ -64,6 +64,11 @@ class FaqPage extends StatelessWidget {
           ),
           _buildCategory(
             context,
+            title: context.l10n.faqCategoryDevices,
+            faqs: _getDevicesFaqs(context),
+          ),
+          _buildCategory(
+            context,
             title: context.l10n.faqCategorySocial,
             faqs: _getSocialFaqs(context),
           ),
@@ -262,6 +267,33 @@ List<FaqItem> _getTrackingFaqs(BuildContext context) => [
   FaqItem(
     question: context.l10n.faqTrackingQ7,
     answer: context.l10n.faqTrackingA7,
+  ),
+];
+
+List<FaqItem> _getDevicesFaqs(BuildContext context) => [
+  FaqItem(
+    question: context.l10n.faqDevicesQ1,
+    answer: context.l10n.faqDevicesA1,
+  ),
+  FaqItem(
+    question: context.l10n.faqDevicesQ2,
+    answer: context.l10n.faqDevicesA2,
+  ),
+  FaqItem(
+    question: context.l10n.faqDevicesQ3,
+    answer: context.l10n.faqDevicesA3,
+  ),
+  FaqItem(
+    question: context.l10n.faqDevicesQ4,
+    answer: context.l10n.faqDevicesA4,
+  ),
+  FaqItem(
+    question: context.l10n.faqDevicesQ5,
+    answer: context.l10n.faqDevicesA5,
+  ),
+  FaqItem(
+    question: context.l10n.faqDevicesQ6,
+    answer: context.l10n.faqDevicesA6,
   ),
 ];
 

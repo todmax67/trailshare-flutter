@@ -1222,6 +1222,40 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.6.9',
+        title: 'Sentieri che si raccontano 🗺️',
+        bullets: [
+          'Quasi 10.000 sentieri hanno ora una descrizione: meta, lunghezza, dislivello e i rifugi che incontri lungo il percorso',
+          'Nuove card nel Discover e in Home con la "firma del tracciato": riconosci la forma del percorso a colpo d\'occhio',
+          'Collega il tuo account Polar: gli allenamenti con GPS e battito arrivano in TrailShare automaticamente (Dispositivi & sync)',
+          'Pubblicare una traccia è più facile: nuovo bottone "Pubblica" in evidenza nella scheda, accanto al 3D',
+          'Molti rifugi hanno ora foto e periodo di apertura nelle loro schede (con credito fotografico Wikimedia Commons)',
+          'Da computer: gestione completa dei Tour su app.trailshare.app (crea, modifica, immagini, pubblica)',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.6.8',
+        title: 'TrailShare al polso ⌚',
+        bullets: [
+          'Nuova app TrailShare per Garmin (Connect IQ): registra GPS e battito dal polso e la traccia arriva da sola nel tuo account',
+          'Abbinamento sicuro con un codice generato dall\'app (Dispositivi & sync → Abbina il tuo Garmin)',
+          'Sull\'orologio: 4 pagine dati (riepilogo, battito, quota, percorso), menu pausa anti-tocco accidentale e riepilogo finale',
+          'Compatibilità Android 15 migliorata',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.6.7',
+        title: 'Dispositivi & sincronizzazione 🔗',
+        bullets: [
+          'Nuovo hub "Dispositivi & sync": orologi, fasce cardio, Strava e Garmin in un unico posto, con spiegazioni oneste su cosa funziona',
+          'Fascia cardio Bluetooth: battito in diretta durante la registrazione, salvato nella traccia',
+          'Import attività da file TCX/FIT/GPX ("Apri con TrailShare") ora con battito cardiaco',
+          'Importa i giri dall\'orologio via Salute (Apple Watch con percorso GPS)',
+          'Home: "I sentieri più amati" ora è la classifica del mese corrente',
+          'Interfaccia rinnovata (Material 3) e fly-through 3D visibile a tutti, con export video',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.6.5',
         title: 'Rivivi le tue tracce in 3D 🏔️',
         bullets: [

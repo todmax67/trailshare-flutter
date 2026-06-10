@@ -1520,6 +1520,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get faqCategoryTechnical => '⚙️ Technical';
 
   @override
+  String get faqCategoryDevices => '⌚ Watches & devices';
+
+  @override
+  String get faqDevicesQ1 => 'How do I connect my Garmin?';
+
+  @override
+  String get faqDevicesA1 =>
+      'Install the TrailShare app on your watch from the Connect IQ Store. Then, in the phone app, go to Profile → Devices & sync → Pair your Garmin and generate the pairing code: enter it in the Connect IQ app settings (via Garmin Connect Mobile). From then on you record from your wrist and activities — GPS route and heart rate — arrive in your account automatically.';
+
+  @override
+  String get faqDevicesQ2 => 'How do I connect a Polar watch?';
+
+  @override
+  String get faqDevicesA2 =>
+      'Go to Profile → Devices & sync → Connect Polar and authorize TrailShare on your Polar Flow account. From then on, workouts with GPS (and heart rate) arrive in TrailShare automatically every time your watch syncs with Polar Flow.';
+
+  @override
+  String get faqDevicesQ3 =>
+      'I have a Suunto, Coros or another watch: can I use it?';
+
+  @override
+  String get faqDevicesA3 =>
+      'Yes, in two ways. 1) Export the activity from your watch\'s app as a FIT, TCX or GPX file and open it with TrailShare: we import route and heart rate. 2) Connect Strava in Devices & sync: activities your watch sends to Strava are imported automatically. You can also use the watch as a heart-rate strap while recording.';
+
+  @override
+  String get faqDevicesQ4 => 'Does Apple Watch work with TrailShare?';
+
+  @override
+  String get faqDevicesA4 =>
+      'Yes: record your workout with the Apple Watch Workout app, then in TrailShare go to Devices & sync → Import from watch to import sessions complete with GPS route from the Health database.';
+
+  @override
+  String get faqDevicesQ5 =>
+      'I recorded with my Garmin but the track didn\'t arrive: what should I check?';
+
+  @override
+  String get faqDevicesA5 =>
+      'The watch uploads through your phone: it must be nearby, with Garmin Connect active and an internet connection. If you see \"queued\" when saving, the track is safe on the watch: reopen the TrailShare app on the watch when the phone is connected and the upload resumes automatically. Also check that the pairing code is set in the Connect IQ settings.';
+
+  @override
+  String get faqDevicesQ6 => 'Can I use my watch as a heart-rate strap?';
+
+  @override
+  String get faqDevicesA6 =>
+      'Yes. Enable heart-rate broadcasting on your watch (e.g. \"Broadcast HR\" on Garmin, \"HR visible to other devices\" on Polar), then while recording tap the heart widget: your heart rate is shown live and saved with the track.';
+
+  @override
   String get faqNoAnswer => 'Didn\'t find your answer?';
 
   @override
