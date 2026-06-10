@@ -116,8 +116,9 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
   });
   if (!res.ok) throw new Error('anthropic HTTP ' + res.status + ' ' + (await res.text()).slice(0, 160));
   const j = await res.json();
-  const text = (j.content?.[0]?.text || '').trim().replace(/^```json?\s*/i, '').replace(/```\s*$/, '');
-  return { parsed: JSON.parse(text), usage: j.usage };
+  const text = (j.content?.[0]?.text || '').trim();
+  const block = text.match(/\{[\s\S]*\}/);
+  return { parsed: JSON.parse(block ? block[0] : text), usage: j.usage };
 }
 
 (async () => {
@@ -139,7 +140,7 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
     if (hasDesc || x.aiDraft) return;
     if (ONLY_RIFUGIO_ROUTE && x.isRifugioRoute !== true) return;
     if (!x.distance || x.distance < 300) return;
-    cands.push({ ref: d.ref, id: d.id, ...x });
+    cands.push({ ...x, docRef: d.ref, id: d.id });
   });
   // priorità: rifugioRoute prima, poi i più lunghi (più "raccontabili")
   cands.sort((a, b) => ((b.isRifugioRoute === true ? 1 : 0) - (a.isRifugioRoute === true ? 1 : 0)) || (b.distance - a.distance));
@@ -156,7 +157,7 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
       let region = t.region || null;
       if (!region && pts.length) {
         region = regionOf(pts[0][1], pts[0][0]);
-        if (region) { await t.ref.update({ region }); regionsSet++; }
+        if (region) { await t.docRef.update({ region }); regionsSet++; }
       }
       // rifugi entro 1.5 km da uno dei punti del percorso
       const step = Math.max(1, Math.floor(pts.length / 25));
@@ -178,11 +179,11 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
       outTok += usage?.output_tokens || 0;
       if (!parsed.affidabile || !parsed.description || parsed.description.length < 40) {
         unreliable++;
-        await t.ref.update({ aiDraft: { status: 'unreliable', generatedAt: admin.firestore.FieldValue.serverTimestamp() } });
+        await t.docRef.update({ aiDraft: { status: 'unreliable', generatedAt: admin.firestore.FieldValue.serverTimestamp() } });
         console.log('fatti troppo scarni, skip');
         continue;
       }
-      await t.ref.update({
+      await t.docRef.update({
         aiDraft: {
           status: 'pending',
           description: String(parsed.description).trim(),
