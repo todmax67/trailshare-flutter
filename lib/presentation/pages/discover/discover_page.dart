@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../widgets/trail_route_thumb.dart';
+import '../../widgets/photo_credit_chip.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/utils/text_search.dart';
@@ -1736,6 +1737,32 @@ class _TrailCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      );
+    }
+
+    // Foto Commons del sentiero (percorsi famosi) con credito CC.
+    if (trail.photoUrl != null && trail.photoUrl!.isNotEmpty) {
+      return SizedBox(
+        height: 120,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
+              trail.photoUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stack) =>
+                  TrailRouteThumb.canRender(trail.points)
+                      ? TrailRouteThumb(points: trail.points)
+                      : _buildLiveMapPreview(context),
+            ),
+            if (trail.photoAttribution != null)
+              Positioned(
+                right: 6,
+                bottom: 6,
+                child: PhotoCreditChip(attribution: trail.photoAttribution!),
+              ),
+          ],
         ),
       );
     }

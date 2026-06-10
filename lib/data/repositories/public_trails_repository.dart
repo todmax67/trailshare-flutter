@@ -616,6 +616,9 @@ class PublicTrailsRepository {
         geohash: data['geoHash']?.toString(),
         activityType: data['activityType']?.toString(),
         source: data['source']?.toString(),
+        photoUrl: data['photoUrl']?.toString(),
+        photoAttribution: (data['photoAttribution'] as Map?)
+            ?.map((k, v) => MapEntry(k.toString(), v)),
       );
     } catch (e) {
       debugPrint('[PublicTrails] Errore parsing ${doc.id}: $e');
@@ -920,6 +923,12 @@ class PublicTrail {
   final double? distanceFromUser;
   final String? geohash;
 
+  /// Foto del sentiero (Wikimedia Commons, copiata nel nostro Storage)
+  /// con attribuzione obbligatoria CC {author, license, source, sourceUrl}.
+  /// Presente solo sui percorsi "famosi" (pipeline trail_commons_photos).
+  final String? photoUrl;
+  final Map<String, dynamic>? photoAttribution;
+
   const PublicTrail({
     required this.id,
     required this.name,
@@ -940,6 +949,8 @@ class PublicTrail {
     this.startLng = 0,
     this.distanceFromUser,
     this.geohash,
+    this.photoUrl,
+    this.photoAttribution,
   });
 
   double get lengthKm => (length ?? 0) / 1000;
@@ -974,6 +985,7 @@ class PublicTrail {
       quality: quality, duration: duration, startLat: startLat, startLng: startLng,
       distanceFromUser: distanceFromUser ?? this.distanceFromUser,
       geohash: geohash, activityType: activityType, source: source,
+      photoUrl: photoUrl, photoAttribution: photoAttribution,
     );
   }
 
