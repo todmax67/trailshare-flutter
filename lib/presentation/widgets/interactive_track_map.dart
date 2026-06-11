@@ -360,11 +360,6 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
     }
   }
 
-  void _centerOnTrack() {
-    final (center, zoom) = _calculateBounds();
-    _mapController.move(center, zoom);
-  }
-
   void _centerOnUser() {
     if (_userPosition != null) {
       _mapController.move(_userPosition!, 15);
@@ -667,14 +662,9 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                     onTap: _openFullscreen,
                     tooltip: 'Schermo intero',
                   ),
-                  const SizedBox(height: 8),
-                  // Centra su traccia — icona distinta da fullscreen
-                  // (crop_free era un quasi-doppione visivo).
-                  _MapButton(
-                    icon: Icons.zoom_in_map,
-                    onTap: _centerOnTrack,
-                    tooltip: 'Centra su traccia',
-                  ),
+                  // NB: niente "centra su traccia" nella vista compatta —
+                  // l'icona si leggeva come "chiudi mappa". La funzione
+                  // resta nella mappa fullscreen, dove ha senso dopo il pan.
                   if (widget.on3DTap != null) ...[
                     const SizedBox(height: 8),
                     // Fly-through 3D
