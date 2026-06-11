@@ -3,12 +3,14 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/gpx_service.dart';
+import '../../../core/utils/eta_estimator.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../widgets/weather_forecast_card.dart';
 import '../../widgets/expandable_description.dart';
+import '../../widgets/track_stats_bar.dart';
 import '../../widgets/trail_reviews_section.dart';
 import '../../widgets/trail_photos_section.dart';
 import '../../widgets/trail_segments_section.dart';
@@ -155,6 +157,50 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),
 
+                  // Riga meta: difficoltà (solo se nota — niente "N/D") +
+                  // rete/gestore. Sostituisce la vecchia info card.
+                  if (trail.difficulty != null ||
+                      trail.networkName.isNotEmpty ||
+                      trail.operator != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        if (trail.difficulty != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.info.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '${trail.difficultyIcon} ${trail.difficultyName}',
+                              style: const TextStyle(
+                                color: AppColors.info,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Expanded(
+                          child: Text(
+                            [
+                              if (trail.networkName.isNotEmpty)
+                                trail.networkName,
+                              if (trail.operator != null) trail.operator!,
+                            ].join(' · '),
+                            style: TextStyle(
+                                color: context.textMuted, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
                   // Descrizione (arricchimento AI revisionato o manuale)
                   if (_trailDescription != null) ...[
                     const SizedBox(height: 10),
@@ -164,78 +210,15 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                     ),
                   ],
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
-                  // Info card
-                  _onSage(_buildInfoCard()),
+                  // Stat bar raggruppata: i numeri del giro in evidenza
+                  _buildMainStats(),
 
-                  const SizedBox(height: 16),
-
-                  // Stats principali
-                  _onSage(_buildMainStats()),
-
-                  const SizedBox(height: 16),
-
-                  // Sezioni contenuto — look minimalista "a lista":
-                  // stesso sfondo salvia, niente cornici, separate da linea leggera.
-                  _onSage(Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 6.6 — Trail Conditions AI Summary (Pro, si auto-nasconde)
-                      TrailConditionsAiCard(
-                        trailId: widget.trail.id,
-                        trailName: widget.trail.displayName,
-                      ),
-
-                      // Condizioni sentiero community
-                      TrailConditionsSection(trailId: widget.trail.id),
-
-                      _sectionDivider(),
-
-                      // POI community + POI OSM lungo il percorso
-                      TrailPoisSection(
-                        trailId: widget.trail.id,
-                        allowAdd: true,
-                        defaultLatitude: widget.trail.startLat,
-                        defaultLongitude: widget.trail.startLng,
-                        polyline: _displayPoints
-                            .map((p) => LatLng(p.latitude, p.longitude))
-                            .toList(),
-                        loadOsmPois: true,
-                      ),
-
-                      _sectionDivider(),
-
-                      // Previsioni meteo
-                      WeatherForecastCard(
-                        lat: widget.trail.startLat,
-                        lng: widget.trail.startLng,
-                      ),
-
-                      _sectionDivider(),
-
-                      // Foto community
-                      TrailPhotosSection(trailId: widget.trail.id),
-
-                      _sectionDivider(),
-
-                      // Recensioni e rating
-                      TrailReviewsSection(trailId: widget.trail.id),
-
-                      _sectionDivider(),
-
-                      // Segmenti cronometrati
-                      TrailSegmentsSection(
-                        trail: widget.trail,
-                        trailPoints: _displayPoints,
-                      ),
-                    ],
-                  )),
-
-                  const SizedBox(height: 16),
-
-                  // Grafici (elevazione, velocità, combinato) con sync mappa
+                  // Profilo quota subito dopo i numeri: è IL dato di
+                  // pianificazione (dove sono le salite), non un'appendice.
                   if (_displayPoints.length > 1) ...[
+                    const SizedBox(height: 16),
                     _onSage(TrackChartsWidget(
                       points: _displayPoints,
                       height: 180,
@@ -253,7 +236,66 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
                         ),
                       ),
                   ],
-                  
+
+                  const SizedBox(height: 16),
+
+                  // Sezioni contenuto — look minimalista "a lista":
+                  // stesso sfondo salvia, niente cornici, separate da linea
+                  // leggera. Gerarchia: visivo → lungo il percorso →
+                  // "posso andarci?" → community → niche.
+                  _onSage(Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Foto community
+                      TrailPhotosSection(trailId: widget.trail.id),
+
+                      _sectionDivider(),
+
+                      // POI community + POI OSM lungo il percorso
+                      TrailPoisSection(
+                        trailId: widget.trail.id,
+                        allowAdd: true,
+                        defaultLatitude: widget.trail.startLat,
+                        defaultLongitude: widget.trail.startLng,
+                        polyline: _displayPoints
+                            .map((p) => LatLng(p.latitude, p.longitude))
+                            .toList(),
+                        loadOsmPois: true,
+                      ),
+
+                      _sectionDivider(),
+
+                      // Condizioni sentiero — blocco unico: riassunto AI
+                      // (quando c'è) sopra le segnalazioni community.
+                      TrailConditionsAiCard(
+                        trailId: widget.trail.id,
+                        trailName: widget.trail.displayName,
+                      ),
+                      TrailConditionsSection(trailId: widget.trail.id),
+
+                      _sectionDivider(),
+
+                      // Previsioni meteo
+                      WeatherForecastCard(
+                        lat: widget.trail.startLat,
+                        lng: widget.trail.startLng,
+                      ),
+
+                      _sectionDivider(),
+
+                      // Recensioni e rating
+                      TrailReviewsSection(trailId: widget.trail.id),
+
+                      _sectionDivider(),
+
+                      // Segmenti cronometrati
+                      TrailSegmentsSection(
+                        trail: widget.trail,
+                        trailPoints: _displayPoints,
+                      ),
+                    ],
+                  )),
+
                   const SizedBox(height: 16),
                   
                   // Dettagli
@@ -356,130 +398,50 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
     );
   }
 
-  Widget _buildInfoCard() {
-    final trail = widget.trail;
-    
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // Icona difficoltà
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: AppColors.info.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(
-                  trail.difficultyIcon,
-                  style: const TextStyle(fontSize: 32),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.info.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          trail.difficultyName,
-                          style: const TextStyle(
-                            color: AppColors.info,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      if (trail.networkName.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            trail.networkName,
-                            style: TextStyle(
-                              color: context.textMuted,
-                              fontSize: 12,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  if (trail.operator != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.business, size: 16, color: context.textMuted),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            trail.operator!,
-                            style: TextStyle(color: context.textSecondary),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildMainStats() {
     final trail = widget.trail;
-    
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.straighten,
-            value: trail.length != null 
-                ? trail.lengthKm.toStringAsFixed(1) 
-                : '--',
-            unit: 'km',
-            label: context.l10n.lengthLabel,
-            color: AppColors.primary,
-          ),
+
+    // Durata stimata (Naismith) — molto più utile all'utente del conteggio
+    // "Punti GPS" (dato tecnico). La tilde comunica che è una stima.
+    String etaValue = '--';
+    if (trail.length != null) {
+      final eta = EtaEstimator.estimate(
+        distanceMeters: trail.length!,
+        elevationGainMeters: trail.elevationGain ?? 0,
+        activityType: trail.parsedActivityType,
+      );
+      if (eta > Duration.zero) {
+        final h = eta.inHours;
+        final m = eta.inMinutes % 60;
+        etaValue = h > 0 ? '~${h}h ${m}m' : '~${m}m';
+      }
+    }
+
+    return TrackStatsBar(
+      stats: [
+        TrackStat(
+          icon: Icons.straighten,
+          value: trail.length != null
+              ? trail.lengthKm.toStringAsFixed(1)
+              : '--',
+          unit: 'km',
+          label: context.l10n.lengthLabel,
+          color: AppColors.primary,
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.trending_up,
-            value: trail.elevationGain != null 
-                ? '+${trail.elevationGain!.toStringAsFixed(0)}' 
-                : '--',
-            unit: 'm',
-            label: context.l10n.elevationLabel,
-            color: AppColors.success,
-          ),
+        TrackStat(
+          icon: Icons.trending_up,
+          value: trail.elevationGain != null
+              ? '+${trail.elevationGain!.toStringAsFixed(0)}'
+              : '--',
+          unit: 'm',
+          label: context.l10n.elevationLabel,
+          color: AppColors.success,
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.location_on,
-            value: '${_displayPoints.length}',
-            unit: _isLoadingFull ? '...' : '',
-            label: context.l10n.gpsPoints,
-            color: AppColors.info,
-          ),
+        TrackStat(
+          icon: Icons.timer,
+          value: etaValue,
+          label: context.l10n.durationStatLabel,
+          color: AppColors.info,
         ),
       ],
     );
@@ -807,59 +769,3 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String unit;
-  final String label;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.value,
-    required this.unit,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: value,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                  TextSpan(
-                    text: ' $unit',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: color.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(fontSize: 11, color: context.textMuted),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

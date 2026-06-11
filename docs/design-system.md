@@ -175,8 +175,21 @@ con elementi-isola e troppi vuoti. Riorganizzato a blocco compatto:
   traccia. Mai vicoli ciechi. Restano: fullscreen · 3D · posizione.
 - Rimosse le `_StatCard` locali (sostituite dalla stat bar condivisa).
 
-> Nota: `trail_detail_page` (sentieri) ha ancora le sue `_StatCard` — da
-> allineare alla stat bar in un secondo momento.
+### 2026-06-11 — Gerarchia pagina sentiero (trail_detail) + stat bar
+Riordinata la pagina sentieri secondo il flusso decisionale dell'utente:
+**titolo → meta (difficoltà se nota · rete/gestore) → descrizione → stat bar →
+profilo quota → foto → POI → condizioni (AI+community, blocco unico) → meteo →
+recensioni → segmenti → informazioni → azioni.**
+- Il **grafico quota** era al penultimo posto → ora subito dopo i numeri (è IL
+  dato di pianificazione).
+- Via la info card con "pallina ⚪ + N/D": chip difficoltà mostrato **solo se
+  nota**, rete/gestore come testo muted inline.
+- `TrackStatsBar` anche qui: Lunghezza · Dislivello · **Durata stimata**
+  (`EtaEstimator` Naismith, valore con tilde "~2h 30m") al posto di "Punti GPS"
+  (dato tecnico, non da utente). Rimossa la `_StatCard` locale.
+- Condizioni AI + community adiacenti come blocco unico (il "doppione"
+  percepito: l'AI card in stato attesa è visibile ai soli Pro con <2
+  segnalazioni — by design per discoverability; da rivalutare).
 
 ---
 
