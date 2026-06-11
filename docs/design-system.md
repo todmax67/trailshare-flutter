@@ -168,8 +168,11 @@ con elementi-isola e troppi vuoti. Riorganizzato a blocco compatto:
 - **3D sulla mappa**: `InteractiveTrackMap.on3DTap` → pillola "3D" tra i
   controlli mappa (le azioni-mappa stanno sulla mappa). Rimossi i
   `_build3DButton` dalle due pagine.
-- **Dedup icone mappa**: "Centra su traccia" da `crop_free` (quasi identica a
-  fullscreen) a `zoom_in_map`.
+- **Controlli mappa compatta ripuliti**: rimosso "centra su traccia" (l'icona
+  si leggeva come "chiudi mappa"); il bottone posizione è ora un **toggle**:
+  1° tap inquadra **io + traccia** (fit esatto via `CameraFit.bounds`, padding
+  56 — risponde a "quanto dista da me"), 2° tap (icona route) torna alla
+  traccia. Mai vicoli ciechi. Restano: fullscreen · 3D · posizione.
 - Rimosse le `_StatCard` locali (sostituite dalla stat bar condivisa).
 
 > Nota: `trail_detail_page` (sentieri) ha ancora le sue `_StatCard` — da
