@@ -37,6 +37,7 @@ import '../../../presentation/widgets/heart_rate_zones_widget.dart';
 import '../../../core/services/health_service.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../widgets/flat_section.dart';
+import '../../widgets/track_stats_bar.dart';
 
 class TrackDetailPage extends StatefulWidget {
   final Track track;
@@ -131,6 +132,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       setState(() => _selectedPointIndex = index);
                     },
                     track: _track, // ⭐ Per fullscreen con TrackMapPage
+                    on3DTap:
+                        _track.points.length >= 2 ? _open3D : null,
                   ),
                 ),
               ),
@@ -281,15 +284,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),
 
-                  const SizedBox(height: 16),
-
-                  _buildMainStats(),
-
-                  // Komoot K1a Step 2 — badge difficoltà computata.
-                  // Per tracce legacy senza valore persistito, calcolo
-                  // al volo dal fallback (stats + activity) per
-                  // mostrare comunque il T-grade.
-                  const SizedBox(height: 12),
+                  // Header compatto: riga meta (difficoltà + publish)
+                  // subito sotto il titolo, poi la stat bar raggruppata.
+                  // Il 3D vive tra i controlli mappa (on3DTap).
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       // Badge tappabile (solo per owner): apre dialog
@@ -317,16 +315,14 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       const Spacer(),
                       // Pubblica nella community — scorciatoia visibile
                       // (prima era solo nel menu ⋮): owner + traccia privata.
-                      if (_isOwner && !_track.isPublic && !_track.isPlanned) ...[
+                      if (_isOwner && !_track.isPublic && !_track.isPlanned)
                         _buildPublishButton(),
-                        const SizedBox(width: 8),
-                      ],
-                      // Vedi in 3D (Pro) — visibile se la traccia ha
-                      // abbastanza punti per un fly-through sensato.
-                      if (_track.points.length >= 2)
-                        _build3DButton(),
                     ],
                   ),
+
+                  const SizedBox(height: 12),
+
+                  _buildMainStats(),
 
                   // ⭐ Galleria foto — visibile sempre al proprietario
                   // (anche se vuota) per permettere add post-import
@@ -643,40 +639,6 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
   /// Pulsante "3D" — apre il fly-through 3D (Pro). Per i non-Pro mostra
   /// il paywall con trigger dedicato.
-  Widget _build3DButton() {
-    return Material(
-      color: AppColors.primary.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: _open3D,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.threed_rotation,
-                  size: 18, color: AppColors.primary),
-              const SizedBox(width: 6),
-              const Text(
-                '3D',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                ),
-              ),
-              if (!ProGateService().isPro) ...[
-                const SizedBox(width: 4),
-                const Icon(Icons.lock, size: 12, color: AppColors.primary),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _open3D() {
     // Modello 1: il fly 3D è gratis da guardare (gancio per la diffusione).
     // Il gating Pro si applica solo all'EXPORT senza watermark, dentro
@@ -694,13 +656,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
   Widget _buildMainStats() {
     final stats = _track.stats;
-    return Row(
-      children: [
-        _StatCard(icon: Icons.straighten, value: (stats.distance / 1000).toStringAsFixed(1), unit: 'km', label: context.l10n.distanceLabel, color: AppColors.primary),
-        const SizedBox(width: 8),
-        _StatCard(icon: Icons.trending_up, value: '+${stats.elevationGain.toStringAsFixed(0)}', unit: 'm', label: context.l10n.elevationGainLabel, color: AppColors.success),
-        const SizedBox(width: 8),
-        _StatCard(icon: Icons.timer, value: _formatDuration(stats.duration), unit: '', label: context.l10n.durationStatLabel, color: AppColors.info),
+    return TrackStatsBar(
+      stats: [
+        TrackStat(icon: Icons.straighten, value: (stats.distance / 1000).toStringAsFixed(1), unit: 'km', label: context.l10n.distanceLabel, color: AppColors.primary),
+        TrackStat(icon: Icons.trending_up, value: '+${stats.elevationGain.toStringAsFixed(0)}', unit: 'm', label: context.l10n.elevationGainLabel, color: AppColors.success),
+        TrackStat(icon: Icons.timer, value: _formatDuration(stats.duration), label: context.l10n.durationStatLabel, color: AppColors.info),
       ],
     );
   }
@@ -2371,44 +2331,6 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       if (!mounted) return 'User';
       return context.l10n.userLabel;
     }
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// WIDGET: Stat Card
-// ═══════════════════════════════════════════════════════════════════════════
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String unit;
-  final String label;
-  final Color color;
-
-  const _StatCard({required this.icon, required this.value, required this.unit, required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(height: 4),
-              RichText(
-                text: TextSpan(children: [
-                  TextSpan(text: value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-                  if (unit.isNotEmpty) TextSpan(text: ' $unit', style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.7))),
-                ]),
-              ),
-              Text(label, style: TextStyle(fontSize: 10, color: context.textMuted)),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 

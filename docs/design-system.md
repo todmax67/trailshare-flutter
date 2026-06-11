@@ -152,6 +152,29 @@ trail_detail; rinviato per via delle molte sezioni condizionali).
 > Da verificare nelle pagine tour: `TourRichHeaderSections` (widget esterno) potrebbe avere
 > card/superfici proprie che restano bianche su salvia → eventuale follow-up.
 
+### 2026-06-11 — Header traccia compatto + stat bar raggruppata ("Variante A")
+Il frameless aveva lasciato l'header delle pagine traccia (community + privata)
+con elementi-isola e troppi vuoti. Riorganizzato a blocco compatto:
+**titolo → riga meta → stat bar → contenuto**, ritmo stretto (10/12px).
+
+- **`TrackStatsBar`** (`widgets/track_stats_bar.dart`): i 3 dati chiave in un
+  unico blocco contenuto con divisori verticali — bianco caldo + hairline,
+  colori espliciti dark-aware (NON `colorScheme.surface`: dentro `SageSurface`
+  sarebbe trasparente). **Eccezione voluta al frameless**: è il blocco-dati
+  chiave, va in evidenza.
+- **Difficoltà inline**: community → `DifficultyBadge(compact)` nella riga
+  autore accanto al cuore; privata → riga meta sotto il titolo (badge tappabile
+  owner + bottone Pubblica). Sparita la riga semi-vuota "T3 …… 3D".
+- **3D sulla mappa**: `InteractiveTrackMap.on3DTap` → pillola "3D" tra i
+  controlli mappa (le azioni-mappa stanno sulla mappa). Rimossi i
+  `_build3DButton` dalle due pagine.
+- **Dedup icone mappa**: "Centra su traccia" da `crop_free` (quasi identica a
+  fullscreen) a `zoom_in_map`.
+- Rimosse le `_StatCard` locali (sostituite dalla stat bar condivisa).
+
+> Nota: `trail_detail_page` (sentieri) ha ancora le sue `_StatCard` — da
+> allineare alla stat bar in un secondo momento.
+
 ---
 
 ## Backlog (ordinato per ROI)

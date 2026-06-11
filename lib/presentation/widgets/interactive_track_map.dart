@@ -84,6 +84,10 @@ class InteractiveTrackMap extends StatefulWidget {
   /// discesa) invece del colore singolo. Default true: è l'elemento-firma.
   final bool colorBySlope;
 
+  /// Se valorizzato, mostra la pillola "3D" tra i controlli mappa
+  /// (fly-through). Le azioni-mappa stanno sulla mappa, non nell'header.
+  final VoidCallback? on3DTap;
+
   const InteractiveTrackMap({
     super.key,
     required this.points,
@@ -102,6 +106,7 @@ class InteractiveTrackMap extends StatefulWidget {
     this.loadOsmPois = false,
     this.osmRadiusMeters = 500,
     this.colorBySlope = true,
+    this.on3DTap,
   });
 
   @override
@@ -663,12 +668,18 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                     tooltip: 'Schermo intero',
                   ),
                   const SizedBox(height: 8),
-                  // Centra su traccia
+                  // Centra su traccia — icona distinta da fullscreen
+                  // (crop_free era un quasi-doppione visivo).
                   _MapButton(
-                    icon: Icons.crop_free,
+                    icon: Icons.zoom_in_map,
                     onTap: _centerOnTrack,
                     tooltip: 'Centra su traccia',
                   ),
+                  if (widget.on3DTap != null) ...[
+                    const SizedBox(height: 8),
+                    // Fly-through 3D
+                    _Map3DButton(onTap: widget.on3DTap!),
+                  ],
                   if (widget.showUserLocation) ...[
                     const SizedBox(height: 8),
                     // Centra su utente
@@ -768,6 +779,42 @@ class _MapButton extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : Icon(icon, color: AppColors.primary),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pillola "3D" tra i controlli mappa — stesso linguaggio di [_MapButton]
+/// ma con etichetta, perché "3D" da sola comunica più dell'icona.
+class _Map3DButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _Map3DButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Vedi in 3D',
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        elevation: 4,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            child: const Text(
+              '3D',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
           ),
         ),
       ),

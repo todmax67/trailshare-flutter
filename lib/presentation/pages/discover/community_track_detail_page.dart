@@ -19,6 +19,7 @@ import '../../../presentation/widgets/track_segments_section.dart';
 import '../../widgets/trail_pois_section.dart';
 import '../../widgets/nearby_businesses_section.dart';
 import '../../widgets/follow_button.dart';
+import '../../widgets/track_stats_bar.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/services/trails_cache_service.dart';
@@ -167,6 +168,9 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                     setState(() => _selectedPointIndex = index);
                   },
                   communityTrack: track, // ⭐ Per fullscreen con TrackMapPage
+                  on3DTap: track.points.length >= 2
+                      ? () => _open3D(track)
+                      : null,
                 ),
               ),
             ),
@@ -189,38 +193,16 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
 
-                  // Info autore
+                  // Info autore (con badge difficoltà inline — header
+                  // compatto, niente riga dedicata)
                   _buildAuthorCard(),
 
-                  const SizedBox(height: 16),
-
-                  // Stats principali
-                  _buildMainStats(),
-
-                  // Komoot K1a Step 2 — badge difficoltà computata.
-                  // Per tracce legacy senza computedDifficulty
-                  // persistito, calcolo al volo dal fallback per
-                  // mostrare comunque il T-grade.
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      DifficultyBadge(
-                        difficultyKey: track.computedDifficulty,
-                        manualDifficultyKey: track.manualDifficulty,
-                        compact: false,
-                        fallbackStats: TrackStats(
-                          distance: track.distance,
-                          elevationGain: track.elevationGain,
-                        ),
-                        fallbackActivity: track.parsedActivityType,
-                      ),
-                      const Spacer(),
-                      if (track.points.length >= 2)
-                        _build3DButton(track),
-                    ],
-                  ),
+
+                  // Stat bar raggruppata: i dati del giro in evidenza
+                  _buildMainStats(),
 
                   const SizedBox(height: 16),
 
@@ -414,7 +396,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
             ),
 
             // Like count
-            if (track.cheerCount > 0)
+            if (track.cheerCount > 0) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -435,37 +417,23 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+            ],
+
+            // Difficoltà inline (header compatto: niente riga dedicata)
+            DifficultyBadge(
+              difficultyKey: track.computedDifficulty,
+              manualDifficultyKey: track.manualDifficulty,
+              compact: true,
+              fallbackStats: TrackStats(
+                distance: track.distance,
+                elevationGain: track.elevationGain,
+              ),
+              fallbackActivity: track.parsedActivityType,
+            ),
           ],
         ),
       ),
-      ),
-    );
-  }
-
-  /// Pulsante "3D" — fly-through 3D (gratis da guardare; export Pro).
-  Widget _build3DButton(CommunityTrack track) {
-    return Material(
-      color: AppColors.primary.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: () => _open3D(track),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.threed_rotation,
-                  size: 18, color: AppColors.primary),
-              const SizedBox(width: 6),
-              const Text('3D',
-                  style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13)),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -487,36 +455,27 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
   Widget _buildMainStats() {
     final track = widget.track;
 
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.straighten,
-            value: track.distanceKm.toStringAsFixed(1),
-            unit: 'km',
-            label: context.l10n.distanceLabel,
-            color: AppColors.primary,
-          ),
+    return TrackStatsBar(
+      stats: [
+        TrackStat(
+          icon: Icons.straighten,
+          value: track.distanceKm.toStringAsFixed(1),
+          unit: 'km',
+          label: context.l10n.distanceLabel,
+          color: AppColors.primary,
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.trending_up,
-            value: '+${track.elevationGain.toStringAsFixed(0)}',
-            unit: 'm',
-            label: context.l10n.elevationLabel,
-            color: AppColors.success,
-          ),
+        TrackStat(
+          icon: Icons.trending_up,
+          value: '+${track.elevationGain.toStringAsFixed(0)}',
+          unit: 'm',
+          label: context.l10n.elevationLabel,
+          color: AppColors.success,
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.timer,
-            value: _formatNormalizedDuration(track.duration, track.distance),
-            unit: '',
-            label: context.l10n.durationStatLabel,
-            color: AppColors.info,
-          ),
+        TrackStat(
+          icon: Icons.timer,
+          value: _formatNormalizedDuration(track.duration, track.distance),
+          label: context.l10n.durationStatLabel,
+          color: AppColors.info,
         ),
       ],
     );
@@ -1005,68 +964,6 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// WIDGET: Stat Card
-// ═══════════════════════════════════════════════════════════════════════════
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String unit;
-  final String label;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.value,
-    required this.unit,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: value,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                  if (unit.isNotEmpty)
-                    TextSpan(
-                      text: ' $unit',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: color.withValues(alpha: 0.7),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(fontSize: 11, color: context.textMuted),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
