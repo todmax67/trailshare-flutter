@@ -229,9 +229,9 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
     }
   }
 
-  /// Calcola il centro e lo zoom ottimali per i punti; con [includeUser]
-  /// estende i bounds alla posizione utente (vista "il giro rispetto a me").
-  (LatLng center, double zoom) _calculateBounds({bool includeUser = false}) {
+  /// Calcola il centro e lo zoom ottimali per i punti (camera iniziale).
+  /// I fit interattivi (toggle posizione) usano invece CameraFit.bounds.
+  (LatLng center, double zoom) _calculateBounds() {
     if (widget.points.isEmpty) {
       return (const LatLng(45.0, 9.0), 10.0);
     }
@@ -247,9 +247,6 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
 
     for (final p in widget.points) {
       include(p.latitude, p.longitude);
-    }
-    if (includeUser && _userPosition != null) {
-      include(_userPosition!.latitude, _userPosition!.longitude);
     }
 
     final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
@@ -385,9 +382,20 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
       await _loadUserPosition();
       if (_userPosition == null) return; // permesso negato / timeout
     }
-    final (center, zoom) =
-        _calculateBounds(includeUser: !_userContextActive);
-    _mapController.move(center, zoom);
+    // Fit esatto via CameraFit (non la scala zoom a gradini): garantisce
+    // che traccia e posizione utente stiano DENTRO l'inquadratura,
+    // con padding per marker/controlli.
+    final coords = widget.points
+        .map((p) => LatLng(p.latitude, p.longitude))
+        .toList();
+    if (!_userContextActive) coords.add(_userPosition!);
+    if (coords.length < 2) return;
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: LatLngBounds.fromPoints(coords),
+        padding: const EdgeInsets.all(56),
+      ),
+    );
     setState(() => _userContextActive = !_userContextActive);
   }
 
