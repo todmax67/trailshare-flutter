@@ -229,29 +229,44 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
     }
   }
 
-  /// Calcola il centro e lo zoom ottimali per i punti
-  (LatLng center, double zoom) _calculateBounds() {
+  /// Calcola il centro e lo zoom ottimali per i punti; con [includeUser]
+  /// estende i bounds alla posizione utente (vista "il giro rispetto a me").
+  (LatLng center, double zoom) _calculateBounds({bool includeUser = false}) {
     if (widget.points.isEmpty) {
       return (const LatLng(45.0, 9.0), 10.0);
     }
 
     double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    
-    for (final p in widget.points) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
+
+    void include(double lat, double lng) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
     }
-    
+
+    for (final p in widget.points) {
+      include(p.latitude, p.longitude);
+    }
+    if (includeUser && _userPosition != null) {
+      include(_userPosition!.latitude, _userPosition!.longitude);
+    }
+
     final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-    
+
     final latDiff = maxLat - minLat;
     final lngDiff = maxLng - minLng;
     final maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
-    
+
+    // Gradini larghi (utente lontano dalla traccia) + gradini fini (traccia).
     double zoom = 14.0;
-    if (maxDiff > 0.5) {
+    if (maxDiff > 3.0) {
+      zoom = 7;
+    } else if (maxDiff > 1.5) {
+      zoom = 8;
+    } else if (maxDiff > 0.8) {
+      zoom = 9;
+    } else if (maxDiff > 0.5) {
       zoom = 10;
     } else if (maxDiff > 0.2) {
       zoom = 11;
@@ -360,10 +375,20 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
     }
   }
 
-  void _centerOnUser() {
-    if (_userPosition != null) {
-      _mapController.move(_userPosition!, 15);
+  /// Toggle vista: "io + traccia" (dov'è il giro rispetto a me) ↔ "traccia".
+  /// Mai un vicolo cieco: centrare solo sull'utente a zoom alto perdeva la
+  /// traccia senza modo di tornarci.
+  bool _userContextActive = false;
+
+  Future<void> _toggleUserContext() async {
+    if (_userPosition == null) {
+      await _loadUserPosition();
+      if (_userPosition == null) return; // permesso negato / timeout
     }
+    final (center, zoom) =
+        _calculateBounds(includeUser: !_userContextActive);
+    _mapController.move(center, zoom);
+    setState(() => _userContextActive = !_userContextActive);
   }
 
   @override
@@ -672,13 +697,18 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                   ],
                   if (widget.showUserLocation) ...[
                     const SizedBox(height: 8),
-                    // Centra su utente
+                    // Posizione rispetto alla traccia (toggle):
+                    // 1° tap = inquadra io + traccia, 2° tap = torna alla traccia
                     _MapButton(
-                      icon: _isLoadingLocation 
-                          ? Icons.hourglass_empty 
-                          : Icons.my_location,
-                      onTap: _userPosition != null ? _centerOnUser : _loadUserPosition,
-                      tooltip: 'La mia posizione',
+                      icon: _isLoadingLocation
+                          ? Icons.hourglass_empty
+                          : _userContextActive
+                              ? Icons.route
+                              : Icons.my_location,
+                      onTap: _toggleUserContext,
+                      tooltip: _userContextActive
+                          ? 'Torna alla traccia'
+                          : 'Posizione rispetto alla traccia',
                       isLoading: _isLoadingLocation,
                     ),
                   ],
