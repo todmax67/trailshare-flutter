@@ -1832,8 +1832,25 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
         const name = data.name || 'Garmin TrailShare';
         const sport = data.sport || 'trekking';
         const durationMs = data.duration || 0;
+        // ID stabile generato dall'orologio una volta sola: rende l'invio
+        // IDEMPOTENTE. Se l'ACK 200 si perde sul BLE l'orologio ritenta, ma
+        // tutti i retry portano lo stesso clientId → un solo doc (prima si
+        // creavano 3 tracce identiche "TrailShare").
+        const clientId = data.clientId ? String(data.clientId) : null;
 
-        logger.info(`[GarminSync] Ricevuta traccia da ${userId}: ${points.length} punti`);
+        logger.info(`[GarminSync] Ricevuta traccia da ${userId}: ${points.length} punti (clientId=${clientId || 'n/d'})`);
+
+        // Dedup veloce PRIMA di elaborare i punti: se un doc con questo
+        // clientId esiste già, è un retry → rispondi 200 e basta.
+        if (clientId) {
+            const dupRef = db.collection('users').doc(userId).collection('tracks').doc(clientId);
+            const dupSnap = await dupRef.get();
+            if (dupSnap.exists) {
+                logger.info(`[GarminSync] Retry/duplicato ignorato clientId=${clientId} → ${dupRef.id}`);
+                res.status(200).json({ success: true, trackId: dupRef.id, duplicate: true });
+                return;
+            }
+        }
 
         // Calcola stats dai punti reali
         const heartRateData = {};
@@ -1920,6 +1937,7 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
             isPublic: false,
             isPlanned: false,
             source: 'garmin',
+            garminClientId: clientId,
             heartRateData: heartRateData,
             // Stat anche a livello top-level: è lo schema che l'app legge
             // (tracks_repository). Distanze/dislivelli in metri, durata in
@@ -1944,13 +1962,30 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
             photos: [],
         };
 
-        const docRef = await db.collection('users').doc(userId).collection('tracks').add(trackData);
+        let docRef;
+        let duplicate = false;
+        if (clientId) {
+            // Doc ID deterministico = clientId (la sottocollezione è già
+            // per-utente, niente collisioni cross-account). Transazione per
+            // chiudere la finestra di race tra retry quasi simultanei: il
+            // primo crea, gli altri vedono "exists" e non scrivono.
+            docRef = db.collection('users').doc(userId).collection('tracks').doc(clientId);
+            await db.runTransaction(async (tx) => {
+                const snap = await tx.get(docRef);
+                if (snap.exists) { duplicate = true; return; }
+                tx.set(docRef, trackData);
+            });
+        } else {
+            // App vecchie senza clientId: comportamento legacy.
+            docRef = await db.collection('users').doc(userId).collection('tracks').add(trackData);
+        }
 
-        logger.info(`[GarminSync] Traccia salvata: ${docRef.id}`);
+        logger.info(`[GarminSync] Traccia ${duplicate ? 'duplicata (ignorata)' : 'salvata'}: ${docRef.id}`);
 
         res.status(200).json({
             success: true,
             trackId: docRef.id,
+            duplicate: duplicate,
             points: decodedPoints.length,
             distance: totalDistance,
             elevationGain: elevationGain,
