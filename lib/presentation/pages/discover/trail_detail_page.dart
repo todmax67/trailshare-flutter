@@ -514,19 +514,21 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
           ),
         ),
         const SizedBox(height: 12),
-        // Scarica GPX
+        // Segui sul tuo orologio (Garmin & co.): export GPX + guida passo-passo.
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: _isExporting ? null : _exportGpx,
+            onPressed: (_isExporting || _displayPoints.length <= 1)
+                ? null
+                : _showFollowOnWatch,
             icon: _isExporting
                 ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
-                : const Icon(Icons.download),
-            label: Text(_isExporting ? context.l10n.exporting : context.l10n.downloadGpx),
+                : const Icon(Icons.watch),
+            label: Text(_isExporting ? context.l10n.exporting : context.l10n.followOnWatch),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.info,
               foregroundColor: Colors.white,
@@ -704,6 +706,120 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
         );
       }
     }
+  }
+
+  /// Foglio guidato "Segui sul tuo orologio": riusa l'export GPX esistente e
+  /// aggiunge le istruzioni che mancavano per caricare il percorso su Garmin
+  /// (o Suunto/Coros/Wahoo) e seguirlo con la NAVIGAZIONE NATIVA dell'orologio
+  /// — un'app Connect IQ non può usare la mappa di sistema, questa è la via giusta.
+  void _showFollowOnWatch() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        Widget step(int n, String text) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 13,
+                    backgroundColor: AppColors.info,
+                    child: Text('$n',
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(text, style: const TextStyle(fontSize: 14, height: 1.3)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    const Icon(Icons.watch, size: 26),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(context.l10n.followOnWatch,
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(context.l10n.followOnWatchDesc,
+                    style: const TextStyle(fontSize: 14, height: 1.35)),
+                const SizedBox(height: 18),
+                step(1, context.l10n.followOnWatchStep1),
+                step(2, context.l10n.followOnWatchStep2),
+                step(3, context.l10n.followOnWatchStep3),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: AppColors.info),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(context.l10n.followOnWatchNote,
+                            style: const TextStyle(fontSize: 13, height: 1.3)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _exportGpx();
+                    },
+                    icon: const Icon(Icons.download),
+                    label: Text(context.l10n.exportGpx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _exportGpx() async {

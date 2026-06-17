@@ -6488,6 +6488,42 @@ abstract class AppLocalizations {
   /// **'Naviga al punto di partenza'**
   String get navigateToStart;
 
+  /// No description provided for @followOnWatch.
+  ///
+  /// In it, this message translates to:
+  /// **'Segui sul tuo orologio'**
+  String get followOnWatch;
+
+  /// No description provided for @followOnWatchDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Esporta il sentiero e caricalo sul tuo Garmin (o Suunto, Coros, Wahoo) per seguirlo con la navigazione nativa dell\'orologio: mappa, indicazioni di svolta e avvisi «fuori percorso».'**
+  String get followOnWatchDesc;
+
+  /// No description provided for @followOnWatchStep1.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca «Esporta GPX» qui sotto e salva o condividi il file.'**
+  String get followOnWatchStep1;
+
+  /// No description provided for @followOnWatchStep2.
+  ///
+  /// In it, this message translates to:
+  /// **'Importalo nell\'app del tuo orologio. Su Garmin Connect: Allenamento › Percorsi › Importa (oppure condividi il file direttamente con l\'app).'**
+  String get followOnWatchStep2;
+
+  /// No description provided for @followOnWatchStep3.
+  ///
+  /// In it, this message translates to:
+  /// **'Invia il percorso all\'orologio, poi avvia la navigazione («Percorsi» sul Garmin).'**
+  String get followOnWatchStep3;
+
+  /// No description provided for @followOnWatchNote.
+  ///
+  /// In it, this message translates to:
+  /// **'Il file GPX funziona anche con Komoot, Wikiloc, Suunto, Coros e Wahoo.'**
+  String get followOnWatchNote;
+
   /// No description provided for @deleteTrailTitle.
   ///
   /// In it, this message translates to:

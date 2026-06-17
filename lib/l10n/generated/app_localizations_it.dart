@@ -3500,6 +3500,29 @@ class AppLocalizationsIt extends AppLocalizations {
   String get navigateToStart => 'Naviga al punto di partenza';
 
   @override
+  String get followOnWatch => 'Segui sul tuo orologio';
+
+  @override
+  String get followOnWatchDesc =>
+      'Esporta il sentiero e caricalo sul tuo Garmin (o Suunto, Coros, Wahoo) per seguirlo con la navigazione nativa dell\'orologio: mappa, indicazioni di svolta e avvisi «fuori percorso».';
+
+  @override
+  String get followOnWatchStep1 =>
+      'Tocca «Esporta GPX» qui sotto e salva o condividi il file.';
+
+  @override
+  String get followOnWatchStep2 =>
+      'Importalo nell\'app del tuo orologio. Su Garmin Connect: Allenamento › Percorsi › Importa (oppure condividi il file direttamente con l\'app).';
+
+  @override
+  String get followOnWatchStep3 =>
+      'Invia il percorso all\'orologio, poi avvia la navigazione («Percorsi» sul Garmin).';
+
+  @override
+  String get followOnWatchNote =>
+      'Il file GPX funziona anche con Komoot, Wikiloc, Suunto, Coros e Wahoo.';
+
+  @override
   String get deleteTrailTitle => 'Elimina sentiero';
 
   @override

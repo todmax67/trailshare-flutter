@@ -3492,6 +3492,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navigateToStart => 'Navigate to start point';
 
   @override
+  String get followOnWatch => 'Follow on your watch';
+
+  @override
+  String get followOnWatchDesc =>
+      'Export this trail and load it onto your Garmin (or Suunto, Coros, Wahoo) to follow it with the watch\'s native navigation: map, turn prompts and off-course alerts.';
+
+  @override
+  String get followOnWatchStep1 =>
+      'Tap «Export GPX» below and save or share the file.';
+
+  @override
+  String get followOnWatchStep2 =>
+      'Import it into your watch app. On Garmin Connect: Training › Courses › Import (or share the file straight to the app).';
+
+  @override
+  String get followOnWatchStep3 =>
+      'Send the course to your watch, then start navigation («Courses» on Garmin).';
+
+  @override
+  String get followOnWatchNote =>
+      'The GPX file also works with Komoot, Wikiloc, Suunto, Coros and Wahoo.';
+
+  @override
   String get deleteTrailTitle => 'Delete trail';
 
   @override
