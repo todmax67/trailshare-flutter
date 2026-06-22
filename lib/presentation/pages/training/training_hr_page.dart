@@ -45,8 +45,20 @@ class _TrainingHrPageState extends State<TrainingHrPage> {
     final saved = prefs.getInt('user_max_hr') ?? 0;
     if (saved > 0) _maxHR = saved;
 
-    final tracks = await _repo.getMyTracksLightweight(limit: 200);
+    final lightweight = await _repo.getMyTracksLightweight(limit: 200);
     final now = DateTime.now();
+    // Il battito vive nel doc geometria: per le tracce nella finestra
+    // analizzata (ultimi 28gg) ricarichiamo quello mancante con poche read
+    // parallele, così le zone HR non risultano a zero sulle tracce nuove.
+    final cutoff = now.subtract(const Duration(days: 28));
+    final tracks = await Future.wait(lightweight.map((t) async {
+      final date = t.recordedAt ?? t.createdAt;
+      if (date.isAfter(cutoff) && t.heartRateData == null && t.id != null) {
+        final full = await _repo.getTrackById(t.id!);
+        return full ?? t;
+      }
+      return t;
+    }));
     final weekBuckets = <_WeekBucket>[];
     for (int w = 0; w < 4; w++) {
       // Settimane "rotolanti" di 7gg, dalla più recente.

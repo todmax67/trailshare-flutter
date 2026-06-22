@@ -3014,6 +3014,21 @@ exports.stravaUploadActivity = onCall(
       return { ok: true, alreadyUploaded: true, stravaActivityId: track.stravaActivityId };
     }
 
+    // Le tracce nuove tengono i punti nel doc geometria (fix OOM): il doc
+    // principale non ha più 'points'. Caricali server-side o il GPX sarebbe
+    // VUOTO (ogni nuova registrazione caricava un'attività senza traccia).
+    if ((!Array.isArray(track.points) || track.points.length === 0) && track.hasGeometryDoc) {
+      const geoSnap = await trackRef.collection('geometry').doc('data').get();
+      const pj = geoSnap.exists ? geoSnap.data().pointsJson : null;
+      if (pj) {
+        try { track.points = JSON.parse(pj); } catch (_) { /* lasciamo vuoto → guard sotto */ }
+      }
+    }
+    // Guard: mai un upload silenzioso senza punti.
+    if (!Array.isArray(track.points) || track.points.length === 0) {
+      throw new functions.https.HttpsError('failed-precondition', 'no_points_to_upload');
+    }
+
     let integration = integSnap.data();
     integration = await refreshStravaToken(uid, integration);
 

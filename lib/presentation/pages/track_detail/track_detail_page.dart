@@ -78,8 +78,26 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   void initState() {
     super.initState();
     _track = widget.track;
+    // La traccia può arrivare da una lista (metodo lightweight/paginato) con i
+    // punti VUOTI: ora vivono nel doc geometria. Idratiamo qui — una sola read
+    // — così mappa, 3D, export, condivisione e pubblicazione hanno i punti.
+    _hydratePointsIfNeeded();
   }
-  
+
+  /// Ricarica i punti dalla geometria se la traccia è arrivata "leggera".
+  /// Usa getTrackByOwnerAndId per le tracce illustrative/di altri utenti
+  /// (gruppi, percorsi consigliati), getTrackById per le proprie.
+  Future<void> _hydratePointsIfNeeded() async {
+    if (_track.points.isNotEmpty || _track.id == null) return;
+    final ownerId = _track.userId;
+    final fresh = ownerId != null
+        ? await _tracksRepository.getTrackByOwnerAndId(ownerId, _track.id!)
+        : await _tracksRepository.getTrackById(_track.id!);
+    if (mounted && fresh != null && fresh.points.isNotEmpty) {
+      setState(() => _track = fresh);
+    }
+  }
+
   /// Indice del punto attualmente selezionato (sincronizzazione mappa-grafico)
   int? _selectedPointIndex;
 

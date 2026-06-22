@@ -12,6 +12,7 @@ import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../data/repositories/osm_pois_repository.dart';
+import '../../../data/repositories/tracks_repository.dart';
 import '../business/business_profile_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/constants/map_styles.dart';
@@ -70,6 +71,10 @@ enum _ColorMode { gradient, terrain }
 
 class _TrackMapPageState extends State<TrackMapPage> {
   final MapController _mapController = MapController();
+  final TracksRepository _tracksRepo = TracksRepository();
+  // Traccia idratata: i punti vivono nel doc geometria, quindi se la pagina
+  // riceve una traccia "leggera" (da una lista) li ricarichiamo qui.
+  Track? _hydratedTrack;
   bool _showElevation = true;
   bool _showGradientColors = true;
   int _selectedPointIndex = -1;
@@ -135,7 +140,9 @@ class _TrackMapPageState extends State<TrackMapPage> {
   }
 
   List<TrackPoint> get _points {
-    return widget.track?.points ?? widget.communityTrack?.points ?? [];
+    return (_hydratedTrack ?? widget.track)?.points ??
+        widget.communityTrack?.points ??
+        [];
   }
 
   List<LatLng> get _trackPoints {
@@ -231,12 +238,30 @@ class _TrackMapPageState extends State<TrackMapPage> {
   void initState() {
     super.initState();
     _showGradientColors = widget.showGradientColors;
+    _hydratePointsIfNeeded();
     _loadOsmPois();
     _loadNearbyBusinesses();
     _loadTerrainSegments();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fitBounds();
     });
+  }
+
+  /// Se la traccia utente è arrivata "leggera" (punti vuoti, vivono nel doc
+  /// geometria), li ricarica con una sola read e rilancia ciò che dipende dai
+  /// punti (POI, business, fit della camera).
+  Future<void> _hydratePointsIfNeeded() async {
+    final t = widget.track;
+    if (t == null || t.points.isNotEmpty || t.id == null) return;
+    final ownerId = t.userId;
+    final fresh = ownerId != null
+        ? await _tracksRepo.getTrackByOwnerAndId(ownerId, t.id!)
+        : await _tracksRepo.getTrackById(t.id!);
+    if (!mounted || fresh == null || fresh.points.isEmpty) return;
+    setState(() => _hydratedTrack = fresh);
+    _loadOsmPois();
+    _loadNearbyBusinesses();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fitBounds());
   }
 
   /// Komoot K1b — fetch dei segmenti terreno se la mappa è di un

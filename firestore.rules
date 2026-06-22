@@ -420,6 +420,17 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
     }
 
+    // Geometria pesante della traccia (punti GPS + battito) in sub-collezione,
+    // fuori dal doc principale per evitare l'OOM. DEVE avere la STESSA
+    // visibilità di lettura del doc traccia (cross-utente per feed/gruppi/
+    // percorsi consigliati), altrimenti la wildcard più sotto la limiterebbe
+    // al solo owner e le tracce altrui aprirebbero senza punti.
+    match /users/{userId}/tracks/{trackId}/geometry/{geoDoc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
+    }
+
     // --- INTEGRAZIONI ESTERNE (Strava, ecc.) ---
     // Token OAuth scritti SOLO dalle Cloud Functions (admin SDK bypassa rules).
     // Il client può solo leggere i propri e aggiornare il flag autoUploadEnabled.

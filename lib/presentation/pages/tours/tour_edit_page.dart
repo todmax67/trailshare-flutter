@@ -279,14 +279,23 @@ class _TourEditPageState extends State<TourEditPage> {
 
   // ─── ACCOMMODATION PICKER ───────────────────────────────────────────
   Future<void> _pickAccommodation(Track track) async {
-    if (track.points.isEmpty) {
+    // La traccia arriva da getMyTracks (lista "leggera"): i punti vivono nel
+    // doc geometria. Ricarichiamola con una sola read prima di leggere il
+    // punto finale, altrimenti mostrerebbe sempre "senza coordinate".
+    var src = track;
+    if (src.points.isEmpty && src.id != null) {
+      final fresh = await _tracksRepo.getTrackById(src.id!);
+      if (fresh != null) src = fresh;
+    }
+    if (!mounted) return;
+    if (src.points.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tappa senza coordinate, impossibile cercare rifugi vicini')),
       );
       return;
     }
     // Punto finale della tappa = approssimazione del luogo pernottamento
-    final lastPoint = track.points.last;
+    final lastPoint = src.points.last;
     final center = LatLng(lastPoint.latitude, lastPoint.longitude);
     showDialog<void>(
       context: context,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -29,12 +30,31 @@ class TracksRepository {
   /// (lascia il campo invariato) da "imposta a null" (rimuovi).
   static const Object _unsetManual = Object();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+
+  /// Istanze iniettabili per i test (fake_cloud_firestore + auth mock).
+  /// In produzione restano i singleton `.instance`, quindi i chiamanti
+  /// esistenti (`TracksRepository()`) non cambiano.
+  TracksRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
 
   /// Helper: ottiene la collection delle tracce per un dato userId
   CollectionReference<Map<String, dynamic>> _tracksCollection(String userId) {
     return _firestore.collection('users').doc(userId).collection('tracks');
+  }
+
+  /// Doc unico che contiene la GEOMETRIA pesante (punti GPS + battito) di
+  /// una traccia, fuori dal documento principale per non gonfiarlo (causa
+  /// dell'OOM: cache satura). Stesso schema dei public_trail_geometries.
+  /// Path: users/{uid}/tracks/{trackId}/geometry/data — una sola read.
+  DocumentReference<Map<String, dynamic>> _geometryDoc(
+      String userId, String trackId) {
+    return _tracksCollection(userId)
+        .doc(trackId)
+        .collection('geometry')
+        .doc('data');
   }
 
   /// Helper: ottiene la collection delle tracce per l'utente corrente
@@ -60,8 +80,25 @@ class TracksRepository {
     if (user == null) throw Exception('Utente non autenticato');
 
     try {
-      final data = _trackToFirestore(track, user.uid);
-      final docRef = await _tracksCollection(user.uid).add(data);
+      // Downsample una sola volta: gli stessi punti alimentano sia le stats
+      // dei metadati sia il documento geometria.
+      final savedPoints = _downsamplePoints(track.points);
+      final stats = track.isPlanned
+          ? track.stats // Percorsi pianificati: usa stats dal router
+          : _recalculateStats(savedPoints, track.stats);
+
+      final metadata = _trackToFirestore(track, user.uid, savedPoints, stats);
+
+      // ID pre-generato + batch: metadati e geometria committano INSIEME
+      // (atomico). Mai uno stato "doc dice di avere geometria ma non c'è".
+      final docRef = _tracksCollection(user.uid).doc();
+      final batch = _firestore.batch();
+      batch.set(docRef, metadata);
+      if (savedPoints.isNotEmpty) {
+        batch.set(_geometryDoc(user.uid, docRef.id),
+            _geometryDataFor(savedPoints, track.heartRateData));
+      }
+      await batch.commit();
 
       debugPrint('[TracksRepository] Traccia salvata con ID: ${docRef.id}');
 
@@ -116,12 +153,18 @@ class TracksRepository {
     if (!snap.exists) return null;
     final data = snap.data()!;
 
-    // Parse dei punti.
-    final pointsRaw = data['points'] as List?;
-    if (pointsRaw == null || pointsRaw.isEmpty) return null;
-    final points = pointsRaw
-        .map((p) => TrackPoint.fromMap(p as Map<String, dynamic>))
-        .toList();
+    // Carica i punti: dal doc geometria (tracce nuove) o inline (legacy).
+    // Senza questo, la DEM auto-correzione salterebbe TUTTE le tracce nuove
+    // (i cui doc principali non hanno più 'points').
+    final hasGeom = data['hasGeometryDoc'] == true;
+    final List<TrackPoint> points;
+    if (hasGeom) {
+      final geo = await _loadGeometry(uid, trackId);
+      points = geo?.points ?? const [];
+    } else {
+      points = _parsePointsList(data['points']);
+    }
+    if (points.isEmpty) return null;
 
     // Correzione DEM.
     final result = await ElevationDemCorrector.correct(
@@ -148,9 +191,20 @@ class TracksRepository {
       activityType: _parseActivity(activityRaw),
     );
 
-    // Costruisci patch.
+    // Scrivi i PUNTI corretti dove vivono: nel doc geometria (merge per
+    // preservare l'heartRateData) per le tracce nuove, inline per le legacy.
+    if (hasGeom) {
+      await _geometryDoc(uid, trackId).set({
+        'pointsJson': _encodePointsJson(result.points),
+        'pointsCount': result.points.length,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    // Metadati (stat + flag) sempre sul doc principale.
     final updates = <String, dynamic>{
-      'points': result.points.map((p) => p.toMap()).toList(),
+      if (!hasGeom)
+        'points': result.points.map((p) => p.toMap()).toList(),
       'elevationGain': eleResult.elevationGain,
       'elevationLoss': eleResult.elevationLoss,
       'maxAltitude': eleResult.maxElevation,
@@ -389,7 +443,9 @@ class TracksRepository {
     try {
       final doc = await _tracksCollection(ownerId).doc(trackId).get();
       if (!doc.exists || doc.data() == null) return null;
-      return _trackFromFirestore(doc.id, doc.data()!);
+      final data = doc.data()!;
+      final track = _trackFromFirestore(doc.id, data);
+      return await _attachGeometryIfNeeded(ownerId, doc.id, data, track);
     } catch (e) {
       debugPrint('[TracksRepository] Errore getTrackByOwnerAndId: $e');
       return null;
@@ -404,7 +460,10 @@ class TracksRepository {
     try {
       final doc = await _tracksCollection(userId).doc(trackId).get();
       if (!doc.exists || doc.data() == null) return null;
-      final track = _trackFromFirestore(doc.id, doc.data()!);
+      final data = doc.data()!;
+      var track = _trackFromFirestore(doc.id, data);
+      // Lazy-load dei punti dalla sub-collezione geometria (tracce nuove).
+      track = await _attachGeometryIfNeeded(userId, doc.id, data, track);
       // Fallback: tracce vecchie possono non avere il campo userId
       // salvato top-level (lo si conosce comunque dal path). Senza
       // questo, ownership check (es. _canEdit in WebTrackPhotosEditor)
@@ -523,9 +582,21 @@ class TracksRepository {
       (key, value) => MapEntry(key.millisecondsSinceEpoch.toString(), value),
     );
 
-    await _tracksCollection(userId).doc(trackId).update({
-      'heartRateData': serialized,
-    });
+    // Il battito vive nel doc geometria per le tracce nuove: scriviamolo lì
+    // (merge per non toccare i punti), evitando di ri-gonfiare il doc
+    // principale e di creare uno split-brain. Legacy → inline come prima.
+    final snap = await _tracksCollection(userId).doc(trackId).get();
+    final hasGeom = snap.data()?['hasGeometryDoc'] == true;
+    if (hasGeom) {
+      await _geometryDoc(userId, trackId).set({
+        'heartRateData': serialized,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } else {
+      await _tracksCollection(userId).doc(trackId).update({
+        'heartRateData': serialized,
+      });
+    }
     debugPrint('[TracksRepository] ${heartRateData.length} campioni HR salvati per traccia $trackId');
   }
 
@@ -648,6 +719,11 @@ class TracksRepository {
 
     try {
       await _tracksCollection(userId).doc(trackId).delete();
+      // Cancella anche il doc geometria (Firestore non lo fa a cascata).
+      // No-op se non esiste (tracce legacy senza geometria).
+      try {
+        await _geometryDoc(userId, trackId).delete();
+      } catch (_) {/* best-effort */}
       debugPrint('[TracksRepository] Traccia eliminata: $trackId');
     } catch (e) {
       debugPrint('[TracksRepository] Errore deleteTrack: $e');
@@ -711,29 +787,24 @@ class TracksRepository {
     );
   }
 
-  /// Converte Track in Map per Firestore (formato compatibile con app JS)
-  Map<String, dynamic> _trackToFirestore(Track track, String userId) {
-    // Prima downsample i punti
-    final savedPoints = _downsamplePoints(track.points);
-    
-    // ⭐ RICALCOLA stats dai punti reali che verranno salvati
-    // Questo garantisce coerenza tra dati riassuntivi e grafici/stats per km
-    final stats = track.isPlanned 
-        ? track.stats  // Percorsi pianificati: usa stats dal router
-        : _recalculateStats(savedPoints, track.stats);
-
+  /// Costruisce il documento METADATI della traccia — leggero, SENZA i
+  /// punti GPS né l'heartRateData (quelli vivono nel doc geometria, vedi
+  /// [_geometryDoc]/[_geometryDataFor]). [savedPoints] è già downsamplato e
+  /// [stats] già ricalcolata dal chiamante ([saveTrack]).
+  Map<String, dynamic> _trackToFirestore(
+    Track track,
+    String userId,
+    List<TrackPoint> savedPoints,
+    TrackStats stats,
+  ) {
     return {
       'name': track.name,
       'description': track.description,
-      // Salva punti nel formato dell'app JS esistente
-      'points': savedPoints.map((p) => {
-        'longitude': p.longitude,
-        'latitude': p.latitude,
-        'altitude': p.elevation ?? 0,
-        'timestamp': p.timestamp.millisecondsSinceEpoch,
-        'speed': p.speed ?? 0,
-        'accuracy': p.accuracy ?? 0,
-      }).toList(),
+      // I punti NON sono più inline → metadati piccoli, niente OOM.
+      // 'hasGeometryDoc' segnala al lettore di caricare la sub-collezione;
+      // 'pointsCount' permette di mostrare "N punti" senza leggerla.
+      'hasGeometryDoc': savedPoints.isNotEmpty,
+      'pointsCount': savedPoints.length,
       'activityType': track.activityType.name,
       'recordedAt': track.recordedAt?.toIso8601String(),
       'createdAt': FieldValue.serverTimestamp(),
@@ -755,11 +826,6 @@ class TracksRepository {
       'minAltitude': stats.minElevation,
       // 📸 Foto
       'photos': track.photos.map((p) => p.toMap()).toList(),
-      // ❤️ Battito cardiaco
-      if (track.heartRateData != null && track.heartRateData!.isNotEmpty)
-        'heartRateData': track.heartRateData!.map(
-          (key, value) => MapEntry(key.millisecondsSinceEpoch.toString(), value),
-        ),
       if (track.healthCalories != null)
         'healthCalories': track.healthCalories,
       if (track.healthSteps != null)
@@ -780,6 +846,83 @@ class TracksRepository {
     };
   }
 
+  /// Serializza i punti nel formato compatto (stringa JSON) usato dal doc
+  /// geometria. Stesso schema dei punti inline legacy: {longitude, latitude,
+  /// altitude, timestamp(ms), speed, accuracy}.
+  String _encodePointsJson(List<TrackPoint> points) {
+    return jsonEncode(points
+        .map((p) => {
+              'longitude': p.longitude,
+              'latitude': p.latitude,
+              'altitude': p.elevation ?? 0,
+              'timestamp': p.timestamp.millisecondsSinceEpoch,
+              'speed': p.speed ?? 0,
+              'accuracy': p.accuracy ?? 0,
+            })
+        .toList());
+  }
+
+  /// Dati del documento geometria: punti GPS (come stringa JSON compatta) +
+  /// heartRateData. È l'unico posto pesante; il doc metadati resta leggero.
+  Map<String, dynamic> _geometryDataFor(
+      List<TrackPoint> savedPoints, Map<DateTime, int>? heartRateData) {
+    return {
+      'pointsJson': _encodePointsJson(savedPoints),
+      'pointsCount': savedPoints.length,
+      if (heartRateData != null && heartRateData.isNotEmpty)
+        'heartRateData': heartRateData.map(
+          (key, value) =>
+              MapEntry(key.millisecondsSinceEpoch.toString(), value),
+        ),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  /// Carica i punti (+ battito) dal documento geometria. Ritorna null se il
+  /// doc non esiste. Una sola read.
+  Future<({List<TrackPoint> points, Map<DateTime, int>? heartRate})?>
+      _loadGeometry(String userId, String trackId) async {
+    try {
+      final snap = await _geometryDoc(userId, trackId).get();
+      if (!snap.exists || snap.data() == null) return null;
+      final data = snap.data()!;
+      List<TrackPoint> points = const [];
+      final pj = data['pointsJson'];
+      if (pj is String && pj.isNotEmpty) {
+        points = _parsePointsList(jsonDecode(pj));
+      } else if (data['points'] is List) {
+        // Tollera anche un eventuale array nativo (robustezza).
+        points = _parsePointsList(data['points']);
+      }
+      return (points: points, heartRate: _parseHeartRate(data['heartRateData']));
+    } catch (e) {
+      debugPrint('[TracksRepository] Errore _loadGeometry($trackId): $e');
+      return null;
+    }
+  }
+
+  /// Se la traccia tiene i punti nel doc geometria ([hasGeometryDoc]) e non
+  /// sono già inline (retrocompat: tracce vecchie restano con points inline),
+  /// li carica e li attacca. È il "lazy load": una read in più SOLO sulle
+  /// viste di dettaglio/export, mai sulle liste.
+  Future<Track> _attachGeometryIfNeeded(
+    String userId,
+    String trackId,
+    Map<String, dynamic> data,
+    Track track,
+  ) async {
+    if (data['hasGeometryDoc'] == true && track.points.isEmpty) {
+      final geo = await _loadGeometry(userId, trackId);
+      if (geo != null && geo.points.isNotEmpty) {
+        return track.copyWith(
+          points: geo.points,
+          heartRateData: geo.heartRate,
+        );
+      }
+    }
+    return track;
+  }
+
   /// Riduce il numero di punti per ottimizzare storage e performance
   List<TrackPoint> _downsamplePoints(List<TrackPoint> points, {int maxPoints = 1000}) {
     if (points.length <= maxPoints) return points;
@@ -798,60 +941,86 @@ class TracksRepository {
     return result;
   }
 
+  /// Parsa una lista di punti (da Firestore inline o da JSON-decoded del doc
+  /// geometria) in [TrackPoint]. Gestisce sia oggetti {latitude/longitude/…}
+  /// sia array [lon, lat, ele?, speed?]. Tollerante ai dati malformati.
+  List<TrackPoint> _parsePointsList(dynamic raw) {
+    final points = <TrackPoint>[];
+    if (raw is! List) return points;
+    for (final p in raw) {
+      try {
+        if (p is Map) {
+          // Formato oggetto: {longitude, latitude, altitude} o {lng, lat, ele}
+          final lat = _toDouble(p['latitude'] ?? p['lat']);
+          final lng = _toDouble(p['longitude'] ?? p['lng'] ?? p['lon']);
+          final ele = _toDouble(p['altitude'] ?? p['ele'] ?? p['elevation']);
+          final spd = _toDouble(p['speed']);
+          final acc = _toDouble(p['accuracy']);
+
+          DateTime timestamp = DateTime.now();
+          final ts = p['timestamp'];
+          if (ts != null) {
+            if (ts is int) {
+              timestamp = DateTime.fromMillisecondsSinceEpoch(ts);
+            } else if (ts is String) {
+              timestamp = DateTime.tryParse(ts) ?? DateTime.now();
+            }
+          } else if (p['time'] != null) {
+            timestamp = DateTime.tryParse(p['time'].toString()) ?? DateTime.now();
+          }
+
+          if (lat != null && lng != null) {
+            points.add(TrackPoint(
+              latitude: lat,
+              longitude: lng,
+              elevation: ele,
+              timestamp: timestamp,
+              speed: spd,
+              accuracy: acc,
+            ));
+          }
+        } else if (p is List && p.length >= 2) {
+          // Formato array: [lon, lat, ele?, speed?]
+          points.add(TrackPoint(
+            longitude: _toDouble(p[0]) ?? 0,
+            latitude: _toDouble(p[1]) ?? 0,
+            elevation: p.length > 2 ? _toDouble(p[2]) : null,
+            timestamp: DateTime.now(),
+            speed: p.length > 3 ? _toDouble(p[3]) : null,
+          ));
+        }
+      } catch (e) {
+        debugPrint('[TracksRepository] Errore parsing punto: $e');
+      }
+    }
+    return points;
+  }
+
+  /// Parsa l'heartRateData (chiavi = ms-epoch stringa → bpm), filtrando i
+  /// valori fuori range [30,250]. Ritorna null se vuoto/assente.
+  Map<DateTime, int>? _parseHeartRate(dynamic hrData) {
+    if (hrData is! Map) return null;
+    final out = <DateTime, int>{};
+    for (final entry in hrData.entries) {
+      try {
+        final ts = DateTime.fromMillisecondsSinceEpoch(
+            int.parse(entry.key.toString()));
+        final bpm = (entry.value as num).toInt();
+        if (bpm > 30 && bpm < 250) out[ts] = bpm;
+      } catch (_) {
+        // Skip dati malformati
+      }
+    }
+    return out.isEmpty ? null : out;
+  }
+
   /// Converte dati Firestore in Track
   /// Gestisce sia il formato nuovo che quello esistente dell'app JS
   Track _trackFromFirestore(String id, Map<String, dynamic> data) {
-    // Parse points - gestisce vari formati
-    List<TrackPoint> points = [];
-    final pointsData = data['points'];
-    
-    if (pointsData != null && pointsData is List) {
-      for (var p in pointsData) {
-        try {
-          if (p is Map<String, dynamic>) {
-            // Formato oggetto: {longitude, latitude, altitude} o {lng, lat, ele}
-            final lat = _toDouble(p['latitude'] ?? p['lat']);
-            final lng = _toDouble(p['longitude'] ?? p['lng'] ?? p['lon']);
-            final ele = _toDouble(p['altitude'] ?? p['ele'] ?? p['elevation']);
-            final spd = _toDouble(p['speed']);
-            final acc = _toDouble(p['accuracy']);
-            
-            DateTime timestamp = DateTime.now();
-            if (p['timestamp'] != null) {
-              if (p['timestamp'] is int) {
-                timestamp = DateTime.fromMillisecondsSinceEpoch(p['timestamp']);
-              } else if (p['timestamp'] is String) {
-                timestamp = DateTime.tryParse(p['timestamp']) ?? DateTime.now();
-              }
-            } else if (p['time'] != null) {
-              timestamp = DateTime.tryParse(p['time'].toString()) ?? DateTime.now();
-            }
-            
-            if (lat != null && lng != null) {
-              points.add(TrackPoint(
-                latitude: lat,
-                longitude: lng,
-                elevation: ele,
-                timestamp: timestamp,
-                speed: spd,
-                accuracy: acc,
-              ));
-            }
-          } else if (p is List && p.length >= 2) {
-            // Formato array: [lon, lat, ele?, speed?]
-            points.add(TrackPoint(
-              longitude: _toDouble(p[0]) ?? 0,
-              latitude: _toDouble(p[1]) ?? 0,
-              elevation: p.length > 2 ? _toDouble(p[2]) : null,
-              timestamp: DateTime.now(),
-              speed: p.length > 3 ? _toDouble(p[3]) : null,
-            ));
-          }
-        } catch (e) {
-          debugPrint('[TracksRepository] Errore parsing punto: $e');
-        }
-      }
-    }
+    // Parse points dal formato legacy INLINE. Le tracce nuove non hanno
+    // 'points' qui (vivono nel doc geometria): per loro questo resta vuoto e
+    // i punti vengono attaccati da _attachGeometryIfNeeded sui full-load.
+    final List<TrackPoint> points = _parsePointsList(data['points']);
 
     // 📸 Parse foto
     List<TrackPhotoMetadata> photos = [];
@@ -916,24 +1085,10 @@ class TracksRepository {
     // 👣 Passi
     final healthSteps = (data['healthSteps'] as num?)?.toInt();
 
-    // ❤️ Parse battito cardiaco
-    Map<DateTime, int>? heartRateData;
-    final hrData = data['heartRateData'];
-    if (hrData != null && hrData is Map) {
-      heartRateData = {};
-      for (final entry in hrData.entries) {
-        try {
-          final timestamp = DateTime.fromMillisecondsSinceEpoch(int.parse(entry.key.toString()));
-          final bpm = (entry.value as num).toInt();
-          if (bpm > 30 && bpm < 250) {
-            heartRateData[timestamp] = bpm;
-          }
-        } catch (e) {
-          // Skip dati malformati
-        }
-      }
-      if (heartRateData.isEmpty) heartRateData = null;
-    }
+    // ❤️ Parse battito cardiaco (inline legacy; le tracce nuove l'hanno nel
+    // doc geometria, attaccato da _attachGeometryIfNeeded).
+    final Map<DateTime, int>? heartRateData =
+        _parseHeartRate(data['heartRateData']);
 
     return Track(
       id: id,
@@ -1011,7 +1166,20 @@ class TracksRepository {
     int splitIndex,
   ) async {
     if (track.id == null) return null;
-    final points = track.points;
+
+    // ⚠️ DATA LOSS GUARD: la traccia può arrivare da una lista (punti vuoti,
+    // formato geometria). Idrata i punti PRIMA di toccare qualsiasi cosa e
+    // abortisci se non recuperabili — l'originale viene cancellato in fondo.
+    var src = track;
+    if (src.points.isEmpty) {
+      final fresh = await getTrackById(src.id!);
+      if (fresh != null) src = fresh;
+    }
+    final points = src.points;
+    if (points.isEmpty) {
+      debugPrint('[TracksRepository] split abort: punti non recuperabili');
+      return null;
+    }
     if (splitIndex <= 1 || splitIndex >= points.length - 1) return null;
 
     final first = points.sublist(0, splitIndex);
@@ -1021,17 +1189,17 @@ class TracksRepository {
     final firstStats = _recomputeStats(first);
     final secondStats = _recomputeStats(second);
 
-    final firstTrack = track.copyWith(
+    final firstTrack = src.copyWith(
       id: null, // nuovo doc
-      name: '${track.name} (parte 1)',
+      name: '${src.name} (parte 1)',
       points: first,
       stats: firstStats,
-      recordedAt: track.recordedAt,
+      recordedAt: src.recordedAt,
       createdAt: DateTime.now(),
     );
-    final secondTrack = track.copyWith(
+    final secondTrack = src.copyWith(
       id: null,
-      name: '${track.name} (parte 2)',
+      name: '${src.name} (parte 2)',
       points: second,
       stats: secondStats,
       recordedAt: first.last.timestamp,
@@ -1058,10 +1226,28 @@ class TracksRepository {
     if (a.id == null || b.id == null) return null;
     if (a.id == b.id) return null;
 
+    // ⚠️ DATA LOSS GUARD: `b` arriva tipicamente da getMyTracksLightweight
+    // (punti SEMPRE vuoti) e `a` può essere la traccia non idratata della
+    // detail page. Idrata entrambe PRIMA di toccare qualsiasi cosa e
+    // abortisci se non recuperabili — gli originali vengono cancellati dopo.
+    var ha = a, hb = b;
+    if (ha.points.isEmpty) {
+      final f = await getTrackById(ha.id!);
+      if (f != null) ha = f;
+    }
+    if (hb.points.isEmpty) {
+      final f = await getTrackById(hb.id!);
+      if (f != null) hb = f;
+    }
+    if (ha.points.isEmpty || hb.points.isEmpty) {
+      debugPrint('[TracksRepository] merge abort: punti non recuperabili');
+      return null;
+    }
+
     // Ordina cronologicamente per evitare polilinee zigzaganti.
-    final aDate = a.recordedAt ?? a.createdAt;
-    final bDate = b.recordedAt ?? b.createdAt;
-    final ordered = aDate.isBefore(bDate) ? [a, b] : [b, a];
+    final aDate = ha.recordedAt ?? ha.createdAt;
+    final bDate = hb.recordedAt ?? hb.createdAt;
+    final ordered = aDate.isBefore(bDate) ? [ha, hb] : [hb, ha];
     final allPoints = [...ordered[0].points, ...ordered[1].points];
     final newStats = _recomputeStats(allPoints);
 

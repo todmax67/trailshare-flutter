@@ -92,6 +92,13 @@ class _BusinessRecommendedTracksPickerPageState
     if (track.id == null) return;
     final note = await _askNote();
     if (note == _AskNoteResult.cancelled) return;
+    // La lista è "leggera" (punti nel doc geometria): ricarichiamo la traccia
+    // con una sola read per avere il punto di partenza da denormalizzare.
+    var src = track;
+    if (src.points.isEmpty) {
+      final fresh = await _myRepo.getTrackById(src.id!);
+      if (fresh != null) src = fresh;
+    }
     final uid = FirebaseAuth.instance.currentUser?.uid ?? widget.business.ownerId;
     final order = _alreadyRecommended.length;
     final rec = RecommendedTrack(
@@ -111,9 +118,9 @@ class _BusinessRecommendedTracksPickerPageState
       // 7.D3 — denormalizziamo il punto di partenza per il marker sulla
       // landing pubblica senza dover fetchare la traccia originale.
       trackStartLat:
-          track.points.isNotEmpty ? track.points.first.latitude : null,
+          src.points.isNotEmpty ? src.points.first.latitude : null,
       trackStartLng:
-          track.points.isNotEmpty ? track.points.first.longitude : null,
+          src.points.isNotEmpty ? src.points.first.longitude : null,
     );
     await _businessRepo.addRecommendedTrack(widget.business.id!, rec);
     if (!mounted) return;
