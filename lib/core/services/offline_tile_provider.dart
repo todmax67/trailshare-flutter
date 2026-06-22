@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../constants/api_keys.dart';
+import 'network_status.dart';
 
 /// User-Agent OSM Tile Usage Policy compliant
 /// (https://operations.osmfoundation.org/policies/tiles/).
@@ -59,19 +61,39 @@ class OfflineFallbackTileProvider extends TileProvider {
     return _osmUserAgent;
   }
 
+  /// PNG 1×1 trasparente: tile "vuoto" istantaneo quando siamo offline e non
+  /// abbiamo la cache. Evita il blocco di 30s del NetworkImage (la mappa resta
+  /// fluida con sopra traccia e posizione, solo lo sfondo è vuoto).
+  static final Uint8List _transparentTile = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+
+  File _cacheFile(TileCoordinates c) =>
+      File('$_cachedBasePath/${c.z}/${c.x}/${c.y}.png');
+
   ImageProvider _resolve(TileCoordinates coordinates, TileLayer options) {
-    // I tile offline appartengono allo stile Standard (vedi
-    // kOfflineStyleUrlTemplate). Serviamo la cache SOLO se lo stile
-    // attivo è quello: con gli altri stili andiamo in rete, così la
-    // zona scaricata non "copre" più Satellite/Topo/Pro.
+    // 1) Cache dello stile Standard (online o offline). I tile offline
+    // appartengono allo stile Standard (vedi kOfflineStyleUrlTemplate).
     final isOfflineStyle = options.urlTemplate == kOfflineStyleUrlTemplate;
     if (isOfflineStyle && _cachedBasePath != null) {
-      final file = File('$_cachedBasePath/${coordinates.z}/${coordinates.x}/${coordinates.y}.png');
+      final file = _cacheFile(coordinates);
       if (file.existsSync()) {
         return FileImage(file);
       }
     }
 
+    // 2) SENZA SEGNALE: niente attese di rete (era 30s a tile → mappa
+    // congelata a Valbondione). Usa la cache OSM come fallback ANCHE con
+    // altri stili — meglio una base OSM che il vuoto — altrimenti tile
+    // trasparente istantaneo.
+    if (NetworkStatus.instance.isOffline) {
+      if (_cachedBasePath != null) {
+        final file = _cacheFile(coordinates);
+        if (file.existsSync()) return FileImage(file);
+      }
+      return MemoryImage(_transparentTile);
+    }
+
+    // 3) Online: tile di rete con lo stile selezionato.
     final url = options.urlTemplate!
         .replaceAll('{z}', '${coordinates.z}')
         .replaceAll('{x}', '${coordinates.x}')

@@ -11,6 +11,7 @@ import 'core/services/push_notification_service.dart';
 import 'core/services/lifeline_alert_service.dart';
 import 'core/services/health_service.dart';
 import 'core/services/offline_tile_provider.dart';
+import 'core/services/network_status.dart';
 import 'core/services/garmin_sync_service.dart';
 import 'core/services/hud_prefs_service.dart';
 import 'core/services/map_style_prefs.dart';
@@ -103,6 +104,13 @@ void main() async {
     HealthService().configure().catchError((e) {
       debugPrint('[Health] Init fallita: $e');
     });
+  }
+
+  // Stato connettività condiviso (mappe offline + Lifeline reconnect).
+  try {
+    await NetworkStatus.instance.initialize();
+  } catch (e) {
+    debugPrint('[NetworkStatus] Init fallita: $e');
   }
 
   // Inizializza tile offline (no-op su web, niente filesystem)

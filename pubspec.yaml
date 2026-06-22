@@ -73,6 +73,9 @@ dependencies:
   app_links: ^6.3.2
   flutter_foreground_task: ^9.2.0
   battery_plus: ^7.0.0
+  # Stato connettività (mappe offline: niente attese di rete senza segnale;
+  # Lifeline: risincronizza alla riconnessione). Bug field #20 Valbondione.
+  connectivity_plus: ^6.1.0
   # Local notifications (alert Lifeline standby)
   flutter_local_notifications: ^18.0.1
   vibration: ^3.1.8
