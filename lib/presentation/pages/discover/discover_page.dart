@@ -136,6 +136,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
         ),
       );
 
+      // Guard mounted: anche sul path di successo l'await può completare DOPO
+      // che l'utente è uscito dalla pagina.
+      if (!mounted) return;
       setState(() {
         _userPosition = LatLng(position.latitude, position.longitude);
         _isLoadingLocation = false;
@@ -154,6 +157,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
       
     } catch (e) {
       debugPrint('[DiscoverPage] Errore geolocalizzazione: $e');
+      // Guard mounted: il timeout GPS (10s) può scattare DOPO che l'utente è
+      // uscito dalla pagina → setState su State disposed. (bug field #20)
+      if (!mounted) return;
       setState(() => _isLoadingLocation = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
