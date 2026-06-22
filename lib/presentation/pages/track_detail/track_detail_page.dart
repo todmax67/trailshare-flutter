@@ -73,6 +73,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   final TrackPhotosService _photosService = TrackPhotosService();
   final GlobalKey _mapKey = GlobalKey();
   bool _isRetryingStrava = false;
+  // True mentre ricarichiamo i punti dalla geometria (traccia aperta da una
+  // lista): mostra uno spinner invece del "nessun dato GPS" che sembrava un errore.
+  bool _isHydrating = false;
 
   @override
   void initState() {
@@ -81,6 +84,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     // La traccia può arrivare da una lista (metodo lightweight/paginato) con i
     // punti VUOTI: ora vivono nel doc geometria. Idratiamo qui — una sola read
     // — così mappa, 3D, export, condivisione e pubblicazione hanno i punti.
+    _isHydrating = _track.points.isEmpty && _track.id != null;
     _hydratePointsIfNeeded();
   }
 
@@ -93,9 +97,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     final fresh = ownerId != null
         ? await _tracksRepository.getTrackByOwnerAndId(ownerId, _track.id!)
         : await _tracksRepository.getTrackById(_track.id!);
-    if (mounted && fresh != null && fresh.points.isNotEmpty) {
-      setState(() => _track = fresh);
-    }
+    if (!mounted) return;
+    setState(() {
+      if (fresh != null && fresh.points.isNotEmpty) _track = fresh;
+      _isHydrating = false;
+    });
   }
 
   /// Indice del punto attualmente selezionato (sincronizzazione mappa-grafico)
@@ -138,7 +144,22 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               background: FullBleedCard(
                 child: RepaintBoundary(
                   key: _mapKey,
-                  child: InteractiveTrackMap(
+                  child: _isHydrating
+                      ? const SizedBox(
+                          height: 300,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(color: Colors.white),
+                                SizedBox(height: 12),
+                                Text('Caricamento traccia…',
+                                    style: TextStyle(color: Colors.white)),
+                              ],
+                            ),
+                          ),
+                        )
+                      : InteractiveTrackMap(
                     points: _track.points,
                     height: 300,
                     photoMarkers: _buildPhotoMarkers(),
