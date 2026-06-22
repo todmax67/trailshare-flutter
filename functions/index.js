@@ -3501,7 +3501,10 @@ exports.onBusinessPostCreated = onDocumentCreated(
 // Se è in error, segna error. Dopo MAX_AGE_MIN abbandona (segna error).
 exports.stravaReconcilePending = onSchedule(
   {
-    schedule: 'every 10 minutes',
+    // Era 'every 10 minutes' (144/giorno, quasi sempre senza pendenti +
+    // accesso secret ad ogni cold-start). 30 min basta per un fallback di
+    // upload bloccati e taglia -66% invocazioni/costi.
+    schedule: 'every 30 minutes',
     region: 'europe-west3',
     secrets: [stravaClientId, stravaClientSecret],
     timeoutSeconds: 300,
@@ -6116,7 +6119,10 @@ const _TERRAIN_CRON_BATCH_SIZE = 25;
 
 exports.enrichTrailsTerrainCron = onSchedule(
   {
-    schedule: 'every 15 minutes',
+    // Era 'every 15 minutes' → girava 96 volte/giorno anche a catalogo
+    // arricchito (costo Cloud Functions). 6 ore basta per i nuovi sentieri,
+    // e si auto-mette in pausa quando un giro intero arricchisce 0 (sotto).
+    schedule: 'every 6 hours',
     region: 'europe-west3',
     timeoutSeconds: 540,
     memory: '512MiB',
@@ -6183,11 +6189,19 @@ exports.enrichTrailsTerrainCron = onSchedule(
     // lì senza saltare e senza ri-scansionare.
     const lastTrailId = lastScannedId;
     const hasMore = snap.docs.length >= scanLimit;
+    const cycleDone = !hasMore;
+
+    // Arricchiti nel GIRO corrente (cumulati tra i run finché hasMore).
+    // Se un giro INTERO arricchisce 0 (tutto già fatto o invalido), il cron
+    // si AUTO-METTE IN PAUSA: smette di girare a vuoto. Riparte impostando
+    // paused=false (es. dopo aver aggiunto nuovi sentieri).
+    const cycleEnriched = (state.cycleEnriched || 0) + enriched;
+    const autoPause = cycleDone && cycleEnriched === 0;
 
     // Update state: se hasMore=false abbiamo finito il giro → resetta
     // cursor (il prossimo ciclo riparte dall'inizio, dedup salta i
     // già fatti). Altrimenti avanza il cursor.
-    await stateRef.set({
+    const update = {
       lastTrailId: hasMore ? lastTrailId : null,
       lastRunAt: admin.firestore.FieldValue.serverTimestamp(),
       lastRunStats: {
@@ -6199,15 +6213,21 @@ exports.enrichTrailsTerrainCron = onSchedule(
       },
       // Counter cumulativo dall'attivazione del cron
       totalEnriched: (state.totalEnriched || 0) + enriched,
-      cycleCount: hasMore
-        ? (state.cycleCount || 0)
-        : (state.cycleCount || 0) + 1,
-    }, { merge: true });
+      cycleCount: cycleDone
+        ? (state.cycleCount || 0) + 1
+        : (state.cycleCount || 0),
+      cycleEnriched: cycleDone ? 0 : cycleEnriched,
+    };
+    if (autoPause) {
+      update.paused = true;
+      update.pausedReason = 'auto: giro completo con 0 arricchiti';
+    }
+    await stateRef.set(update, { merge: true });
 
     logger.info(
       `[K1b-cron] enriched=${enriched} skip(done)=${skippedAlreadyDone} ` +
       `skip(invalid)=${skippedInvalid} errors=${errors} hasMore=${hasMore} ` +
-      `lastTrailId=${lastTrailId}`
+      `${autoPause ? 'AUTO-PAUSA (niente da arricchire) ' : ''}lastTrailId=${lastTrailId}`
     );
   }
 );
