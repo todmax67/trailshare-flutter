@@ -3515,6 +3515,24 @@ class AppLocalizationsEn extends AppLocalizations {
       'The GPX file also works with Komoot, Wikiloc, Suunto, Coros and Wahoo.';
 
   @override
+  String get onboardChecklistTitle => 'Your first steps';
+
+  @override
+  String get onboardTaskRecord => 'Record your first track';
+
+  @override
+  String get onboardTaskExplore => 'Explore nearby trails';
+
+  @override
+  String get onboardTaskFavorite => 'Save a favorite trail';
+
+  @override
+  String get onboardTaskProfile => 'Complete your profile';
+
+  @override
+  String get onboardDismiss => 'Hide';
+
+  @override
   String get deleteTrailTitle => 'Delete trail';
 
   @override

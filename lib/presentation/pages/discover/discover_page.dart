@@ -12,6 +12,7 @@ import '../../../core/utils/text_search.dart';
 // ⭐ Repository con cache e clustering
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../core/services/trails_cache_service.dart';
+import '../../../core/services/onboarding_checklist_service.dart';
 import 'trail_detail_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
@@ -71,10 +72,13 @@ class _DiscoverPageState extends State<DiscoverPage> {
   @override
   void initState() {
     super.initState();
-    
+
     // ⭐ Inizializza cache
     trailsCacheService.init();
-    
+
+    // Onboarding: l'utente ha esplorato i sentieri (spunta il task in home).
+    OnboardingChecklistService().markExplored();
+
     // Prima ottieni la posizione, poi carica i sentieri
     _initializeLocation();
   }

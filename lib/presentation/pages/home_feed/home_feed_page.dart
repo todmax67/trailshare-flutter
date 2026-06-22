@@ -20,9 +20,12 @@ import '../../pages/business/business_profile_page.dart';
 import '../../pages/community/community_page.dart';
 import '../../pages/discover/community_track_detail_page.dart';
 import '../../pages/discover/discover_page.dart';
+import '../../pages/profile/profile_page.dart';
 import '../../pages/record/record_page.dart';
 import '../../pages/tours/community_tour_detail_page.dart';
+import '../../widgets/onboarding_checklist_card.dart';
 import '../../widgets/route_thumbnail.dart';
+import '../../../core/services/onboarding_checklist_service.dart';
 
 /// Home Feed prototype — aggrega in sezioni separate i building block
 /// esistenti (recovery, sfida, seguiti, tour, Spazi Pro, scopri).
@@ -40,6 +43,10 @@ class _HomeFeedPageState extends State<HomeFeedPage>
     with AutomaticKeepAliveClientMixin {
   final HomeFeedBloc _bloc = HomeFeedBloc();
 
+  // Onboarding attivo: checklist "primi passi" per i nuovi utenti.
+  final OnboardingChecklistService _onboarding = OnboardingChecklistService();
+  OnboardingChecklistState? _checklist;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -48,6 +55,24 @@ class _HomeFeedPageState extends State<HomeFeedPage>
     super.initState();
     _bloc.addListener(_onChanged);
     _bloc.load();
+    _loadChecklist();
+  }
+
+  Future<void> _loadChecklist() async {
+    final s = await _onboarding.load();
+    if (mounted) setState(() => _checklist = s);
+  }
+
+  /// Naviga e ricarica la checklist al ritorno (un task può essersi spuntato).
+  Future<void> _goAndRefresh(Widget page) async {
+    await Navigator.push(
+        context, MaterialPageRoute(builder: (_) => page));
+    if (mounted) _loadChecklist();
+  }
+
+  void _dismissChecklist() {
+    _onboarding.dismiss();
+    setState(() => _checklist = null);
   }
 
   void _onChanged() {
@@ -98,6 +123,16 @@ class _HomeFeedPageState extends State<HomeFeedPage>
       padding: const EdgeInsets.only(bottom: 32),
       children: [
         _HeroCard(data: data),
+        // Onboarding attivo: i primi passi del nuovo utente (sparisce a fine).
+        if (_checklist != null)
+          OnboardingChecklistCard(
+            state: _checklist!,
+            onRecord: () => _goAndRefresh(const RecordPage()),
+            onExplore: () => _goAndRefresh(const DiscoverPage()),
+            onFavorite: () => _goAndRefresh(const DiscoverPage()),
+            onProfile: () => _goAndRefresh(const ProfilePage()),
+            onDismiss: _dismissChecklist,
+          ),
         if (data.resume != null)
           _ResumeCard(item: data.resume!, onTap: _openRecord),
         // 1) Community generale — sempre ricca: la prima cosa che vede

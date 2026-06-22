@@ -6524,6 +6524,42 @@ abstract class AppLocalizations {
   /// **'Il file GPX funziona anche con Komoot, Wikiloc, Suunto, Coros e Wahoo.'**
   String get followOnWatchNote;
 
+  /// No description provided for @onboardChecklistTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'I tuoi primi passi'**
+  String get onboardChecklistTitle;
+
+  /// No description provided for @onboardTaskRecord.
+  ///
+  /// In it, this message translates to:
+  /// **'Registra la prima traccia'**
+  String get onboardTaskRecord;
+
+  /// No description provided for @onboardTaskExplore.
+  ///
+  /// In it, this message translates to:
+  /// **'Esplora i sentieri vicini'**
+  String get onboardTaskExplore;
+
+  /// No description provided for @onboardTaskFavorite.
+  ///
+  /// In it, this message translates to:
+  /// **'Salva un sentiero preferito'**
+  String get onboardTaskFavorite;
+
+  /// No description provided for @onboardTaskProfile.
+  ///
+  /// In it, this message translates to:
+  /// **'Completa il tuo profilo'**
+  String get onboardTaskProfile;
+
+  /// No description provided for @onboardDismiss.
+  ///
+  /// In it, this message translates to:
+  /// **'Nascondi'**
+  String get onboardDismiss;
+
   /// No description provided for @deleteTrailTitle.
   ///
   /// In it, this message translates to:
