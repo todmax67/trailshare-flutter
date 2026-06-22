@@ -7,6 +7,7 @@ import '../../data/models/emergency_contact.dart';
 import '../../data/repositories/emergency_contacts_repository.dart';
 import 'live_track_service.dart';
 import 'lifeline_alert_service.dart';
+import 'network_status.dart';
 
 /// Bozza di messaggio Lifeline pronta per essere inviata via `url_launcher`.
 ///
@@ -46,12 +47,18 @@ class LifelineState {
   /// per calcolare il countdown visivo prima dell'auto-alert.
   final DateTime? inactivityDetectedAt;
 
+  /// Sessione attiva ma adesso SENZA segnale: le posizioni restano in coda e
+  /// ripartono alla riconnessione. La UI mostra "offline" invece di un falso
+  /// "attivo ✓" (bug field #20).
+  final bool offline;
+
   const LifelineState({
     required this.isActive,
     required this.contactsCount,
     this.sessionId,
     this.needsInactivityConfirmation = false,
     this.inactivityDetectedAt,
+    this.offline = false,
   });
 
   LifelineState copyWith({
@@ -60,6 +67,7 @@ class LifelineState {
     String? sessionId,
     bool? needsInactivityConfirmation,
     DateTime? inactivityDetectedAt,
+    bool? offline,
   }) {
     return LifelineState(
       isActive: isActive ?? this.isActive,
@@ -69,6 +77,7 @@ class LifelineState {
           needsInactivityConfirmation ?? this.needsInactivityConfirmation,
       inactivityDetectedAt:
           inactivityDetectedAt ?? this.inactivityDetectedAt,
+      offline: offline ?? this.offline,
     );
   }
 
@@ -119,6 +128,8 @@ class LifelineService {
   LatLng? _lastSignificantPosition;
   DateTime? _lastMovementTime;
   Timer? _inactivityCheckTimer;
+  // Listener connettività: aggiorna lo stato "offline" del banner (#20).
+  StreamSubscription<bool>? _connSub;
   Timer? _autoAlertTimer;
 
   /// Contatti e parametri memorizzati al start, usati per generare gli
@@ -216,8 +227,19 @@ class LifelineService {
       isActive: true,
       contactsCount: contacts.length,
       sessionId: sessionId,
+      offline: NetworkStatus.instance.isOffline,
     );
     _stateCtrl.add(_state);
+
+    // Aggiorna il banner quando il segnale va e viene (#20): le posizioni
+    // sono già gestite da LiveTrackService (coda + flush), qui riflettiamo
+    // solo lo stato nella UI.
+    _connSub ??= NetworkStatus.instance.onChange.listen((online) {
+      if (!_state.isActive) return;
+      _state = _state.copyWith(offline: !online);
+      _stateCtrl.add(_state);
+    });
+
     debugPrint('[Lifeline] avviata: sessionId=$sessionId contacts=${contacts.length}');
 
     return drafts;
@@ -454,6 +476,8 @@ class LifelineService {
     _inactivityCheckTimer = null;
     _autoAlertTimer?.cancel();
     _autoAlertTimer = null;
+    _connSub?.cancel();
+    _connSub = null;
     _lastSignificantPosition = null;
     _lastMovementTime = null;
     // Rimuove eventuale notifica di allarme ancora attiva

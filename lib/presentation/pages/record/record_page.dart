@@ -162,6 +162,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   String? _lifelineTemplate;
   bool _lifelineToggleOn = false; // intent utente (toggle nel pulsante start)
   bool _lifelineActive = false;   // effettivamente attiva durante recording
+  bool _lifelineOffline = false;  // attiva ma senza segnale (banner #20)
 
   // ── UX overlay compatto ─────────────────────────────────────────────
   /// Se true lo stats header mostra tutti i 6 valori; se false solo i
@@ -356,6 +357,10 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _lifelineSub?.cancel();
     _lifelineSub = _lifeline.stateStream.listen((s) {
       if (!mounted) return;
+      // Stato offline → aggiorna il chip nel banner (#20).
+      if (s.offline != _lifelineOffline) {
+        setState(() => _lifelineOffline = s.offline);
+      }
       if (s.needsInactivityConfirmation && !_inactivityDialogShown) {
         _inactivityDialogShown = true;
         _showInactivityConfirmationDialog();
@@ -1163,39 +1168,49 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   /// Chip in-line dentro il banner guidato quando Lifeline è attiva.
   /// Tap → riapre il dialog invio messaggi.
   Widget _buildLifelineChipInline() {
+    // Senza segnale: la sessione è attiva ma in pausa-rete (le posizioni
+    // ripartono alla riconnessione). Mostriamolo invece di un falso "attivo".
+    final offline = _lifelineOffline;
+    final fg = offline
+        ? Colors.orange
+        : (_refOffTrail ? Colors.white : AppColors.info);
     return InkWell(
       onTap: _resendDrafts,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: _refOffTrail
-              ? Colors.white.withValues(alpha: 0.15)
-              : AppColors.info.withValues(alpha: 0.08),
+          color: offline
+              ? Colors.orange.withValues(alpha: 0.12)
+              : (_refOffTrail
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : AppColors.info.withValues(alpha: 0.08)),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.shield,
-                size: 13, color: _refOffTrail ? Colors.white : AppColors.info),
+            Icon(offline ? Icons.cloud_off : Icons.shield, size: 13, color: fg),
             const SizedBox(width: 4),
             Text(
-              'Lifeline · ${_emergencyContacts.length} contatti',
+              offline
+                  ? 'Lifeline · offline'
+                  : 'Lifeline · ${_emergencyContacts.length} contatti',
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: _refOffTrail ? Colors.white : AppColors.info,
+                color: fg,
               ),
             ),
             const SizedBox(width: 6),
             Text(
-              'Re-invia',
+              offline ? 'riprende al segnale' : 'Re-invia',
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
-                decoration: TextDecoration.underline,
-                color: _refOffTrail ? Colors.white : AppColors.info,
+                decoration:
+                    offline ? null : TextDecoration.underline,
+                color: fg,
               ),
             ),
           ],
