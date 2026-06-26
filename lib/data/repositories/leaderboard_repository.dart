@@ -112,7 +112,13 @@ class LeaderboardRepository {
 
       for (final doc in allTracksSnapshot.docs) {
         final data = doc.data();
-        
+
+        // ⭐ VERIDICITÀ: solo attività realmente svolte. I percorsi
+        // pianificati col Planner (isPlanned=true) hanno recordedAt=null e
+        // ripiegherebbero su createdAt cadendo "questa settimana" →
+        // gonfierebbero la classifica. Escludili (regola canonica).
+        if (data['isPlanned'] == true) continue;
+
         // Parsing data robusto: gestisce Timestamp, String ISO, int milliseconds
         final rawRecordedAt = data['recordedAt'];
         final rawCreatedAt = data['createdAt'];
@@ -128,6 +134,7 @@ class LeaderboardRepository {
         
         final dist = (data['distance'] as num?)?.toDouble() ?? 0;
         final ele = (data['elevationGain'] as num?)?.toDouble() ?? 0;
+        if (dist <= 0) continue; // tracce vuote/annullate: non sono attività
         weeklyDistance += dist;
         weeklyElevation += ele;
         weeklyTracks++;

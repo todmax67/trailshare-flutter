@@ -38,7 +38,11 @@ class _WebDashboardPageState extends State<WebDashboardPage> {
 
   Future<void> _load() async {
     try {
-      final tracks = await _repo.getMyTracksLightweight();
+      // ⭐ VERIDICITÀ: solo attività realmente svolte (esclude i percorsi
+      // del Planner e le tracce vuote) — vedi Track.countsAsActivity.
+      final tracks = (await _repo.getMyTracksLightweight())
+          .where((t) => t.countsAsActivity)
+          .toList();
       if (!mounted) return;
       setState(() => _tracks = tracks);
     } catch (e) {

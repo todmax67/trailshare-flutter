@@ -121,7 +121,11 @@ class _ProfilePageState extends State<ProfilePage> {
       // Soluzione attuale: TracksRepository.getMyTracksLightweight
       // toglie 'points' prima del parse → niente OOM E loop client
       // affidabile.
-      final tracks = await TracksRepository().getMyTracksLightweight();
+      // ⭐ VERIDICITÀ: solo attività realmente svolte (no percorsi Planner,
+      // no tracce vuote) — vedi Track.countsAsActivity.
+      final tracks = (await TracksRepository().getMyTracksLightweight())
+          .where((t) => t.countsAsActivity)
+          .toList();
       _totalTracks = tracks.length;
       _totalDistance = 0;
       _totalElevation = 0;

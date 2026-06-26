@@ -72,35 +72,33 @@ class PostTrackSaveService {
     List<SegmentMatchResult> segmentResults = [];
 
     // ═══════════════════════════════════════════════════════════════
-    // STEP 1: Assegna XP per la traccia
+    // STEP 1: XP per la traccia — SOLO display, NON scrive
+    // L'XP è assegnato UNA SOLA volta lato server (Cloud Function
+    // onTrackCreate), per TUTTE le sorgenti (registrazione + import device).
+    // Qui non scriviamo più XP (eliminato il doppio conteggio client+server):
+    // calcoliamo i valori da mostrare con la STESSA formula del server e
+    // rileviamo l'eventuale level-up rileggendo il profilo.
     // ═══════════════════════════════════════════════════════════════
     try {
-      // Controlla se è la prima traccia
-      final tracksCount = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('tracks')
-          .count()
-          .get();
-      final isFirstTrack = (tracksCount.count ?? 0) <= 1;
-
-      final xpResult = await _gamification.grantXpForTrack(
+      xpGranted = _gamification.previewServerXpForTrack(
         distanceMeters: distanceMeters,
         elevationGain: elevationGain,
-        duration: Duration(seconds: durationSeconds),
-        isFirstTrack: isFirstTrack,
       );
-
-      if (xpResult.success) {
-        xpGranted = xpResult.xpGranted ?? 0;
-        leveledUp = xpResult.leveledUp;
-        newLevel = xpResult.newLevel;
-        debugPrint('[PostTrackSave] ✅ XP: +$xpGranted (totale: ${xpResult.totalXp})${leveledUp ? ' 🎉 LEVEL UP → $newLevel!' : ''}');
-      } else {
-        debugPrint('[PostTrackSave] ⚠️ XP errore: ${xpResult.error}');
-      }
+      // Level-up best-effort: diamo un attimo al trigger server, poi
+      // confrontiamo il livello prima/dopo questa traccia.
+      await Future.delayed(const Duration(milliseconds: 1200));
+      final profileDoc =
+          await _firestore.collection('user_profiles').doc(user.uid).get();
+      final xpAfter = (profileDoc.data()?['xp'] as num?)?.toInt() ?? 0;
+      final levelAfter = _gamification.calculateLevel(xpAfter);
+      final levelBefore =
+          _gamification.calculateLevel((xpAfter - xpGranted).clamp(0, xpAfter));
+      leveledUp = levelAfter > levelBefore;
+      newLevel = leveledUp ? levelAfter : null;
+      debugPrint(
+          '[PostTrackSave] ✅ XP (server): +$xpGranted, livello $levelAfter${leveledUp ? ' 🎉 LEVEL UP!' : ''}');
     } catch (e) {
-      debugPrint('[PostTrackSave] ❌ Errore XP: $e');
+      debugPrint('[PostTrackSave] ❌ Errore stima XP/level-up: $e');
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -113,29 +111,31 @@ class PostTrackSaveService {
       // sul thread Firestore proprio al post-save di una traccia,
       // crashando l'app nel flow più critico.
       //
-      // TRADE-OFF: l'aggregation include anche le tracce pianificate
-      // (planner ORS) nei totali badge — Firestore non supporta
-      // 'isPlanned != true OR isNull' in una sola query e split + sum
-      // raddoppia il costo. Il bias è minimo (utenti tipici hanno
-      // pochissime planned tracks) e infinitamente preferibile a un
-      // crash. La precisione si recupera col fix vero (split sub-
-      // collection track_points, già in backlog).
+      // VERIDICITÀ: i totali badge devono escludere i percorsi pianificati
+      // col Planner (isPlanned=true), che non sono attività svolte. Firestore
+      // non sa fare 'isPlanned != true OR isNull' in una query sola, ma
+      // possiamo calcolare TUTTO e sottrarre la sola quota planner:
+      // `isPlanned == true` matcha solo le planner (niente problema coi
+      // documenti vecchi che hanno il campo mancante). Due aggregate sono
+      // OOM-safe (non scaricano i GPS points) e a costo trascurabile.
       final tracksRef = _firestore
           .collection('users')
           .doc(user.uid)
           .collection('tracks');
-      final agg = await tracksRef
-          .aggregate(
-            count(),
-            sum('distance'),
-            sum('elevationGain'),
-          )
+      final aggAll = await tracksRef
+          .aggregate(count(), sum('distance'), sum('elevationGain'))
           .get();
-      final int totalTracks = agg.count ?? 0;
+      final aggPlanned = await tracksRef
+          .where('isPlanned', isEqualTo: true)
+          .aggregate(count(), sum('distance'), sum('elevationGain'))
+          .get();
+      final int totalTracks = (aggAll.count ?? 0) - (aggPlanned.count ?? 0);
       final double totalDistance =
-          (agg.getSum('distance') ?? 0).toDouble();
-      final double totalElevation =
-          (agg.getSum('elevationGain') ?? 0).toDouble();
+          ((aggAll.getSum('distance') ?? 0) - (aggPlanned.getSum('distance') ?? 0))
+              .toDouble();
+      final double totalElevation = ((aggAll.getSum('elevationGain') ?? 0) -
+              (aggPlanned.getSum('elevationGain') ?? 0))
+          .toDouble();
 
       // Ottieni followers
       int followersCount = 0;

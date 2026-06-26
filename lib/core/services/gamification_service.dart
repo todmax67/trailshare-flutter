@@ -264,6 +264,24 @@ class GamificationService {
     );
   }
 
+  /// XP che il SERVER (`onTrackCreate`) assegna per una traccia reale.
+  /// Mirror esatto delle costanti in functions/index.js (base 25, +10/km,
+  /// +20 per 100m di D+, +50 se pubblica). SOLO calcolo, NON scrive: l'XP
+  /// delle tracce è assegnato una sola volta lato server. Serve a mostrare
+  /// "+X XP" e il level-up nell'UI post-salvataggio senza duplicare la
+  /// scrittura (vedi [PostTrackSaveService]).
+  int previewServerXpForTrack({
+    required double distanceMeters,
+    required double elevationGain,
+    bool isPublic = false,
+  }) {
+    int xp = 25; // XP_FOR_SAVING_TRACK
+    xp += ((distanceMeters / 1000) * 10).round(); // XP_PER_KM
+    xp += ((elevationGain / 100) * 20).round(); // XP_PER_100M_ELEVATION
+    if (isPublic) xp += 50; // XP_BONUS_SHARE
+    return xp;
+  }
+
   Future<XpRewardResult> grantXpForCheers() {
     return grantXp(
       reason: 'cheers_received',

@@ -172,6 +172,15 @@ exports.onTrackCreate = onDocumentCreated("users/{userId}/tracks/{trackId}", asy
     const { userId } = event.params;
     const userProfileRef = db.collection("user_profiles").doc(userId);
 
+    // --- 0. GUARD VERIDICITÀ: i percorsi pianificati col Planner
+    // (isPlanned=true) NON sono attività realmente svolte. Non devono dare
+    // XP, non devono avanzare le sfide, non devono influenzare livello e
+    // classifiche. Usciamo subito. (Regola canonica: isPlanned !== true) ---
+    if (trackData.isPlanned === true) {
+        logger.info(`Traccia ${event.params.trackId} pianificata (isPlanned) → skip XP/sfide.`);
+        return null;
+    }
+
     // --- 1. Logica per gli XP (ORA COMPLETA) ---
     let totalXpGained = XP_FOR_SAVING_TRACK; // XP base per il salvataggio
 
@@ -192,6 +201,15 @@ exports.onTrackCreate = onDocumentCreated("users/{userId}/tracks/{trackId}", asy
         await userProfileRef.set({
             xp: admin.firestore.FieldValue.increment(totalXpGained)
         }, { merge: true });
+        // Storico XP: prima lo scriveva anche il client (grantXpForTrack) →
+        // doppio conteggio. Ora il server è l'UNICA fonte XP delle tracce e
+        // scrive qui lo storico, che alimenta il monthly report (somma
+        // xp_history.amount nel mese).
+        await db.collection("users").doc(userId).collection("xp_history").add({
+            amount: totalXpGained,
+            reason: "track_completed",
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
     }
 
     // --- 2. LOGICA Aggiornamento Progressi Sfide (invariata) ---

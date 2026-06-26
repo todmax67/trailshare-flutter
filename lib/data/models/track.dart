@@ -461,6 +461,14 @@ class Track {
   /// un piccolo indicatore "✏️" nel badge.
   bool get hasManualDifficulty => manualDifficulty != null;
 
+  /// `true` se la traccia è un'attività **realmente svolta** che deve
+  /// contare in dashboard, classifiche, badge e XP. Esclude i percorsi
+  /// pianificati col Planner (`isPlanned`) e le tracce vuote/annullate
+  /// (distanza 0). Regola canonica UNICA: usarla ovunque si aggreghino
+  /// statistiche, così la definizione di "attività reale" vive in un solo
+  /// posto (lato server l'equivalente è `isPlanned !== true && distance > 0`).
+  bool get countsAsActivity => !isPlanned && stats.distance > 0;
+
   const Track({
     this.id,
     required this.name,

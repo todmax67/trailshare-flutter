@@ -89,8 +89,13 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       // — query con limit alto e SKIP del campo `points` prima del parse,
       // così niente OOM (era 24MB+ con GPS embedded) e niente null
       // silenziosi della aggregate.sum (vedi profile_page).
-      final tracks = await TracksRepository()
-          .getUserTracksLightweight(widget.userId);
+      // ⭐ VERIDICITÀ: solo attività realmente svolte (no percorsi Planner,
+      // no tracce vuote). Il profilo pubblico è visibile agli altri utenti,
+      // deve mostrare numeri veri — vedi Track.countsAsActivity.
+      final tracks = (await TracksRepository()
+              .getUserTracksLightweight(widget.userId))
+          .where((t) => t.countsAsActivity)
+          .toList();
       _totalTracks = tracks.length;
       _totalDistance = 0;
       _totalElevation = 0;
