@@ -124,7 +124,9 @@ class HealthService {
 
     try {
       final workoutType = _mapActivityType(track.activityType);
-      final startTime = track.createdAt;
+      // INIZIO attività = recordedAt (createdAt è il momento dello STOP/salvataggio:
+      // usarlo dava un workout che FINISCE nel futuro → HealthKit può rifiutarlo).
+      final startTime = track.recordedAt ?? track.createdAt;
       final endTime = startTime.add(track.stats.duration);
 
       final success = await _health.writeWorkoutData(

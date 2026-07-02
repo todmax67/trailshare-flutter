@@ -91,6 +91,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   bool _followUser = true;
   int _currentMapStyle = MapStylePrefs().index;
   bool _isSaving = false;
+  bool _saveDialogOpen = false; // guardia re-entrancy salvataggio (anti doppio-tap)
   bool _isRestoringState = false;
   bool _showRecTutorial = false;
   
@@ -2038,7 +2039,20 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     ));
   }
 
+  // Guardia re-entrancy: un doppio-tap su "Salva" (durante il gap async ~3s di
+  // pausa + pre-check Strava su segnale debole) impilava DUE flussi di
+  // salvataggio → traccia salvata due volte. Consenti un solo flusso alla volta.
   void _showSaveDialog() async {
+    if (_saveDialogOpen || _isSaving) return;
+    _saveDialogOpen = true;
+    try {
+      await _doShowSaveDialog();
+    } finally {
+      _saveDialogOpen = false;
+    }
+  }
+
+  Future<void> _doShowSaveDialog() async {
     // 1. Prima PAUSA per mostrare il dialog con i dati ancora disponibili
     await _trackingBloc.pauseRecording();
     
@@ -2181,7 +2195,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           debugPrint('[RecordPage] ❤️ Attesa 15s per sync wearable...');
           await Future.delayed(const Duration(seconds: 15));
           final healthService = HealthService();
-          final startTime = trackToSave.createdAt;
+          // INIZIO attività = recordedAt (createdAt = STOP): con createdAt la
+          // finestra HR veniva interrogata DOPO l'attività → dati mancanti.
+          final startTime = trackToSave.recordedAt ?? trackToSave.createdAt;
           final endTime = startTime.add(trackToSave.stats.duration);
 
           // Solo se NON abbiamo già il cardio live dalla fascia BLE.

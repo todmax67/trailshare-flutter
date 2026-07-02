@@ -1924,7 +1924,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
     try {
       final healthService = HealthService();
-      final startTime = _track.createdAt;
+      // INIZIO attività = recordedAt (createdAt = STOP/salvataggio): con
+      // createdAt la finestra HR cadeva DOPO l'attività → nessun battito.
+      final startTime = _track.recordedAt ?? _track.createdAt;
       final endTime = startTime.add(_track.stats.duration);
 
       final hrData = await healthService.getHeartRateForTimeRange(
