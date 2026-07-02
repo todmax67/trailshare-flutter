@@ -241,7 +241,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
   Future<void> _loadCommunityTracks() async {
     setState(() => _isLoadingCommunity = true);
-    final result = await _communityRepo.getRecentTracksPaginated(limit: 20);
+    final result = await _communityRepo.getRecentTracksPaginated(limit: 8);
     if (mounted) {
       setState(() {
         _communityTracks = result.tracks;
@@ -256,7 +256,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
     if (_isLoadingMore || !_hasMoreTracks || _lastDocument == null) return;
     if (mounted) setState(() => _isLoadingMore = true);
     final result = await _communityRepo.getRecentTracksPaginated(
-      limit: 20,
+      limit: 8,
       startAfterDoc: _lastDocument,
     );
     if (mounted) {

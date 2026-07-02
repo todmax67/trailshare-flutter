@@ -16,8 +16,12 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() &&
-             get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.admin == true;
+      // 🔒 SICUREZZA: prima faceva get() sul campo self-writable
+      // user_profiles.admin → un utente poteva AUTO-nominarsi admin creando
+      // il proprio profilo con admin:true e poi cancellare dati di chiunque.
+      // Ora deriva SOLO da claim JWT o email whitelist (isPlatformAdmin),
+      // non falsificabili dal client. Il founder resta admin via email/superadmin.
+      return isPlatformAdmin();
     }
 
     // ✅ Single source of truth: il claim 'admin' nel JWT token
@@ -101,7 +105,13 @@ service cloud.firestore {
     // --- REGOLE PROFILI UTENTE ---
     match /user_profiles/{userId} {
       allow read: if true;
-      allow create: if isSignedIn() && isOwner(userId);
+      // 🔒 SICUREZZA: il create NON deve poter impostare campi privilegiati /
+      // entitlement (admin, isPro, verified, ...): altrimenti un utente si
+      // auto-nomina admin o si sblocca il Pro gratis bypassando la whitelist
+      // dell'update. Questi campi li gestisce SOLO il server (Admin SDK / CF).
+      allow create: if isSignedIn() && isOwner(userId)
+        && !request.resource.data.keys().hasAny(
+            ['admin', 'isPro', 'verified', 'proExpiresAtMs', 'proStatus', 'isSuspended']);
       allow update: if
         isSuperAdmin()
         ||
@@ -599,7 +609,12 @@ service cloud.firestore {
 
     // --- REGOLE SESSIONI LIVE TRACKING ---
     match /live_sessions/{sessionId} {
-      allow read: if true;
+      // get: ok con ID (i contatti aprono il link con l'auto-ID ad alta
+      // entropia, non indovinabile). list: VIETATO → impedisce l'enumerazione
+      // non autenticata di tutte le sessioni live (posizione GPS realtime di
+      // ogni utente = rischio stalking). Viewer col token → da migrare a CF.
+      allow get: if true;
+      allow list: if false;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;

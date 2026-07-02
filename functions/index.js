@@ -18,6 +18,10 @@ const orsApiKey = defineSecret('ORS_API_KEY');
 const stravaClientId = defineSecret('STRAVA_CLIENT_ID');
 const stravaClientSecret = defineSecret('STRAVA_CLIENT_SECRET');
 const stravaWebhookVerifyToken = defineSecret('STRAVA_WEBHOOK_VERIFY_TOKEN');
+// Secret admin per gli endpoint di backfill/manutenzione one-shot (definito
+// qui in cima così è referenziabile da TUTTI gli endpoint, non solo quelli
+// dopo la vecchia posizione a metà file).
+const ADMIN_BACKFILL_SECRET = defineSecret('ADMIN_BACKFILL_SECRET');
 
 // ===================================================================
 // FUNZIONI HELPER
@@ -1665,7 +1669,15 @@ exports.onCommunityTrackShared = onDocumentCreated("community_tracks/{trackId}",
 // BACKFILL: Aggiorna email/displayName/createdAt da Auth a user_profiles
 // Esegui UNA VOLTA: https://europe-west3-YOUR_PROJECT.cloudfunctions.net/backfillUserEmails
 // ===================================================================
-exports.backfillUserEmails = onRequest({ region: "europe-west3" }, async (req, res) => {
+exports.backfillUserEmails = onRequest({ region: "europe-west3", secrets: [ADMIN_BACKFILL_SECRET] }, async (req, res) => {
+  // GATING: endpoint di backfill one-shot. Prima era PUBBLICO e restituiva
+  // TUTTE le email utente in chiaro nel body (PII breach / GDPR). Ora richiede
+  // l'header X-Admin-Secret e NON restituisce più email nel payload.
+  if (req.header('X-Admin-Secret') !== ADMIN_BACKFILL_SECRET.value()) {
+    logger.warn('[backfillUserEmails] unauthorized');
+    res.status(401).send('unauthorized');
+    return;
+  }
   try {
     let nextPageToken;
     let updatedCount = 0;
@@ -1702,10 +1714,10 @@ exports.backfillUserEmails = onRequest({ region: "europe-west3" }, async (req, r
           if (Object.keys(updates).length > 0) {
             await profileRef.set(updates, { merge: true });
             updatedCount++;
-            results.push("UPDATED: " + userRecord.email + " -> " + JSON.stringify(updates));
+            results.push("UPDATED: " + userRecord.uid); // no email nel payload
           } else {
             skippedCount++;
-            results.push("SKIP: " + (userRecord.email || userRecord.uid) + " (already complete)");
+            results.push("SKIP: " + userRecord.uid + " (already complete)");
           }
         } catch (err) {
           results.push("ERROR: " + userRecord.uid + " - " + err.message);
@@ -1723,7 +1735,11 @@ exports.backfillUserEmails = onRequest({ region: "europe-west3" }, async (req, r
 // ═══════════════════════════════════════════════════════════════════
 // BACKFILL: Aggiunge startLat/startLng alle community_tracks esistenti
 // ═══════════════════════════════════════════════════════════════════
-exports.backfillStartCoords = functions.https.onRequest(async (req, res) => {
+exports.backfillStartCoords = onRequest({ region: "europe-west3", secrets: [ADMIN_BACKFILL_SECRET] }, async (req, res) => {
+  if (req.header('X-Admin-Secret') !== ADMIN_BACKFILL_SECRET.value()) {
+    res.status(401).send('unauthorized');
+    return;
+  }
   try {
     const snapshot = await admin.firestore().collection("published_tracks").get();
     let updated = 0;
@@ -1768,7 +1784,11 @@ exports.backfillStartCoords = functions.https.onRequest(async (req, res) => {
 });
 
 // Fix ownerUsername nelle published_tracks (da email a username)
-exports.backfillOwnerUsername = functions.https.onRequest(async (req, res) => {
+exports.backfillOwnerUsername = onRequest({ region: "europe-west3", secrets: [ADMIN_BACKFILL_SECRET] }, async (req, res) => {
+  if (req.header('X-Admin-Secret') !== ADMIN_BACKFILL_SECRET.value()) {
+    res.status(401).send('unauthorized');
+    return;
+  }
   try {
     const snapshot = await admin.firestore().collection("published_tracks").get();
     let updated = 0;
@@ -2192,8 +2212,12 @@ exports.aggregateHeatmapWeekly = onSchedule(
 );
 
 exports.aggregateHeatmapNow = onRequest(
-  { region: "europe-west3", cors: true, timeoutSeconds: 540, memory: "512MiB" },
+  { region: "europe-west3", cors: true, timeoutSeconds: 540, memory: "512MiB", secrets: [ADMIN_BACKFILL_SECRET] },
   async (req, res) => {
+    if (req.header('X-Admin-Secret') !== ADMIN_BACKFILL_SECRET.value()) {
+      res.status(401).send('unauthorized');
+      return;
+    }
     try {
       const r = await _aggregateHeatmap();
       res.json({ ok: true, ...r });
@@ -2204,7 +2228,11 @@ exports.aggregateHeatmapNow = onRequest(
   }
 );
 
-exports.migrateGeoHash = onRequest({ timeoutSeconds: 540, memory: '1GiB' }, async (req, res) => {
+exports.migrateGeoHash = onRequest({ region: "europe-west3", timeoutSeconds: 540, memory: '1GiB', secrets: [ADMIN_BACKFILL_SECRET] }, async (req, res) => {
+  if (req.header('X-Admin-Secret') !== ADMIN_BACKFILL_SECRET.value()) {
+    res.status(401).send('unauthorized');
+    return;
+  }
   const batch_size = 500;
   let updated = 0;
   let skipped = 0;
@@ -2543,8 +2571,7 @@ async function updateProStatus(uid, data) {
 /// Backfill one-shot: legge `users/{uid}.proStatus` per ogni utente e
 /// rimirror su `user_profiles/{uid}.isPro`. Da chiamare una volta dopo
 /// il deploy del mirror (utenti già Pro non sono coperti automaticamente).
-/// Protetto admin via custom claim email.
-const ADMIN_BACKFILL_SECRET = defineSecret('ADMIN_BACKFILL_SECRET');
+/// Protetto admin via header X-Admin-Secret (ADMIN_BACKFILL_SECRET, definito in cima al file).
 
 exports.backfillIsProMirror = onRequest(
   { region: 'europe-west3', cors: true, secrets: [ADMIN_BACKFILL_SECRET] },
