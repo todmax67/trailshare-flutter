@@ -217,12 +217,12 @@ class ChallengesService {
         double increment = 0;
 
         switch (challenge.type) {
-          case typeDistance:
-            increment = distanceMeters;
-            break;
-          case typeElevation:
-            increment = elevationGain;
-            break;
+          // ⚠️ DISTANCE_TOTAL / ELEVATION_TOTAL li incrementa il SERVER
+          // (Cloud Function onTrackCreate) come UNICA fonte. Incrementarli
+          // anche qui causava un DOPPIO conteggio (client + server) sulle sfide
+          // distanza/dislivello per chi registra in-app (mentre gli import
+          // device contavano una volta sola) → classifiche sfide falsate.
+          // Il tipo TRACKS_COUNT invece NON è gestito dal server: resta qui.
           case typeTracks:
             increment = tracksCount.toDouble();
             break;
