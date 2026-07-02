@@ -620,7 +620,16 @@ class _TourEditPageState extends State<TourEditPage> {
                     value: null,
                     child: Text('—'),
                   ),
-                  ..._difficultyOptions.map(
+                  // Includiamo SEMPRE il valore corrente anche se non è tra le
+                  // opzioni canoniche: es. tour salvato su web col codice corto
+                  // 'EE' mentre mobile usa le etichette lunghe. Senza questo, il
+                  // DropdownButton va in assertion ("exactly one item"). Il Set
+                  // deduplica se il valore è già presente.
+                  ...(<String>{
+                    ..._difficultyOptions,
+                    if (_difficultyGrade != null && _difficultyGrade!.isNotEmpty)
+                      _difficultyGrade!,
+                  }).map(
                     (d) => DropdownMenuItem<String>(
                       value: d,
                       child: Text(d, overflow: TextOverflow.ellipsis),
@@ -645,7 +654,14 @@ class _TourEditPageState extends State<TourEditPage> {
                     value: null,
                     child: Text('—'),
                   ),
-                  ..._periodOptions.map(
+                  // Il periodo su web è TESTO LIBERO → può non combaciare con le
+                  // opzioni fisse mobile. Includiamo sempre il valore corrente
+                  // per evitare l'assertion del DropdownButton.
+                  ...(<String>{
+                    ..._periodOptions,
+                    if (_bestPeriod != null && _bestPeriod!.isNotEmpty)
+                      _bestPeriod!,
+                  }).map(
                     (p) => DropdownMenuItem<String>(
                       value: p,
                       child: Text(p, overflow: TextOverflow.ellipsis),
