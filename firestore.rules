@@ -69,6 +69,15 @@ service cloud.firestore {
              request.auth.uid == 'g4uPvD3VQcMiYb4dDTWs7kJgm4u1';
     }
 
+    // Vero se la traccia padre è pubblica o condivisa ad almeno un gruppo.
+    // Usato per gating la lettura della GEOMETRIA (punti GPS + battito, dato
+    // sensibile art.9 GDPR): un non-owner può leggerla SOLO se la traccia è
+    // effettivamente condivisa. Un solo get() sul doc padre.
+    function trackIsSharedOrPublic(userId, trackId) {
+      let t = get(/databases/$(database)/documents/users/$(userId)/tracks/$(trackId)).data;
+      return t.get('isPublic', false) == true || t.get('groupIds', []).size() > 0;
+    }
+
     // --- REGOLE SENTIERI PUBBLICI OSM ---
     match /public_trails/{trailId} {
       allow read: if true;
@@ -436,7 +445,14 @@ service cloud.firestore {
     // percorsi consigliati), altrimenti la wildcard più sotto la limiterebbe
     // al solo owner e le tracce altrui aprirebbero senza punti.
     match /users/{userId}/tracks/{trackId}/geometry/{geoDoc} {
-      allow read: if isSignedIn();
+      // 🔒 PRIVACY (art.9 GDPR): la geometria contiene i punti GPS + il
+      // battito cardiaco. Prima leggibile da QUALSIASI autenticato. Ora solo
+      // owner, o se la traccia padre è pubblica / condivisa a un gruppo.
+      // (I flussi legittimi aprono tracce pubbliche o condivise → geometria
+      // caricata; le tracce davvero private restano dell'owner.)
+      allow read: if isSignedIn() && (
+        isOwner(userId) || trackIsSharedOrPublic(userId, trackId)
+      );
       allow create, update: if isSignedIn() && isOwner(userId);
       allow delete: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
     }
