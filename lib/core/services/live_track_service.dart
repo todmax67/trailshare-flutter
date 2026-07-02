@@ -154,14 +154,12 @@ class LiveTrackService {
   /// Ferma LiveTrack
   Future<void> stop() async {
     if (!_isActive || _sessionId == null) return;
+    final sid = _sessionId!;
 
-    try {
-      await _repository.endSession(_sessionId!);
-      debugPrint('[LiveTrack] Sessione terminata');
-    } catch (e) {
-      debugPrint('[LiveTrack] Errore stop: $e');
-    }
-
+    // Reset dello stato locale SUBITO: lo stop non deve dipendere dall'ack del
+    // server. Offline la endSession pende all'infinito (persistenza Firestore)
+    // e senza questo la sessione live resterebbe "attiva/fantasma" (i contatti
+    // vedono un live fermo) fino al riavvio. Chiusura remota best-effort.
     _isActive = false;
     _sessionId = null;
     _lastUpdate = null;
@@ -169,8 +167,16 @@ class LiveTrackService {
     _pendingLng = null;
     _connSub?.cancel();
     _connSub = null;
-
     _emitState();
+
+    unawaited(
+      _repository
+          .endSession(sid)
+          .timeout(const Duration(seconds: 5))
+          .then((_) => debugPrint('[LiveTrack] Sessione terminata'))
+          .catchError(
+              (e) => debugPrint('[LiveTrack] endSession best-effort err: $e')),
+    );
   }
 
   /// Condividi link sessione

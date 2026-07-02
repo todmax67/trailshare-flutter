@@ -98,7 +98,17 @@ class TracksRepository {
         batch.set(_geometryDoc(user.uid, docRef.id),
             _geometryDataFor(savedPoints, track.heartRateData));
       }
-      await batch.commit();
+      // Offline / rete lenta: con la persistenza Firestore la commit resta in
+      // coda locale e non risolve finché non torna il segnale → l'UI restava
+      // col a spinner all'infinito (finally mai raggiunto). NON blocchiamo: la
+      // traccia è già salvata localmente (ID generato) e sincronizza da sola.
+      // Timeout = successo locale.
+      try {
+        await batch.commit().timeout(const Duration(seconds: 5));
+      } on TimeoutException {
+        debugPrint(
+            '[TracksRepository] saveTrack: commit offline → salvata in locale, sync differita');
+      }
 
       debugPrint('[TracksRepository] Traccia salvata con ID: ${docRef.id}');
 

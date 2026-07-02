@@ -483,11 +483,14 @@ class LifelineService {
     // Rimuove eventuale notifica di allarme ancora attiva
     LifelineAlertService().dismiss();
 
-    // Ferma LiveTrack (chiude la sessione su Firestore)
-    await _liveTrack.stop();
-
+    // Stato OFF SUBITO (prima dell'await): lo stop di Lifeline non deve
+    // dipendere dalla chiusura remota. Offline, senza questo, Lifeline
+    // resterebbe "attiva" e il prossimo start() verrebbe rifiutato
+    // ("già attiva → ignore start") fino al riavvio dell'app.
     _state = LifelineState.off;
     _stateCtrl.add(_state);
+    // Ferma LiveTrack (ora: reset locale immediato + chiusura remota best-effort).
+    await _liveTrack.stop();
     debugPrint('[Lifeline] fermata');
 
     return drafts;

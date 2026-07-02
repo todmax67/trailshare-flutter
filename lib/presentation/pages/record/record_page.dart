@@ -4035,7 +4035,10 @@ class _InactivityDialogState extends State<_InactivityDialog> {
             child: Column(
               children: [
                 Text(
-                  'Allarme automatico tra ${_formatCountdown()}',
+                  // Onesto: al termine del countdown NON parte un invio
+                  // automatico — l'app prepara i messaggi e te li propone da
+                  // inviare ai contatti (l'auto-invio server-side arriva in v1.8).
+                  'Ti chiederò di avvisare i contatti tra ${_formatCountdown()}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,
