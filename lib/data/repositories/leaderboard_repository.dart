@@ -44,19 +44,37 @@ class LeaderboardRepository {
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
       final weekStartDate = DateTime(weekStart.year, weekStart.month, weekStart.day);
 
-      // 3. Per ogni utente, calcola stats settimanali — in PARALLELO a
-      // batch di 8. Il loop sequenziale faceva ~24 round-trip Firestore
-      // in fila (23,7s misurati su Android); i batch ammortizzano la
-      // latenza senza saturare il platform channel (i doc tracks hanno i
-      // GPS points embedded, quindi sono pesanti da serializzare).
-      final List<LeaderboardEntry> entries = [];
-      const batchSize = 8;
-      for (var i = 0; i < allUserIds.length; i += batchSize) {
-        final batch = allUserIds.skip(i).take(batchSize);
-        final results = await Future.wait(
-          batch.map((userId) => _calculateUserWeeklyStats(userId, weekStartDate)),
-        );
-        entries.addAll(results.whereType<LeaderboardEntry>());
+      // 3. FAST PATH — stats settimanali denormalizzate sui profili,
+      // mantenute lato server da onTrackCreate/onTrackUpdate (reset lazy):
+      // 1 query whereIn ogni 30 utenti sui doc user_profiles (leggeri),
+      // NIENTE subcollection tracks — che su Android costava 23-32s per il
+      // peso dei doc legacy con i points GPS inline.
+      final weekId = '${weekStartDate.year}-'
+          '${weekStartDate.month.toString().padLeft(2, '0')}-'
+          '${weekStartDate.day.toString().padLeft(2, '0')}';
+      final profiles = await PerfTrace.track(
+        'leaderboard.profilesFetch',
+        () => _fetchProfiles(allUserIds),
+        describe: (m) => '${m.length} profili',
+      );
+
+      // Rollout-safe: se NESSUN profilo ha il campo weekly, la function non
+      // è ancora deployata o il backfill non è girato → calcolo real-time
+      // come prima. Se almeno uno ce l'ha, chi non ce l'ha vale zero (il
+      // backfill scrive il campo a TUTTI i profili, quindi l'assenza
+      // significa profilo nato dopo, senza attività).
+      final denormLive =
+          profiles.values.any((d) => d.containsKey('weeklyStatsWeekId'));
+
+      final List<LeaderboardEntry> entries;
+      if (denormLive) {
+        entries = [
+          for (final userId in allUserIds)
+            if (profiles.containsKey(userId))
+              _entryFromProfile(userId, profiles[userId]!, weekId),
+        ];
+      } else {
+        entries = await _computeRealtimeLeaderboard(allUserIds, weekStartDate);
       }
 
       // 4. Ordina per XP (o distanza)
@@ -80,6 +98,69 @@ class LeaderboardRepository {
       debugPrint('[LeaderboardRepo] Errore: $e');
       return LeaderboardData(entries: [], currentUserRank: null);
     }
+  }
+
+  /// Fetch dei profili via whereIn sull'id documento, a batch di 30
+  /// (limite Firestore). Ritorna solo i profili esistenti: gli utenti
+  /// cancellati spariscono dalla classifica (prima comparivano come
+  /// "Utente" a zero).
+  Future<Map<String, Map<String, dynamic>>> _fetchProfiles(
+      List<String> userIds) async {
+    final out = <String, Map<String, dynamic>>{};
+    for (var i = 0; i < userIds.length; i += 30) {
+      final batch = userIds.skip(i).take(30).toList();
+      final snap = await _firestore
+          .collection('user_profiles')
+          .where(FieldPath.documentId, whereIn: batch)
+          .get();
+      for (final doc in snap.docs) {
+        out[doc.id] = doc.data();
+      }
+    }
+    return out;
+  }
+
+  /// Entry dalla denormalizzazione server. Un weeklyStatsWeekId diverso
+  /// dalla settimana corrente = nessuna attività questa settimana (reset
+  /// lazy: il server azzera il bucket solo alla prossima traccia).
+  LeaderboardEntry _entryFromProfile(
+      String userId, Map<String, dynamic> data, String weekId) {
+    final sameWeek = data['weeklyStatsWeekId'] == weekId;
+    return LeaderboardEntry(
+      userId: userId,
+      username: data['username'] ?? data['displayName'] ?? 'Utente',
+      avatarUrl: data['avatarUrl'] ?? data['photoURL'],
+      level: (data['level'] as num?)?.toInt() ?? 1,
+      totalXp: (data['xp'] as num?)?.toInt() ?? 0,
+      weeklyXp: sameWeek ? (data['weeklyXpCurrent'] as num?)?.toInt() ?? 0 : 0,
+      weeklyDistance: sameWeek
+          ? (data['weeklyDistanceCurrent'] as num?)?.toDouble() ?? 0.0
+          : 0.0,
+      weeklyElevation: sameWeek
+          ? (data['weeklyElevationCurrent'] as num?)?.toDouble() ?? 0.0
+          : 0.0,
+      weeklyTracks:
+          sameWeek ? (data['weeklyTracksCurrent'] as num?)?.toInt() ?? 0 : 0,
+      rank: 0, // Verrà assegnato dopo
+    );
+  }
+
+  /// FALLBACK pre-rollout: calcolo real-time dalle tracce, in batch
+  /// paralleli da 8. Usato solo finché la denormalizzazione weekly non è
+  /// deployata + backfillata; poi diventa codice morto rimovibile insieme
+  /// a _calculateUserWeeklyStats.
+  Future<List<LeaderboardEntry>> _computeRealtimeLeaderboard(
+      List<String> allUserIds, DateTime weekStartDate) async {
+    final List<LeaderboardEntry> entries = [];
+    const batchSize = 8;
+    for (var i = 0; i < allUserIds.length; i += batchSize) {
+      final batch = allUserIds.skip(i).take(batchSize);
+      final results = await Future.wait(
+        batch.map((userId) => _calculateUserWeeklyStats(userId, weekStartDate)),
+      );
+      entries.addAll(results.whereType<LeaderboardEntry>());
+    }
+    return entries;
   }
 
   /// Calcola le statistiche settimanali di un utente
@@ -194,10 +275,11 @@ class LeaderboardRepository {
     return null;
   }
 
-  /// Ottiene la classifica - sempre calcolo real-time
-  /// (La versione precalcolata richiede Cloud Functions non ancora attive)
+  /// Ottiene la classifica. Con la denormalizzazione weekly attiva
+  /// (onTrackCreate/onTrackUpdate + backfill) è davvero precalcolata:
+  /// _getWeeklyLeaderboard legge i soli profili e ricade sul real-time
+  /// solo se i campi weekly non esistono ancora.
   Future<LeaderboardData> getPrecomputedLeaderboard() async {
-    debugPrint('[LeaderboardRepo] Uso calcolo real-time');
     return getWeeklyLeaderboard();
   }
 }

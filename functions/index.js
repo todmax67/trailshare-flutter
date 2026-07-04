@@ -46,6 +46,65 @@ const XP_PER_100M_ELEVATION = 20;
 const XP_BONUS_SHARE = 50;
 const XP_FOR_SAVING_TRACK = 25;
 
+// ── Denormalizzazione stats attività su user_profiles ──────────────────
+// All-time + mensile (classifiche regionali, Epic 3.3) + SETTIMANALE
+// (classifica tra seguiti: prima il client scaricava l'INTERA subcollection
+// tracks di ogni utente per sommare 2 numeri — 23-32s su Android per il
+// peso dei doc legacy con points GPS inline; ora legge solo i profili).
+//
+// Reset lazy: il bucket "Current" vale solo se l'id periodo coincide con
+// quello corrente; i lettori trattano un id vecchio come zero, quindi non
+// serve azzerare i profili al cambio settimana/mese.
+//
+// NB: weeklyStatsWeekId è la DATA DEL LUNEDÌ (YYYY-MM-DD) in ora italiana,
+// NON il formato ISO "YYYY-Wnn" di getWeekKey (usato dalle sfide): il
+// client Flutter calcola il lunedì in ora locale del device e per l'utenza
+// IT i due coincidono senza l'ambiguità del numero-settimana ISO.
+function currentActivityPeriodIds(now) {
+    const rome = new Date(now.toLocaleString("sv-SE", { timeZone: "Europe/Rome" }));
+    const monthId = `${rome.getFullYear()}-${String(rome.getMonth() + 1).padStart(2, "0")}`;
+    const monday = new Date(rome);
+    monday.setDate(rome.getDate() - ((rome.getDay() + 6) % 7)); // getDay(): 0=domenica
+    const weekId = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+    return { monthId, weekId };
+}
+
+// Chiamata da onTrackCreate (traccia già completa alla creazione) e da
+// onTrackUpdate (transizione vuota/pending → completa, es. sync wearable
+// in due tempi): i due guard sono complementari, ogni attività conta UNA
+// sola volta.
+async function applyActivityStatsDenorm(userId, statsDistance, statsElevation) {
+    const userProfileRef = db.collection("user_profiles").doc(userId);
+    const { monthId, weekId } = currentActivityPeriodIds(new Date());
+    // Stesso "XP da classifica" del client: 1 XP/100m distanza + 1 XP/10m
+    // dislivello, con floor PER TRACCIA (non sul totale) così i totali
+    // denormalizzati coincidono con quelli che il client calcolava prima.
+    const trackWeeklyXp = Math.floor(statsDistance / 100) + Math.floor(statsElevation / 10);
+
+    await db.runTransaction(async (tx) => {
+        const profileSnap = await tx.get(userProfileRef);
+        const profileData = profileSnap.exists ? profileSnap.data() : {};
+        const sameMonth = profileData.monthlyStatsMonthId === monthId;
+        const sameWeek = profileData.weeklyStatsWeekId === weekId;
+
+        tx.set(userProfileRef, {
+            monthlyStatsMonthId: monthId,
+            monthlyDistanceCurrent: (sameMonth ? (profileData.monthlyDistanceCurrent || 0) : 0) + statsDistance,
+            monthlyElevationCurrent: (sameMonth ? (profileData.monthlyElevationCurrent || 0) : 0) + statsElevation,
+            monthlyTracksCurrent: (sameMonth ? (profileData.monthlyTracksCurrent || 0) : 0) + 1,
+            weeklyStatsWeekId: weekId,
+            weeklyDistanceCurrent: (sameWeek ? (profileData.weeklyDistanceCurrent || 0) : 0) + statsDistance,
+            weeklyElevationCurrent: (sameWeek ? (profileData.weeklyElevationCurrent || 0) : 0) + statsElevation,
+            weeklyTracksCurrent: (sameWeek ? (profileData.weeklyTracksCurrent || 0) : 0) + 1,
+            weeklyXpCurrent: (sameWeek ? (profileData.weeklyXpCurrent || 0) : 0) + trackWeeklyXp,
+            totalDistance: (profileData.totalDistance || 0) + statsDistance,
+            totalElevation: (profileData.totalElevation || 0) + statsElevation,
+            totalTracks: (profileData.totalTracks || 0) + 1,
+            lastTrackAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    });
+}
+
 
 // ===================================================================
 // FUNZIONE PER LA DASHBOARD
@@ -216,42 +275,24 @@ exports.onTrackCreate = onDocumentCreated("users/{userId}/tracks/{trackId}", asy
         });
     }
 
-    // --- 1.5. Denormalizza stats all-time + mensili (classifiche regionali,
-    // Epic 3.3). PRIMA le scriveva il client (post_track_save_service.dart
-    // _updateMonthlyDenormalizedStats) — ma quel set() toccava chiavi
-    // (monthlyStatsMonthId/monthlyDistanceCurrent/monthlyElevationCurrent/
-    // monthlyTracksCurrent/totalElevation/lastTrackAt) MAI incluse nella
-    // whitelist hasOnly() delle firestore.rules → l'update veniva SEMPRE
-    // respinto silenziosamente (verificato in prod: 1/182 profili con questi
-    // campi, quell'1 è il founder il cui update passa via isSuperAdmin che
-    // bypassa la whitelist). Il monthly regional leaderboard non ha MAI
-    // funzionato per un utente reale — l'indice Firestore c'era già, mancavano
-    // i dati. Spostato qui: stessa fonte di verità delle altre stats (server),
-    // ora scrive davvero.
-    const statsDistance = trackData.distance || 0;
-    const statsElevation = trackData.elevationGain || 0;
-    const nowForStats = new Date();
-    const currentMonthId = `${nowForStats.getFullYear()}-${String(nowForStats.getMonth() + 1).padStart(2, "0")}`;
-
-    await db.runTransaction(async (tx) => {
-        const profileSnap = await tx.get(userProfileRef);
-        const profileData = profileSnap.exists ? profileSnap.data() : {};
-        const sameMonth = profileData.monthlyStatsMonthId === currentMonthId;
-        const prevMonthDist = sameMonth ? (profileData.monthlyDistanceCurrent || 0) : 0;
-        const prevMonthEle = sameMonth ? (profileData.monthlyElevationCurrent || 0) : 0;
-        const prevMonthTracks = sameMonth ? (profileData.monthlyTracksCurrent || 0) : 0;
-
-        tx.set(userProfileRef, {
-            monthlyStatsMonthId: currentMonthId,
-            monthlyDistanceCurrent: prevMonthDist + statsDistance,
-            monthlyElevationCurrent: prevMonthEle + statsElevation,
-            monthlyTracksCurrent: prevMonthTracks + 1,
-            totalDistance: (profileData.totalDistance || 0) + statsDistance,
-            totalElevation: (profileData.totalElevation || 0) + statsElevation,
-            totalTracks: (profileData.totalTracks || 0) + 1,
-            lastTrackAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-    });
+    // --- 1.5. Denormalizza stats all-time + mensili + SETTIMANALI su
+    // user_profiles (classifiche regionali Epic 3.3 + classifica settimanale
+    // tra seguiti) — vedi applyActivityStatsDenorm. Storia: prima le scriveva
+    // il client ma la whitelist hasOnly() delle rules le respingeva
+    // silenziosamente (commit 0855036); ora sono SOLO server-side.
+    //
+    // Guard "attività completa" (predicato canonico countsAsActivity:
+    // distance>0 e non pending): le tracce create vuote/pending (es. sync
+    // wearable in due tempi) NON contano qui — le conta onTrackUpdate alla
+    // transizione → completa, mai due volte. Prima una traccia pending
+    // contava +1 nel mensile con 0 km alla create e la distanza reale non
+    // arrivava mai: ora conta una volta sola, coi numeri veri.
+    const isCompleteActivity = (trackData.distance || 0) > 0 && trackData.isPending !== true;
+    if (isCompleteActivity) {
+        await applyActivityStatsDenorm(userId, trackData.distance || 0, trackData.elevationGain || 0);
+    } else {
+        logger.info(`Traccia ${event.params.trackId} vuota/pending → denorm stats rinviata al completamento (onTrackUpdate).`);
+    }
 
     // --- 2. LOGICA Aggiornamento Progressi Sfide (invariata) ---
     logger.info(`Controllo progressi sfide per l'utente ${userId}...`);
@@ -326,6 +367,11 @@ exports.onTrackUpdate = onDocumentUpdated("users/{userId}/tracks/{trackId}", asy
     }
 
     logger.info(`[onTrackUpdate] Traccia ${event.params.trackId} completata per utente ${userId}. Aggiorno sfide...`);
+
+    // Denormalizza le stats (all-time + mensile + settimanale) ORA che la
+    // traccia è completa: onTrackCreate le ha saltate col guard
+    // countsAsActivity complementare a questo → nessun doppio conteggio.
+    await applyActivityStatsDenorm(userId, afterData.distance || 0, afterData.elevationGain || 0);
 
     // --- Logica Aggiornamento Progressi Sfide (identica a onTrackCreate) ---
     const participantSnapshot = await db.collectionGroup("participants").where("userId", "==", userId).get();
