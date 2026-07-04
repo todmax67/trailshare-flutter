@@ -636,8 +636,12 @@ class TracksRepository {
     final userId = _auth.currentUser?.uid;
     if (userId == null) throw Exception('Utente non autenticato');
 
+    // Aggiungere un gruppo rende SEMPRE l'array non vuoto: isGroupShared va a
+    // true senza bisogno di leggere lo stato precedente (a differenza della
+    // rimozione, dove può restare non vuoto se condivisa a più gruppi).
     await _tracksCollection(userId).doc(trackId).update({
       'groupIds': FieldValue.arrayUnion([groupId]),
+      'isGroupShared': true,
     });
     debugPrint(
       '[TracksRepository] Traccia $trackId condivisa nel gruppo $groupId',
@@ -651,8 +655,19 @@ class TracksRepository {
     final userId = _auth.currentUser?.uid;
     if (userId == null) throw Exception('Utente non autenticato');
 
-    await _tracksCollection(userId).doc(trackId).update({
-      'groupIds': FieldValue.arrayRemove([groupId]),
+    // A differenza dello share, qui la traccia potrebbe restare condivisa ad
+    // ALTRI gruppi (groupIds supporta condivisione multipla) — serve leggere
+    // lo stato risultante per sapere se isGroupShared deve tornare false.
+    // Transazione: atomica, corretta anche con rimozioni concorrenti.
+    final docRef = _tracksCollection(userId).doc(trackId);
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(docRef);
+      final current = List<String>.from(snap.data()?['groupIds'] ?? []);
+      current.remove(groupId);
+      tx.update(docRef, {
+        'groupIds': current,
+        'isGroupShared': current.isNotEmpty,
+      });
     });
     debugPrint(
       '[TracksRepository] Traccia $trackId rimossa dal gruppo $groupId',
@@ -824,6 +839,12 @@ class TracksRepository {
       // Gruppi in cui la traccia è condivisa come "percorso consigliato"
       // (B2B groups feature, vedi GroupsRepository.shareTrackToGroup).
       'groupIds': track.groupIds,
+      // Flag denormalizzato (#4 sicurezza: prep per stringere in futuro la
+      // lettura cross-utente via collection-group, oggi aperta a chiunque
+      // autenticato). Sempre false alla creazione: nessun flusso crea una
+      // traccia già condivisa a un gruppo, si condivide dopo via
+      // shareTrackToGroup/unshareTrackFromGroup che lo mantengono aggiornato.
+      'isGroupShared': track.groupIds.isNotEmpty,
       // Stats RICALCOLATE dai punti (non più da track.stats)
       'distance': stats.distance,
       'elevationGain': stats.elevationGain,
