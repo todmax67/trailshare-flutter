@@ -356,12 +356,14 @@ class _ReviewCard extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundImage: review.userAvatarUrl != null
+                    backgroundImage: (review.userAvatarUrl != null &&
+                            review.userAvatarUrl!.isNotEmpty)
                         ? CachedNetworkImageProvider(review.userAvatarUrl!)
                         : null,
                     backgroundColor:
                         AppColors.primary.withValues(alpha: 0.15),
-                    child: review.userAvatarUrl == null
+                    child: (review.userAvatarUrl == null ||
+                            review.userAvatarUrl!.isEmpty)
                         ? Text(
                             review.userDisplayName.isNotEmpty
                                 ? review.userDisplayName[0].toUpperCase()

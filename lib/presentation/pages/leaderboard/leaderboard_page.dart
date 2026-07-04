@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/avatar_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -443,10 +444,8 @@ class _LeaderboardItem extends StatelessWidget {
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                  backgroundImage: entry.avatarUrl != null 
-                      ? NetworkImage(entry.avatarUrl!)
-                      : null,
-                  child: entry.avatarUrl == null
+                  backgroundImage: avatarImageProvider(entry.avatarUrl),
+                  child: !hasRemoteAvatar(entry.avatarUrl)
                       ? Text(
                           entry.initial,
                           style: const TextStyle(

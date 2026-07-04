@@ -5,6 +5,7 @@ import '../utils/csv_downloader.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../core/utils/avatar_image.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/group_brand.dart';
@@ -313,10 +314,8 @@ class _WebGroupMembersPageState extends State<WebGroupMembersPage> {
                       leading: CircleAvatar(
                         backgroundColor:
                             AppColors.primary.withValues(alpha: 0.15),
-                        backgroundImage: p.avatarUrl != null
-                            ? NetworkImage(p.avatarUrl!)
-                            : null,
-                        child: p.avatarUrl == null
+                        backgroundImage: avatarImageProvider(p.avatarUrl),
+                        child: !hasRemoteAvatar(p.avatarUrl)
                             ? Text(
                                 p.username.isNotEmpty
                                     ? p.username[0].toUpperCase()
@@ -588,10 +587,8 @@ class _WebGroupMembersPageState extends State<WebGroupMembersPage> {
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: accent.withValues(alpha: 0.15),
-                  backgroundImage: m.avatarUrl != null
-                      ? NetworkImage(m.avatarUrl!)
-                      : null,
-                  child: m.avatarUrl == null
+                  backgroundImage: avatarImageProvider(m.avatarUrl),
+                  child: !hasRemoteAvatar(m.avatarUrl)
                       ? Text(
                           m.username.isNotEmpty
                               ? m.username[0].toUpperCase()

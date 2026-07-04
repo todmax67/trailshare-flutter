@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/avatar_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -165,10 +166,8 @@ class _UserListItem extends StatelessWidget {
       leading: CircleAvatar(
         radius: 24,
         backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-        backgroundImage: profile.avatarUrl != null
-            ? NetworkImage(profile.avatarUrl!)
-            : null,
-        child: profile.avatarUrl == null
+        backgroundImage: avatarImageProvider(profile.avatarUrl),
+        child: !hasRemoteAvatar(profile.avatarUrl)
             ? Text(
                 profile.initial,
                 style: const TextStyle(

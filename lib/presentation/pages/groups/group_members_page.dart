@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/avatar_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -112,8 +113,8 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
           backgroundColor: member.isAdmin
               ? AppColors.warning.withValues(alpha: 0.2)
               : AppColors.primary.withValues(alpha: 0.1),
-          backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
-          child: member.avatarUrl == null
+          backgroundImage: avatarImageProvider(member.avatarUrl),
+          child: !hasRemoteAvatar(member.avatarUrl)
               ? Text(
                   member.username.isNotEmpty ? member.username[0].toUpperCase() : '?',
                   style: TextStyle(
@@ -369,10 +370,8 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                      backgroundImage: profile.avatarUrl != null
-                          ? NetworkImage(profile.avatarUrl!)
-                          : null,
-                      child: profile.avatarUrl == null
+                      backgroundImage: avatarImageProvider(profile.avatarUrl),
+                      child: !hasRemoteAvatar(profile.avatarUrl)
                           ? Text(
                               profile.username.isNotEmpty
                                   ? profile.username[0].toUpperCase()

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/avatar_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_colors.dart';
@@ -482,8 +483,8 @@ class _ProfilePageState extends State<ProfilePage> {
         CircleAvatar(
           radius: 50,
           backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-          backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
-          child: _avatarUrl == null
+          backgroundImage: avatarImageProvider(_avatarUrl),
+          child: !hasRemoteAvatar(_avatarUrl)
               ? Text(
                   _username?.isNotEmpty == true ? _username![0].toUpperCase() : '?',
                   style: const TextStyle(

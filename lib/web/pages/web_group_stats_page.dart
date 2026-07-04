@@ -5,6 +5,7 @@ import '../utils/csv_downloader.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../core/utils/avatar_image.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/group_brand.dart';
@@ -919,10 +920,8 @@ class _TopMembersCard extends StatelessWidget {
         CircleAvatar(
           radius: 14,
           backgroundColor: accent.withValues(alpha: 0.15),
-          backgroundImage: m?.avatarUrl != null
-              ? NetworkImage(m!.avatarUrl!)
-              : null,
-          child: m?.avatarUrl == null
+          backgroundImage: avatarImageProvider(m?.avatarUrl),
+          child: !hasRemoteAvatar(m?.avatarUrl)
               ? Text(
                   initial,
                   style: TextStyle(

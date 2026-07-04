@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/utils/avatar_image.dart';
 import '../../../core/constants/app_colors.dart';
 import '../widgets/cheer_button.dart';
 import '../../core/extensions/theme_colors_extension.dart';
@@ -54,10 +55,8 @@ class PublicTrackCard extends StatelessWidget {
                     child: CircleAvatar(
                       radius: 18,
                       backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                      backgroundImage: authorAvatarUrl != null 
-                          ? NetworkImage(authorAvatarUrl!) 
-                          : null,
-                      child: authorAvatarUrl == null
+                      backgroundImage: avatarImageProvider(authorAvatarUrl),
+                      child: !hasRemoteAvatar(authorAvatarUrl)
                           ? Text(
                               authorName.isNotEmpty ? authorName[0].toUpperCase() : '?',
                               style: const TextStyle(

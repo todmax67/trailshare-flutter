@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/avatar_image.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
@@ -174,10 +175,8 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundImage: tour.ownerPhotoUrl != null
-                          ? NetworkImage(tour.ownerPhotoUrl!)
-                          : null,
-                      child: tour.ownerPhotoUrl == null
+                      backgroundImage: avatarImageProvider(tour.ownerPhotoUrl),
+                      child: !hasRemoteAvatar(tour.ownerPhotoUrl)
                           ? const Icon(Icons.person, size: 18)
                           : null,
                     ),
