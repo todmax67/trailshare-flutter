@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart' show Source;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
@@ -111,9 +112,26 @@ class HomeFeedAggregator {
   }
 
   /// **Fase 2 (geo)** — fetch che dipendono dalla posizione: Spazi Pro
-  /// vicini, sentieri vicini, meteo. Chiamato dal Bloc DOPO aver
-  /// risolto una posizione accurata via [resolveLocation].
-  Future<HomeFeedGeo> loadGeo(LatLng loc) async {
+  /// vicini, sentieri vicini, meteo. Passata "fresca" (server-first + meteo
+  /// HTTP), chiamata dal Bloc col fix di posizione.
+  Future<HomeFeedGeo> loadGeo(LatLng loc) =>
+      _loadGeo(loc, source: Source.serverAndCache, includeWeather: true);
+
+  /// Passata **cache-first istantanea** per lo stale-while-revalidate:
+  /// legge Spazi Pro e sentieri dalla sola persistenza locale (nessuna
+  /// rete), così le sezioni geo appaiono subito con i dati dell'ultima
+  /// apertura. Ritorna sezioni vuote al primo avvio assoluto (cache fredda)
+  /// → il Bloc resta in loading e aspetta [loadGeo]. Salta il meteo (è HTTP,
+  /// niente cache Firestore): arriva col refresh.
+  Future<HomeFeedGeo> loadGeoFromCache(LatLng loc) =>
+      _loadGeo(loc, source: Source.cache, includeWeather: false);
+
+  Future<HomeFeedGeo> _loadGeo(
+    LatLng loc, {
+    required Source source,
+    required bool includeWeather,
+  }) async {
+    final label = source == Source.cache ? ' (cache)' : '';
     final results = await Future.wait<dynamic>([
       // NB CRUCIALE: il `limit` di getNearby tronca il PREFILTRO geohash, che
       // è ordinato per STRINGA geohash (non per distanza). Con l'import OSM
@@ -125,11 +143,12 @@ class HomeFeedAggregator {
       _safe<List<Business>>(
           () async {
             final pool = await PerfTrace.track(
-              'homeFeed.geo.nearbyPro',
+              'homeFeed.geo.nearbyPro$label',
               () => _businessRepo.getNearby(
                 lat: loc.latitude,
                 lng: loc.longitude,
                 radiusKm: 50,
+                source: source,
               ),
               describe: (p) => '${p.length} business nel pool',
             );
@@ -137,19 +156,20 @@ class HomeFeedAggregator {
           },
           const []),
       _safe<List<PublicTrail>>(
-          () => PerfTrace.track(
-              'homeFeed.geo.nearbyTrails', () => _loadNearbyTrails(loc)),
+          () => PerfTrace.track('homeFeed.geo.nearbyTrails$label',
+              () => _loadNearbyTrails(loc, source: source)),
           const []),
-      _safe<WeatherData?>(
-          () => PerfTrace.track(
-              'homeFeed.geo.weather (HTTP)',
-              () => _weatherService.getForecast(loc.latitude, loc.longitude)),
-          null),
+      if (includeWeather)
+        _safe<WeatherData?>(
+            () => PerfTrace.track(
+                'homeFeed.geo.weather (HTTP)',
+                () => _weatherService.getForecast(loc.latitude, loc.longitude)),
+            null),
     ]);
     return HomeFeedGeo(
       nearbyPro: results[0] as List<Business>,
       nearbyTrails: results[1] as List<PublicTrail>,
-      weather: results[2] as WeatherData?,
+      weather: includeWeather ? results[2] as WeatherData? : null,
     );
   }
 
@@ -243,7 +263,8 @@ class HomeFeedAggregator {
     return tours.first;
   }
 
-  Future<List<PublicTrail>> _loadNearbyTrails(LatLng loc) async {
+  Future<List<PublicTrail>> _loadNearbyTrails(LatLng loc,
+      {Source source = Source.server}) async {
     // Carichiamo più sentieri del necessario (bbox può contenerne tanti
     // sparsi) e poi ordiniamo per vicinanza reale al punto di partenza,
     // tenendo i 12 più vicini. Senza questo, Firestore ritorna in
@@ -254,6 +275,7 @@ class HomeFeedAggregator {
       minLng: loc.longitude - _trailBboxDeg,
       maxLng: loc.longitude + _trailBboxDeg,
       limit: 60,
+      source: source,
     );
     trails.sort((a, b) {
       final da = _distance.as(LengthUnit.Meter, loc,

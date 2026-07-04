@@ -114,4 +114,9 @@ class HomeFeedGeo {
     this.nearbyPro = const [],
     this.nearbyTrails = const [],
   });
+
+  /// True se la passata ha prodotto almeno una sezione geo popolata.
+  /// Usato dal Bloc per decidere se mostrare subito la passata cache
+  /// (stale-while-revalidate) o restare in loading fino al server.
+  bool get hasData => nearbyPro.isNotEmpty || nearbyTrails.isNotEmpty;
 }

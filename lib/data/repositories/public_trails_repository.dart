@@ -350,6 +350,12 @@ class PublicTrailsRepository {
     required int limit,
     required bool simplified,
     bool metadataOnly = false,
+    // Default Source.server: storicamente forzato perché la cache poteva
+    // essere satura dai vecchi doc legacy con coordinatesJson inline (≤800KB).
+    // Dallo split geometry i doc index sono ~3KB → la Home passa Source.cache
+    // (istantaneo) per lo stale-while-revalidate. La mappa Discover resta su
+    // server (default) invariata.
+    Source source = Source.server,
   }) async {
     try {
       // Calcola geohash ranges
@@ -376,15 +382,11 @@ class PublicTrailsRepository {
       final perRangeLimit = (limit / rangesToUse.length).ceil() * 2 + 20;
       final futures = rangesToUse.map((range) async {
         try {
-          // Source.server: la cache locale può essere satura dai vecchi
-          // doc legacy con coordinatesJson inline (fino a 800KB l'uno) →
-          // le query con cache si bloccano. Bypassiamo finché la cache
-          // non si è ripulita dopo la migrazione.
           final snapshot = await _trailsCollection
               .where('geoHash', isGreaterThanOrEqualTo: range.start)
               .where('geoHash', isLessThan: range.end)
               .limit(perRangeLimit)
-              .get(const GetOptions(source: Source.server));
+              .get(GetOptions(source: source));
           return snapshot.docs;
         } catch (e) {
           debugPrint('[PublicTrails] range query error: $e');
@@ -691,13 +693,16 @@ class PublicTrailsRepository {
   // METODO LEGACY - Per compatibilità con codice esistente
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Metodo legacy per caricare sentieri in bounds (senza clustering)
+  /// Metodo legacy per caricare sentieri in bounds (senza clustering).
+  /// [source] permette alla Home il pattern cache-first (Source.cache per
+  /// la passata istantanea, poi Source.server per il refresh).
   Future<List<PublicTrail>> getTrailsInBounds({
     required double minLat,
     required double maxLat,
     required double minLng,
     required double maxLng,
     int limit = 100,
+    Source source = Source.server,
   }) async {
     return _loadFromFirestore(
       minLat: minLat,
@@ -706,6 +711,7 @@ class PublicTrailsRepository {
       maxLng: maxLng,
       limit: limit,
       simplified: true,
+      source: source,
     );
   }
 

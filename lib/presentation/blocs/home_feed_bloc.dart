@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:latlong2/latlong.dart';
 
 import '../../core/services/home_feed_aggregator.dart';
 import '../../core/utils/perf_trace.dart';
@@ -45,11 +44,6 @@ class HomeFeedBloc extends ChangeNotifier {
 
   /// Pull-to-refresh: ricarica senza azzerare [_data] (anti-flash).
   Future<void> refresh() => _run(keepData: true);
-
-  /// Spostamento (m) oltre il quale il fix GPS accurato invalida i dati
-  /// geo già caricati con l'ultima posizione nota → secondo loadGeo.
-  static const double _geoRefreshThresholdMeters = 1000;
-  static const Distance _distance = Distance();
 
   Future<void> _run({required bool keepData}) async {
     if (_status == HomeFeedStatus.loading) return;
@@ -97,41 +91,42 @@ class HomeFeedBloc extends ChangeNotifier {
         }
       }));
 
-      // ── Fase 2: geo in DUE passate. Prima con l'ultima posizione nota
-      // (istantanea) → le sezioni geo si riempiono senza aspettare il GPS.
-      // Poi col fix accurato, ma solo se l'utente risulta spostato oltre
-      // ~1 km: altrimenti i dati geo già a schermo restano validi. ──
+      // ── Fase 2: geo con STALE-WHILE-REVALIDATE.
+      // Passata 1 (cache): legge Spazi Pro/sentieri dalla persistenza locale
+      // con la posizione più veloce disponibile (last-known) → le sezioni geo
+      // appaiono SUBITO coi dati dell'ultima apertura, senza rete. Al primo
+      // avvio assoluto la cache è vuota → niente emit, resta il loader.
+      // Passata 2 (server): rinfresca dal server con la posizione accurata. ──
       final lastKnown = await lastKnownFuture;
-      if (lastKnown != null) {
-        final geo = await PerfTrace.track(
-          'homeFeed.loadGeo (last-known)',
-          () => _aggregator.loadGeo(lastKnown),
+      final cacheLoc = lastKnown ?? await accurateFuture;
+
+      if (cacheLoc != null) {
+        final cachedGeo = await PerfTrace.track(
+          'homeFeed.loadGeo (cache)',
+          () => _aggregator.loadGeoFromCache(cacheLoc),
         );
-        // Parte da _data (non da core) per non sovrascrivere i rifugi
-        // eventualmente arrivati nel frattempo dal caricamento differito.
-        _data = (_data ?? core).withGeo(userLocation: lastKnown, geo: geo);
-        _geoPending = false;
-        notifyListeners(); // Home completa con posizione cache
-        PerfTrace.mark('homeFeed.geoComplete (last-known, Home completa)');
+        if (cachedGeo.hasData) {
+          // Parte da _data (non da core) per non sovrascrivere i rifugi
+          // eventualmente arrivati nel frattempo dal caricamento differito.
+          _data =
+              (_data ?? core).withGeo(userLocation: cacheLoc, geo: cachedGeo);
+          _geoPending = false;
+          notifyListeners(); // Home completa con dati (stale) immediati
+          PerfTrace.mark('homeFeed.geoComplete (cache, stale)');
+        }
       }
 
-      final loc = await accurateFuture;
-      final movedFar = lastKnown == null ||
-          (loc != null &&
-              _distance.as(LengthUnit.Meter, lastKnown, loc) >
-                  _geoRefreshThresholdMeters);
-      if (loc != null && movedFar) {
-        // Raffinamento silenzioso: niente _geoPending, i contenuti geo
-        // eventualmente già a schermo vengono solo sostituiti.
-        final geo = await PerfTrace.track(
-          'homeFeed.loadGeo',
-          () => _aggregator.loadGeo(loc),
+      final freshLoc = await accurateFuture ?? lastKnown;
+      if (freshLoc != null) {
+        final freshGeo = await PerfTrace.track(
+          'homeFeed.loadGeo (server)',
+          () => _aggregator.loadGeo(freshLoc),
         );
-        _data = (_data ?? core).withGeo(userLocation: loc, geo: geo);
+        _data = (_data ?? core).withGeo(userLocation: freshLoc, geo: freshGeo);
       }
       _geoPending = false;
-      notifyListeners(); // le sezioni geo si riempiono/raffinano
-      PerfTrace.mark('homeFeed.geoComplete (fix accurato, Home completa)');
+      notifyListeners(); // le sezioni geo si rinfrescano dal server
+      PerfTrace.mark('homeFeed.geoComplete (server, fresh)');
     } catch (e) {
       _error = e.toString();
       _status = HomeFeedStatus.error;

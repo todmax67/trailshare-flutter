@@ -158,6 +158,11 @@ class BusinessRepository {
     double radiusKm = 50,
     BusinessType? type,
     int limit = 1000,
+    // Source.cache → lettura istantanea dalla persistenza locale (per lo
+    // stale-while-revalidate della Home): ritorna [] se la query non è mai
+    // stata cachata, senza toccare la rete. Default = comportamento Firestore
+    // (server-first quando online).
+    Source source = Source.serverAndCache,
   }) async {
     final precision = GeoHashUtil.precisionForRadius(radiusKm);
 
@@ -224,9 +229,11 @@ class BusinessRepository {
         'hashes=${hashes.length} ranges=${ranges.length} '
         'rangesList=${ranges.map((r) => "${r.start}-${r.end}").toList()}');
 
-    // Esegue tante query quante sono le ranges (max 9), aggrega.
-    final all = <String, Business>{};
-    for (final range in ranges) {
+    // Esegue le query (una per range, max 9) in PARALLELO: prima era un
+    // loop sequenziale che sommava le latenze (per la Home a 50km sono 2
+    // range da ~400 doc l'uno → ~6s in serie su Android). Le risposte si
+    // aggregano deduplicando per id.
+    final snaps = await Future.wait(ranges.map((range) {
       Query<Map<String, dynamic>> q = _businesses
           .where('status', isEqualTo: 'active')
           .where('location.geohash',
@@ -236,10 +243,14 @@ class BusinessRepository {
       if (type != null) {
         q = q.where('type', isEqualTo: type.name);
       }
-      final snap = await q.get();
-      debugPrint('[getNearby] range ${range.start}-${range.end}: '
-          '${snap.docs.length} docs');
-      for (final d in snap.docs) {
+      return q.get(GetOptions(source: source));
+    }));
+
+    final all = <String, Business>{};
+    for (var i = 0; i < snaps.length; i++) {
+      debugPrint('[getNearby] range ${ranges[i].start}-${ranges[i].end}: '
+          '${snaps[i].docs.length} docs');
+      for (final d in snaps[i].docs) {
         all[d.id] = Business.fromMap(d.id, d.data());
       }
     }
