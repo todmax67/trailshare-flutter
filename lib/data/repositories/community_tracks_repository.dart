@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/track.dart';
+import '../../core/utils/perf_trace.dart';
 
 /// Modello lightweight per liste/picker: solo metadati, **senza** GPS points.
 /// Da usare ovunque non serva la traccia disegnata (cards, picker, search results).
@@ -408,18 +409,28 @@ class CommunityTracksRepository {
   /// Ottieni tracce recenti della community
   Future<List<CommunityTrack>> getRecentTracks({int limit = 30}) async {
     try {
-      final snapshot = await _tracksCollection
-          .orderBy('sharedAt', descending: true)
-          .limit(limit)
-          .get();
+      final snapshot = await PerfTrace.track(
+        'community.recent.query',
+        () => _tracksCollection
+            .orderBy('sharedAt', descending: true)
+            .limit(limit)
+            .get(),
+        describe: (s) => '${s.docs.length} doc, fromCache=${s.metadata.isFromCache}',
+      );
 
-      final tracks = <CommunityTrack>[];
-      for (final doc in snapshot.docs) {
-        final track = _docToTrack(doc);
-        if (track != null) {
-          tracks.add(track);
-        }
-      }
+      final tracks = PerfTrace.trackSync(
+        'community.recent.parse',
+        () {
+          final list = <CommunityTrack>[];
+          for (final doc in snapshot.docs) {
+            final track = _docToTrack(doc);
+            if (track != null) list.add(track);
+          }
+          return list;
+        },
+        describe: (l) =>
+            '${l.length} tracce, ${l.fold<int>(0, (s, t) => s + t.points.length)} punti tot',
+      );
 
       debugPrint('[CommunityTracks] Caricate ${tracks.length} tracce');
       return tracks;
@@ -447,12 +458,24 @@ class CommunityTracksRepository {
         query = query.startAfterDocument(startAfterDoc);
       }
 
-      final snapshot = await query.get();
-      final tracks = <CommunityTrack>[];
-      for (final doc in snapshot.docs) {
-        final track = _docToTrack(doc);
-        if (track != null) tracks.add(track);
-      }
+      final snapshot = await PerfTrace.track(
+        'community.recentPaginated.query',
+        () => query.get(),
+        describe: (s) => '${s.docs.length} doc, fromCache=${s.metadata.isFromCache}',
+      );
+      final tracks = PerfTrace.trackSync(
+        'community.recentPaginated.parse',
+        () {
+          final list = <CommunityTrack>[];
+          for (final doc in snapshot.docs) {
+            final track = _docToTrack(doc);
+            if (track != null) list.add(track);
+          }
+          return list;
+        },
+        describe: (l) =>
+            '${l.length} tracce, ${l.fold<int>(0, (s, t) => s + t.points.length)} punti tot',
+      );
 
       debugPrint('[CommunityTracks] Paginate: ${tracks.length} tracce (hasMore: ${snapshot.docs.length == limit})');
 
@@ -481,11 +504,16 @@ class CommunityTracksRepository {
       final List<CommunityTrack> all = [];
       for (var i = 0; i < followingIds.length; i += 30) {
         final batch = followingIds.skip(i).take(30).toList();
-        final snapshot = await _tracksCollection
-            .where('originalOwnerId', whereIn: batch)
-            .orderBy('sharedAt', descending: true)
-            .limit(limit)
-            .get();
+        final snapshot = await PerfTrace.track(
+          'community.followingFeed.batch${i ~/ 30}',
+          () => _tracksCollection
+              .where('originalOwnerId', whereIn: batch)
+              .orderBy('sharedAt', descending: true)
+              .limit(limit)
+              .get(),
+          describe: (s) =>
+              '${s.docs.length} doc da ${batch.length} seguiti, fromCache=${s.metadata.isFromCache}',
+        );
         for (final doc in snapshot.docs) {
           final track = _docToTrack(doc);
           if (track != null) all.add(track);

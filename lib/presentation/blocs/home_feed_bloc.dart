@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../core/services/home_feed_aggregator.dart';
+import '../../core/utils/perf_trace.dart';
 import '../../data/models/home_feed_data.dart';
 
 enum HomeFeedStatus { idle, loading, ready, error }
@@ -53,15 +54,23 @@ class HomeFeedBloc extends ChangeNotifier {
 
     try {
       // ── Fase 1: non-geo (veloce) ──
-      final core = await _aggregator.loadCore();
+      final core = await PerfTrace.track(
+        'homeFeed.loadCore',
+        () => _aggregator.loadCore(),
+      );
       _data = core;
       _geoPending = true;
       _status = HomeFeedStatus.ready;
       notifyListeners(); // la Home appare con le sezioni non-geo
+      PerfTrace.mark('homeFeed.firstPaint (sezioni non-geo a schermo)');
 
       // ── Differita: Rifugi (parsing bundle 20k POI = pesante) — NON blocca
       // il primo paint. Aggiorna _data quando pronto. ──
-      unawaited(_aggregator.loadRifugi().then((rifugi) {
+      unawaited(PerfTrace.track(
+        'homeFeed.loadRifugi (differita)',
+        () => _aggregator.loadRifugi(),
+        describe: (r) => '${r.length} rifugi',
+      ).then((rifugi) {
         final d = _data;
         if (d != null && rifugi.isNotEmpty) {
           _data = d.withRifugi(rifugi);
@@ -70,15 +79,22 @@ class HomeFeedBloc extends ChangeNotifier {
       }));
 
       // ── Fase 2: geo (posizione accurata + fetch) ──
-      final loc = await _aggregator.resolveLocation();
+      final loc = await PerfTrace.track(
+        'homeFeed.resolveLocation (GPS)',
+        () => _aggregator.resolveLocation(),
+      );
       if (loc != null) {
-        final geo = await _aggregator.loadGeo(loc);
+        final geo = await PerfTrace.track(
+          'homeFeed.loadGeo',
+          () => _aggregator.loadGeo(loc),
+        );
         // Parte da _data (non da core) per non sovrascrivere i rifugi
         // eventualmente arrivati nel frattempo dal caricamento differito.
         _data = (_data ?? core).withGeo(userLocation: loc, geo: geo);
       }
       _geoPending = false;
       notifyListeners(); // le sezioni geo si riempiono
+      PerfTrace.mark('homeFeed.geoComplete (Home completa)');
     } catch (e) {
       _error = e.toString();
       _status = HomeFeedStatus.error;

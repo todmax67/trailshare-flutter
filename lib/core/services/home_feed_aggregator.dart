@@ -14,6 +14,7 @@ import '../../data/repositories/follow_repository.dart';
 import '../../data/repositories/public_trails_repository.dart';
 import '../../data/repositories/tours_repository.dart';
 import '../../data/repositories/weekly_challenges_repository.dart';
+import '../utils/perf_trace.dart';
 import 'location_service.dart';
 import 'recording_persistence_service.dart';
 import 'weather_service.dart';
@@ -67,21 +68,34 @@ class HomeFeedAggregator {
   Future<HomeFeedData> loadCore() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final results = await Future.wait<dynamic>([
-      _safe<HomeResumeItem?>(_loadResume, null),
-      _safe<WeeklyChallenge?>(() => _challengesRepo.getCurrent(), null),
+      _safe<HomeResumeItem?>(
+          () => PerfTrace.track('homeFeed.core.resume', _loadResume), null),
+      _safe<WeeklyChallenge?>(
+          () => PerfTrace.track(
+              'homeFeed.core.challenge', () => _challengesRepo.getCurrent()),
+          null),
       _safe<List<CommunityTrack>>(
-          () => uid == null ? Future.value(const []) : _loadFollowing(uid),
+          () => uid == null
+              ? Future.value(const [])
+              : PerfTrace.track(
+                  'homeFeed.core.following', () => _loadFollowing(uid)),
           const []),
-      _safe<Tour?>(_loadEditorialTour, null),
+      _safe<Tour?>(
+          () => PerfTrace.track('homeFeed.core.tour', _loadEditorialTour),
+          null),
       // Community generale: sempre ricca → risolve il cold-start del
       // nuovo utente (che non ha ancora seguiti). Limit contenuto: i doc
       // traccia hanno i points GPS embedded (pesanti) → meno doc = avvio
       // più rapido su Android.
       _safe<List<CommunityTrack>>(
-          () => _communityRepo.getRecentTracks(limit: 5), const []),
+          () => PerfTrace.track('homeFeed.core.communityRecent',
+              () => _communityRepo.getRecentTracks(limit: 5)),
+          const []),
       // I sentieri più amati (popolarità/rating) — criterio non geografico.
       _safe<List<CommunityTrack>>(
-          () => _communityRepo.getPopularTracks(limit: 5), const []),
+          () => PerfTrace.track('homeFeed.core.popular',
+              () => _communityRepo.getPopularTracks(limit: 5)),
+          const []),
       // NB: i Rifugi NON sono qui — il parsing del bundle 20k POI è pesante e
       // bloccherebbe il primo paint. Caricati in differita via loadRifugi().
     ]);
@@ -110,17 +124,26 @@ class HomeFeedAggregator {
       // NON passiamo limit → default ampio (1000), poi teniamo i 6 più vicini.
       _safe<List<Business>>(
           () async {
-            final pool = await _businessRepo.getNearby(
-              lat: loc.latitude,
-              lng: loc.longitude,
-              radiusKm: 50,
+            final pool = await PerfTrace.track(
+              'homeFeed.geo.nearbyPro',
+              () => _businessRepo.getNearby(
+                lat: loc.latitude,
+                lng: loc.longitude,
+                radiusKm: 50,
+              ),
+              describe: (p) => '${p.length} business nel pool',
             );
             return pool.take(6).toList();
           },
           const []),
-      _safe<List<PublicTrail>>(() => _loadNearbyTrails(loc), const []),
+      _safe<List<PublicTrail>>(
+          () => PerfTrace.track(
+              'homeFeed.geo.nearbyTrails', () => _loadNearbyTrails(loc)),
+          const []),
       _safe<WeatherData?>(
-          () => _weatherService.getForecast(loc.latitude, loc.longitude),
+          () => PerfTrace.track(
+              'homeFeed.geo.weather (HTTP)',
+              () => _weatherService.getForecast(loc.latitude, loc.longitude)),
           null),
     ]);
     return HomeFeedGeo(

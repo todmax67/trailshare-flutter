@@ -1,15 +1,24 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../core/utils/perf_trace.dart';
 
 /// Repository per la Leaderboard
 class LeaderboardRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Ottiene la classifica settimanale tra utenti seguiti
-  /// 
+  ///
   /// Calcola in tempo reale basandosi sulle tracce della settimana corrente
-  Future<LeaderboardData> getWeeklyLeaderboard() async {
+  Future<LeaderboardData> getWeeklyLeaderboard() {
+    return PerfTrace.track(
+      'leaderboard.getWeeklyLeaderboard',
+      _getWeeklyLeaderboard,
+      describe: (d) => '${d.entries.length} utenti in classifica',
+    );
+  }
+
+  Future<LeaderboardData> _getWeeklyLeaderboard() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return LeaderboardData(entries: [], currentUserRank: null);
@@ -97,11 +106,15 @@ class LeaderboardRepository {
       // Il database ha formati data misti (Timestamp, String ISO, int milliseconds)
       // quindi .where() con Timestamp non funziona per tutte le tracce.
       // Per utente sono poche tracce, quindi è efficiente caricarle tutte.
-      final allTracksSnapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('tracks')
-          .get();
+      final allTracksSnapshot = await PerfTrace.track(
+        'leaderboard.tracksFetch[$userId]',
+        () => _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('tracks')
+            .get(),
+        describe: (s) => '${s.docs.length} doc',
+      );
 
       debugPrint('[LeaderboardRepo] Utente $userId: ${allTracksSnapshot.docs.length} tracce totali, weekStart: $weekStart');
 

@@ -9,6 +9,7 @@ import '../models/track.dart';
 import '../../core/utils/difficulty_calculator.dart';
 import '../../core/utils/elevation_dem_corrector.dart';
 import '../../core/utils/elevation_processor.dart';
+import '../../core/utils/perf_trace.dart';
 
 /// Risultato paginato per le tracce
 class PaginatedTracksResult {
@@ -310,18 +311,25 @@ class TracksRepository {
     int limit = 1000,
   }) async {
     try {
-      final snapshot = await _tracksCollection(userId)
-          .orderBy('createdAt', descending: true)
-          .limit(limit)
-          .get();
-      return snapshot.docs.map((doc) {
-        final data = Map<String, dynamic>.from(doc.data());
-        data.remove('points');
-        final t = _trackFromFirestore(doc.id, data);
-        // Fallback userId dal path (per tracce con campo top-level
-        // mancante) — qui usiamo userId della firma, non currentUser.
-        return t.userId == null ? t.copyWith(userId: userId) : t;
-      }).toList();
+      final snapshot = await PerfTrace.track(
+        'tracks.userLightweight.query[$userId]',
+        () => _tracksCollection(userId)
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .get(),
+        describe: (s) => '${s.docs.length} doc, fromCache=${s.metadata.isFromCache}',
+      );
+      return PerfTrace.trackSync(
+        'tracks.userLightweight.parse[$userId]',
+        () => snapshot.docs.map((doc) {
+          final data = Map<String, dynamic>.from(doc.data());
+          data.remove('points');
+          final t = _trackFromFirestore(doc.id, data);
+          // Fallback userId dal path (per tracce con campo top-level
+          // mancante) — qui usiamo userId della firma, non currentUser.
+          return t.userId == null ? t.copyWith(userId: userId) : t;
+        }).toList(),
+      );
     } catch (e) {
       debugPrint(
           '[TracksRepository] Errore getUserTracksLightweight($userId): $e');
@@ -354,18 +362,25 @@ class TracksRepository {
       final query = _tracksCollection(userId)
           .orderBy('createdAt', descending: true)
           .limit(limit);
-      final snapshot = await (bypassCache
-          ? query.get(const GetOptions(source: Source.server))
-          : query.get());
-      return snapshot.docs.map((doc) {
-        // Copia mutabile + rimozione points prima del parse
-        final data = Map<String, dynamic>.from(doc.data());
-        data.remove('points');
-        final t = _trackFromFirestore(doc.id, data);
-        // Fallback userId dal path (tracce vecchie senza campo
-        // top-level userId — vedi getTrackById per dettagli).
-        return t.userId == null ? t.copyWith(userId: userId) : t;
-      }).toList();
+      final snapshot = await PerfTrace.track(
+        'tracks.myLightweight.query',
+        () => bypassCache
+            ? query.get(const GetOptions(source: Source.server))
+            : query.get(),
+        describe: (s) => '${s.docs.length} doc, fromCache=${s.metadata.isFromCache}',
+      );
+      return PerfTrace.trackSync(
+        'tracks.myLightweight.parse',
+        () => snapshot.docs.map((doc) {
+          // Copia mutabile + rimozione points prima del parse
+          final data = Map<String, dynamic>.from(doc.data());
+          data.remove('points');
+          final t = _trackFromFirestore(doc.id, data);
+          // Fallback userId dal path (tracce vecchie senza campo
+          // top-level userId — vedi getTrackById per dettagli).
+          return t.userId == null ? t.copyWith(userId: userId) : t;
+        }).toList(),
+      );
     } catch (e) {
       debugPrint('[TracksRepository] Errore getMyTracksLightweight: $e');
       return [];
@@ -468,10 +483,18 @@ class TracksRepository {
     if (userId == null) return null;
 
     try {
-      final doc = await _tracksCollection(userId).doc(trackId).get();
+      final doc = await PerfTrace.track(
+        'tracks.byId.docGet[$trackId]',
+        () => _tracksCollection(userId).doc(trackId).get(),
+        describe: (d) => 'exists=${d.exists}, fromCache=${d.metadata.isFromCache}',
+      );
       if (!doc.exists || doc.data() == null) return null;
       final data = doc.data()!;
-      var track = _trackFromFirestore(doc.id, data);
+      var track = PerfTrace.trackSync(
+        'tracks.byId.parse[$trackId]',
+        () => _trackFromFirestore(doc.id, data),
+        describe: (t) => '${t.points.length} punti inline',
+      );
       // Lazy-load dei punti dalla sub-collezione geometria (tracce nuove).
       track = await _attachGeometryIfNeeded(userId, doc.id, data, track);
       // Fallback: tracce vecchie possono non avere il campo userId
@@ -685,16 +708,23 @@ class TracksRepository {
   /// implicito tramite la membership.
   Future<List<Track>> getGroupTracks(String groupId) async {
     try {
-      final snap = await _firestore
-          .collectionGroup('tracks')
-          .where('groupIds', arrayContains: groupId)
-          .orderBy('createdAt', descending: true)
-          .limit(100)
-          .get();
+      final snap = await PerfTrace.track(
+        'tracks.group.query[$groupId]',
+        () => _firestore
+            .collectionGroup('tracks')
+            .where('groupIds', arrayContains: groupId)
+            .orderBy('createdAt', descending: true)
+            .limit(100)
+            .get(),
+        describe: (s) => '${s.docs.length} doc, fromCache=${s.metadata.isFromCache}',
+      );
 
-      final tracks = snap.docs
-          .map((d) => _trackFromFirestore(d.id, d.data()))
-          .toList();
+      final tracks = PerfTrace.trackSync(
+        'tracks.group.parse[$groupId]',
+        () => snap.docs
+            .map((d) => _trackFromFirestore(d.id, d.data()))
+            .toList(),
+      );
       debugPrint(
         '[TracksRepository] getGroupTracks($groupId): ${tracks.length} tracce',
       );
@@ -914,13 +944,21 @@ class TracksRepository {
   Future<({List<TrackPoint> points, Map<DateTime, int>? heartRate})?>
       _loadGeometry(String userId, String trackId) async {
     try {
-      final snap = await _geometryDoc(userId, trackId).get();
+      final snap = await PerfTrace.track(
+        'tracks.geometry.docGet[$trackId]',
+        () => _geometryDoc(userId, trackId).get(),
+        describe: (d) => 'exists=${d.exists}, fromCache=${d.metadata.isFromCache}',
+      );
       if (!snap.exists || snap.data() == null) return null;
       final data = snap.data()!;
       List<TrackPoint> points = const [];
       final pj = data['pointsJson'];
       if (pj is String && pj.isNotEmpty) {
-        points = _parsePointsList(jsonDecode(pj));
+        points = PerfTrace.trackSync(
+          'tracks.geometry.parseJson[$trackId]',
+          () => _parsePointsList(jsonDecode(pj)),
+          describe: (p) => '${p.length} punti',
+        );
       } else if (data['points'] is List) {
         // Tollera anche un eventuale array nativo (robustezza).
         points = _parsePointsList(data['points']);

@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/perf_trace.dart';
+
 /// Stato della checklist "primi passi": quali azioni di attivazione il nuovo
 /// utente ha già completato.
 class OnboardingChecklistState {
@@ -72,12 +74,18 @@ class OnboardingChecklistService {
       // 1) almeno una traccia? (read leggera: solo metadati, cap a 5).
       // Chi ha già >=5 tracce è "attivato": la checklist non gli serve più,
       // la nascondiamo per non infastidire gli utenti esistenti.
-      final tracks = await fs
-          .collection('users')
-          .doc(uid)
-          .collection('tracks')
-          .limit(5)
-          .get();
+      // NB PERF: "leggera" solo nel numero di doc — i doc traccia legacy
+      // arrivano INTERI (points GPS inline) via wire. Misurato con PerfTrace.
+      final tracks = await PerfTrace.track(
+        'checklist.tracksProbe',
+        () => fs
+            .collection('users')
+            .doc(uid)
+            .collection('tracks')
+            .limit(5)
+            .get(),
+        describe: (s) => '${s.docs.length} doc, fromCache=${s.metadata.isFromCache}',
+      );
       if (tracks.docs.length >= 5) return null;
       final recorded = tracks.docs.isNotEmpty;
 
