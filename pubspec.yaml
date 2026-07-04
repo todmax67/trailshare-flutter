@@ -125,6 +125,14 @@ dependencies:
   webview_flutter: ^4.13.1
   flutter_screen_recording: ^2.0.25
 
+dependency_overrides:
+  # Fork locale minimale: su Android 14+ forza il dialog MediaProjection al
+  # solo "schermo intero" (createConfigForDefaultDisplay) — il default
+  # "Condividi un'app" registrava il picker invece del fly 3D.
+  # Unica modifica: FlutterScreenRecordingPlugin.kt (vedi commento FORK).
+  flutter_screen_recording:
+    path: third_party/flutter_screen_recording
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
