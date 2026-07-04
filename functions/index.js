@@ -6506,6 +6506,193 @@ exports.polarDisconnect = onCall(
   }
 );
 
+// ===================================================================
+// CANCELLAZIONE ACCOUNT (GDPR — diritto all'oblio)
+// ===================================================================
+// Sostituisce la vecchia cancellazione client-side (DeleteAccountService),
+// che lasciava orfani: geometry (GPS+HR) delle tracce, doc users/{uid} e
+// TUTTE le sue sub-collezioni (integrations con i token OAuth, emergency_contacts
+// = PII di terzi, xp_history), le copie pubbliche (published_tracks/
+// community_tracks) coi loro cheers/comments, i cheers dati su tracce altrui,
+// il pairing Garmin, le foto su Storage. `_deleteUserCheers` lato client era
+// un no-op letterale.
+//
+// Gira con privilegi Admin SDK (nessun problema di security rules) e usa
+// `recursiveDelete` per cancellare un intero albero Firestore in un colpo,
+// comprese le sub-collezioni che potremmo dimenticare di enumerare a mano.
+// L'eliminazione dell'account Auth è l'ULTIMO passo: se qualcosa fallisce
+// prima, l'utente esiste ancora e può riprovare (non resta "a metà cancellato").
+exports.deleteMyAccount = onCall(
+  {
+    region: 'europe-west3',
+    secrets: [stravaClientId, stravaClientSecret, polarClientId, polarClientSecret],
+    timeoutSeconds: 300,
+  },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new functions.https.HttpsError('unauthenticated', 'Devi essere loggato.');
+    }
+    logger.info(`[deleteAccount] Avvio cancellazione uid=${uid}`);
+
+    const userRef = db.collection('users').doc(uid);
+    const profileRef = db.collection('user_profiles').doc(uid);
+
+    // 1. Revoca OAuth Strava (best-effort: se fallisce, l'utente vuole comunque
+    //    che i suoi dati spariscano da TrailShare — non blocchiamo per questo).
+    try {
+      const stravaSnap = await userRef.collection('integrations').doc('strava').get();
+      if (stravaSnap.exists) {
+        const integ = stravaSnap.data();
+        try {
+          await axios.post('https://www.strava.com/oauth/deauthorize', null, {
+            params: { access_token: integ.accessToken },
+          });
+        } catch (e) {
+          logger.warn(`[deleteAccount] strava deauthorize fallita uid=${uid}: ${e?.message}`);
+        }
+      }
+    } catch (e) {
+      logger.warn(`[deleteAccount] strava check fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 2. Revoca OAuth Polar (stesso pattern di polarDisconnect).
+    try {
+      const polarSnap = await userRef.collection('integrations').doc('polar').get();
+      if (polarSnap.exists) {
+        const d = polarSnap.data();
+        try {
+          await axios.delete(`${POLAR_API_BASE}/users/${d.polarUserId}`, {
+            headers: { Authorization: `Bearer ${d.accessToken}` },
+          });
+        } catch (e) {
+          logger.warn(`[deleteAccount] polar deregister fallita uid=${uid}: ${e?.response?.status}`);
+        }
+        if (d.polarUserId != null) {
+          await db.collection('polar_user_map').doc(String(d.polarUserId)).delete().catch(() => {});
+        }
+      }
+    } catch (e) {
+      logger.warn(`[deleteAccount] polar check fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 3. Pairing Garmin: il token vive su users/{uid}.garminPairingToken, va letto
+    //    ORA (prima del recursiveDelete al passo 10 che cancella anche quel campo).
+    try {
+      const userSnap = await userRef.get();
+      const token = userSnap.exists ? userSnap.data().garminPairingToken : null;
+      if (token) {
+        await db.collection('garmin_pairings').doc(token).delete().catch(() => {});
+      }
+    } catch (e) {
+      logger.warn(`[deleteAccount] garmin pairing cleanup fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 4. Copie pubbliche: published_tracks (+ cheers/comments annidati via recursiveDelete).
+    let publishedDeleted = 0;
+    try {
+      const pubSnap = await db.collection('published_tracks').where('originalOwnerId', '==', uid).get();
+      for (const doc of pubSnap.docs) {
+        await admin.firestore().recursiveDelete(doc.ref);
+        publishedDeleted++;
+      }
+    } catch (e) {
+      logger.warn(`[deleteAccount] published_tracks cleanup fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 5. Copie community_tracks (+ cheers annidati).
+    let communityDeleted = 0;
+    try {
+      const commSnap = await db.collection('community_tracks').where('ownerId', '==', uid).get();
+      for (const doc of commSnap.docs) {
+        await admin.firestore().recursiveDelete(doc.ref);
+        communityDeleted++;
+      }
+    } catch (e) {
+      logger.warn(`[deleteAccount] community_tracks cleanup fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 6. Cheers che QUESTO utente ha dato su tracce ALTRUI (il doc cheer ha per
+    //    id proprio lo uid di chi l'ha dato). Scan collectionGroup: a scala attuale
+    //    (~180 utenti) è economico; se la community cresce molto, denormalizzare
+    //    un elenco "cheersDati" sul profilo evita lo scan completo.
+    let cheersRemoved = 0;
+    try {
+      const cheersSnap = await db.collectionGroup('cheers').get();
+      for (const doc of cheersSnap.docs) {
+        if (doc.id === uid) {
+          await doc.ref.delete().catch(() => {});
+          cheersRemoved++;
+        }
+      }
+    } catch (e) {
+      logger.warn(`[deleteAccount] cheers cleanup fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 7. Sessioni LiveTrack/Lifeline (+ access_tokens annidati).
+    try {
+      const liveSnap = await db.collection('live_sessions').where('userId', '==', uid).get();
+      for (const doc of liveSnap.docs) {
+        await admin.firestore().recursiveDelete(doc.ref);
+      }
+    } catch (e) {
+      logger.warn(`[deleteAccount] live_sessions cleanup fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 8. Rimuove l'utente da follower/following altrui (letto PRIMA di cancellare
+    //    user_profiles/{uid} al passo 11).
+    try {
+      const profileSnap = await profileRef.get();
+      if (profileSnap.exists) {
+        const data = profileSnap.data();
+        const following = data.following || [];
+        const followers = data.followers || [];
+        for (const followedId of following) {
+          await db.collection('user_profiles').doc(followedId)
+            .update({ followers: admin.firestore.FieldValue.arrayRemove(uid) })
+            .catch(() => {});
+        }
+        for (const followerId of followers) {
+          await db.collection('user_profiles').doc(followerId)
+            .update({ following: admin.firestore.FieldValue.arrayRemove(uid) })
+            .catch(() => {});
+        }
+      }
+    } catch (e) {
+      logger.warn(`[deleteAccount] follow lists cleanup fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 9. Storage: foto tracce (tracks/{uid}/**) + avatar (users/{uid}/**).
+    try {
+      const bucket = storage.bucket();
+      await bucket.deleteFiles({ prefix: `tracks/${uid}/` })
+        .catch((e) => logger.warn(`[deleteAccount] storage tracks cleanup uid=${uid}: ${e?.message}`));
+      await bucket.deleteFiles({ prefix: `users/${uid}/` })
+        .catch((e) => logger.warn(`[deleteAccount] storage avatar cleanup uid=${uid}: ${e?.message}`));
+    } catch (e) {
+      logger.warn(`[deleteAccount] storage cleanup fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 10. Cancella RICORSIVAMENTE users/{uid}: tracks + geometry (GPS+HR) +
+    //     integrations (token OAuth) + emergency_contacts (PII di terzi) +
+    //     xp_history + qualsiasi altra sub-collezione presente o futura.
+    await admin.firestore().recursiveDelete(userRef);
+
+    // 11. Profilo pubblico.
+    await profileRef.delete().catch(() => {});
+
+    // 12. Account Firebase Auth — ULTIMO passo, con Admin SDK (nessuna richiesta
+    //     di re-login: l'utente è già autenticato per poter chiamare questa CF).
+    await admin.auth().deleteUser(uid);
+
+    logger.info(
+      `[deleteAccount] Completata uid=${uid}: published=${publishedDeleted} ` +
+      `community=${communityDeleted} cheersRimossi=${cheersRemoved}`
+    );
+    return { ok: true, published: publishedDeleted, community: communityDeleted, cheersRemoved };
+  }
+);
+
 // Import di un esercizio Polar → track TrailShare. Schema identico a
 // importStravaActivity: stats FLAT top-level (durata in SECONDI) e
 // heartRateData con chiavi ms-epoch.
