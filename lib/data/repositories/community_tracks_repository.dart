@@ -537,43 +537,54 @@ class CommunityTracksRepository {
   /// "I sentieri più amati (questo mese)": ordina per cheer ricevuti nel mese
   /// corrente (`cheersThisMonth`, mantenuto dalle Cloud Function con reset lazy),
   /// con fallback all-time (`cheerCount`) per riempire a inizio mese o se
-  /// l'indice composito non è ancora attivo. Resta a `limit` letture.
+  /// l'indice composito non è ancora attivo. Resta a ≤2×`limit` letture.
+  ///
+  /// Le due query girano in PARALLELO: prima erano in serie e il fallback
+  /// serve quasi sempre (inizio mese / pochi cheer) → raddoppiava la
+  /// latenza. La composizione mantiene la priorità mensile e deduplica
+  /// via `seen`.
   Future<List<CommunityTrack>> getPopularTracks({int limit = 10}) async {
     final now = DateTime.now().toUtc();
     final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+    Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> runQuery(
+        Query<Map<String, dynamic>> query, String label) async {
+      try {
+        return (await query.get()).docs;
+      } catch (e) {
+        // Indice composito mancante (pre-deploy) o altro → lista vuota,
+        // ci pensa l'altra query a riempire.
+        debugPrint('[CommunityTracks] getPopularTracks $label fallita: $e');
+        return const [];
+      }
+    }
+
+    final snapshots = await Future.wait([
+      // 1) Più amati DEL MESE corrente.
+      runQuery(
+          _tracksCollection
+              .where('cheersMonthKey', isEqualTo: monthKey)
+              .orderBy('cheersThisMonth', descending: true)
+              .limit(limit),
+          'mensile'),
+      // 2) Fallback all-time (cheerCount) per completare fino a `limit`.
+      // `limit` doc bastano sempre: al più `limit` sono duplicati del
+      // mensile, e in quel caso il mensile ha già riempito il risultato.
+      runQuery(
+          _tracksCollection
+              .orderBy('cheerCount', descending: true)
+              .limit(limit),
+          'all-time'),
+    ]);
+
     final result = <CommunityTrack>[];
     final seen = <String>{};
-
-    // 1) Più amati DEL MESE corrente.
-    try {
-      final monthly = await _tracksCollection
-          .where('cheersMonthKey', isEqualTo: monthKey)
-          .orderBy('cheersThisMonth', descending: true)
-          .limit(limit)
-          .get();
-      for (final doc in monthly.docs) {
+    for (final docs in snapshots) {
+      for (final doc in docs) {
+        if (result.length >= limit) return result;
         final t = _docToTrack(doc);
         if (t != null && seen.add(t.id)) result.add(t);
       }
-    } catch (e) {
-      // Indice composito mancante (pre-deploy) o altro → si va di fallback.
-      debugPrint('[CommunityTracks] getPopularTracks mensile fallita: $e');
-    }
-    if (result.length >= limit) return result;
-
-    // 2) Fallback all-time (cheerCount) per completare fino a `limit`.
-    try {
-      final allTime = await _tracksCollection
-          .orderBy('cheerCount', descending: true)
-          .limit(limit + result.length)
-          .get();
-      for (final doc in allTime.docs) {
-        if (result.length >= limit) break;
-        final t = _docToTrack(doc);
-        if (t != null && seen.add(t.id)) result.add(t);
-      }
-    } catch (e) {
-      debugPrint('[CommunityTracks] getPopularTracks all-time fallita: $e');
     }
     return result;
   }

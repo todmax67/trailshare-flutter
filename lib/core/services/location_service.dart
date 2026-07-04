@@ -271,6 +271,30 @@ class LocationService {
     }
   }
 
+  /// Ultima posizione nota all'OS (istantanea: nessuna attesa di fix GPS).
+  ///
+  /// Serve al pattern "parti subito, raffina dopo": Home/mappe la usano per
+  /// caricare le sezioni geo immediatamente, poi correggono col fix accurato
+  /// di [getCurrentPosition] se l'utente si è spostato. NON mostra prompt
+  /// permessi: se mancano, o l'OS non ha una posizione in cache, torna null
+  /// e ci pensa il percorso accurato.
+  Future<TrackPoint?> getLastKnownPosition() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission != LocationPermission.always &&
+          permission != LocationPermission.whileInUse) {
+        return null;
+      }
+      final position = await Geolocator.getLastKnownPosition();
+      if (position == null) return null;
+      return _positionToTrackPoint(position);
+    } catch (e) {
+      // Es. web: getLastKnownPosition non supportato dal plugin.
+      debugPrint('[LocationService] Errore getLastKnownPosition: $e');
+      return null;
+    }
+  }
+
   /// Avvia tracking continuo con foreground service
   Future<bool> startTracking() async {
     final hasPermission = await checkAndRequestPermission();

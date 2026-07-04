@@ -189,6 +189,23 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         return;
       }
 
+      // Partenza immediata con l'ultima posizione nota (nessuna attesa
+      // del fix GPS, che costava fino a 10s): mappa e Spazi Pro si
+      // popolano subito. Il fix accurato sotto corregge solo se
+      // l'utente risulta spostato oltre ~1 km.
+      LatLng? lastKnown;
+      try {
+        final cached = await Geolocator.getLastKnownPosition();
+        if (cached != null) {
+          if (!mounted) return;
+          lastKnown = LatLng(cached.latitude, cached.longitude);
+          setState(() => _userPosition = lastKnown);
+          _loadNearbyBusinesses();
+        }
+      } catch (_) {
+        // Piattaforma senza cache posizione (es. web): si prosegue col fix.
+      }
+
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.medium,
@@ -197,8 +214,13 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       );
       if (!mounted) return;
 
+      final fix = LatLng(position.latitude, position.longitude);
+      final movedFar = lastKnown == null ||
+          const Distance().as(LengthUnit.Meter, lastKnown, fix) > 1000;
+      if (!movedFar) return; // dati già caricati sulla last-known valgono
+
       setState(() {
-        _userPosition = LatLng(position.latitude, position.longitude);
+        _userPosition = fix;
       });
       // Carica Spazi Pro intorno alla posizione utente (non bloccante).
       _loadNearbyBusinesses();

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -200,24 +202,62 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
 
   Future<void> _loadUserPosition() async {
     setState(() => _isLoadingLocation = true);
-    
+
     try {
       final hasPermission = await LocationService().checkAndRequestPermission();
       if (!hasPermission) {
         setState(() => _isLoadingLocation = false);
         return;
       }
-      
+
+      // Ultima posizione nota: il marker appare subito, senza aspettare
+      // il fix GPS (fino a 10s su Android). Se c'è, questa funzione
+      // ritorna immediatamente e il fix accurato raffina in background
+      // (aggiorna il marker solo se spostati oltre ~1 km).
+      LatLng? lastKnown;
+      try {
+        final cached = await Geolocator.getLastKnownPosition();
+        if (cached != null && mounted) {
+          lastKnown = LatLng(cached.latitude, cached.longitude);
+          setState(() {
+            _userPosition = lastKnown;
+            _isLoadingLocation = false;
+          });
+        }
+      } catch (_) {
+        // Piattaforma senza cache posizione (es. web): si prosegue col fix.
+      }
+
+      if (lastKnown != null) {
+        unawaited(_refineUserPosition(lastKnown));
+        return;
+      }
+      await _refineUserPosition(null);
+    } catch (e) {
+      debugPrint('[InteractiveMap] Errore posizione: $e');
+      if (mounted) {
+        setState(() => _isLoadingLocation = false);
+      }
+    }
+  }
+
+  /// Fix GPS accurato. Con [lastKnown] già a schermo aggiorna il marker
+  /// solo se la posizione reale se ne discosta oltre ~1 km.
+  Future<void> _refineUserPosition(LatLng? lastKnown) async {
+    try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.medium,
           timeLimit: Duration(seconds: 10),
         ),
       );
-      
+
       if (mounted) {
+        final fix = LatLng(position.latitude, position.longitude);
+        final movedFar = lastKnown == null ||
+            const Distance().as(LengthUnit.Meter, lastKnown, fix) > 1000;
         setState(() {
-          _userPosition = LatLng(position.latitude, position.longitude);
+          if (movedFar) _userPosition = fix;
           _isLoadingLocation = false;
         });
       }

@@ -166,6 +166,18 @@ class HomeFeedAggregator {
     return LatLng(tp.latitude, tp.longitude);
   }
 
+  /// Posizione "best effort" ISTANTANEA: l'ultima nota all'OS, senza
+  /// attendere un fix GPS (che su Android al cold start costa ~6s).
+  /// Permette al Bloc di far partire [loadGeo] subito; poi il fix
+  /// accurato di [resolveLocation] rilancia loadGeo solo se l'utente
+  /// risulta spostato oltre ~1 km. Null se manca il permesso o l'OS non
+  /// ha una posizione in cache (primo avvio assoluto).
+  Future<LatLng?> resolveLastKnownLocation() async {
+    final tp = await _locationService.getLastKnownPosition();
+    if (tp == null) return null;
+    return LatLng(tp.latitude, tp.longitude);
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────
 
   /// Esegue [fn], ritornando [fallback] su qualsiasi errore (loggato).

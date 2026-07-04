@@ -44,14 +44,19 @@ class LeaderboardRepository {
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
       final weekStartDate = DateTime(weekStart.year, weekStart.month, weekStart.day);
 
-      // 3. Per ogni utente, calcola stats settimanali
+      // 3. Per ogni utente, calcola stats settimanali — in PARALLELO a
+      // batch di 8. Il loop sequenziale faceva ~24 round-trip Firestore
+      // in fila (23,7s misurati su Android); i batch ammortizzano la
+      // latenza senza saturare il platform channel (i doc tracks hanno i
+      // GPS points embedded, quindi sono pesanti da serializzare).
       final List<LeaderboardEntry> entries = [];
-
-      for (final userId in allUserIds) {
-        final entry = await _calculateUserWeeklyStats(userId, weekStartDate);
-        if (entry != null) {
-          entries.add(entry);
-        }
+      const batchSize = 8;
+      for (var i = 0; i < allUserIds.length; i += batchSize) {
+        final batch = allUserIds.skip(i).take(batchSize);
+        final results = await Future.wait(
+          batch.map((userId) => _calculateUserWeeklyStats(userId, weekStartDate)),
+        );
+        entries.addAll(results.whereType<LeaderboardEntry>());
       }
 
       // 4. Ordina per XP (o distanza)
