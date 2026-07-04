@@ -216,6 +216,43 @@ exports.onTrackCreate = onDocumentCreated("users/{userId}/tracks/{trackId}", asy
         });
     }
 
+    // --- 1.5. Denormalizza stats all-time + mensili (classifiche regionali,
+    // Epic 3.3). PRIMA le scriveva il client (post_track_save_service.dart
+    // _updateMonthlyDenormalizedStats) — ma quel set() toccava chiavi
+    // (monthlyStatsMonthId/monthlyDistanceCurrent/monthlyElevationCurrent/
+    // monthlyTracksCurrent/totalElevation/lastTrackAt) MAI incluse nella
+    // whitelist hasOnly() delle firestore.rules → l'update veniva SEMPRE
+    // respinto silenziosamente (verificato in prod: 1/182 profili con questi
+    // campi, quell'1 è il founder il cui update passa via isSuperAdmin che
+    // bypassa la whitelist). Il monthly regional leaderboard non ha MAI
+    // funzionato per un utente reale — l'indice Firestore c'era già, mancavano
+    // i dati. Spostato qui: stessa fonte di verità delle altre stats (server),
+    // ora scrive davvero.
+    const statsDistance = trackData.distance || 0;
+    const statsElevation = trackData.elevationGain || 0;
+    const nowForStats = new Date();
+    const currentMonthId = `${nowForStats.getFullYear()}-${String(nowForStats.getMonth() + 1).padStart(2, "0")}`;
+
+    await db.runTransaction(async (tx) => {
+        const profileSnap = await tx.get(userProfileRef);
+        const profileData = profileSnap.exists ? profileSnap.data() : {};
+        const sameMonth = profileData.monthlyStatsMonthId === currentMonthId;
+        const prevMonthDist = sameMonth ? (profileData.monthlyDistanceCurrent || 0) : 0;
+        const prevMonthEle = sameMonth ? (profileData.monthlyElevationCurrent || 0) : 0;
+        const prevMonthTracks = sameMonth ? (profileData.monthlyTracksCurrent || 0) : 0;
+
+        tx.set(userProfileRef, {
+            monthlyStatsMonthId: currentMonthId,
+            monthlyDistanceCurrent: prevMonthDist + statsDistance,
+            monthlyElevationCurrent: prevMonthEle + statsElevation,
+            monthlyTracksCurrent: prevMonthTracks + 1,
+            totalDistance: (profileData.totalDistance || 0) + statsDistance,
+            totalElevation: (profileData.totalElevation || 0) + statsElevation,
+            totalTracks: (profileData.totalTracks || 0) + 1,
+            lastTrackAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    });
+
     // --- 2. LOGICA Aggiornamento Progressi Sfide (invariata) ---
     logger.info(`Controllo progressi sfide per l'utente ${userId}...`);
     

@@ -127,13 +127,18 @@ service cloud.firestore {
         (isOwner(userId) &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['bio', 'username', 'avatarUrl', 'wishlist',
-                      'totalTracks', 'totalDistance', 'totalElevationGain', 'earnedBadges',
                       'fcmTokens', 'following', 'email', 'createdAt', 'lastActive',
                       'socialFeaturingOptIn',
                       'region', 'regionSetAt',
                       // Gamification: XP / level / data ultimo grant.
-                      // Scritti dal client GamificationService.grantXp
-                      // dopo ogni track save / cheer / follow / ecc.
+                      // Scritti dal client GamificationService.grantXp per le
+                      // sfide settimanali + il tool di recompute (badges_page).
+                      // ⚠️ Residuo noto: questi 3 campi restano client-scrivibili
+                      // (valore non validato) — chiusura completa richiede
+                      // spostare anche il grant delle sfide settimanali lato
+                      // server. totalTracks/totalDistance/totalElevationGain/
+                      // earnedBadges RIMOSSI: ora SOLO server (Admin SDK,
+                      // Cloud Function onTrackCreate — bypassa questa whitelist).
                       'xp', 'level', 'lastXpGrant']))
         ||
         (isSignedIn() && !isOwner(userId) &&
