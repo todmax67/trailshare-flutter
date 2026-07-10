@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/health_service.dart';
 import '../../../core/services/polar_service.dart';
+import '../../../core/services/suunto_service.dart';
 import '../../../core/services/strava_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../settings/health_dashboard_page.dart';
@@ -25,6 +26,7 @@ class DevicesSyncPage extends StatefulWidget {
 class _DevicesSyncPageState extends State<DevicesSyncPage> {
   final _strava = StravaService();
   final _polar = PolarService();
+  final _suunto = SuuntoService();
   bool _healthSync = false;
   bool _busyHealth = false;
   bool _autoUpload = false;
@@ -229,6 +231,81 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
                               if (!ok && context.mounted) {
                                 AppSnackBar.info(
                                     context, 'Impossibile aprire Polar Flow');
+                              }
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          // ── Suunto ────────────────────────────────────────────────
+          StreamBuilder<bool>(
+            stream: _suunto.connectedStream(),
+            builder: (context, snap) {
+              final connected = snap.data ?? false;
+              return _card(
+                icon: Icons.watch,
+                color: const Color(0xFF1B1B1B),
+                title: 'Suunto',
+                badge: connected ? 'Connesso' : null,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      connected
+                          ? 'Collegato a Suunto: gli allenamenti con GPS '
+                              '(e battito) arrivano qui automaticamente appena '
+                              'l\'orologio sincronizza con l\'app Suunto.'
+                          : 'Collega il tuo account Suunto: gli allenamenti '
+                              'con GPS e battito arrivano in TrailShare '
+                              'automaticamente, senza esportare nulla.',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: connected
+                        ? Wrap(
+                            spacing: 8,
+                            children: [
+                              TextButton.icon(
+                                icon: const Icon(Icons.download, size: 18),
+                                label: const Text('Importa recenti'),
+                                onPressed: () async {
+                                  AppSnackBar.info(
+                                      context, 'Import in corso…');
+                                  final n = await _suunto.importRecent();
+                                  if (!context.mounted) return;
+                                  AppSnackBar.info(
+                                      context,
+                                      n < 0
+                                          ? 'Import non riuscito'
+                                          : 'Importati $n allenamenti');
+                                },
+                              ),
+                              TextButton.icon(
+                                icon: const Icon(Icons.link_off, size: 18),
+                                label: const Text('Disconnetti'),
+                                onPressed: () async {
+                                  final ok = await _suunto.disconnect();
+                                  if (!ok && context.mounted) {
+                                    AppSnackBar.info(
+                                        context, 'Disconnessione non riuscita');
+                                  }
+                                },
+                              ),
+                            ],
+                          )
+                        : FilledButton.tonalIcon(
+                            icon: const Icon(Icons.link, size: 18),
+                            label: const Text('Collega Suunto'),
+                            onPressed: () async {
+                              final ok = await _suunto.connect();
+                              if (!ok && context.mounted) {
+                                AppSnackBar.info(
+                                    context, 'Impossibile aprire Suunto');
                               }
                             },
                           ),

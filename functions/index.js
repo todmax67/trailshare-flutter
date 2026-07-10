@@ -6415,6 +6415,14 @@ const polarClientId = defineSecret('POLAR_CLIENT_ID');
 const polarClientSecret = defineSecret('POLAR_CLIENT_SECRET');
 const polarWebhookSignatureSecret = defineSecret('POLAR_WEBHOOK_SIGNATURE_SECRET');
 
+// Secrets Suunto dichiarati QUI (prima di deleteMyAccount che li usa per la
+// revoca OAuth) — la sezione Suunto vera e propria è più sotto.
+const suuntoClientId = defineSecret('SUUNTO_CLIENT_ID');
+const suuntoClientSecret = defineSecret('SUUNTO_CLIENT_SECRET');
+const suuntoSubscriptionKey = defineSecret('SUUNTO_SUBSCRIPTION_KEY');
+const suuntoWebhookToken = defineSecret('SUUNTO_WEBHOOK_TOKEN');
+const suuntoWebhookSecret = defineSecret('SUUNTO_WEBHOOK_SECRET');
+
 const POLAR_AUTH_URL = 'https://flow.polar.com/oauth2/authorization';
 const POLAR_TOKEN_URL = 'https://polarremote.com/v2/oauth2/token';
 const POLAR_API_BASE = 'https://www.polaraccesslink.com/v3';
@@ -6608,7 +6616,7 @@ exports.polarDisconnect = onCall(
 exports.deleteMyAccount = onCall(
   {
     region: 'europe-west3',
-    secrets: [stravaClientId, stravaClientSecret, polarClientId, polarClientSecret],
+    secrets: [stravaClientId, stravaClientSecret, polarClientId, polarClientSecret, suuntoClientId],
     timeoutSeconds: 300,
   },
   async (request) => {
@@ -6657,6 +6665,27 @@ exports.deleteMyAccount = onCall(
       }
     } catch (e) {
       logger.warn(`[deleteAccount] polar check fallita uid=${uid}: ${e?.message}`);
+    }
+
+    // 2-bis. Revoca OAuth Suunto (stesso pattern di suuntoDisconnect).
+    try {
+      const suuntoSnap = await userRef.collection('integrations').doc('suunto').get();
+      if (suuntoSnap.exists) {
+        const d = suuntoSnap.data();
+        try {
+          await axios.get('https://cloudapi-oauth.suunto.com/oauth/deauthorize', {
+            params: { client_id: suuntoClientId.value() },
+            headers: { Authorization: `Bearer ${d.accessToken}` },
+          });
+        } catch (e) {
+          logger.warn(`[deleteAccount] suunto deauthorize fallita uid=${uid}: ${e?.response?.status}`);
+        }
+        if (d.suuntoUsername) {
+          await db.collection('suunto_user_map').doc(String(d.suuntoUsername)).delete().catch(() => {});
+        }
+      }
+    } catch (e) {
+      logger.warn(`[deleteAccount] suunto check fallita uid=${uid}: ${e?.message}`);
     }
 
     // 3. Pairing Garmin: il token vive su users/{uid}.garminPairingToken, va letto
@@ -6972,5 +7001,433 @@ exports.polarSubscribeWebhook = onCall(
       logger.error('[polar] subscribe error', e?.response?.data || e?.message);
       throw new Error(`subscribe failed: ${e?.response?.status}`);
     }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUUNTO CLOUD API — sync automatico allenamenti (GPS + battito)
+// ═══════════════════════════════════════════════════════════════════════════
+// Clone dell'integrazione Polar, con 3 differenze:
+//  - i token scadono in 24h → refresh automatico (suuntoValidToken);
+//  - export FIT binario (parser @garmin/fitsdk) invece di TCX;
+//  - ogni chiamata API richiede l'header Ocp-Apim-Subscription-Key.
+// Flusso: suuntoAuthStart → OAuth Suunto → suuntoCallback (token + mapping
+// suunto_user_map/{username}) → webhook nuovo workout → import FIT → track.
+// Setup (founder): apizone.suunto.com → app OAuth con redirect=suuntoCallback
+// e notification URL=suuntoWebhook (+ token/secret notifica).
+// NB: le defineSecret SUUNTO_* sono dichiarate sopra, accanto a quelle Polar
+// (deleteMyAccount le referenzia e viene valutato prima di questa sezione).
+const SUUNTO_AUTH_URL = 'https://cloudapi-oauth.suunto.com/oauth/authorize';
+const SUUNTO_TOKEN_URL = 'https://cloudapi-oauth.suunto.com/oauth/token';
+const SUUNTO_API_BASE = 'https://cloudapi.suunto.com/v2';
+const SUUNTO_CALLBACK_URL =
+  'https://europe-west3-trailshare-5334b.cloudfunctions.net/suuntoCallback';
+const SUUNTO_SECRETS = [suuntoClientId, suuntoClientSecret, suuntoSubscriptionKey];
+
+function suuntoBasicAuthHeader() {
+  const raw = `${suuntoClientId.value()}:${suuntoClientSecret.value()}`;
+  return `Basic ${Buffer.from(raw).toString('base64')}`;
+}
+
+function suuntoApiHeaders(accessToken) {
+  return {
+    'Authorization': `Bearer ${accessToken}`,
+    'Ocp-Apim-Subscription-Key': suuntoSubscriptionKey.value(),
+  };
+}
+
+// Sport FIT (stringhe @garmin/fitsdk) → activityType TrailShare.
+function suuntoMapActivity(sport, subSport) {
+  const s = String(sport || '').toLowerCase();
+  const sub = String(subSport || '').toLowerCase();
+  if (s === 'running') return sub.includes('trail') ? 'trailRunning' : 'running';
+  if (s === 'cycling') {
+    if (sub.includes('mountain')) return 'mountainBiking';
+    if (sub.includes('gravel')) return 'gravelBiking';
+    if (sub.includes('ebike') || sub.includes('e_bike')) return 'eBike';
+    return 'cycling';
+  }
+  if (s === 'hiking' || s === 'mountaineering') return 'trekking';
+  if (s === 'walking') return 'walking';
+  if (s === 'crosscountryskiing') return 'nordicSkiing';
+  if (s === 'alpineskiing') return 'alpineSkiing';
+  if (s === 'snowboarding') return 'snowboarding';
+  if (s === 'snowshoeing') return 'snowshoeing';
+  if (s.includes('backcountry') || sub.includes('skitouring')) return 'skiTouring';
+  return 'trekking';
+}
+
+// Decodifica un buffer FIT → { points, heartRateData, session }.
+// points nello stesso formato del parser TCX Polar (lat/lng/ele/time/speed).
+function parseFitBuffer(buf) {
+  const { Decoder, Stream } = require('@garmin/fitsdk');
+  const stream = Stream.fromBuffer(buf);
+  const decoder = new Decoder(stream);
+  if (!decoder.isFIT()) throw new Error('not_a_fit_file');
+  const { messages, errors } = decoder.read();
+  if (errors?.length) {
+    logger.warn(`[suuntoImport] FIT decode con ${errors.length} warning (proseguo)`);
+  }
+  const SEMI = 180 / 2 ** 31; // semicircles → gradi
+  const points = [];
+  const heartRateData = {};
+  for (const r of messages.recordMesgs || []) {
+    const lat = r.positionLat; const lon = r.positionLong;
+    const ts = r.timestamp instanceof Date ? r.timestamp.getTime() : null;
+    if (lat == null || lon == null || ts == null) continue;
+    const ele = r.enhancedAltitude ?? r.altitude ?? null;
+    const spd = r.enhancedSpeed ?? r.speed ?? null;
+    points.push({
+      lat: lat * SEMI,
+      lng: lon * SEMI,
+      ele: ele != null ? Number(ele) : null,
+      time: new Date(ts).toISOString(),
+      speed: spd != null ? Number(spd) : null,
+    });
+    const bpm = Number(r.heartRate);
+    if (bpm > 30 && bpm < 250) heartRateData[String(ts)] = Math.round(bpm);
+  }
+  const session = (messages.sessionMesgs || [])[0] || {};
+  return { points, heartRateData, session };
+}
+
+// Ritorna un access token valido, rinfrescandolo se scaduto/in scadenza.
+// I refresh token Suunto RUOTANO: il nuovo va sempre salvato.
+async function suuntoValidToken(uid, integration) {
+  const expMs = Number(integration.expiresAtMs) || 0;
+  if (integration.accessToken && Date.now() < expMs - 60000) {
+    return integration.accessToken;
+  }
+  if (!integration.refreshToken) throw new Error('missing_refresh_token');
+  const resp = await axios.post(
+    SUUNTO_TOKEN_URL,
+    new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: integration.refreshToken,
+    }).toString(),
+    {
+      headers: {
+        'Authorization': suuntoBasicAuthHeader(),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    },
+  );
+  const t = resp.data || {};
+  if (!t.access_token) throw new Error('refresh_failed');
+  const update = {
+    accessToken: t.access_token,
+    expiresAtMs: Date.now() + (Number(t.expires_in) || 86400) * 1000,
+  };
+  if (t.refresh_token) update.refreshToken = t.refresh_token;
+  await db.collection('users').doc(uid).collection('integrations').doc('suunto')
+    .set(update, { merge: true });
+  logger.info(`[suunto] token rinfrescato uid=${uid}`);
+  return t.access_token;
+}
+
+// Entry point OAuth: l'app apre questa URL con state=uid.
+exports.suuntoAuthStart = onRequest(
+  { secrets: [suuntoClientId], cors: false },
+  async (req, res) => {
+    const state = String(req.query.state || '');
+    if (!state) return res.status(400).send('missing state');
+    const url = `${SUUNTO_AUTH_URL}?response_type=code` +
+      `&client_id=${encodeURIComponent(suuntoClientId.value())}` +
+      `&redirect_uri=${encodeURIComponent(SUUNTO_CALLBACK_URL)}` +
+      `&state=${encodeURIComponent(state)}`;
+    return res.redirect(302, url);
+  }
+);
+
+exports.suuntoCallback = onRequest(
+  { secrets: [suuntoClientId, suuntoClientSecret], cors: false },
+  async (req, res) => {
+    const { code, state, error: suuntoError } = req.query;
+    const redirectOk = 'trailshare://suunto/connected';
+    const redirectErr = (msg) => `trailshare://suunto/error?msg=${encodeURIComponent(msg || 'unknown')}`;
+
+    if (suuntoError) {
+      logger.warn(`[suunto] OAuth denied: ${suuntoError}`);
+      return res.redirect(302, redirectErr(String(suuntoError)));
+    }
+    if (!code || !state) return res.redirect(302, redirectErr('missing_params'));
+    const uid = String(state);
+
+    try {
+      const tokenResp = await axios.post(
+        SUUNTO_TOKEN_URL,
+        new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: String(code),
+          redirect_uri: SUUNTO_CALLBACK_URL,
+        }).toString(),
+        {
+          headers: {
+            'Authorization': suuntoBasicAuthHeader(),
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+      const t = tokenResp.data || {};
+      if (!t.access_token) {
+        logger.error('[suunto] token response incompleta', t);
+        return res.redirect(302, redirectErr('no_tokens'));
+      }
+      // `user` = username Suunto: è la chiave che arriva nel webhook.
+      const suuntoUsername = String(t.user || '');
+
+      await db.collection('users').doc(uid).collection('integrations').doc('suunto').set({
+        suuntoUsername,
+        accessToken: t.access_token,
+        refreshToken: t.refresh_token || null,
+        expiresAtMs: Date.now() + (Number(t.expires_in) || 86400) * 1000,
+        importEnabled: true,
+        connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      if (suuntoUsername) {
+        await db.collection('suunto_user_map').doc(suuntoUsername).set({
+          uid,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        logger.warn(`[suunto] username assente nella token response uid=${uid} — webhook non mappabile`);
+      }
+
+      logger.info(`[suunto] connected uid=${uid} user=${suuntoUsername}`);
+      return res.redirect(302, redirectOk);
+    } catch (e) {
+      logger.error('[suunto] callback error', e?.response?.data || e?.message);
+      return res.redirect(302, redirectErr('exchange_failed'));
+    }
+  }
+);
+
+exports.suuntoDisconnect = onCall(
+  { region: 'europe-west3', secrets: [suuntoClientId, suuntoClientSecret] },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error('unauthenticated');
+    const ref = db.collection('users').doc(uid).collection('integrations').doc('suunto');
+    const snap = await ref.get();
+    if (snap.exists) {
+      const d = snap.data();
+      // Best effort: revoca il consenso lato Suunto.
+      try {
+        await axios.get('https://cloudapi-oauth.suunto.com/oauth/deauthorize', {
+          params: { client_id: suuntoClientId.value() },
+          headers: { 'Authorization': `Bearer ${d.accessToken}` },
+        });
+      } catch (e) {
+        logger.warn(`[suunto] deauthorize fallita uid=${uid}: ${e?.response?.status}`);
+      }
+      if (d.suuntoUsername) {
+        await db.collection('suunto_user_map').doc(String(d.suuntoUsername)).delete().catch(() => {});
+      }
+      await ref.delete();
+    }
+    logger.info(`[suunto] disconnected uid=${uid}`);
+    return { ok: true };
+  }
+);
+
+// Import di un workout Suunto → track TrailShare. Schema identico a
+// importPolarExercise: stats FLAT top-level (durata in SECONDI) e
+// heartRateData con chiavi ms-epoch.
+async function importSuuntoWorkout(uid, workoutId, integration) {
+  const accessToken = await suuntoValidToken(uid, integration);
+
+  // Già importato?
+  const existing = await db.collection('users').doc(uid).collection('tracks')
+    .where('suuntoWorkoutId', '==', String(workoutId)).limit(1).get();
+  if (!existing.empty) {
+    logger.info(`[suuntoImport] already imported workout=${workoutId}`);
+    return { skipped: 'already_imported' };
+  }
+
+  // 1) Summary (per stats ufficiali; tollerante ai nomi campo).
+  let summary = {};
+  try {
+    const meta = await axios.get(`${SUUNTO_API_BASE}/workouts/${workoutId}`, {
+      headers: suuntoApiHeaders(accessToken),
+    });
+    summary = meta.data?.payload || meta.data || {};
+  } catch (e) {
+    logger.warn(`[suuntoImport] summary non disponibile workout=${workoutId}: ${e?.response?.status}`);
+  }
+
+  // 2) FIT (GPS + HR). Può arrivare gzippato.
+  const fitResp = await axios.get(`${SUUNTO_API_BASE}/workout/exportFit/${workoutId}`, {
+    headers: suuntoApiHeaders(accessToken),
+    responseType: 'arraybuffer',
+  });
+  let buf = Buffer.from(fitResp.data);
+  if (buf.length > 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
+    buf = require('zlib').gunzipSync(buf);
+  }
+  const { points, heartRateData, session } = parseFitBuffer(buf);
+  if (points.length === 0) {
+    logger.info(`[suuntoImport] skip no_gps workout=${workoutId}`);
+    return { skipped: 'no_gps' };
+  }
+
+  // 3) Stats: summary/session dove disponibili, fallback dai punti (soglia 3m).
+  let elevationGain = 0; let elevationLoss = 0;
+  let maxElevation = -Infinity; let minElevation = Infinity;
+  let lastEle = null;
+  for (const p of points) {
+    if (p.ele == null) continue;
+    if (p.ele > maxElevation) maxElevation = p.ele;
+    if (p.ele < minElevation) minElevation = p.ele;
+    if (lastEle != null) {
+      const diff = p.ele - lastEle;
+      if (diff > 3) { elevationGain += diff; lastEle = p.ele; }
+      else if (diff < -3) { elevationLoss += -diff; lastEle = p.ele; }
+    } else {
+      lastEle = p.ele;
+    }
+  }
+  if (maxElevation === -Infinity) maxElevation = 0;
+  if (minElevation === Infinity) minElevation = 0;
+
+  const distance = Number(summary.totalDistance) ||
+    Number(session.totalDistance) || 0;
+  const durationSec = Math.round(
+    Number(summary.totalTime) ||
+    Number(session.totalTimerTime) ||
+    Number(session.totalElapsedTime) ||
+    (new Date(points[points.length - 1].time).getTime() - new Date(points[0].time).getTime()) / 1000
+  );
+  const ascent = Number(summary.totalAscent) || Number(session.totalAscent) || Math.round(elevationGain);
+  const descent = Number(summary.totalDescent) || Number(session.totalDescent) || Math.round(elevationLoss);
+  const startMs = Number(summary.startTime) ||
+    (session.startTime instanceof Date ? session.startTime.getTime() : null) ||
+    new Date(points[0].time).getTime();
+  const startDate = new Date(startMs);
+
+  const activityType = suuntoMapActivity(session.sport, session.subSport);
+  const sportPretty = String(session.sport || 'workout').replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+
+  const track = {
+    userId: uid,
+    name: `Suunto ${sportPretty}`,
+    description: 'Importata da Suunto',
+    activityType: activityType,
+    points: points,
+    createdAt: admin.firestore.Timestamp.fromDate(startDate),
+    isPublic: false,
+    isPlanned: false,
+    photos: [],
+    groupIds: [],
+    // Stats flat (schema app: durata in secondi)
+    distance: distance,
+    elevationGain: ascent,
+    elevationLoss: descent,
+    maxElevation: maxElevation,
+    minElevation: minElevation,
+    duration: durationSec,
+    movingTime: durationSec,
+    avgSpeed: durationSec > 0 ? (distance / 1000) / (durationSec / 3600) : 0,
+    maxSpeed: Number(summary.maxSpeed) || Number(session.maxSpeed) || 0,
+    heartRateData: Object.keys(heartRateData).length > 0 ? heartRateData : null,
+    healthCalories: Number(summary.energyConsumption) || null,
+    // Suunto metadata
+    importedFromSuunto: true,
+    suuntoWorkoutId: String(workoutId),
+  };
+
+  const ref = await db.collection('users').doc(uid).collection('tracks').add(track);
+  logger.info(`[suuntoImport] imported workout=${workoutId} → track=${ref.id} uid=${uid} (${points.length} pts, HR ${Object.keys(heartRateData).length})`);
+  return { imported: true, trackId: ref.id };
+}
+
+exports.suuntoWebhook = onRequest(
+  {
+    secrets: [...SUUNTO_SECRETS, suuntoWebhookToken, suuntoWebhookSecret],
+    cors: false,
+    timeoutSeconds: 120,
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+
+    // Verifica credenziali notifica (configurate nell'app OAuth su API Zone).
+    // Tolleriamo sia Bearer <token> sia Basic base64(token:secret).
+    const expectedToken = suuntoWebhookToken.value();
+    const authHeader = String(req.get('Authorization') || '');
+    if (expectedToken && expectedToken !== 'pending') {
+      const basicOk = authHeader ===
+        `Basic ${Buffer.from(`${expectedToken}:${suuntoWebhookSecret.value()}`).toString('base64')}`;
+      const bearerOk = authHeader.includes(expectedToken);
+      if (!basicOk && !bearerOk) {
+        logger.warn(`[suuntoWebhook] credenziali notifica non valide (scheme=${authHeader.split(' ')[0] || 'none'})`);
+        return res.status(403).send('invalid credentials');
+      }
+    }
+
+    const event = req.body || {};
+    const username = String(event.username || '');
+    const workoutId = String(event.workoutid || event.workoutId || '');
+    logger.info(`[suuntoWebhook] user=${username} workout=${workoutId}`);
+
+    // Rispondi subito, importa async.
+    res.status(200).send('OK');
+    if (!username || !workoutId) return;
+
+    try {
+      const mapSnap = await db.collection('suunto_user_map').doc(username).get();
+      if (!mapSnap.exists) {
+        logger.info(`[suuntoWebhook] nessun utente per suuntoUser=${username}`);
+        return;
+      }
+      const uid = mapSnap.data().uid;
+      const intSnap = await db.collection('users').doc(uid).collection('integrations').doc('suunto').get();
+      if (!intSnap.exists) {
+        logger.info(`[suuntoWebhook] integrazione mancante uid=${uid}`);
+        return;
+      }
+      const integration = intSnap.data();
+      if (integration.importEnabled === false) {
+        logger.info(`[suuntoWebhook] import disabilitato uid=${uid}`);
+        return;
+      }
+      await importSuuntoWorkout(uid, workoutId, integration);
+    } catch (e) {
+      logger.error(`[suuntoWebhook] import error workout=${workoutId}: ${e?.message}`, e?.response?.data);
+    }
+  }
+);
+
+// Import manuale degli ultimi N workout (test sandbox + recupero storico).
+// Stesso ruolo di stravaImportRecent: chiamabile dall'utente per i PROPRI dati.
+exports.suuntoImportRecent = onCall(
+  { region: 'europe-west3', secrets: SUUNTO_SECRETS, timeoutSeconds: 300 },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error('unauthenticated');
+    const intSnap = await db.collection('users').doc(uid).collection('integrations').doc('suunto').get();
+    if (!intSnap.exists) throw new Error('not_connected');
+    const integration = intSnap.data();
+
+    const limit = Math.min(Number(request.data?.limit) || 10, 30);
+    const accessToken = await suuntoValidToken(uid, integration);
+    const listResp = await axios.get(`${SUUNTO_API_BASE}/workouts`, {
+      headers: suuntoApiHeaders(accessToken),
+      params: { limit },
+    });
+    const items = listResp.data?.payload || listResp.data?.workouts || [];
+    let imported = 0; let skipped = 0; const errors = [];
+    for (const w of items) {
+      const key = w.workoutKey || w.workoutId || w.key;
+      if (!key) continue;
+      try {
+        const r = await importSuuntoWorkout(uid, key, integration);
+        if (r.imported) imported++; else skipped++;
+      } catch (e) {
+        errors.push(`${key}: ${e?.message}`);
+        logger.warn(`[suuntoImportRecent] errore workout=${key}: ${e?.message}`);
+      }
+    }
+    logger.info(`[suuntoImportRecent] uid=${uid} imported=${imported} skipped=${skipped} errors=${errors.length}`);
+    return { imported, skipped, errors, total: items.length };
   }
 );
