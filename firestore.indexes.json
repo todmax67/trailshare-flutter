@@ -4,8 +4,14 @@
       "collectionGroup": "published_tracks",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "cheersMonthKey", "order": "ASCENDING" },
-        { "fieldPath": "cheersThisMonth", "order": "DESCENDING" }
+        {
+          "fieldPath": "cheersMonthKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cheersThisMonth",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
@@ -557,6 +563,40 @@
         {
           "fieldPath": "__name__",
           "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tracks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "distance",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "elevationGain",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "tracks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isPlanned",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "distance",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "elevationGain",
+          "order": "ASCENDING"
         }
       ],
       "density": "SPARSE_ALL"
