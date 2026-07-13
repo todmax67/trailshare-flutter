@@ -487,6 +487,12 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
   }
 
   Future<void> _checkForBackup() async {
+    // Se una registrazione è GIÀ viva (in questa o in un'altra istanza di
+    // RecordPage), il backup su disco è il salvataggio incrementale di
+    // QUELLA sessione: proporre "Recupera" creerebbe una seconda sessione
+    // parallela, e "Elimina" cancellerebbe il backup vivo.
+    if (!RecordingStatusService().isIdle) return;
+
     final hasBackup = await _persistence.hasBackup();
     if (!hasBackup) return;
     
@@ -925,7 +931,6 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       final trackToSave = track.copyWith(name: '$activityName ${now.day}/${now.month}/${now.year} ${context.l10n.autoSaved}');
       
       await _repository.saveTrack(trackToSave);
-      await _trackingBloc.stopForegroundService();
       await _persistence.clearState();
       await LiveTrackService().stop();
       _photos.clear();
@@ -2047,7 +2052,6 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     final state = _trackingBloc.state;
     if (state.points.isEmpty) {
       await _trackingBloc.cancelRecording();
-      await _trackingBloc.stopForegroundService();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.noPointsRecorded)));
       return;
     }
@@ -2225,7 +2229,6 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         }
       }();
       
-      await _trackingBloc.stopForegroundService();
       await _persistence.clearState();
       await LiveTrackService().stop();
       _photos.clear();
@@ -2268,6 +2271,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     switch (code) {
       case 'gps_access_error': return context.l10n.gpsAccessError;
       case 'gps_resume_error': return context.l10n.gpsResumeError;
+      case 'recording_already_active':
+        return 'C\'è già una registrazione in corso: aprila dalla tab Registra';
       default: return code;
     }
   }

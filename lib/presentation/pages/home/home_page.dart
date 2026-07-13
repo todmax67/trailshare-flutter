@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/services/recording_persistence_service.dart';
 import '../../../core/services/recording_status_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../community/community_page.dart';
@@ -54,6 +55,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _jumpToRecoveryIfNeeded();
     _garminSub = GarminSyncService().syncEvents.listen((event) {
       if (!mounted) return;
       switch (event.type) {
@@ -77,6 +79,26 @@ class _HomePageState extends State<HomePage> {
           break;
       }
     });
+  }
+
+  /// Recovery VISIBILE dopo un kill: se all'avvio esiste un backup di
+  /// registrazione fresco (app uccisa mentre registrava) e nessuna
+  /// registrazione è viva, salta direttamente alla tab Registra — lì
+  /// `_checkForBackup` mostra il dialog Recupera/Elimina. Senza questo,
+  /// dopo un kill l'app si apre in Home e la registrazione sembra sparita
+  /// (bug di campo: "da icona non registra, da notifica sì").
+  /// Stessi criteri di freschezza di _checkForBackup (punti > 0, età ≤24h).
+  Future<void> _jumpToRecoveryIfNeeded() async {
+    try {
+      if (!RecordingStatusService().isIdle) return;
+      final backup = await RecordingPersistenceService.instance.loadState();
+      if (backup == null || backup.points.isEmpty) return;
+      if (DateTime.now().difference(backup.lastSaveTime).inHours > 24) return;
+      if (!mounted) return;
+      setState(() => _currentIndex = 2);
+    } catch (e) {
+      debugPrint('[HomePage] recovery check fallito: $e');
+    }
   }
 
   @override

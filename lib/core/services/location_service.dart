@@ -1,15 +1,23 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../../data/models/track.dart' hide ActivityType;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Servizio per il tracking GPS con supporto background
-/// 
-/// Usa flutter_foreground_task per mantenere il GPS attivo
-/// anche quando l'app è in background o lo schermo è bloccato.
+/// Servizio per il tracking GPS con supporto background.
+///
+/// Il background su Android è garantito dal foreground service INTERNO di
+/// geolocator (ForegroundNotificationConfig nelle AndroidSettings, notifica
+/// persistente inclusa); su iOS da AppleSettings.allowBackgroundLocationUpdates.
+///
+/// NOTA STORICA (Fase B audit 2026-07-13): qui c'era anche un secondo
+/// service flutter_foreground_task, ma la sua init() era stata rimossa da
+/// main.dart a feb 2026 (commit 6f6d525) e non partiva più: startService
+/// falliva in silenzio e tutte le chiamate erano no-op. L'app ha sempre
+/// funzionato col solo service di geolocator → macchinario FFT rimosso.
+/// Il pacchetto flutter_foreground_task resta in pubspec SOLO per le API
+/// di battery optimization usate in record_page.
 class LocationService {
   StreamSubscription<Position>? _positionSubscription;
   final _positionController = StreamController<TrackPoint>.broadcast();
@@ -85,30 +93,6 @@ class LocationService {
         },
       );
     }
-  }
-
-  /// Inizializza il servizio (chiamare una volta all'avvio app)
-  static Future<void> initialize() async {
-    FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'trailshare_tracking',
-        channelName: 'TrailShare GPS',
-        channelDescription: 'Registrazione percorso in corso',
-        channelImportance: NotificationChannelImportance.LOW,
-        priority: NotificationPriority.LOW,
-      ),
-      iosNotificationOptions: const IOSNotificationOptions(
-        showNotification: true,
-        playSound: false,
-      ),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(5000),
-        autoRunOnBoot: false,
-        allowWakeLock: true,
-        allowWifiLock: true,
-      ),
-    );
-    debugPrint('[LocationService] Inizializzato');
   }
 
   /// Verifica e richiede permessi con Prominent Disclosure
@@ -295,16 +279,14 @@ class LocationService {
     }
   }
 
-  /// Avvia tracking continuo con foreground service
+  /// Avvia tracking continuo (il foreground service di geolocator parte
+  /// insieme allo stream, via ForegroundNotificationConfig nelle settings)
   Future<bool> startTracking() async {
     final hasPermission = await checkAndRequestPermission();
     if (!hasPermission) return false;
 
     // Ferma eventuale tracking precedente
     await stopTracking();
-
-    // Avvia foreground service per background tracking
-    await _startForegroundService();
 
     // Avvia stream posizioni
     _positionSubscription = Geolocator.getPositionStream(
@@ -329,40 +311,24 @@ class LocationService {
   Future<void> stopTracking() async {
     await _positionSubscription?.cancel();
     _positionSubscription = null;
-    
-    // Ferma foreground service
-    await stopForegroundService();
-    
     _isTracking = false;
     debugPrint('[LocationService] Tracking fermato');
   }
 
-  // NUOVO: Ferma solo lo stream GPS, senza toccare il foreground service.
-  // Usato durante il salvataggio per evitare il flash nero causato
-  // dalla distruzione del secondo Flutter engine.
-  Future<void> stopTrackingKeepService() async {
-    await _positionSubscription?.cancel();
-    _positionSubscription = null;
-    _isTracking = false;
-    debugPrint('[LocationService] Tracking fermato (service attivo)');
-  }
+  // Alias storico di [stopTracking]: quando esisteva il secondo service
+  // FFT, questo fermava solo lo stream. Oggi il service di geolocator
+  // vive e muore con lo stream, quindi le due funzioni coincidono.
+  Future<void> stopTrackingKeepService() => stopTracking();
 
   /// Pausa tracking
   Future<void> pauseTracking() async {
     await _positionSubscription?.cancel();
     _positionSubscription = null;
-    
-    // Aggiorna notifica
-    await _updateNotification('In pausa');
-    
     debugPrint('[LocationService] Tracking in pausa');
   }
 
   /// Riprendi tracking
   Future<bool> resumeTracking() async {
-    // Aggiorna notifica
-    await _updateNotification('Registrazione in corso...');
-    
     // Riavvia stream
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: _trackingSettings,
@@ -375,47 +341,9 @@ class LocationService {
         debugPrint('[LocationService] Errore stream: $error');
       },
     );
-    
+
     debugPrint('[LocationService] Tracking ripreso');
     return true;
-  }
-
-  /// Aggiorna testo notifica (es. con distanza/tempo)
-  Future<void> updateNotificationText(String text) async {
-    await _updateNotification(text);
-  }
-
-  /// Avvia foreground service
-  Future<void> _startForegroundService() async {
-    if (await FlutterForegroundTask.isRunningService) {
-      debugPrint('[LocationService] Foreground service già attivo');
-      return;
-    }
-
-    await FlutterForegroundTask.startService(
-      notificationTitle: 'TrailShare',
-      notificationText: 'Registrazione in corso...',
-      callback: _foregroundTaskCallback,
-    );
-    debugPrint('[LocationService] Foreground service avviato');
-  }
-
-  /// Ferma foreground service
-  Future<void> stopForegroundService() async {
-    if (await FlutterForegroundTask.isRunningService) {
-      await FlutterForegroundTask.stopService();
-      debugPrint('[LocationService] Foreground service fermato');
-    }
-  }
-
-  /// Aggiorna notifica
-  Future<void> _updateNotification(String text) async {
-    if (await FlutterForegroundTask.isRunningService) {
-      await FlutterForegroundTask.updateService(
-        notificationTitle: 'TrailShare',
-        notificationText: text,
-      );
-    }
   }
 
   /// Converte Position di Geolocator in TrackPoint
@@ -435,36 +363,5 @@ class LocationService {
   Future<void> dispose() async {
     _positionSubscription?.cancel();
     _positionController.close();
-    await stopForegroundService();
-  }
-}
-
-// Callback per il foreground task (deve essere top-level function)
-@pragma('vm:entry-point')
-void _foregroundTaskCallback() {
-  FlutterForegroundTask.setTaskHandler(_LocationTaskHandler());
-}
-
-/// Handler per il foreground task (API v9.x)
-class _LocationTaskHandler extends TaskHandler {
-  @override
-  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    debugPrint('[ForegroundTask] Avviato');
-  }
-
-  @override
-  void onRepeatEvent(DateTime timestamp) {
-    // Keep-alive - viene chiamato ogni 5 secondi
-  }
-
-  @override
-  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
-    debugPrint('[ForegroundTask] Fermato (timeout: $isTimeout)');
-  }
-
-  @override
-  void onNotificationPressed() {
-    // L'utente ha toccato la notifica - torna all'app
-    FlutterForegroundTask.launchApp();
   }
 }

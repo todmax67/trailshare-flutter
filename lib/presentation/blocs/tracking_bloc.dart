@@ -4,6 +4,7 @@ import '../../data/models/track.dart';
 import '../../core/services/location_service.dart';
 import '../../core/services/live_track_service.dart';
 import '../../core/services/lifeline_service.dart';
+import '../../core/services/recording_status_service.dart';
 import '../../core/utils/elevation_processor.dart';
 
 /// Stati possibili del tracking
@@ -92,6 +93,21 @@ class TrackingBloc extends ChangeNotifier {
   /// Avvia registrazione
   Future<void> startRecording({ActivityType? activityType}) async {
     if (_state.isRecording) return;
+
+    // Gate GLOBALE anti doppia-sessione: la RecordPage può essere pushata
+    // (trail detail, planner, "segui percorso" community) mentre la TAB
+    // Registra ha già una registrazione attiva. Ogni istanza ha il SUO
+    // bloc, quindi il check _state.isRecording qui sopra non basta: il
+    // mirror RecordingStatusService dice se QUALSIASI istanza sta
+    // registrando (o è in pausa) — in quel caso non avviare un secondo
+    // stream GPS parallelo.
+    if (_state.isIdle && !RecordingStatusService().isIdle) {
+      debugPrint('[TrackingBloc] start bloccato: registrazione già attiva '
+          'in un\'altra istanza');
+      _state = _state.copyWith(errorMessage: 'recording_already_active');
+      notifyListeners();
+      return;
+    }
 
     final success = await _locationService.startTracking();
     if (!success) {
@@ -235,11 +251,6 @@ class TrackingBloc extends ChangeNotifier {
     _state = const TrackingState();
     notifyListeners();
     }
-
-  /// Ferma il foreground service (chiamare dopo il salvataggio completato)
-  Future<void> stopForegroundService() async {
-    await _locationService.stopForegroundService();
-  }
 
   /// FIX: Ripristina lo stato da un backup
   /// Chiamato quando l'app si riavvia dopo un crash
