@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/health_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/polar_service.dart';
 import '../../../core/services/suunto_service.dart';
 import '../../../core/services/strava_service.dart';
@@ -309,6 +310,25 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
                               }
                             },
                           ),
+                  ),
+                  // Badge partner richiesto dal contratto Suunto (art. 5i):
+                  // dicitura di compatibilità + link a suunto.com.
+                  InkWell(
+                    onTap: () => launchUrl(
+                      Uri.parse('https://www.suunto.com'),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Compatibile con Suunto · suunto.com',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 11,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               );
