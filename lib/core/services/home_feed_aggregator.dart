@@ -18,6 +18,7 @@ import '../../data/repositories/weekly_challenges_repository.dart';
 import '../utils/perf_trace.dart';
 import 'location_service.dart';
 import 'recording_persistence_service.dart';
+import 'recording_status_service.dart';
 import 'weather_service.dart';
 
 /// Orchestratore stateless della Home Feed: chiama in parallelo i
@@ -211,6 +212,13 @@ class HomeFeedAggregator {
   }
 
   Future<HomeResumeItem?> _loadResume() async {
+    // Se una registrazione è VIVA in questa sessione (recording o pausa),
+    // il backup su disco appartiene a lei (viene scritto ogni ~5 punti):
+    // mostrare la card "Traccia interrotta" qui aprirebbe una SECONDA
+    // RecordPage con un secondo TrackingBloc/stream GPS in parallelo.
+    // La card ha senso solo dopo crash/kill, quando lo status è idle.
+    if (!RecordingStatusService().isIdle) return null;
+
     final backup = await RecordingPersistenceService.instance.loadState();
     if (backup == null || backup.points.isEmpty) return null;
 

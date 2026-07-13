@@ -75,30 +75,15 @@ class TrackingBloc extends ChangeNotifier {
   static const double _maxSpeed = 50.0;        // Ignora speed > 180 km/h (50 m/s)
   static const double _minDistance = 3.0;      // Distanza minima tra punti (3m)
 
-  // 4.3 — Auto-pause su inattività
-  /// Timer periodico che controlla se l'utente è fermo da troppo tempo.
-  Timer? _autoIdleTimer;
-  /// Ultimo istante in cui l'utente ha realmente "mosso" (punto valido che
-  /// ha superato il filtro [_minDistance]).
-  DateTime? _lastMovementTime;
-  /// True se la pausa corrente è stata avviata automaticamente dal sistema
-  /// (non dall'utente). Permette il resume automatico al primo movimento.
-  bool _autoPaused = false;
-  /// Soglia di inattività oltre la quale scatta la pausa automatica.
-  ///
-  /// 3 minuti: compromesso pensato per il trekking. Le app fitness
-  /// (Strava/Garmin) usano auto-pause speed-based molto aggressivo
-  /// (~15 sec), ottimo per running/cycling ma fastidioso in montagna
-  /// dove le soste brevi (foto, panorami, fiato) sono normali. 3 min
-  /// ignora le soste tipiche (<2 min) ma congela la durata sulle pause
-  /// vere (riposo, pranzo). Era 5 min, ridotto su feedback utente.
-  static const Duration _autoIdleTimeout = Duration(minutes: 3);
-  /// Frequenza del check di inattività.
-  static const Duration _autoIdleCheckInterval = Duration(seconds: 30);
-
-  /// True se la registrazione è stata messa in pausa automaticamente.
-  /// Letta dalla UI per mostrare un banner/snackbar informativo.
-  bool get isAutoPaused => _autoPaused && _state.isPaused;
+  // ⚠️ AUTO-PAUSA RIMOSSA (2026-07-13, decisione founder su bug di campo).
+  // Il rilevamento "utente fermo" usava i punti che superano il filtro
+  // accuracy ≤ 50m: in zona SENZA rete il fused provider perde l'assistenza
+  // A-GPS, l'accuratezza sale sopra soglia e (a) la pausa scattava anche in
+  // cammino, (b) una volta in pausa l'unico segnale di ripresa era un punto
+  // "valido" che senza rete non arrivava mai → registrazione congelata fino
+  // al ritorno del segnale (linea dritta sulla traccia). Non esiste un modo
+  // affidabile per distinguere "utente fermo" da "GPS degradato" col solo
+  // GPS → resta SOLO la pausa manuale (bottone).
   /// Tracker elevazione con smoothing e isteresi (spike removal + dead band)
   ElevationTracker? _elevationTracker;
 
@@ -136,82 +121,24 @@ class TrackingBloc extends ChangeNotifier {
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _updateDuration();
     });
-
-    // 4.3 — Avvia il watchdog di inattività
-    _lastMovementTime = DateTime.now();
-    _startAutoIdleWatcher();
   }
 
   /// Metti in pausa (manualmente, dall'utente).
   Future<void> pauseRecording() async {
     if (!_state.isRecording) return;
-    _autoPaused = false;
     await _doPause();
-  }
-
-  /// Pausa automatica per inattività (4.3).
-  ///
-  /// ⚠️ A differenza della pausa manuale, **NON spegne il GPS**: il
-  /// sensore deve restare attivo per poter rilevare la ripresa del
-  /// movimento e fare l'auto-resume. Spegnerlo (come faceva prima
-  /// chiamando `_doPause` → `pauseTracking`) bloccava la registrazione
-  /// in pausa per sempre: senza punti GPS in arrivo, `_onNewPoint` non
-  /// veniva più chiamato e il check di auto-resume non scattava mai.
-  ///
-  /// Nota batteria: durante una sosta il GPS sarebbe comunque acceso
-  /// (la registrazione normale lo tiene attivo), quindi questo non
-  /// aumenta il consumo — congela solo la durata mentre si è fermi.
-  Future<void> _autoPause() async {
-    if (!_state.isRecording) return;
-    debugPrint('[TrackingBloc] 🟡 Auto-pausa per inattività >5 min '
-        '(GPS resta attivo per l\'auto-resume)');
-    _autoPaused = true;
-
-    // Congela la durata, NON tocca il GPS né la subscription.
-    _pauseStartTime = DateTime.now();
-    _durationTimer?.cancel();
-    _autoIdleTimer?.cancel();
-
-    _state = _state.copyWith(status: TrackingStatus.paused);
-    notifyListeners();
-  }
-
-  /// Ripresa automatica dall'auto-pausa (movimento rilevato).
-  ///
-  /// Il GPS è già acceso (l'auto-pausa non l'ha spento), quindi NON
-  /// chiamiamo `resumeTracking()` — lo farebbe ripartire creando un
-  /// secondo stream con punti duplicati. Riattiviamo solo timer durata
-  /// + watchdog e ripristiniamo lo stato a `recording`.
-  Future<void> _autoResume() async {
-    if (!_state.isPaused) return;
-    debugPrint('[TrackingBloc] 🟢 Auto-resume: movimento rilevato');
-
-    if (_pauseStartTime != null) {
-      final pauseDuration = DateTime.now().difference(_pauseStartTime!);
-      _state = _state.copyWith(
-        pausedDuration: _state.pausedDuration + pauseDuration,
-      );
-    }
-    _pauseStartTime = null;
-    _autoPaused = false;
-
-    _state = _state.copyWith(status: TrackingStatus.recording);
-    notifyListeners();
-
-    // Riavvia SOLO i timer (il GPS è già attivo e in ascolto).
-    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      _updateDuration();
-    });
-    _lastMovementTime = DateTime.now();
-    _startAutoIdleWatcher();
   }
 
   /// Logica comune di pausa.
   Future<void> _doPause() async {
     await _locationService.pauseTracking();
+    // Cancella anche la subscription del bloc: resumeRecording() ne crea
+    // una nuova con .listen() — senza questo cancel ogni ciclo pausa/riprendi
+    // aggiungeva un listener duplicato di _onNewPoint sul broadcast stream.
+    await _locationSubscription?.cancel();
+    _locationSubscription = null;
     _pauseStartTime = DateTime.now();
     _durationTimer?.cancel();
-    _autoIdleTimer?.cancel();
 
     _state = _state.copyWith(status: TrackingStatus.paused);
     notifyListeners();
@@ -238,7 +165,6 @@ class TrackingBloc extends ChangeNotifier {
       );
     }
     _pauseStartTime = null;
-    _autoPaused = false;
 
     _state = _state.copyWith(status: TrackingStatus.recording);
     notifyListeners();
@@ -250,23 +176,6 @@ class TrackingBloc extends ChangeNotifier {
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _updateDuration();
     });
-
-    // 4.3 — Riavvia watchdog inattività
-    _lastMovementTime = DateTime.now();
-    _startAutoIdleWatcher();
-  }
-
-  /// Avvia il timer periodico che controlla se l'utente è fermo da troppo
-  /// tempo e in tal caso scatta [_autoPause].
-  void _startAutoIdleWatcher() {
-    _autoIdleTimer?.cancel();
-    _autoIdleTimer = Timer.periodic(_autoIdleCheckInterval, (_) {
-      if (!_state.isRecording || _lastMovementTime == null) return;
-      final idleFor = DateTime.now().difference(_lastMovementTime!);
-      if (idleFor >= _autoIdleTimeout) {
-        _autoPause();
-      }
-    });
   }
 
   /// Ferma e restituisci la traccia
@@ -275,10 +184,7 @@ class TrackingBloc extends ChangeNotifier {
     await _locationService.stopTrackingKeepService();
     _locationSubscription?.cancel();
     _durationTimer?.cancel();
-    _autoIdleTimer?.cancel();
     _pauseStartTime = null;
-    _autoPaused = false;
-    _lastMovementTime = null;
 
     if (_state.points.isEmpty) {
       _state = const TrackingState();
@@ -464,18 +370,6 @@ class TrackingBloc extends ChangeNotifier {
       }
     }
 
-    // 4.3 — Il punto ha superato il filtro distanza: l'utente si sta
-    // muovendo davvero. Aggiorna il timestamp dell'ultimo movimento e,
-    // se eravamo in auto-pausa, riprendi automaticamente.
-    _lastMovementTime = DateTime.now();
-    if (_autoPaused && _state.isPaused) {
-      // GPS già attivo (l'auto-pausa non l'ha spento): usiamo
-      // _autoResume() che riavvia solo i timer, NON resumeRecording()
-      // che ricreerebbe lo stream GPS generando punti duplicati.
-      unawaited(_autoResume());
-      return;
-    }
-
     // Alimenta il tracker elevazione (incrementale, 1 punto alla volta)
       if (point.elevation != null) {
       _elevationTracker?.addPoint(point.elevation);
@@ -581,7 +475,6 @@ class TrackingBloc extends ChangeNotifier {
   void dispose() {
     _locationSubscription?.cancel();
     _durationTimer?.cancel();
-    _autoIdleTimer?.cancel();
     _locationService.dispose();
     super.dispose();
   }

@@ -605,9 +605,6 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     _mapController.rotate(-h);
   }
 
-  /// Stato precedente per detection delle transizioni (usato da 4.3).
-  bool _wasAutoPaused = false;
-
   void _onTrackingUpdate() {
     if (_followUser && _trackingBloc.state.points.isNotEmpty) {
       final lastPoint = _trackingBloc.state.points.last;
@@ -634,15 +631,6 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     } else {
       RecordingStatusService().markIdle();
     }
-
-    // 4.3 — Notifica utente quando l'auto-pausa scatta o si auto-risolve.
-    final isAutoNow = _trackingBloc.isAutoPaused;
-    if (isAutoNow && !_wasAutoPaused) {
-      _showSnackBar(context.l10n.autoPauseTriggered);
-    } else if (!isAutoNow && _wasAutoPaused && state.isRecording) {
-      _showSnackBar(context.l10n.autoPauseResumed);
-    }
-    _wasAutoPaused = isAutoNow;
 
     // 1.D4 — su cambio stato recording (start, pause, resume, idle) rimostra
     // l'HUD: l'utente deve confermare visivamente la transizione.
