@@ -15,7 +15,12 @@ enum OsmPoiType {
   viewpoint('viewpoint', 'Panorama', Icons.landscape),
   waysideCross('wayside_cross', 'Croce', Icons.add),
   picnicSite('picnic_site', 'Picnic', Icons.deck),
-  cairn('cairn', 'Ometto', Icons.terrain);
+  cairn('cairn', 'Ometto', Icons.terrain),
+  // Colonnine di ricarica e-bike (amenity=charging_station + bicycle=yes,
+  // harvest tool/fetch_ebike_charging.sh). A differenza degli altri tipi
+  // il name su OSM è spesso assente → l'asset ha già il fallback
+  // "Ricarica e-bike" applicato in fase di harvest.
+  ebikeCharging('ebike_charging', 'Ricarica e-bike', Icons.electric_bolt);
 
   final String code;
   final String displayName;
@@ -49,6 +54,10 @@ enum OsmPoiType {
         return PoiType.historical;
       case OsmPoiType.picnicSite:
         return PoiType.nature;
+      // Mapping di comodo (i marker OSM usano OsmPoiType.icon, non questo):
+      // parking è il PoiType "di servizio" più affine.
+      case OsmPoiType.ebikeCharging:
+        return PoiType.parking;
     }
   }
 }
