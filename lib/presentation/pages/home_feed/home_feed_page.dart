@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/offline_tile_provider.dart';
 import '../../widgets/trail_route_thumb.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -122,6 +124,15 @@ class _HomeFeedPageState extends State<HomeFeedPage>
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 32),
       children: [
+        // Mini-mappa: ingresso PRINCIPALE alla mappa Scopri, primo elemento
+        // della Home (decisione founder 2026-07-18: il link testuale
+        // "Esplora la zona" in fondo era un ingresso troppo debole per la
+        // superficie più importante di un'app outdoor).
+        _MiniMapCard(
+          userLocation: data.userLocation,
+          trails: data.nearbyTrails,
+          onTap: _openDiscover,
+        ),
         _HeroCard(data: data),
         // Onboarding attivo: i primi passi del nuovo utente (sparisce a fine).
         if (_checklist != null)
@@ -371,6 +382,168 @@ class _TipBanner extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 // Section header
 // ═══════════════════════════════════════════════════════════════════════
+
+/// Mini-mappa in cima alla Home: ingresso principale alla mappa Scopri.
+///
+/// Mappa REALE (tile + marker dei sentieri vicini) ma non interattiva:
+/// qualsiasi tap apre DiscoverPage. Con la posizione utente centra lì
+/// (zoom di zona); senza (geo pending/negata) mostra l'Italia — l'ingresso
+/// resta SEMPRE disponibile, mai un placeholder morto.
+class _MiniMapCard extends StatelessWidget {
+  final LatLng? userLocation;
+  final List<PublicTrail> trails;
+  final VoidCallback onTap;
+
+  const _MiniMapCard({
+    required this.userLocation,
+    required this.trails,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final center = userLocation ?? const LatLng(42.5, 12.5);
+    final zoom = userLocation != null ? 11.0 : 5.0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: GestureDetector(
+        onTap: onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            height: 170,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // AbsorbPointer: la mappa è solo da guardare — pan/zoom
+                // qui sarebbero in conflitto con lo scroll del feed.
+                AbsorbPointer(
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter: center,
+                      initialZoom: zoom,
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.none,
+                      ),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.trailshare.app',
+                        tileProvider: OfflineFallbackTileProvider(),
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          for (final t in trails)
+                            if (t.startLat != 0 || t.startLng != 0)
+                              Marker(
+                                point: LatLng(t.startLat, t.startLng),
+                                width: 14,
+                                height: 14,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 2),
+                                  ),
+                                ),
+                              ),
+                          if (userLocation != null)
+                            Marker(
+                              point: userLocation!,
+                              width: 18,
+                              height: 18,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: AppColors.info,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: Colors.white, width: 3),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Velatura leggera in basso + CTA pill.
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(14, 28, 14, 12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.45),
+                        ],
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.map_outlined,
+                                  size: 17, color: AppColors.primary),
+                              SizedBox(width: 6),
+                              Text(
+                                'Esplora la mappa',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        if (trails.isNotEmpty)
+                          Text(
+                            '${trails.length} sentieri vicini',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              shadows: [
+                                Shadow(blurRadius: 4, color: Colors.black54),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _SectionHeader extends StatelessWidget {
   final String title;
