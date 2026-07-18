@@ -24,8 +24,11 @@ import '../../widgets/map_layer_button.dart';
 import 'models/discover_filters.dart';
 import 'widgets/discover_filter_sheet.dart';
 import '../../../data/models/osm_poi.dart';
+import '../../../data/models/trail_poi.dart';
 import '../../../data/repositories/osm_pois_repository.dart';
+import '../../../data/repositories/poi_repository.dart';
 import '../../widgets/osm_poi_detail_sheet.dart';
+import '../../widgets/poi_detail_sheet.dart';
 import '../../../data/repositories/heatmap_repository.dart';
 import '../../../data/repositories/trail_photos_repository.dart';
 import '../../../data/models/track.dart';
@@ -60,18 +63,56 @@ class _DiscoverPageState extends State<DiscoverPage> {
   bool _showMap = true;
   DiscoverFilters _filters = const DiscoverFilters.empty();
 
-  /// Colonnine e-bike (layer opzionale, vedi filtro showEbikeCharging).
-  /// Caricate lazy dall'asset OSM alla prima attivazione del filtro.
+  /// Colonnine e-bike (layer opzionale, vedi filtro showEbikeCharging):
+  /// OSM (asset, caricato una volta) + POI community pubblici di tipo
+  /// ebike_charging (Firestore, ri-query a ogni applicazione del filtro
+  /// così le segnalazioni fresche appaiono subito).
   List<OsmPoi> _ebikeChargers = const [];
+  List<TrailPoi> _communityChargers = const [];
+
+  Marker _chargerMarker({
+    required double lat,
+    required double lng,
+    required Color borderColor,
+    required VoidCallback onTap,
+  }) {
+    return Marker(
+      point: LatLng(lat, lng),
+      width: 26,
+      height: 26,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 3,
+              ),
+            ],
+          ),
+          child: Icon(Icons.electric_bolt, color: borderColor, size: 15),
+        ),
+      ),
+    );
+  }
 
   Future<void> _ensureChargersLoaded() async {
-    if (_ebikeChargers.isNotEmpty) return;
-    final repo = OsmPoisRepository();
-    await repo.ensureLoaded();
+    if (_ebikeChargers.isEmpty) {
+      final repo = OsmPoisRepository();
+      await repo.ensureLoaded();
+      if (!mounted) return;
+      setState(() {
+        _ebikeChargers = repo.all(types: {OsmPoiType.ebikeCharging});
+      });
+    }
+    final community = await PoiRepository()
+        .getPublicPoisOfType(PoiType.ebikeCharging.firestoreKey);
     if (!mounted) return;
-    setState(() {
-      _ebikeChargers = repo.all(types: {OsmPoiType.ebikeCharging});
-    });
+    setState(() => _communityChargers = community);
   }
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -956,34 +997,24 @@ class _DiscoverPageState extends State<DiscoverPage> {
               ),  
 
             // Layer opzionale: colonnine ricarica e-bike (filtro ⚡).
+            // OSM (bordo ambra) + community pubbliche (bordo verde).
             // Nascosto sotto zoom 10 per non intasare la vista nazionale.
             if (_filters.showEbikeCharging && _currentZoom >= 10)
               MarkerLayer(
-                markers: _ebikeChargers.map((poi) {
-                  return Marker(
-                    point: LatLng(poi.latitude, poi.longitude),
-                    width: 26,
-                    height: 26,
-                    child: GestureDetector(
-                      onTap: () => showOsmPoiDetailSheet(context, poi: poi),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.amber, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 3,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.electric_bolt,
-                            color: Colors.amber, size: 15),
-                      ),
-                    ),
-                  );
-                }).toList(),
+                markers: [
+                  ..._ebikeChargers.map((poi) => _chargerMarker(
+                        lat: poi.latitude,
+                        lng: poi.longitude,
+                        borderColor: Colors.amber,
+                        onTap: () => showOsmPoiDetailSheet(context, poi: poi),
+                      )),
+                  ..._communityChargers.map((poi) => _chargerMarker(
+                        lat: poi.latitude,
+                        lng: poi.longitude,
+                        borderColor: AppColors.success,
+                        onTap: () => showPoiDetailSheet(context, poi: poi),
+                      )),
+                ],
               ),
 
             // Marker posizione utente

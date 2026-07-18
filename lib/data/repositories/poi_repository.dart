@@ -160,6 +160,27 @@ class PoiRepository {
     }
   }
 
+  /// Tutti i POI PUBBLICI di un dato tipo (es. 'ebike_charging' per il
+  /// layer ricariche della mappa Scopri). Richiede l'indice composito
+  /// (isPublic, type). Il filtro isPublic è obbligatorio anche per le
+  /// rules (il ramo owner/admin non è matchabile nelle list query).
+  Future<List<TrailPoi>> getPublicPoisOfType(
+    String typeKey, {
+    int limit = 500,
+  }) async {
+    try {
+      final snap = await _col
+          .where('isPublic', isEqualTo: true)
+          .where('type', isEqualTo: typeKey)
+          .limit(limit)
+          .get();
+      return snap.docs.map(TrailPoi.fromFirestore).toList();
+    } catch (e) {
+      debugPrint('[PoiRepo] Errore getPublicPoisOfType($typeKey): $e');
+      return [];
+    }
+  }
+
   /// POI associati a un trail pubblico OSM.
   Future<List<TrailPoi>> getPoisForTrail(String trailId) async {
     try {
