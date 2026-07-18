@@ -48,6 +48,7 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
   bool _saving = false;
   Business? _business;
   Map<String, DayHours> _hours = {};
+  Set<String> _amenities = {};
   // Posizione editabile (lat, lng, geohash). Inizializzata da business
   // al load; aggiornata via picker.
   double? _lat;
@@ -92,6 +93,7 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
     _logoUrl = b.branding.logoUrl;
     _heroUrl = b.branding.heroPhotoUrl;
     _hours = Map.of(b.openingHours);
+    _amenities = Set.of(b.amenities);
     _lat = b.location.lat;
     _lng = b.location.lng;
     _geohash = b.location.geohash;
@@ -146,6 +148,9 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
         // branding.* — solo update positivo (no delete per ora)
         if (_logoUrl != null) 'branding.logoUrl': _logoUrl,
         if (_heroUrl != null) 'branding.heroPhotoUrl': _heroUrl,
+
+        // Servizi strutturati: replace dell'intera lista (piccola).
+        'amenities': _amenities.toList(),
 
         // openingHours è una map nested completa (tutti i giorni
         // sempre presenti) → replace dell'intero oggetto è ok.
@@ -350,6 +355,21 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 24),
+            _section('Servizi'),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.electric_bolt),
+              title: const Text('Ricarica e-bike'),
+              subtitle: const Text(
+                  'La struttura offre un punto di ricarica per bici elettriche'),
+              value: _amenities.contains('ebike_charging'),
+              onChanged: (v) => setState(() {
+                v
+                    ? _amenities.add('ebike_charging')
+                    : _amenities.remove('ebike_charging');
+              }),
             ),
             const SizedBox(height: 24),
             _section('Orari di apertura'),

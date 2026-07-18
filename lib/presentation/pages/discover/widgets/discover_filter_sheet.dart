@@ -200,6 +200,17 @@ class _DiscoverFilterSheetState extends State<DiscoverFilterSheet> {
                       () => _filters = _filters.copyWith(onlyCircular: v),
                     ),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary:
+                        const Icon(Icons.electric_bolt, color: Colors.amber),
+                    title: const Text('Ricariche e-bike sulla mappa'),
+                    subtitle: const Text('Colonnine di ricarica (OSM)'),
+                    value: _filters.showEbikeCharging,
+                    onChanged: (v) => setState(
+                      () => _filters = _filters.copyWith(showEbikeCharging: v),
+                    ),
+                  ),
 
                   // Epic 4.5 — Filtro regione amministrativa
                   const SizedBox(height: 16),

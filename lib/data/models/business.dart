@@ -332,6 +332,12 @@ class Business {
   /// in UI ovunque la foto sia visibile a schermo intero.
   final Map<String, dynamic>? photoAttribution;
 
+  /// Servizi/dotazioni STRUTTURATI della struttura (≠ dal "listino"
+  /// BusinessService a testo libero): chiavi stabili filtrabili in
+  /// discovery e mostrate come chip sul profilo. Chiavi note:
+  /// `ebike_charging` (ricarica e-bike). Estensibile senza migrazioni.
+  final List<String> amenities;
+
   const Business({
     this.id,
     required this.name,
@@ -362,7 +368,11 @@ class Business {
     this.outreachEmailSentAt,
     this.outreachStatus,
     this.photoAttribution,
+    this.amenities = const [],
   });
+
+  /// Vero se la struttura offre la ricarica e-bike.
+  bool get hasEbikeCharging => amenities.contains('ebike_charging');
 
   bool get isOwnedBy => false; // placeholder, l'owner check è nel repo
 
@@ -417,6 +427,7 @@ class Business {
       if (sourceUrl != null) 'sourceUrl': sourceUrl,
       if (disclaimerVisible) 'disclaimerVisible': true,
       if (photoAttribution != null) 'photoAttribution': photoAttribution,
+      if (amenities.isNotEmpty) 'amenities': amenities,
     };
   }
 
@@ -489,6 +500,10 @@ class Business {
       outreachStatus: m['outreachStatus']?.toString(),
       photoAttribution: (m['photoAttribution'] as Map?)
           ?.map((k, v) => MapEntry(k.toString(), v)),
+      amenities: (m['amenities'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
     );
   }
 
@@ -517,6 +532,7 @@ class Business {
     String? sourceUrl,
     bool? disclaimerVisible,
     Map<String, dynamic>? photoAttribution,
+    List<String>? amenities,
   }) {
     return Business(
       id: id,
@@ -546,6 +562,7 @@ class Business {
       sourceUrl: sourceUrl ?? this.sourceUrl,
       disclaimerVisible: disclaimerVisible ?? this.disclaimerVisible,
       photoAttribution: photoAttribution ?? this.photoAttribution,
+      amenities: amenities ?? this.amenities,
     );
   }
 }

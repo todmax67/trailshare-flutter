@@ -23,6 +23,9 @@ import '../../../core/services/map_style_prefs.dart';
 import '../../widgets/map_layer_button.dart';
 import 'models/discover_filters.dart';
 import 'widgets/discover_filter_sheet.dart';
+import '../../../data/models/osm_poi.dart';
+import '../../../data/repositories/osm_pois_repository.dart';
+import '../../widgets/osm_poi_detail_sheet.dart';
 import '../../../data/repositories/heatmap_repository.dart';
 import '../../../data/repositories/trail_photos_repository.dart';
 import '../../../data/models/track.dart';
@@ -56,6 +59,20 @@ class _DiscoverPageState extends State<DiscoverPage> {
   int _currentMapStyle = MapStylePrefs().index;
   bool _showMap = true;
   DiscoverFilters _filters = const DiscoverFilters.empty();
+
+  /// Colonnine e-bike (layer opzionale, vedi filtro showEbikeCharging).
+  /// Caricate lazy dall'asset OSM alla prima attivazione del filtro.
+  List<OsmPoi> _ebikeChargers = const [];
+
+  Future<void> _ensureChargersLoaded() async {
+    if (_ebikeChargers.isNotEmpty) return;
+    final repo = OsmPoisRepository();
+    await repo.ensureLoaded();
+    if (!mounted) return;
+    setState(() {
+      _ebikeChargers = repo.all(types: {OsmPoiType.ebikeCharging});
+    });
+  }
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -339,7 +356,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
       ),
       builder: (_) => DiscoverFilterSheet(
         initial: _filters,
-        onApply: (filters) => setState(() => _filters = filters),
+        onApply: (filters) {
+          setState(() => _filters = filters);
+          if (filters.showEbikeCharging) _ensureChargersLoaded();
+        },
       ),
     );
   }
@@ -934,6 +954,37 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   );
                 }).whereType<Marker>().toList(),
               ),  
+
+            // Layer opzionale: colonnine ricarica e-bike (filtro ⚡).
+            // Nascosto sotto zoom 10 per non intasare la vista nazionale.
+            if (_filters.showEbikeCharging && _currentZoom >= 10)
+              MarkerLayer(
+                markers: _ebikeChargers.map((poi) {
+                  return Marker(
+                    point: LatLng(poi.latitude, poi.longitude),
+                    width: 26,
+                    height: 26,
+                    child: GestureDetector(
+                      onTap: () => showOsmPoiDetailSheet(context, poi: poi),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.amber, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 3,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.electric_bolt,
+                            color: Colors.amber, size: 15),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
 
             // Marker posizione utente
             if (_userPosition != null)

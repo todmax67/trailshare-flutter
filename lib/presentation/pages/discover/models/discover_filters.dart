@@ -53,6 +53,10 @@ class DiscoverFilters {
   /// con il bbox della regione.
   final String? regionCode;
 
+  /// Layer POI: mostra sulla mappa le colonnine di ricarica e-bike
+  /// (OSM, asset bundlato). Non filtra i sentieri — aggiunge marker.
+  final bool showEbikeCharging;
+
   const DiscoverFilters({
     this.difficulties = const {},
     this.lengthKm,
@@ -61,6 +65,7 @@ class DiscoverFilters {
     this.onlyCircular = false,
     this.sortBy = TrailSortBy.defaultOrder,
     this.regionCode,
+    this.showEbikeCharging = false,
   });
 
   const DiscoverFilters.empty() : this();
@@ -75,6 +80,7 @@ class DiscoverFilters {
     if (onlyCircular) count++;
     if (sortBy != TrailSortBy.defaultOrder) count++;
     if (regionCode != null && regionCode!.isNotEmpty) count++;
+    if (showEbikeCharging) count++;
     return count;
   }
 
@@ -91,6 +97,7 @@ class DiscoverFilters {
     TrailSortBy? sortBy,
     String? regionCode,
     bool clearRegion = false,
+    bool? showEbikeCharging,
   }) {
     return DiscoverFilters(
       difficulties: difficulties ?? this.difficulties,
@@ -100,6 +107,7 @@ class DiscoverFilters {
       onlyCircular: onlyCircular ?? this.onlyCircular,
       sortBy: sortBy ?? this.sortBy,
       regionCode: clearRegion ? null : (regionCode ?? this.regionCode),
+      showEbikeCharging: showEbikeCharging ?? this.showEbikeCharging,
     );
   }
 }

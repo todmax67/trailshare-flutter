@@ -281,6 +281,8 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                         '${b.followerCount} ${b.followerCount == 1 ? "follower" : "followers"}',
                         color: AppColors.info,
                       ),
+                    if (b.hasEbikeCharging)
+                      _Chip('⚡ Ricarica e-bike', color: AppColors.success),
                   ],
                 ),
                 const SizedBox(height: 6),

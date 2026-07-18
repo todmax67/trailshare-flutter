@@ -17,6 +17,11 @@ enum PoiType {
       'Tratto pericoloso, esposto o sconsigliato'),
   parking('parking', '🅿️', 'Parcheggio', Icons.local_parking,
       'Punto di partenza/arrivo raggiungibile in auto'),
+  // Punto 3 richiesta e-bike: segnalazione community delle colonnine non
+  // ancora censite su OSM. I client vecchi mostrano i POI di questo tipo
+  // come "Natura" (fallback di fromKey) — degradazione accettabile.
+  ebikeCharging('ebike_charging', '⚡', 'Ricarica e-bike', Icons.electric_bolt,
+      'Colonnina di ricarica per bici elettriche'),
   food('food', '🍽️', 'Ristoro', Icons.restaurant,
       'Bar, ristorante, malga aperta'),
   toilet('toilet', '🚻', 'Bagno', Icons.wc,
@@ -64,6 +69,8 @@ enum PoiType {
         return const Color(0xFFE53935); // rosso
       case PoiType.parking:
         return const Color(0xFF546E7A); // grigio
+      case PoiType.ebikeCharging:
+        return const Color(0xFFF9A825); // ambra (fulmine)
       case PoiType.food:
         return const Color(0xFFE67E22); // arancio
       case PoiType.toilet:
