@@ -147,6 +147,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
     // Onboarding: l'utente ha esplorato i sentieri (spunta il task in home).
     OnboardingChecklistService().markExplored();
 
+    // Filtri salvati dall'utente (tasto "Salva" nello sheet): ripristinati
+    // a ogni apertura — chi fa sempre e-bike ritrova e-bike + ricariche.
+    DiscoverFilters.loadSaved().then((saved) {
+      if (saved == null || !mounted) return;
+      setState(() => _filters = saved);
+      if (saved.showEbikeCharging) _ensureChargersLoaded();
+    });
+
     // Prima ottieni la posizione, poi carica i sentieri
     _initializeLocation();
   }

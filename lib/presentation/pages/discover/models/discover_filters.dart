@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Categoria di attività (raggruppamento dei vari activityType OSM)
 enum ActivityCategory {
@@ -85,6 +88,74 @@ class DiscoverFilters {
   }
 
   bool get isEmpty => activeCount == 0;
+
+  // ── Persistenza (tasto "Salva filtri" nello sheet) ──────────────────
+  //
+  // Chi fa sempre la stessa attività (trekking, e-bike…) imposta i filtri
+  // una volta e li ritrova a ogni apertura della mappa. Salvataggio
+  // esplicito (non automatico): l'utente decide quale set è "il suo".
+
+  static const String _prefsKey = 'discover_saved_filters_v1';
+
+  Map<String, dynamic> toJson() => {
+        'difficulties': difficulties.toList(),
+        if (lengthKm != null) 'lengthKm': [lengthKm!.start, lengthKm!.end],
+        if (elevation != null) 'elevation': [elevation!.start, elevation!.end],
+        'categories': categories.map((c) => c.name).toList(),
+        'onlyCircular': onlyCircular,
+        'sortBy': sortBy.name,
+        if (regionCode != null) 'regionCode': regionCode,
+        'showEbikeCharging': showEbikeCharging,
+      };
+
+  factory DiscoverFilters.fromJson(Map<String, dynamic> j) {
+    RangeValues? range(dynamic v) => v is List && v.length == 2
+        ? RangeValues((v[0] as num).toDouble(), (v[1] as num).toDouble())
+        : null;
+    return DiscoverFilters(
+      difficulties:
+          ((j['difficulties'] as List?) ?? const []).cast<String>().toSet(),
+      lengthKm: range(j['lengthKm']),
+      elevation: range(j['elevation']),
+      categories: ((j['categories'] as List?) ?? const [])
+          .map((n) => ActivityCategory.values
+              .where((c) => c.name == n)
+              .firstOrNull)
+          .whereType<ActivityCategory>()
+          .toSet(),
+      onlyCircular: j['onlyCircular'] == true,
+      sortBy: TrailSortBy.values
+              .where((s) => s.name == j['sortBy'])
+              .firstOrNull ??
+          TrailSortBy.defaultOrder,
+      regionCode: j['regionCode'] as String?,
+      showEbikeCharging: j['showEbikeCharging'] == true,
+    );
+  }
+
+  /// Salva questi filtri come predefiniti dell'utente.
+  Future<void> saveAsDefault() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKey, jsonEncode(toJson()));
+    } catch (e) {
+      debugPrint('[DiscoverFilters] save error: $e');
+    }
+  }
+
+  /// Carica i filtri salvati (null se mai salvati o illeggibili).
+  static Future<DiscoverFilters?> loadSaved() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsKey);
+      if (raw == null || raw.isEmpty) return null;
+      return DiscoverFilters.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('[DiscoverFilters] load error: $e');
+      return null;
+    }
+  }
 
   DiscoverFilters copyWith({
     Set<String>? difficulties,

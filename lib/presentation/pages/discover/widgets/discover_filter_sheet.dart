@@ -71,6 +71,17 @@ class _DiscoverFilterSheetState extends State<DiscoverFilterSheet> {
     setState(() => _filters = const DiscoverFilters.empty());
   }
 
+  Future<void> _saveAsDefault() async {
+    await _filters.saveAsDefault();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Filtri salvati: li ritroverai a ogni apertura'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _apply() {
     widget.onApply(_filters);
     Navigator.pop(context);
@@ -106,6 +117,13 @@ class _DiscoverFilterSheetState extends State<DiscoverFilterSheet> {
                       'Filtri',
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
+                  ),
+                  // Salva come predefiniti (memoria attività abituale:
+                  // trekking, e-bike + ricariche, ecc.)
+                  TextButton.icon(
+                    onPressed: _saveAsDefault,
+                    icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                    label: const Text('Salva'),
                   ),
                   TextButton(
                     onPressed: _filters.isEmpty ? null : _reset,
