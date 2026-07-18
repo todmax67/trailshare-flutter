@@ -386,6 +386,26 @@ class BusinessRepository {
     return snap.docs.map((d) => Business.fromMap(d.id, d.data())).toList();
   }
 
+  /// Businesses attivi che dichiarano una dotazione strutturata (campo
+  /// `amenities`, es. 'ebike_charging' per il layer ricariche di Scopri).
+  /// Solo array-contains + filtro status client-side: niente indice
+  /// composito (index merging copre le sole uguaglianze), volumi minimi.
+  Future<List<Business>> getByAmenity(String amenity, {int limit = 500}) async {
+    try {
+      final snap = await _businesses
+          .where('amenities', arrayContains: amenity)
+          .limit(limit)
+          .get();
+      return snap.docs
+          .map((d) => Business.fromMap(d.id, d.data()))
+          .where((b) => b.status == BusinessStatus.active)
+          .toList();
+    } catch (e) {
+      debugPrint('[BusinessRepo] Errore getByAmenity($amenity): $e');
+      return [];
+    }
+  }
+
   /// Lista businesses dove l'utente corrente è owner.
   Future<List<Business>> getMyBusinesses() async {
     final uid = _auth.currentUser?.uid;

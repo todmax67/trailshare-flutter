@@ -25,10 +25,13 @@ import 'models/discover_filters.dart';
 import 'widgets/discover_filter_sheet.dart';
 import '../../../data/models/osm_poi.dart';
 import '../../../data/models/trail_poi.dart';
+import '../../../data/models/business.dart';
 import '../../../data/repositories/osm_pois_repository.dart';
 import '../../../data/repositories/poi_repository.dart';
+import '../../../data/repositories/business_repository.dart';
 import '../../widgets/osm_poi_detail_sheet.dart';
 import '../../widgets/poi_detail_sheet.dart';
+import '../business/business_profile_page.dart';
 import '../../../data/repositories/heatmap_repository.dart';
 import '../../../data/repositories/trail_photos_repository.dart';
 import '../../../data/models/track.dart';
@@ -69,6 +72,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   /// così le segnalazioni fresche appaiono subito).
   List<OsmPoi> _ebikeChargers = const [];
   List<TrailPoi> _communityChargers = const [];
+  List<Business> _businessChargers = const [];
 
   Marker _chargerMarker({
     required double lat,
@@ -109,10 +113,16 @@ class _DiscoverPageState extends State<DiscoverPage> {
         _ebikeChargers = repo.all(types: {OsmPoiType.ebikeCharging});
       });
     }
+    // Community + Spazi Pro: ri-query a ogni applicazione del filtro.
     final community = await PoiRepository()
         .getPublicPoisOfType(PoiType.ebikeCharging.firestoreKey);
+    final businesses =
+        await BusinessRepository().getByAmenity('ebike_charging');
     if (!mounted) return;
-    setState(() => _communityChargers = community);
+    setState(() {
+      _communityChargers = community;
+      _businessChargers = businesses;
+    });
   }
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -1014,6 +1024,20 @@ class _DiscoverPageState extends State<DiscoverPage> {
                         borderColor: AppColors.success,
                         onTap: () => showPoiDetailSheet(context, poi: poi),
                       )),
+                  ..._businessChargers
+                      .where((b) => b.id != null)
+                      .map((b) => _chargerMarker(
+                            lat: b.location.lat,
+                            lng: b.location.lng,
+                            borderColor: AppColors.primary,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    BusinessProfilePage(businessId: b.id!),
+                              ),
+                            ),
+                          )),
                 ],
               ),
 
