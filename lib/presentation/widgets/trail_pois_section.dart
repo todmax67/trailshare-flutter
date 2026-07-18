@@ -211,12 +211,15 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
             return 4;
           case OsmPoiType.viewpoint:
             return 5;
-          case OsmPoiType.picnicSite:
+          // Ricarica e-bike: utilità alta per ciclisti, sopra il "resto".
+          case OsmPoiType.ebikeCharging:
             return 6;
-          case OsmPoiType.waysideCross:
+          case OsmPoiType.picnicSite:
             return 7;
-          case OsmPoiType.cairn:
+          case OsmPoiType.waysideCross:
             return 8;
+          case OsmPoiType.cairn:
+            return 9;
         }
       }
 
