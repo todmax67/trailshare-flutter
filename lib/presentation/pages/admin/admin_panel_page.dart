@@ -4,7 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/location_service.dart';
+import '../../widgets/poi_editor_sheet.dart';
+import '../poi/poi_location_picker_page.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../../../data/repositories/public_trails_repository.dart';
@@ -131,6 +135,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _buildQuickPoiSection(),
+            const SizedBox(height: 24),
             _buildAdminClaimsSection(),
             const SizedBox(height: 24),
             _buildPendingSelfClaimSection(),
@@ -154,6 +160,92 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             _buildUsersSection(),
             const SizedBox(height: 24),
             _buildBusinessGroupsSection(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CENSIMENTO POI RAPIDO
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Caso d'uso founder: "passo davanti a una colonnina e-bike non censita
+  // e la inserisco al volo, senza registrare una traccia". Flusso:
+  // posizione attuale → picker mappa per rifinire il punto → editor POI
+  // globale (relatedTrail/Track null) con tutti i tipi (⚡ inclusa).
+
+  bool _quickPoiBusy = false;
+
+  Future<void> _openQuickPoi() async {
+    setState(() => _quickPoiBusy = true);
+    try {
+      // Posizione attuale: last-known subito, fix accurato come fallback.
+      final loc = LocationService();
+      final pos = await loc.getLastKnownPosition() ??
+          await loc.getCurrentPosition();
+      if (!mounted) return;
+      final picked = await Navigator.push<LatLng?>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PoiLocationPickerPage(
+            polyline: const [],
+            initialCenter:
+                pos != null ? LatLng(pos.latitude, pos.longitude) : null,
+          ),
+        ),
+      );
+      if (picked == null || !mounted) return;
+      final poi = await showPoiEditorSheet(
+        context,
+        latitude: picked.latitude,
+        longitude: picked.longitude,
+        elevation: pos?.elevation,
+      );
+      if (poi != null && mounted) {
+        _snack('POI "${poi.title}" salvato', error: false);
+      }
+    } catch (e) {
+      if (mounted) _snack('Errore POI rapido: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _quickPoiBusy = false);
+    }
+  }
+
+  Widget _buildQuickPoiSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.add_location_alt, color: AppColors.primary),
+                SizedBox(width: 8),
+                Text('Censimento POI',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Inserisci un POI nel punto in cui ti trovi (o scegli sulla '
+              'mappa): colonnine e-bike, fontane, panorami… Senza dover '
+              'registrare una traccia.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonalIcon(
+              icon: _quickPoiBusy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.add_location_alt, size: 18),
+              label: const Text('Aggiungi POI qui'),
+              onPressed: _quickPoiBusy ? null : _openQuickPoi,
+            ),
           ],
         ),
       ),
