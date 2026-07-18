@@ -36,7 +36,11 @@ Future<TrailPoi?> showPoiEditorSheet(
   return showModalBottomSheet<TrailPoi>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+    // Sfondo opaco a livello di sheet (NON transparent): su alcuni device
+    // (Motorola/Impeller) il pattern "sheet trasparente + Container interno
+    // decorato" veniva composto senza sfondo → foglio trasparente sopra la
+    // pagina. Il tema bottomSheetTheme fornisce già colore+angoli coerenti.
+    backgroundColor: Theme.of(context).colorScheme.surface,
     builder: (_) => _PoiEditorSheet(
       latitude: latitude,
       longitude: longitude,

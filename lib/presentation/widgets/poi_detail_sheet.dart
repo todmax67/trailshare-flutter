@@ -25,7 +25,9 @@ Future<PoiDetailResult?> showPoiDetailSheet(
   return showModalBottomSheet<PoiDetailResult>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+    // Opaco, non transparent: stesso fix di poi_editor_sheet (compositing
+    // rotto su alcuni device col pattern sheet-trasparente).
+    backgroundColor: Theme.of(context).colorScheme.surface,
     builder: (_) => _PoiDetailSheet(poi: poi),
   );
 }
