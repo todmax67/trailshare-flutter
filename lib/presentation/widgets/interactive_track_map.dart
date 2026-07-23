@@ -123,6 +123,10 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
   double? _tappedElevation;
   bool _isLoadingLocation = false;
   final OfflineFallbackTileProvider _tileProvider = OfflineFallbackTileProvider();
+  // Stile mappa (Standard/Topografica/Satellite/Notte + varianti Pro) —
+  // stesso MapStylePrefs condiviso con Scopri e la mappa fullscreen, così
+  // la scelta fatta qui persiste ovunque nell'app.
+  int _currentMapStyle = MapStylePrefs().index;
 
   final PoiRepository _poiRepo = PoiRepository();
   final OsmPoisRepository _osmRepo = OsmPoisRepository();
@@ -371,6 +375,13 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
     }
   }
 
+  Future<void> _pickMapStyle() async {
+    final selected = await showMapStylePicker(context, _currentMapStyle);
+    if (selected != null && mounted) {
+      setState(() => _currentMapStyle = selected);
+    }
+  }
+
   void _openFullscreen() {
     // Se abbiamo Track o CommunityTrack, usa TrackMapPage con colori
     // pendenza. Le passiamo i POI community già caricati + il flag
@@ -475,9 +486,17 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
               children: [
                 // Tile layer
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: mapStyles[_currentMapStyle].urlTemplate,
+                  subdomains: mapStyles[_currentMapStyle].subdomains,
                   userAgentPackageName: 'com.trailshare.app',
                   tileProvider: _tileProvider,
+                  tileBuilder: mapStyles[_currentMapStyle].tileColorFilter != null
+                      ? (context, tileWidget, tile) => ColorFiltered(
+                            colorFilter:
+                                mapStyles[_currentMapStyle].tileColorFilter!,
+                            child: tileWidget,
+                          )
+                      : null,
                 ),
                 
                 // Percorso — colorato per pendenza (elemento-firma) o singolo
@@ -729,6 +748,16 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Stile mappa (Standard/Topografica/Satellite/Notte…) —
+                  // richiesta founder: poter usare la topografica anche
+                  // sulla preview, non solo dopo essere entrati a schermo
+                  // intero.
+                  _MapButton(
+                    icon: mapStyles[_currentMapStyle].icon,
+                    onTap: _pickMapStyle,
+                    tooltip: mapStyles[_currentMapStyle].name,
+                  ),
+                  const SizedBox(height: 8),
                   // Fullscreen
                   _MapButton(
                     icon: Icons.fullscreen,
