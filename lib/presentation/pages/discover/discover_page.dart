@@ -32,6 +32,7 @@ import '../../../data/repositories/business_repository.dart';
 import '../../widgets/osm_poi_detail_sheet.dart';
 import '../../widgets/poi_detail_sheet.dart';
 import '../business/business_profile_page.dart';
+import '../track_3d/track_3d_page.dart';
 import '../../../data/repositories/heatmap_repository.dart';
 import '../../../data/repositories/trail_photos_repository.dart';
 import '../../../data/models/track.dart';
@@ -488,6 +489,30 @@ class _DiscoverPageState extends State<DiscoverPage> {
     } else {
       _initializeLocation();
     }
+  }
+
+  /// "3D a richiesta" su Scopri (v1): fly-through dei sentieri attualmente
+  /// visibili in mappa. Stesso pattern multi-segmento di tour_detail_page
+  /// (._open3D) — un segmento per sentiero, gratis da guardare (gating Pro
+  /// solo sull'export, dentro Track3DPage). Cap a 15 per tenere sotto
+  /// controllo il costo di rete del terreno DEM (MapTiler) e la durata
+  /// dell'animazione.
+  void _open3DFly(List<PublicTrail> trails) {
+    final valid =
+        trails.where((t) => t.points.length >= 2).take(15).toList();
+    if (valid.isEmpty) return;
+    final segments = [for (final t in valid) t.points];
+    final names = [for (final t in valid) t.displayName];
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Track3DPage(
+          trackName: 'Sentieri in zona',
+          segments: segments,
+          segmentNames: names,
+        ),
+      ),
+    );
   }
 
  /// Colore per tipo attività
@@ -1202,6 +1227,22 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 },
               ),
               const SizedBox(height: 8),
+              // "3D a richiesta" (v1, basso sforzo): fly-through dei sentieri
+              // ATTUALMENTE VISIBILI in mappa. Riusa Track3DPage esattamente
+              // come tour_detail_page.dart (multi-segmento) — nessuna
+              // modifica al motore flutter_map. Cap sentieri: il fly-through
+              // scarica terreno DEM da MapTiler in rete per l'intero bbox,
+              // troppi segmenti insieme degradano UX e costo di rete.
+              if (trails.where((t) => t.points.length >= 2).isNotEmpty)
+                FloatingActionButton.small(
+                  heroTag: 'fly_3d_discover',
+                  backgroundColor: Colors.white,
+                  onPressed: () => _open3DFly(trails),
+                  child: const Icon(Icons.view_in_ar,
+                      color: AppColors.primary),
+                ),
+              if (trails.where((t) => t.points.length >= 2).isNotEmpty)
+                const SizedBox(height: 8),
               // Epic 3.4 — toggle Heatmap trail popolari
               FloatingActionButton.small(
                 heroTag: 'heatmap_toggle',

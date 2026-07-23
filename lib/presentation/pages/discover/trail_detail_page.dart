@@ -7,6 +7,7 @@ import '../../../core/utils/eta_estimator.dart';
 import '../../../data/models/track.dart';
 import '../../../data/repositories/public_trails_repository.dart';
 import '../../../presentation/widgets/interactive_track_map.dart';
+import '../track_3d/track_3d_page.dart';
 import '../../../presentation/widgets/track_charts_widget.dart';
 import '../../widgets/weather_forecast_card.dart';
 import '../../widgets/expandable_description.dart';
@@ -348,6 +349,22 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
         setState(() => _selectedPointIndex = index);
       },
       track: track, // ⭐ Abilita TrackMapPage fullscreen con grafico elevazione
+      // Fly-through 3D (stesso pattern di track_detail_page.dart e
+      // community_track_detail_page.dart — gratis da guardare, gating Pro
+      // solo sull'export senza watermark dentro Track3DPage).
+      on3DTap: _displayPoints.length >= 2 ? _open3D : null,
+    );
+  }
+
+  void _open3D() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Track3DPage.single(
+          trackName: widget.trail.displayName,
+          points: _displayPoints,
+        ),
+      ),
     );
   }
 
