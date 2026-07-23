@@ -22,11 +22,16 @@ import '../../../core/extensions/theme_colors_extension.dart';
 class GroupDetailPage extends StatefulWidget {
   final String groupId;
   final String groupName;
+  /// Tab da mostrare all'apertura (0=Chat, 1=Eventi, 2=Percorsi, 3=Sfide,
+  /// 4=Info). Usato per aprire il gruppo già sulla sezione giusta quando
+  /// si arriva da una notifica push (es. richiesta di iscrizione → Info).
+  final int initialTabIndex;
 
   const GroupDetailPage({
     super.key,
     required this.groupId,
     required this.groupName,
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -44,7 +49,11 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(
+      length: 5,
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
+    );
     _loadGroup();
   }
 

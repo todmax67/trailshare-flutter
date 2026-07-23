@@ -1,8 +1,11 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'dart:async';
+
+import '../../app.dart';
+import '../../presentation/pages/groups/group_detail_page.dart';
 
 class PushNotificationService {
   static final PushNotificationService _instance = PushNotificationService._();
@@ -49,7 +52,10 @@ class PushNotificationService {
     // 6. Controlla se l'app è stata aperta da una notifica
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
-      _handleNotificationTap(initialMessage);
+      // Posticipa di un frame: navigatorKey può non essere ancora pronto
+      // al cold start (stesso accorgimento di DeepLinkService).
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _handleNotificationTap(initialMessage));
     }
   }
 
@@ -174,6 +180,35 @@ class PushNotificationService {
   void _handleNotificationTap(RemoteMessage message) {
     debugPrint('[Push] Tap su notifica: ${message.data}');
     _onNotificationTap?.call(message);
+    _routeToContent(message.data);
+  }
+
+  /// Tab del gruppo da aprire in base al tipo di notifica — prima si
+  /// aprivano tutte sulla Home, indipendentemente dal contenuto.
+  static const _groupTabByType = {
+    'group_message': 0, // Chat
+    'group_event': 1, // Eventi
+    'group_challenge': 3, // Sfide
+    'group_challenge_won': 3, // Sfide
+    'join_request': 4, // Info — dove l'admin approva/rifiuta
+    'join_approved': 0, // Chat — appena entrato, si parte da lì
+  };
+
+  void _routeToContent(Map<String, dynamic> data) {
+    final type = data['type'] as String?;
+    final groupId = data['groupId'] as String?;
+    final tabIndex = _groupTabByType[type];
+    if (groupId == null || groupId.isEmpty || tabIndex == null) return;
+
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => GroupDetailPage(
+          groupId: groupId,
+          groupName: 'Gruppo',
+          initialTabIndex: tabIndex,
+        ),
+      ),
+    );
   }
 
   // Callback per gestire notifiche nell'UI
