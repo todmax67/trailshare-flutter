@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
@@ -737,14 +738,19 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 ),
             ],
           ),
-          // Toggle mappa/lista
-          IconButton(
-            icon: Icon(_showMap ? Icons.list : Icons.map),
-            onPressed: () => setState(() {
-              _showMap = !_showMap;
-              _selectedTrail = null;
-            }),
-            tooltip: _showMap ? context.l10n.showList : context.l10n.showMap,
+          // Toggle Mappa/Lista a due segmenti (design review 2026-07-23,
+          // opzione 1a) — più leggibile del singolo IconButton che cambiava
+          // icona: mostra ENTRAMBE le modalità e quale è attiva a colpo
+          // d'occhio, stesso stato _showMap di prima.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: _MapListSegmentedToggle(
+              showMap: _showMap,
+              onChanged: (map) => setState(() {
+                _showMap = map;
+                _selectedTrail = null;
+              }),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -966,9 +972,24 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 }).toList(),
               ),
 
-            // Marker punto di partenza con icona attività (cluster
-            // disabilitati: rompevano la ricerca su zoom basso).
-            MarkerLayer(
+            // Marker punto di partenza con icona attività, RAGGRUPPATI in
+            // cluster quando vicini (design review 2026-07-23, opzione 1a).
+            // ⚠️ Diverso dal clustering LATO SERVER già presente in
+            // getTrailsForViewport (disattivato altrove: "rompeva la
+            // ricerca" perché restituiva aggregati al posto delle singole
+            // tracce). Qui è puro raggruppamento VISIVO lato client sui
+            // marker della lista _trails/_filteredTrails già interamente
+            // caricata — la ricerca/lista NON è toccata, i dati restano gli
+            // stessi, cambia solo come vengono disegnati sulla mappa.
+            MarkerClusterLayerWidget(
+              options: MarkerClusterLayerOptions(
+                maxClusterRadius: 60,
+                size: const Size(46, 46),
+                // Sopra questo zoom i marker sono già ben separati sullo
+                // schermo: mostrarli individualmente è più utile che un
+                // cluster che si scioglierebbe al primo tap.
+                disableClusteringAtZoom: 15,
+                zoomToBoundsOnClick: true,
                 markers: trails.map((trail) {
                   final startLat = trail.startLat;
                   final startLng = trail.startLng;
@@ -1037,7 +1058,37 @@ class _DiscoverPageState extends State<DiscoverPage> {
                     ),
                   );
                 }).whereType<Marker>().toList(),
-              ),  
+                builder: (context, markers) => Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.primary, width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.22),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.hiking,
+                          color: AppColors.primary, size: 15),
+                      Text(
+                        '${markers.length}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
             // Layer opzionale: colonnine ricarica e-bike (filtro ⚡).
             // OSM (bordo ambra) + community pubbliche (bordo verde).
@@ -1362,6 +1413,96 @@ class _DiscoverPageState extends State<DiscoverPage> {
 // ═══════════════════════════════════════════════════════════════════════════
 // WIDGETS AUSILIARI
 // ═══════════════════════════════════════════════════════════════════════════
+
+/// Toggle Mappa/Lista a due segmenti (design review 2026-07-23, opzione
+/// 1a) — sostituisce il vecchio IconButton singolo che cambiava icona:
+/// mostra entrambe le modalità sempre visibili, quella attiva evidenziata.
+class _MapListSegmentedToggle extends StatelessWidget {
+  final bool showMap;
+  final ValueChanged<bool> onChanged;
+
+  const _MapListSegmentedToggle({
+    required this.showMap,
+    required this.onChanged,
+  });
+
+  Widget _segment(BuildContext context,
+      {required IconData icon,
+      required String label,
+      required bool active,
+      required VoidCallback onTap}) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.14),
+                      blurRadius: 3,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 17,
+                  color: active
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: active
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 148,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0EDE7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          _segment(context,
+              icon: Icons.map,
+              label: context.l10n.map,
+              active: showMap,
+              onTap: () => onChanged(true)),
+          _segment(context,
+              icon: Icons.view_agenda,
+              label: context.l10n.listTab,
+              active: !showMap,
+              onTap: () => onChanged(false)),
+        ],
+      ),
+    );
+  }
+}
 
 class _CounterBadge extends StatelessWidget {
   final int count;
