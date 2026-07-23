@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 import '../../app.dart';
+import '../../data/repositories/community_tracks_repository.dart';
+import '../../presentation/pages/discover/community_track_detail_page.dart';
 import '../../presentation/pages/groups/group_detail_page.dart';
+import '../../presentation/pages/profile/public_profile_page.dart';
 
 class PushNotificationService {
   static final PushNotificationService _instance = PushNotificationService._();
@@ -194,21 +197,47 @@ class PushNotificationService {
     'join_approved': 0, // Chat — appena entrato, si parte da lì
   };
 
-  void _routeToContent(Map<String, dynamic> data) {
+  Future<void> _routeToContent(Map<String, dynamic> data) async {
     final type = data['type'] as String?;
+
     final groupId = data['groupId'] as String?;
     final tabIndex = _groupTabByType[type];
-    if (groupId == null || groupId.isEmpty || tabIndex == null) return;
-
-    navigatorKey.currentState?.push(
-      MaterialPageRoute(
-        builder: (_) => GroupDetailPage(
-          groupId: groupId,
-          groupName: 'Gruppo',
-          initialTabIndex: tabIndex,
+    if (groupId != null && groupId.isNotEmpty && tabIndex != null) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => GroupDetailPage(
+            groupId: groupId,
+            groupName: 'Gruppo',
+            initialTabIndex: tabIndex,
+          ),
         ),
-      ),
-    );
+      );
+      return;
+    }
+
+    // Nuovo follower → profilo pubblico di chi ti segue ora.
+    if (type == 'new_follower') {
+      final userId = data['userId'] as String?;
+      if (userId == null || userId.isEmpty) return;
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => PublicProfilePage(userId: userId)),
+      );
+      return;
+    }
+
+    // Cheer ("kudos" nel payload — il prodotto lo chiama Cheer) o menzione
+    // in un commento → dettaglio della traccia pubblicata (mostra i
+    // commenti). Serve fetchare la traccia: il payload ha solo l'id.
+    if (type == 'kudos' || type == 'mention') {
+      final trackId = data['trackId'] as String?;
+      if (trackId == null || trackId.isEmpty) return;
+      final track = await CommunityTracksRepository().getTrackById(trackId);
+      if (track == null) return;
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => CommunityTrackDetailPage(track: track)),
+      );
+      return;
+    }
   }
 
   // Callback per gestire notifiche nell'UI
