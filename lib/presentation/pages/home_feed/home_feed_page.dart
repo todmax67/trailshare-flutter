@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,6 +14,7 @@ import '../../../data/models/business.dart';
 import '../../../data/models/home_feed_data.dart';
 import '../../../data/models/home_resume_item.dart';
 import '../../../data/models/tour.dart';
+import '../../../data/models/track.dart';
 import '../../../data/repositories/community_tracks_repository.dart'
     show CommunityTrack;
 import '../../../data/repositories/public_trails_repository.dart'
@@ -724,19 +726,107 @@ class _FollowingStrip extends StatelessWidget {
               ? CachedNetworkImage(
                   imageUrl: cover,
                   fit: BoxFit.cover,
-                  errorWidget: (_, _, _) => RouteThumbnail(
-                    points: t.points,
-                    borderRadius: BorderRadius.zero,
-                  ),
+                  errorWidget: (_, _, _) =>
+                      _ElevationProfileCover(points: t.points),
                 )
-              : RouteThumbnail(
-                  points: t.points,
-                  borderRadius: BorderRadius.zero,
-                ),
+              : _ElevationProfileCover(points: t.points),
         );
       },
     );
   }
+}
+
+/// Fallback "intenzionale" per tracce senza foto: profilo altimetrico
+/// disegnato dai dati GPS reali della traccia — zero rete, sempre
+/// diverso, e non lascia mai la card con l'aria di "non finita". Se i
+/// punti non hanno quote (raro), ripiega sul thumbnail a icona.
+class _ElevationProfileCover extends StatelessWidget {
+  final List<TrackPoint> points;
+  const _ElevationProfileCover({required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    final elevations =
+        points.map((p) => p.elevation).whereType<double>().toList();
+    if (elevations.length < 2) {
+      return RouteThumbnail(points: points, borderRadius: BorderRadius.zero);
+    }
+    return ColoredBox(
+      color: context.themedSurfaceVariant,
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _ElevationProfilePainter(elevations),
+      ),
+    );
+  }
+}
+
+class _ElevationProfilePainter extends CustomPainter {
+  final List<double> elevations;
+  _ElevationProfilePainter(this.elevations);
+
+  static const _sampleCount = 40;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final samples = <double>[
+      for (var i = 0; i < _sampleCount; i++)
+        elevations[(i * (elevations.length - 1) / (_sampleCount - 1)).round()],
+    ];
+    final minE = samples.reduce(min);
+    final maxE = samples.reduce(max);
+    final range = (maxE - minE) < 1 ? 1.0 : maxE - minE;
+
+    final topPad = size.height * 0.18;
+    final usableHeight = size.height - topPad;
+    final dx = size.width / (_sampleCount - 1);
+
+    Offset pointAt(int i) {
+      final t = (samples[i] - minE) / range;
+      return Offset(dx * i, topPad + usableHeight * (1 - t));
+    }
+
+    final line = ui.Path()..moveTo(pointAt(0).dx, pointAt(0).dy);
+    for (var i = 1; i < _sampleCount; i++) {
+      final p = pointAt(i);
+      line.lineTo(p.dx, p.dy);
+    }
+
+    final fill = ui.Path.from(line)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final area = Rect.fromLTWH(0, 0, size.width, size.height);
+
+    canvas.drawPath(
+      fill,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.primary.withValues(alpha: 0.32),
+            AppColors.primary.withValues(alpha: 0.0),
+          ],
+        ).createShader(area),
+    );
+
+    canvas.drawPath(
+      line,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..shader =
+            LinearGradient(colors: AppColors.speedGradient).createShader(area),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ElevationProfilePainter oldDelegate) =>
+      !identical(oldDelegate.elevations, elevations);
 }
 
 /// Carosello a card **full-width** con swipe (PageView). Il `viewportFraction`
