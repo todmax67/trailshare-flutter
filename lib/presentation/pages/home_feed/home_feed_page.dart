@@ -1,11 +1,11 @@
+import 'dart:math';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/services/offline_tile_provider.dart';
 import '../../widgets/trail_route_thumb.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
@@ -124,16 +124,14 @@ class _HomeFeedPageState extends State<HomeFeedPage>
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 32),
       children: [
-        // Mini-mappa: ingresso PRINCIPALE alla mappa Scopri, primo elemento
-        // della Home (decisione founder 2026-07-18: il link testuale
-        // "Esplora la zona" in fondo era un ingresso troppo debole per la
-        // superficie più importante di un'app outdoor).
-        _MiniMapCard(
-          userLocation: data.userLocation,
-          trails: data.nearbyTrails,
-          onTap: _openDiscover,
+        // Hero fotografico: saluto + i due ingressi principali (Registra/
+        // Scopri) allo stesso peso visivo. Sostituisce mini-mappa + saluto
+        // testuale (redesign "Editoriale con hero", 2026-07-23).
+        _PhotoHeroCard(
+          data: data,
+          onRecord: _openRecord,
+          onDiscover: _openDiscover,
         ),
-        _HeroCard(data: data),
         // Onboarding attivo: i primi passi del nuovo utente (sparisce a fine).
         if (_checklist != null)
           OnboardingChecklistCard(
@@ -146,7 +144,15 @@ class _HomeFeedPageState extends State<HomeFeedPage>
           ),
         if (data.resume != null)
           _ResumeCard(item: data.resume!, onTap: _openRecord),
-        // 1) Community generale — sempre ricca: la prima cosa che vede
+        // 1) Tour del mese — subito sotto l'hero, in evidenza editoriale.
+        if (data.editorialTour != null) ...[
+          _SectionHeader(title: context.l10n.homeSectionTour),
+          _EditorialTourCard(
+            tour: data.editorialTour!,
+            onTap: () => _openTour(data.editorialTour!),
+          ),
+        ],
+        // 2) Community generale — sempre ricca: la prima cosa che vede
         // anche il nuovo utente senza seguiti (risolve il cold-start).
         if (data.community.isNotEmpty) ...[
           _SectionHeader(
@@ -157,14 +163,6 @@ class _HomeFeedPageState extends State<HomeFeedPage>
           _FollowingStrip(
             posts: data.community,
             onTap: _openCommunityTrack,
-          ),
-        ],
-        // 2) Tour del mese.
-        if (data.editorialTour != null) ...[
-          _SectionHeader(title: context.l10n.homeSectionTour),
-          _EditorialTourCard(
-            tour: data.editorialTour!,
-            onTap: () => _openTour(data.editorialTour!),
           ),
         ],
         _tip(0),
@@ -274,65 +272,293 @@ class _HomeFeedPageState extends State<HomeFeedPage>
 // Hero
 // ═══════════════════════════════════════════════════════════════════════
 
-class _HeroCard extends StatelessWidget {
-  final HomeFeedData data;
-  const _HeroCard({required this.data});
+/// Sorgente foto+attribuzione per l'hero: la prima traccia con una foto
+/// reale, cercata tra i pool community in ordine di rilevanza editoriale.
+class _HeroTrackPick {
+  final String photoUrl;
+  final String ownerUsername;
+  final String trackName;
+  const _HeroTrackPick({
+    required this.photoUrl,
+    required this.ownerUsername,
+    required this.trackName,
+  });
 
-  String _greeting(BuildContext context) {
+  /// Sceglie una foto a caso tra tutte le tracce candidate — non sempre
+  /// la stessa: varietà ad ogni caricamento/refresh della Home.
+  static _HeroTrackPick? pickRandom(HomeFeedData data) {
+    final candidates = <_HeroTrackPick>[
+      for (final pool in [data.community, data.popularTracks, data.followingPosts])
+        for (final t in pool)
+          for (final photo in t.photoUrls)
+            _HeroTrackPick(
+              photoUrl: photo,
+              ownerUsername: t.ownerUsername,
+              trackName: t.name,
+            ),
+    ];
+    if (candidates.isEmpty) return null;
+    return candidates[Random().nextInt(candidates.length)];
+  }
+}
+
+/// Hero fotografico in apertura Home: foto da una traccia della community,
+/// saluto, e i due ingressi principali (Registra/Scopri) allo stesso peso
+/// visivo — sostituisce la mini-mappa e il vecchio saluto testuale.
+///
+/// Stateful: la foto è scelta a caso una volta sola (initState) e resta
+/// fissa tra i rebuild incidentali (es. checklist onboarding); si
+/// ri-sceglie solo quando la Home ricarica davvero i dati (refresh).
+class _PhotoHeroCard extends StatefulWidget {
+  final HomeFeedData data;
+  final VoidCallback onRecord;
+  final VoidCallback onDiscover;
+  const _PhotoHeroCard({
+    required this.data,
+    required this.onRecord,
+    required this.onDiscover,
+  });
+
+  @override
+  State<_PhotoHeroCard> createState() => _PhotoHeroCardState();
+}
+
+class _PhotoHeroCardState extends State<_PhotoHeroCard> {
+  _HeroTrackPick? _pick;
+
+  @override
+  void initState() {
+    super.initState();
+    _pick = _HeroTrackPick.pickRandom(widget.data);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PhotoHeroCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.data, widget.data)) {
+      _pick = _HeroTrackPick.pickRandom(widget.data);
+    }
+  }
+
+  String _kicker(BuildContext context) {
     final h = DateTime.now().hour;
-    final base = h < 12
+    return h < 12
         ? context.l10n.homeGreetingMorning
         : h < 18
             ? context.l10n.homeGreetingAfternoon
             : context.l10n.homeGreetingEvening;
+  }
+
+  String _headline(BuildContext context) {
     final name = FirebaseAuth.instance.currentUser?.displayName?.trim();
-    if (name == null || name.isEmpty) return base;
-    return '$base, ${name.split(' ').first}';
+    if (name == null || name.isEmpty) return context.l10n.homeReadyForTrail;
+    return context.l10n.homeReadyForTrailNamed(name.split(' ').first);
   }
 
   @override
   Widget build(BuildContext context) {
-    final weather = data.weather;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+    final pick = _pick;
+    return SizedBox(
+      height: 300,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Expanded(
+          pick != null
+              ? CachedNetworkImage(
+                  imageUrl: pick.photoUrl,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => const _HeroFallbackCover(),
+                )
+              : const _HeroFallbackCover(),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x33141814),
+                  Color(0x1F141814),
+                  Color(0xD9141814),
+                ],
+                stops: [0.0, 0.4, 1.0],
+              ),
+            ),
+          ),
+          if (pick != null)
+            Positioned(
+              left: 16,
+              top: 16,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(6, 6, 11, 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [AppColors.primary, AppColors.primaryDark],
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        pick.ownerUsername.isNotEmpty
+                            ? pick.ownerUsername[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      '@${pick.ownerUsername} · ${pick.trackName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 20,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _greeting(context),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  _kicker(context).toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 8),
                 Text(
-                  context.l10n.homeReadyForTrail,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: context.textSecondary,
+                  _headline(context),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                    shadows: [
+                      Shadow(blurRadius: 10, color: Color(0x59000000)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _HeroButton(
+                        icon: Icons.radio_button_checked,
+                        label: context.l10n.recordLabel,
+                        background: AppColors.primary,
+                        foreground: Colors.white,
+                        onTap: widget.onRecord,
                       ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _HeroButton(
+                        icon: Icons.map_outlined,
+                        label: context.l10n.discover,
+                        background: Colors.white.withValues(alpha: 0.92),
+                        foreground: AppColors.textPrimary,
+                        onTap: widget.onDiscover,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          if (weather != null)
-            Row(
-              children: [
-                Icon(weather.current.icon,
-                    size: 28, color: AppColors.primary),
-                const SizedBox(width: 6),
-                Text(
-                  '${weather.current.temperature.round()}°',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
         ],
+      ),
+    );
+  }
+}
+
+/// Copertina generica quando nessuna traccia community ha ancora una foto:
+/// gradiente "alpino" — mai un placeholder morto sull'elemento più in vista.
+class _HeroFallbackCover extends StatelessWidget {
+  const _HeroFallbackCover();
+
+  @override
+  Widget build(BuildContext context) {
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2E5E4E), Color(0xFF3E7A5E), Color(0xFF6BA368)],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color background;
+  final Color foreground;
+  final VoidCallback onTap;
+  const _HeroButton({
+    required this.icon,
+    required this.label,
+    required this.background,
+    required this.foreground,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 20, color: foreground),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -382,168 +608,6 @@ class _TipBanner extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 // Section header
 // ═══════════════════════════════════════════════════════════════════════
-
-/// Mini-mappa in cima alla Home: ingresso principale alla mappa Scopri.
-///
-/// Mappa REALE (tile + marker dei sentieri vicini) ma non interattiva:
-/// qualsiasi tap apre DiscoverPage. Con la posizione utente centra lì
-/// (zoom di zona); senza (geo pending/negata) mostra l'Italia — l'ingresso
-/// resta SEMPRE disponibile, mai un placeholder morto.
-class _MiniMapCard extends StatelessWidget {
-  final LatLng? userLocation;
-  final List<PublicTrail> trails;
-  final VoidCallback onTap;
-
-  const _MiniMapCard({
-    required this.userLocation,
-    required this.trails,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final center = userLocation ?? const LatLng(42.5, 12.5);
-    final zoom = userLocation != null ? 11.0 : 5.0;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: GestureDetector(
-        onTap: onTap,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
-            height: 170,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // AbsorbPointer: la mappa è solo da guardare — pan/zoom
-                // qui sarebbero in conflitto con lo scroll del feed.
-                AbsorbPointer(
-                  child: FlutterMap(
-                    options: MapOptions(
-                      initialCenter: center,
-                      initialZoom: zoom,
-                      interactionOptions: const InteractionOptions(
-                        flags: InteractiveFlag.none,
-                      ),
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.trailshare.app',
-                        tileProvider: OfflineFallbackTileProvider(),
-                      ),
-                      MarkerLayer(
-                        markers: [
-                          for (final t in trails)
-                            if (t.startLat != 0 || t.startLng != 0)
-                              Marker(
-                                point: LatLng(t.startLat, t.startLng),
-                                width: 14,
-                                height: 14,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 2),
-                                  ),
-                                ),
-                              ),
-                          if (userLocation != null)
-                            Marker(
-                              point: userLocation!,
-                              width: 18,
-                              height: 18,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: AppColors.info,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: Colors.white, width: 3),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // Velatura leggera in basso + CTA pill.
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(14, 28, 14, 12),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.45),
-                        ],
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.map_outlined,
-                                  size: 17, color: AppColors.primary),
-                              SizedBox(width: 6),
-                              Text(
-                                'Esplora la mappa',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13.5,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Spacer(),
-                        if (trails.isNotEmpty)
-                          Text(
-                            '${trails.length} sentieri vicini',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              shadows: [
-                                Shadow(blurRadius: 4, color: Colors.black54),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _SectionHeader extends StatelessWidget {
   final String title;
@@ -1127,9 +1191,12 @@ class _EditorialTourCard extends StatelessWidget {
   final VoidCallback onTap;
   const _EditorialTourCard({required this.tour, required this.onTap});
 
+  static const double _height = 210;
+
   @override
   Widget build(BuildContext context) {
     final cover = tour.coverPhotoUrl;
+    final difficulty = tour.difficultyGrade;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: GestureDetector(
@@ -1141,7 +1208,7 @@ class _EditorialTourCard extends StatelessWidget {
               cover != null
                   ? CachedNetworkImage(
                       imageUrl: cover,
-                      height: 180,
+                      height: _height,
                       width: double.infinity,
                       fit: BoxFit.cover,
                       errorWidget: (_, _, _) => _fallback(context),
@@ -1155,16 +1222,16 @@ class _EditorialTourCard extends StatelessWidget {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.65),
+                        Colors.black.withValues(alpha: 0.68),
                       ],
                     ),
                   ),
                 ),
               ),
               Positioned(
-                left: 14,
-                right: 14,
-                bottom: 12,
+                left: 16,
+                right: 16,
+                bottom: 15,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1174,15 +1241,23 @@ class _EditorialTourCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.w800,
+                        shadows: [
+                          Shadow(blurRadius: 6, color: Color(0x66000000)),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${tour.daysCount} ${tour.daysCount == 1 ? "giorno" : "giorni"} · '
-                      '${tour.totalDistanceKm.toStringAsFixed(0)} km · ${tour.ownerName}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    const SizedBox(height: 9),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _statPill('${tour.totalDistanceKm.toStringAsFixed(1)} km'),
+                        _statPill('+${tour.totalElevationGain.round()} m'),
+                        if (difficulty != null && difficulty.isNotEmpty)
+                          _statPill(difficulty, color: AppColors.primaryDark),
+                      ],
                     ),
                   ],
                 ),
@@ -1194,8 +1269,24 @@ class _EditorialTourCard extends StatelessWidget {
     );
   }
 
+  Widget _statPill(String text, {Color? color}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: color ?? AppColors.textPrimary,
+          ),
+        ),
+      );
+
   Widget _fallback(BuildContext context) => Container(
-        height: 180,
+        height: _height,
         width: double.infinity,
         color: context.themedSurfaceVariant,
         child: Icon(Icons.map, color: context.textMuted, size: 40),

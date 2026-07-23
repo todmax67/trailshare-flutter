@@ -6,6 +6,14 @@
   "homeGreetingAfternoon": "Buon pomeriggio",
   "homeGreetingEvening": "Buonasera",
   "homeReadyForTrail": "Pronto per il sentiero?",
+  "homeReadyForTrailNamed": "Pronto per il sentiero, {name}?",
+  "@homeReadyForTrailNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "homeSectionChallenge": "Sfida settimanale",
   "homeSectionFollowing": "Dai tuoi seguiti",
   "homeSectionTour": "Tour del mese",

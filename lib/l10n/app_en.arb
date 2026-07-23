@@ -6,6 +6,14 @@
   "homeGreetingAfternoon": "Good afternoon",
   "homeGreetingEvening": "Good evening",
   "homeReadyForTrail": "Ready for the trail?",
+  "homeReadyForTrailNamed": "Ready for the trail, {name}?",
+  "@homeReadyForTrailNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "homeSectionChallenge": "Weekly challenge",
   "homeSectionFollowing": "From people you follow",
   "homeSectionTour": "Tour of the month",

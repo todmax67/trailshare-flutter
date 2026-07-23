@@ -27,6 +27,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeReadyForTrail => 'Ready for the trail?';
 
   @override
+  String homeReadyForTrailNamed(String name) {
+    return 'Ready for the trail, $name?';
+  }
+
+  @override
   String get homeSectionChallenge => 'Weekly challenge';
 
   @override

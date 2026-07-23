@@ -134,6 +134,12 @@ abstract class AppLocalizations {
   /// **'Pronto per il sentiero?'**
   String get homeReadyForTrail;
 
+  /// No description provided for @homeReadyForTrailNamed.
+  ///
+  /// In it, this message translates to:
+  /// **'Pronto per il sentiero, {name}?'**
+  String homeReadyForTrailNamed(String name);
+
   /// No description provided for @homeSectionChallenge.
   ///
   /// In it, this message translates to:
