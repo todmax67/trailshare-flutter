@@ -61,6 +61,10 @@ class _Track3DPageState extends State<Track3DPage> {
   bool _playing = false;
   double _progress = 0; // 0..1
   double _speed = 1.0;
+  // Stile base 3D: 'hybrid' = satellite (default), 'topo' = cartografia
+  // topografica (curve di livello) — stesso linguaggio del "Topografica"
+  // già disponibile sulle mappe 2D (richiesta founder).
+  String _mapStyle = 'hybrid';
   double _distM = 0; // distanza dalla partenza (metri)
   double _eleM = 0; // quota corrente (m s.l.m.)
   String? _error;
@@ -317,6 +321,12 @@ class _Track3DPageState extends State<Track3DPage> {
   void _setSpeed(double s) {
     setState(() => _speed = s);
     _controller.runJavaScript('tsSetSpeed($s)');
+  }
+
+  void _toggleMapStyle() {
+    final next = _mapStyle == 'hybrid' ? 'topo' : 'hybrid';
+    setState(() => _mapStyle = next);
+    _controller.runJavaScript('tsSetStyle(${jsonEncode(next)})');
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -762,6 +772,16 @@ class _Track3DPageState extends State<Track3DPage> {
               IconButton(
                 icon: const Icon(Icons.replay, color: Colors.white70),
                 onPressed: _reset,
+              ),
+              IconButton(
+                icon: Icon(
+                  _mapStyle == 'topo' ? Icons.terrain : Icons.satellite_alt,
+                  color: Colors.white70,
+                ),
+                tooltip: _mapStyle == 'topo'
+                    ? 'Passa a Satellite'
+                    : 'Passa a Topografica',
+                onPressed: _toggleMapStyle,
               ),
               IconButton(
                 icon: const Icon(Icons.movie_creation_outlined,
