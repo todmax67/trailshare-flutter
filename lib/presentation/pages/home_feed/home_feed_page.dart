@@ -22,6 +22,7 @@ import '../../pages/business/business_profile_page.dart';
 import '../../pages/community/community_page.dart';
 import '../../pages/discover/community_track_detail_page.dart';
 import '../../pages/discover/discover_page.dart';
+import '../../pages/discover/trail_detail_page.dart';
 import '../../pages/profile/profile_page.dart';
 import '../../pages/record/record_page.dart';
 import '../../pages/tours/community_tour_detail_page.dart';
@@ -221,7 +222,7 @@ class _HomeFeedPageState extends State<HomeFeedPage>
           _DiscoverPreview(
             trails: data.nearbyTrails,
             userLocation: data.userLocation,
-            onExplore: _openDiscover,
+            onOpenTrail: _openTrail,
           ),
         ] else if (geoPending) ...[
           _SectionHeader(title: context.l10n.homeSectionDiscover),
@@ -265,6 +266,11 @@ class _HomeFeedPageState extends State<HomeFeedPage>
         MaterialPageRoute(
           builder: (_) => BusinessProfilePage(businessId: b.id ?? ''),
         ),
+      );
+
+  void _openTrail(PublicTrail t) => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TrailDetailPage(trail: t)),
       );
 }
 
@@ -1300,11 +1306,11 @@ class _EditorialTourCard extends StatelessWidget {
 class _DiscoverPreview extends StatelessWidget {
   final List<PublicTrail> trails;
   final LatLng? userLocation;
-  final VoidCallback onExplore;
+  final void Function(PublicTrail) onOpenTrail;
   const _DiscoverPreview({
     required this.trails,
     required this.userLocation,
-    required this.onExplore,
+    required this.onOpenTrail,
   });
 
   static const Distance _distance = Distance();
@@ -1347,7 +1353,7 @@ class _DiscoverPreview extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              onTap: onExplore,
+              onTap: () => onOpenTrail(t),
             ),
         ],
       ),
