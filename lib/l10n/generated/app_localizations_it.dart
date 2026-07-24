@@ -3150,6 +3150,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get durationStatLabel => 'Durata';
 
   @override
+  String get movingTimeStatLabel => 'In movimento';
+
+  @override
+  String get totalDurationLabel => 'Durata totale';
+
+  @override
   String activityChangedTo(String name) {
     return 'Attività cambiata in $name';
   }

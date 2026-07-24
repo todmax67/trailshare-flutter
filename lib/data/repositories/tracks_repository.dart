@@ -81,12 +81,14 @@ class TracksRepository {
     if (user == null) throw Exception('Utente non autenticato');
 
     try {
-      // Downsample una sola volta: gli stessi punti alimentano sia le stats
-      // dei metadati sia il documento geometria.
+      // Stats dai punti COMPLETI, downsample solo per lo storage: la
+      // decimazione uniforme taglia le curve e su percorsi a tornanti
+      // sottostimava la distanza fino al 20% (bug segnalato da utente
+      // Pro: GPX da 34 km mostrato come 26,6 km).
       final savedPoints = _downsamplePoints(track.points);
       final stats = track.isPlanned
           ? track.stats // Percorsi pianificati: usa stats dal router
-          : _recalculateStats(savedPoints, track.stats);
+          : _recalculateStats(track.points, track.stats);
 
       final metadata = _trackToFirestore(track, user.uid, savedPoints, stats);
 

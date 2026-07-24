@@ -3145,6 +3145,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get durationStatLabel => 'Duration';
 
   @override
+  String get movingTimeStatLabel => 'Moving time';
+
+  @override
+  String get totalDurationLabel => 'Total duration';
+
+  @override
   String activityChangedTo(String name) {
     return 'Activity changed to $name';
   }

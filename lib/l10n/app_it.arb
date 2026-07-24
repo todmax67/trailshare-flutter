@@ -1486,6 +1486,8 @@
   "editMenu": "Modifica",
   "detailsHeader": "Dettagli",
   "durationStatLabel": "Durata",
+  "movingTimeStatLabel": "In movimento",
+  "totalDurationLabel": "Durata totale",
   "activityChangedTo": "Attività cambiata in {name}",
   "@activityChangedTo": {
     "placeholders": {

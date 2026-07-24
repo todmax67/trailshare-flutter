@@ -5864,6 +5864,18 @@ abstract class AppLocalizations {
   /// **'Durata'**
   String get durationStatLabel;
 
+  /// No description provided for @movingTimeStatLabel.
+  ///
+  /// In it, this message translates to:
+  /// **'In movimento'**
+  String get movingTimeStatLabel;
+
+  /// No description provided for @totalDurationLabel.
+  ///
+  /// In it, this message translates to:
+  /// **'Durata totale'**
+  String get totalDurationLabel;
+
   /// No description provided for @activityChangedTo.
   ///
   /// In it, this message translates to:

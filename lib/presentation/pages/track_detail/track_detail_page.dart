@@ -695,11 +695,23 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
   Widget _buildMainStats() {
     final stats = _track.stats;
+    // Tempo principale = movimento quando disponibile (convenzione
+    // Komoot/Strava: le pause non gonfiano il numero in vetrina); la
+    // durata totale resta nei Dettagli.
+    final hasMoving = stats.movingTime > Duration.zero &&
+        stats.movingTime < stats.duration;
     return TrackStatsBar(
       stats: [
         TrackStat(icon: Icons.straighten, value: (stats.distance / 1000).toStringAsFixed(1), unit: 'km', label: context.l10n.distanceLabel, color: AppColors.primary),
         TrackStat(icon: Icons.trending_up, value: '+${stats.elevationGain.toStringAsFixed(0)}', unit: 'm', label: context.l10n.elevationGainLabel, color: AppColors.success),
-        TrackStat(icon: Icons.timer, value: _formatDuration(stats.duration), label: context.l10n.durationStatLabel, color: AppColors.info),
+        TrackStat(
+          icon: Icons.timer,
+          value: _formatDuration(hasMoving ? stats.movingTime : stats.duration),
+          label: hasMoving
+              ? context.l10n.movingTimeStatLabel
+              : context.l10n.durationStatLabel,
+          color: AppColors.info,
+        ),
       ],
     );
   }
@@ -1153,6 +1165,9 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
             ],
             _buildEditableActivityRow(),
             _detailRow(Icons.calendar_today, context.l10n.dateLabel, _formatDate(_track.createdAt)),
+            if (stats.movingTime > Duration.zero &&
+                stats.movingTime < stats.duration)
+              _detailRow(Icons.schedule, context.l10n.totalDurationLabel, _formatDuration(stats.duration)),
             _detailRow(Icons.location_on, context.l10n.gpsPoints, '${_track.points.length}'),
             if (stats.elevationLoss > 0)
               _detailRow(Icons.trending_down, context.l10n.elevationLossLabel, '-${stats.elevationLoss.toStringAsFixed(0)} m'),

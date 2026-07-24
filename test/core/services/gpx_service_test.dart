@@ -128,4 +128,65 @@ void main() {
       expect(gpx, isNot(contains('Foo & <Bar> "Baz"')));
     });
   });
+
+  group('GpxService moving time', () {
+    /// GPX sintetico: 10 min in movimento (~1 m/s), pausa ferma di 30 min,
+    /// altri 10 min in movimento. Durata totale 50 min, movimento ~20 min.
+    String gpxWithPause() {
+      final b = StringBuffer()
+        ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
+        ..writeln('<gpx version="1.1" '
+            'xmlns="http://www.topografix.com/GPX/1/1">')
+        ..writeln('<trk><name>Pausa pranzo</name><trkseg>');
+      final start = DateTime.utc(2026, 7, 1, 10, 0, 0);
+      // ~0.00009° lat ≈ 10 m: un punto ogni 10 s a ~1 m/s.
+      var lat = 46.0;
+      var t = start;
+      for (var i = 0; i < 60; i++) {
+        b.writeln('<trkpt lat="$lat" lon="9.0"><ele>1000</ele>'
+            '<time>${t.toIso8601String()}</time></trkpt>');
+        lat += 0.00009;
+        t = t.add(const Duration(seconds: 10));
+      }
+      // Pausa: 30 minuti fermi nello stesso punto.
+      t = t.add(const Duration(minutes: 30));
+      for (var i = 0; i < 60; i++) {
+        b.writeln('<trkpt lat="$lat" lon="9.0"><ele>1000</ele>'
+            '<time>${t.toIso8601String()}</time></trkpt>');
+        lat += 0.00009;
+        t = t.add(const Duration(seconds: 10));
+      }
+      b.writeln('</trkseg></trk></gpx>');
+      return b.toString();
+    }
+
+    test('movingTime excludes the stationary pause, duration includes it',
+        () {
+      final track = service.parseGpxString(gpxWithPause())!;
+      final stats = track.stats;
+
+      expect(stats.duration.inMinutes, inInclusiveRange(49, 51));
+      expect(stats.movingTime.inMinutes, inInclusiveRange(18, 21));
+      expect(stats.movingTime, lessThan(stats.duration));
+    });
+
+    test('track without timestamps has no meaningful duration/movingTime',
+        () {
+      const gpx = '''<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><trkseg>
+    <trkpt lat="46.0" lon="9.0"><ele>1000</ele></trkpt>
+    <trkpt lat="46.001" lon="9.0"><ele>1010</ele></trkpt>
+  </trkseg></trk>
+</gpx>''';
+      final track = service.parseGpxString(gpx)!;
+      // Quirk pre-esistente: senza <time> il parser assegna DateTime.now()
+      // a ogni punto → durata di pochi µs, mai zero esatto. In UI viene
+      // mostrata come "--". Qui basta garantire che resti sub-secondo e
+      // che movingTime non superi la durata.
+      expect(track.stats.duration, lessThan(const Duration(seconds: 1)));
+      expect(track.stats.movingTime,
+          lessThanOrEqualTo(track.stats.duration));
+    });
+  });
 }

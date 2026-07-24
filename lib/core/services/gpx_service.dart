@@ -186,11 +186,37 @@ class GpxService {
       dur = points.last.timestamp.difference(points.first.timestamp);
     }
 
+    // Tempo di movimento: somma dei delta tra punti consecutivi quando la
+    // velocità del segmento supera la soglia. Le pause (pranzo al rifugio,
+    // foto) hanno dt grande con spostamento minimo → escluse. È il numero
+    // che Komoot/Strava/Bosch mostrano come tempo principale.
+    Duration moving = Duration.zero;
+    if (dur > Duration.zero) {
+      const minSpeedMs = 0.5; // ~1,8 km/h: sotto è fermo/pausa
+      for (int i = 1; i < points.length; i++) {
+        final prev = points[i - 1];
+        final curr = points[i];
+        if (prev.timestamp.year <= 2000 || curr.timestamp.year <= 2000) {
+          continue;
+        }
+        final dt = curr.timestamp.difference(prev.timestamp);
+        if (dt <= Duration.zero) continue;
+        final d = _calculateDistance(
+          prev.latitude, prev.longitude,
+          curr.latitude, curr.longitude,
+        );
+        if (d / dt.inMilliseconds * 1000 >= minSpeedMs) {
+          moving += dt;
+        }
+      }
+    }
+
     return TrackStats(
       distance: distance,
       elevationGain: eleResult.elevationGain,
       elevationLoss: eleResult.elevationLoss,
       duration: dur,
+      movingTime: moving,
       minElevation: eleResult.minElevation,
       maxElevation: eleResult.maxElevation,
     );
