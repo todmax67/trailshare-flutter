@@ -1222,6 +1222,51 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.8.0',
+        title: 'La Home si rifà il look 🏔️',
+        bullets: [
+          'Nuova Home editoriale: si apre con una foto vera scattata dalla community (con credito a chi l\'ha condivisa) e i due bottoni Registra e Scopri',
+          'Le tracce senza foto ora mostrano il profilo altimetrico disegnato dai loro dati GPS — niente più card vuote',
+          'Mappa Scopri più leggibile: i sentieri vicini si raggruppano in cluster numerati, e passi da Mappa a Lista con un tocco',
+          'Mappa 3D a richiesta: bottone 3D sulle schede sentiero e "sorvola i sentieri della zona" su Scopri, con scelta Satellite/Topografica',
+          'Scelta dello stile mappa (inclusa la Topografica gratuita) anche sulla mini-mappa delle schede',
+          'Le notifiche ora aprono il contenuto giusto: chat del gruppo, traccia del Cheer o della menzione, profilo del nuovo follower',
+          'Import GPX/TCX/FIT più fedele: distanza calcolata sul tracciato completo e nuovo tempo "In movimento" separato dalla durata totale (pause escluse)',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.7.5',
+        title: 'Pacchetto e-bike ⚡',
+        bullets: [
+          'Punti di ricarica e-bike sulla mappa Scopri: oltre 1.100 in Italia da OpenStreetMap, più gli Spazi Pro che offrono ricarica',
+          'Layer ⚡ dedicato: attivalo dal selettore livelli della mappa',
+          'Vedi un punto di ricarica che non c\'è? Segnalalo alla community direttamente dalla mappa',
+          'Filtri di ricerca salvabili come predefiniti (tasto Salva accanto a Reset)',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.7.4',
+        title: 'Registrazione più solida + Suunto 🔗',
+        bullets: [
+          'Collega il tuo account Suunto: le attività registrate con l\'orologio arrivano in TrailShare automaticamente (Dispositivi & sync)',
+          'Registrazione: se l\'app viene chiusa o il telefono si riavvia, alla riapertura la sessione si riaggancia da sola',
+          'Rimossa l\'auto-pausa: in zone senza segnale poteva bloccare la registrazione senza riprendere (bug segnalato sul campo — grazie!)',
+          'Fix ai badge e alle statistiche post-salvataggio',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.7.0 – 2.7.3',
+        title: 'Più veloce e più sicura 🚀',
+        bullets: [
+          'Home e classifiche molto più rapide, soprattutto su Android: la classifica settimanale ora si carica in meno di un secondo',
+          'Sicurezza rafforzata: i dati GPS e battito delle tracce private sono visibili solo a te (o al tuo gruppo, se condivise lì)',
+          'Cancellazione account completa lato server, conforme GDPR',
+          'Mappe offline e Lifeline più affidabili nelle zone senza segnale',
+          'Sfide: corretto un doppio conteggio di distanza e dislivello',
+          'Fix all\'export video del fly-through 3D',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.6.9',
         title: 'Sentieri che si raccontano 🗺️',
         bullets: [
