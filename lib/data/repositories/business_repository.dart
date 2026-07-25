@@ -368,13 +368,18 @@ class BusinessRepository {
   /// page quando l'utente passa al modo "Tutta Italia" per planning
   /// viaggio. Niente filtro geohash, solo status=active + optional type.
   ///
-  /// [limit] default 2000: copre tutti i rifugi italiani da OSM
-  /// (~2200 alpine_hut + noleggi/guide ~500 = ~2700). Sopra il limit
-  /// la mappa nationwide è incompleta. Quando supereremo 3000 doc,
-  /// paginiamo o spostiamo lato Cloud Function (aggregato precomputato).
+  /// [limit] è un tetto di sicurezza, non una stima: `type` e `status`
+  /// sono filtri Firestore (server-side), quindi il limit si applica al
+  /// risultato già filtrato, non ai 3.906 business totali.
+  ///
+  /// Volumi misurati il 2026-07-25: 3.906 business attivi, di cui 1.713
+  /// rifugi — la chiamata della Home (`type: rifugio`) è quindi ben
+  /// sotto il tetto. Alzato a 3000 in vista dell'espansione alpina, che
+  /// aggiunge rifugi esteri (151 nella sola area del Monte Bianco).
+  /// Oltre i 3000 serve paginare o precomputare lato Cloud Function.
   Future<List<Business>> getAllNationwide({
     BusinessType? type,
-    int limit = 2000,
+    int limit = 3000,
   }) async {
     Query<Map<String, dynamic>> q = _businesses
         .where('status', isEqualTo: 'active')

@@ -4562,8 +4562,28 @@ area["${areaTag}"="${isoCode}"]->.r;
 out center tags;`;
 }
 
+/// Variante per bounding box, usata fuori dall'Italia.
+///
+/// Perché non le aree ISO anche all'estero: il tagging OSM è incoerente
+/// da paese a paese. Verificato il 2026-07-25 — `ISO3166-2="CH-VS"`
+/// risponde (121 rifugi), ma `FR-74`, `FR-73` e `AT-7` restituiscono
+/// zero perché quelle relazioni amministrative non portano il tag. Il
+/// bbox invece funziona ovunque e non dipende da come è mappato il
+/// confine; è anche ciò che il modello Dart (`GeoRegions`) già conosce
+/// per ogni regione.
+///
+/// [bbox] è `[south, west, north, east]`, la convenzione Overpass.
+function buildOverpassBboxQuery(bbox, tagPairs) {
+  const b = bbox.join(',');
+  const nodeParts = tagPairs.map(({ k, v }) => `node["${k}"="${v}"](${b});`).join('');
+  const wayParts = tagPairs.map(({ k, v }) => `way["${k}"="${v}"](${b});`).join('');
+  return `[out:json][timeout:60];
+(${nodeParts}${wayParts});
+out center tags;`;
+}
+
 /// Normalizza un POI OSM nel formato Business doc.
-function osmToBusinessDoc(poi, businessType, ownerId) {
+function osmToBusinessDoc(poi, businessType, ownerId, country) {
   // Coordinate: node ha lat/lon direttamente; way ha center.{lat,lon}
   const lat = poi.lat != null ? poi.lat : (poi.center && poi.center.lat);
   const lng = poi.lon != null ? poi.lon : (poi.center && poi.center.lon);
@@ -4596,6 +4616,10 @@ function osmToBusinessDoc(poi, businessType, ownerId) {
     description,
     location: {
       lat, lng, geohash,
+      // ISO 3166-1 alpha-2, valorizzato solo per gli import esteri:
+      // in Italia l'assenza del campo continua a significare "IT",
+      // così i ~2700 rifugi gia importati restano validi senza backfill.
+      ...(country ? { country } : {}),
       ...(city ? { city } : {}),
       ...(address ? { address } : {}),
       ...(elevation != null && !isNaN(elevation) ? { elevation } : {}),
@@ -4626,11 +4650,36 @@ exports.importOsmBusinesses = onCall(
         'permission-denied', 'Solo admin platform puo importare da OSM.'
       );
     }
-    const { region, businessType, dryRun } = request.data || {};
-    if (!region || !ITALY_REGION_ISO[region]) {
+    const { region, businessType, dryRun, bbox, country } = request.data || {};
+    // Due modalità: `region` (Italia, aree ISO) oppure `bbox` (estero).
+    // Vedi buildOverpassBboxQuery sul perché il bbox serve fuori Italia.
+    const useBbox = Array.isArray(bbox) && bbox.length === 4;
+    if (useBbox) {
+      const ok = bbox.every((n) => typeof n === 'number' && Number.isFinite(n));
+      const [s, w, n, e] = bbox;
+      if (!ok || s >= n || w >= e || s < -90 || n > 90 || w < -180 || e > 180) {
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          'bbox invalido: atteso [south, west, north, east] con south<north e west<east.'
+        );
+      }
+      // Guardia sull'area: un bbox enorme farebbe scadere Overpass e
+      // importerebbe migliaia di doc in un colpo solo.
+      if ((n - s) * (e - w) > 25) {
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          'bbox troppo grande (max 25 gradi quadri). Spezzalo in aree piu piccole.'
+        );
+      }
+      if (country && !/^[A-Z]{2}$/.test(country)) {
+        throw new functions.https.HttpsError(
+          'invalid-argument', 'country deve essere ISO 3166-1 alpha-2 (es. FR, CH).'
+        );
+      }
+    } else if (!region || !ITALY_REGION_ISO[region]) {
       throw new functions.https.HttpsError(
         'invalid-argument',
-        `region invalida. Disponibili: ${Object.keys(ITALY_REGION_ISO).join(', ')}`
+        `Serve un bbox [south,west,north,east] oppure una region italiana. Disponibili: ${Object.keys(ITALY_REGION_ISO).join(', ')}`
       );
     }
     if (!businessType || !OSM_TAG_PRESETS[businessType]) {
@@ -4640,11 +4689,15 @@ exports.importOsmBusinesses = onCall(
       );
     }
 
-    const isoCode = ITALY_REGION_ISO[region];
     const tagPairs = OSM_TAG_PRESETS[businessType];
-    const query = buildOverpassQuery(isoCode, tagPairs);
+    const query = useBbox
+      ? buildOverpassBboxQuery(bbox, tagPairs)
+      : buildOverpassQuery(ITALY_REGION_ISO[region], tagPairs);
 
-    logger.info(`[importOsmBusinesses] region=${region} type=${businessType} dryRun=${!!dryRun}`);
+    logger.info(
+      `[importOsmBusinesses] ${useBbox ? `bbox=${bbox.join(',')} country=${country || '?'}` : `region=${region}`}` +
+      ` type=${businessType} dryRun=${!!dryRun}`
+    );
 
     let overpassData;
     try {
@@ -4674,7 +4727,7 @@ exports.importOsmBusinesses = onCall(
     // Dedup su sourceUrl. Una query batch get sui sourceUrl trovati.
     const candidates = [];
     for (const poi of elements) {
-      const doc = osmToBusinessDoc(poi, businessType, request.auth.uid);
+      const doc = osmToBusinessDoc(poi, businessType, request.auth.uid, useBbox ? country : null);
       if (doc) candidates.push(doc);
     }
     if (candidates.length === 0) {
