@@ -1856,9 +1856,14 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     );
   }
 
+  /// Ultima scelta admin su "non mostrare nel feed", ricordata per la
+  /// sessione: pubblicare le tappe di un tour significa ripetere la
+  /// stessa scelta 10-15 volte di fila, e ri-spuntarla ogni volta
+  /// portava a dimenticarsene (successo davvero, tappa 10 del TMB).
+  static bool _lastHiddenFromFeedChoice = false;
+
   void _showPublishDialog() {
-    // Scelta admin, resettata ad ogni apertura del dialog.
-    bool hiddenFromFeed = false;
+    bool hiddenFromFeed = _lastHiddenFromFeedChoice;
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -1878,6 +1883,49 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(context.l10n.publishDialogContent),
+                // Solo admin: pubblica senza finire nel feed cronologico
+                // (tappe di un tour redazionale). La traccia resta
+                // pubblica, apribile dal tour e promuovibile a Sentiero.
+                // Sta QUI, sopra il riepilogo, perché più in basso
+                // finiva sotto descrizioni lunghe e restava invisibile
+                // senza scorrere dentro il dialog.
+                if (_isAdminUser) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: hiddenFromFeed
+                          ? AppColors.primary.withValues(alpha: 0.08)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: hiddenFromFeed
+                            ? AppColors.primary
+                            : Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: CheckboxListTile(
+                      contentPadding:
+                          const EdgeInsets.only(left: 4, right: 12),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                      value: hiddenFromFeed,
+                      onChanged: (v) => setDialogState(() {
+                        hiddenFromFeed = v ?? false;
+                        _lastHiddenFromFeedChoice = hiddenFromFeed;
+                      }),
+                      title: const Text(
+                        'Non mostrare nel feed Community',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: const Text(
+                        'Resta pubblica e navigabile dal tour, ma non '
+                        'compare nel feed né in "I sentieri più amati".',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 _buildSummaryRow(context.l10n.nameLabel, _track.name),
                 _buildSummaryRow(context.l10n.distanceLabel,
@@ -1888,29 +1936,6 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     _track.description!.isNotEmpty)
                   _buildSummaryRow(
                       context.l10n.descriptionLabel, _track.description!),
-                // Solo admin: pubblica senza finire nel feed cronologico
-                // (tappe di un tour redazionale). La traccia resta
-                // pubblica, apribile dal tour e promuovibile a Sentiero.
-                if (_isAdminUser) ...[
-                  const Divider(height: 24),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    dense: true,
-                    value: hiddenFromFeed,
-                    onChanged: (v) =>
-                        setDialogState(() => hiddenFromFeed = v ?? false),
-                    title: const Text(
-                      'Non mostrare nel feed Community',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    subtitle: const Text(
-                      'Resta pubblica e navigabile dal tour, ma non compare '
-                      'nel feed né in "I sentieri più amati".',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
