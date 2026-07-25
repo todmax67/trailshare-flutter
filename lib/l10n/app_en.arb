@@ -6,6 +6,12 @@
   "homeGreetingAfternoon": "Good afternoon",
   "homeGreetingEvening": "Good evening",
   "homeReadyForTrail": "Ready for the trail?",
+  "hideFromFeed": "Remove from feed (stays in the tour)",
+  "showAlsoInFeed": "Show in the Community feed too",
+  "nowVisibleInFeed": "Now visible in the Community feed",
+  "publishTourOnly": "Publish for the tour only",
+  "publishTourOnlyDialogContent": "The track becomes public and opens from the tour's stages, but won't appear in the Community feed or in \"Most loved trails\".\n\nMeant for multi-stage routes: publish them all without flooding your followers' feed.",
+  "publishedTourOnly": "Published: visible from the tour, not in the feed",
   "homeReadyForTrailNamed": "Ready for the trail, {name}?",
   "@homeReadyForTrailNamed": {
     "placeholders": {

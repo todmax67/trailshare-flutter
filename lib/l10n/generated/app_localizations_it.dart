@@ -27,6 +27,25 @@ class AppLocalizationsIt extends AppLocalizations {
   String get homeReadyForTrail => 'Pronto per il sentiero?';
 
   @override
+  String get hideFromFeed => 'Togli dal feed (resta nel tour)';
+
+  @override
+  String get showAlsoInFeed => 'Mostra anche nel feed Community';
+
+  @override
+  String get nowVisibleInFeed => 'Ora visibile nel feed della Community';
+
+  @override
+  String get publishTourOnly => 'Pubblica solo nel tour';
+
+  @override
+  String get publishTourOnlyDialogContent =>
+      'La traccia diventa pubblica e si apre dalle tappe del tour, ma non compare nel feed della Community né in \"I sentieri più amati\".\n\nPensata per i cammini a tappe: le pubblichi tutte senza riempire il feed di chi ti segue.';
+
+  @override
+  String get publishedTourOnly => 'Pubblicata: visibile dal tour, non nel feed';
+
+  @override
   String homeReadyForTrailNamed(String name) {
     return 'Pronto per il sentiero, $name?';
   }

@@ -839,6 +839,23 @@ class CommunityTracksRepository {
     }
   }
 
+  /// Sposta una traccia GIÀ pubblicata dentro o fuori dal feed, senza
+  /// ripubblicarla: la scelta "solo tour" resta reversibile in entrambi
+  /// i sensi, e una tappa che merita visibilità può essere portata nel
+  /// feed anche dopo.
+  Future<bool> setHiddenFromFeed(String trackId, bool hidden) async {
+    try {
+      await _tracksCollection.doc(trackId).update({
+        'hiddenFromFeed': hidden,
+      });
+      debugPrint('[CommunityTracks] $trackId hiddenFromFeed=$hidden');
+      return true;
+    } catch (e) {
+      debugPrint('[CommunityTracks] Errore setHiddenFromFeed: $e');
+      return false;
+    }
+  }
+
   /// Rimuovi una traccia dalla community
   Future<bool> unpublishTrack(String trackId) async {
     try {

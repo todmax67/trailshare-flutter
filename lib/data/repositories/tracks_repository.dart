@@ -529,6 +529,7 @@ class TracksRepository {
     String? description,
     ActivityType? activityType,
     bool? isPublic,
+    bool? hiddenFromFeed,
     Object? manualDifficulty = _unsetManual,
   }) async {
     final userId = _auth.currentUser?.uid;
@@ -539,6 +540,7 @@ class TracksRepository {
     if (description != null) updates['description'] = description;
     if (activityType != null) updates['activityType'] = activityType.name;
     if (isPublic != null) updates['isPublic'] = isPublic;
+    if (hiddenFromFeed != null) updates['hiddenFromFeed'] = hiddenFromFeed;
 
     // Override manuale difficoltà:
     // - string non vuota → imposta override
@@ -867,6 +869,7 @@ class TracksRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'userId': userId,
       'isPublic': track.isPublic,
+      'hiddenFromFeed': track.hiddenFromFeed,
       'isPlanned': track.isPlanned,
       // Gruppi in cui la traccia è condivisa come "percorso consigliato"
       // (B2B groups feature, vedi GroupsRepository.shareTrackToGroup).
@@ -1171,6 +1174,7 @@ class TracksRepository {
       createdAt: createdAt,
       userId: data['userId']?.toString(),
       isPublic: data['isPublic'] == true,
+      hiddenFromFeed: data['hiddenFromFeed'] == true,
       isPlanned: data['isPlanned'] == true,
       groupIds: (data['groupIds'] as List?)
               ?.map((e) => e.toString())

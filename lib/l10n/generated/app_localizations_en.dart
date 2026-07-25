@@ -27,6 +27,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeReadyForTrail => 'Ready for the trail?';
 
   @override
+  String get hideFromFeed => 'Remove from feed (stays in the tour)';
+
+  @override
+  String get showAlsoInFeed => 'Show in the Community feed too';
+
+  @override
+  String get nowVisibleInFeed => 'Now visible in the Community feed';
+
+  @override
+  String get publishTourOnly => 'Publish for the tour only';
+
+  @override
+  String get publishTourOnlyDialogContent =>
+      'The track becomes public and opens from the tour\'s stages, but won\'t appear in the Community feed or in \"Most loved trails\".\n\nMeant for multi-stage routes: publish them all without flooding your followers\' feed.';
+
+  @override
+  String get publishedTourOnly =>
+      'Published: visible from the tour, not in the feed';
+
+  @override
   String homeReadyForTrailNamed(String name) {
     return 'Ready for the trail, $name?';
   }

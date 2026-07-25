@@ -6,6 +6,12 @@
   "homeGreetingAfternoon": "Buon pomeriggio",
   "homeGreetingEvening": "Buonasera",
   "homeReadyForTrail": "Pronto per il sentiero?",
+  "hideFromFeed": "Togli dal feed (resta nel tour)",
+  "showAlsoInFeed": "Mostra anche nel feed Community",
+  "nowVisibleInFeed": "Ora visibile nel feed della Community",
+  "publishTourOnly": "Pubblica solo nel tour",
+  "publishTourOnlyDialogContent": "La traccia diventa pubblica e si apre dalle tappe del tour, ma non compare nel feed della Community né in \"I sentieri più amati\".\n\nPensata per i cammini a tappe: le pubblichi tutte senza riempire il feed di chi ti segue.",
+  "publishedTourOnly": "Pubblicata: visibile dal tour, non nel feed",
   "homeReadyForTrailNamed": "Pronto per il sentiero, {name}?",
   "@homeReadyForTrailNamed": {
     "placeholders": {

@@ -134,6 +134,42 @@ abstract class AppLocalizations {
   /// **'Pronto per il sentiero?'**
   String get homeReadyForTrail;
 
+  /// No description provided for @hideFromFeed.
+  ///
+  /// In it, this message translates to:
+  /// **'Togli dal feed (resta nel tour)'**
+  String get hideFromFeed;
+
+  /// No description provided for @showAlsoInFeed.
+  ///
+  /// In it, this message translates to:
+  /// **'Mostra anche nel feed Community'**
+  String get showAlsoInFeed;
+
+  /// No description provided for @nowVisibleInFeed.
+  ///
+  /// In it, this message translates to:
+  /// **'Ora visibile nel feed della Community'**
+  String get nowVisibleInFeed;
+
+  /// No description provided for @publishTourOnly.
+  ///
+  /// In it, this message translates to:
+  /// **'Pubblica solo nel tour'**
+  String get publishTourOnly;
+
+  /// No description provided for @publishTourOnlyDialogContent.
+  ///
+  /// In it, this message translates to:
+  /// **'La traccia diventa pubblica e si apre dalle tappe del tour, ma non compare nel feed della Community né in \"I sentieri più amati\".\n\nPensata per i cammini a tappe: le pubblichi tutte senza riempire il feed di chi ti segue.'**
+  String get publishTourOnlyDialogContent;
+
+  /// No description provided for @publishedTourOnly.
+  ///
+  /// In it, this message translates to:
+  /// **'Pubblicata: visibile dal tour, non nel feed'**
+  String get publishedTourOnly;
+
   /// No description provided for @homeReadyForTrailNamed.
   ///
   /// In it, this message translates to:

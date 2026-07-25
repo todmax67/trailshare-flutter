@@ -397,6 +397,12 @@ class Track {
   final DateTime createdAt;
   final String? userId;
   final bool isPublic;
+
+  /// Pubblicata ma tenuta fuori dal feed cronologico della Community
+  /// ("Pubblica solo nel tour"). Denormalizzato qui dalla copia in
+  /// published_tracks per sapere lo stato senza rileggere quel doc,
+  /// che contiene i punti GPS ed è pesante.
+  final bool hiddenFromFeed;
   final bool isPlanned;
   final TrackStats stats;
 
@@ -479,6 +485,7 @@ class Track {
     required this.createdAt,
     this.userId,
     this.isPublic = false,
+    this.hiddenFromFeed = false,
     this.isPlanned = false,
     this.stats = const TrackStats(),
     this.groupIds = const [],
@@ -504,6 +511,7 @@ class Track {
       'createdAt': createdAt.toIso8601String(),
       'userId': userId,
       'isPublic': isPublic,
+      'hiddenFromFeed': hiddenFromFeed,
       'isPlanned': isPlanned,
       'groupIds': groupIds,
       'distance': stats.distance,
@@ -560,6 +568,7 @@ class Track {
     DateTime? createdAt,
     String? userId,
     bool? isPublic,
+    bool? hiddenFromFeed,
     bool? isPlanned,
     TrackStats? stats,
     List<String>? groupIds,
@@ -585,6 +594,7 @@ class Track {
       createdAt: createdAt ?? this.createdAt,
       userId: userId ?? this.userId,
       isPublic: isPublic ?? this.isPublic,
+      hiddenFromFeed: hiddenFromFeed ?? this.hiddenFromFeed,
       isPlanned: isPlanned ?? this.isPlanned,
       stats: stats ?? this.stats,
       groupIds: groupIds ?? this.groupIds,

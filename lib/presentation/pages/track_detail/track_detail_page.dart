@@ -38,7 +38,6 @@ import '../../../core/services/health_service.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../widgets/flat_section.dart';
 import '../../widgets/track_stats_bar.dart';
-import '../../../data/repositories/admin_repository.dart';
 
 class TrackDetailPage extends StatefulWidget {
   final Track track;
@@ -77,25 +76,16 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   // True mentre ricarichiamo i punti dalla geometria (traccia aperta da una
   // lista): mostra uno spinner invece del "nessun dato GPS" che sembrava un errore.
   bool _isHydrating = false;
-  // Admin: abilita l'opzione "non mostrare nel feed" in pubblicazione
-  // (account redazionale che pubblica le tappe di un tour).
-  bool _isAdminUser = false;
 
   @override
   void initState() {
     super.initState();
     _track = widget.track;
-    _loadAdminFlag();
     // La traccia può arrivare da una lista (metodo lightweight/paginato) con i
     // punti VUOTI: ora vivono nel doc geometria. Idratiamo qui — una sola read
     // — così mappa, 3D, export, condivisione e pubblicazione hanno i punti.
     _isHydrating = _track.points.isEmpty && _track.id != null;
     _hydratePointsIfNeeded();
-  }
-
-  Future<void> _loadAdminFlag() async {
-    final isAdmin = await AdminRepository.isCurrentUserAdmin();
-    if (mounted && isAdmin) setState(() => _isAdminUser = true);
   }
 
   /// Ricarica i punti dalla geometria se la traccia è arrivata "leggera".
@@ -216,6 +206,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     case 'publish':
                       _showPublishDialog();
                       break;
+                    case 'publishTourOnly':
+                      _showPublishTourOnlyDialog();
+                      break;
+                    case 'toggleFeedVisibility':
+                      _toggleFeedVisibility();
+                      break;
                     case 'unpublish':
                       _showUnpublishDialog();
                       break;
@@ -253,6 +249,36 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
+                  // Terza destinazione, accanto a community e gruppo:
+                  // pubblica per renderla apribile dalle tappe di un tour
+                  // SENZA riempire il feed. È una voce a sé e non un
+                  // flag dentro "Pubblica" perché chi pubblica 10-15
+                  // tappe di fila una spunta se la dimentica (successo).
+                  if (!_track.isPublic)
+                    PopupMenuItem(
+                      value: 'publishTourOnly',
+                      child: ListTile(
+                        leading: const Icon(Icons.map_outlined),
+                        title: Text(context.l10n.publishTourOnly),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  // Già pubblicata: la scelta resta reversibile nei due
+                  // sensi, così una tappa che merita visibilità può
+                  // entrare nel feed anche dopo (e viceversa).
+                  if (_track.isPublic)
+                    PopupMenuItem(
+                      value: 'toggleFeedVisibility',
+                      child: ListTile(
+                        leading: Icon(_track.hiddenFromFeed
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                        title: Text(_track.hiddenFromFeed
+                            ? context.l10n.showAlsoInFeed
+                            : context.l10n.hideFromFeed),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
                   const PopupMenuItem(
                     value: 'shareToGroup',
                     child: ListTile(
@@ -1860,14 +1886,90 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   /// sessione: pubblicare le tappe di un tour significa ripetere la
   /// stessa scelta 10-15 volte di fila, e ri-spuntarla ogni volta
   /// portava a dimenticarsene (successo davvero, tappa 10 del TMB).
-  static bool _lastHiddenFromFeedChoice = false;
+  /// Riepilogo traccia condiviso dai due dialog di pubblicazione.
+  List<Widget> _publishSummaryRows() => [
+        _buildSummaryRow(context.l10n.nameLabel, _track.name),
+        _buildSummaryRow(context.l10n.distanceLabel,
+            '${_track.stats.distanceKm.toStringAsFixed(1)} km'),
+        _buildSummaryRow(context.l10n.elevationGainLabel,
+            '+${_track.stats.elevationGain.toStringAsFixed(0)} m'),
+        if (_track.description != null && _track.description!.isNotEmpty)
+          _buildSummaryRow(context.l10n.descriptionLabel, _track.description!),
+      ];
 
-  void _showPublishDialog() {
-    bool hiddenFromFeed = _lastHiddenFromFeedChoice;
+  /// Pubblicazione "solo tour": stessa scrittura di [_showPublishDialog]
+  /// ma con `hiddenFromFeed`, così la traccia è apribile dalle tappe del
+  /// tour senza comparire nel feed cronologico.
+  void _showPublishTourOnlyDialog() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.publishTourOnly),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+            maxWidth: 400,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.l10n.publishTourOnlyDialogContent),
+                const SizedBox(height: 16),
+                ..._publishSummaryRows(),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.l10n.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () => _publishTrack(hiddenFromFeed: true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white),
+            child: Text(context.l10n.publishAction),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Sposta una traccia già pubblicata dentro/fuori dal feed.
+  Future<void> _toggleFeedVisibility() async {
+    final next = !_track.hiddenFromFeed;
+    final ok = await _communityRepository.setHiddenFromFeed(_track.id!, next);
+    if (!mounted) return;
+    if (ok) {
+      await _tracksRepository.updateTrack(_track.id!, hiddenFromFeed: next);
+      if (!mounted) return;
+      setState(() => _track = _track.copyWith(hiddenFromFeed: next));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(next
+              ? context.l10n.publishedTourOnly
+              : context.l10n.nowVisibleInFeed),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.publishFailed),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  void _showPublishDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
         title: Text(context.l10n.publishToCommunity),
         // Wrap in SingleChildScrollView: senza, una descrizione lunga
         // sforava verticalmente il dialog (overflow). Constrain max
@@ -1883,59 +1985,8 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(context.l10n.publishDialogContent),
-                // Solo admin: pubblica senza finire nel feed cronologico
-                // (tappe di un tour redazionale). La traccia resta
-                // pubblica, apribile dal tour e promuovibile a Sentiero.
-                // Sta QUI, sopra il riepilogo, perché più in basso
-                // finiva sotto descrizioni lunghe e restava invisibile
-                // senza scorrere dentro il dialog.
-                if (_isAdminUser) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: hiddenFromFeed
-                          ? AppColors.primary.withValues(alpha: 0.08)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: hiddenFromFeed
-                            ? AppColors.primary
-                            : Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                    ),
-                    child: CheckboxListTile(
-                      contentPadding:
-                          const EdgeInsets.only(left: 4, right: 12),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      dense: true,
-                      value: hiddenFromFeed,
-                      onChanged: (v) => setDialogState(() {
-                        hiddenFromFeed = v ?? false;
-                        _lastHiddenFromFeedChoice = hiddenFromFeed;
-                      }),
-                      title: const Text(
-                        'Non mostrare nel feed Community',
-                        style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: const Text(
-                        'Resta pubblica e navigabile dal tour, ma non '
-                        'compare nel feed né in "I sentieri più amati".',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 16),
-                _buildSummaryRow(context.l10n.nameLabel, _track.name),
-                _buildSummaryRow(context.l10n.distanceLabel,
-                    '${_track.stats.distanceKm.toStringAsFixed(1)} km'),
-                _buildSummaryRow(context.l10n.elevationGainLabel,
-                    '+${_track.stats.elevationGain.toStringAsFixed(0)} m'),
-                if (_track.description != null &&
-                    _track.description!.isNotEmpty)
-                  _buildSummaryRow(
-                      context.l10n.descriptionLabel, _track.description!),
+                ..._publishSummaryRows(),
               ],
             ),
           ),
@@ -1946,12 +1997,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
             child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
-            onPressed: () => _publishTrack(hiddenFromFeed: hiddenFromFeed),
+            onPressed: () => _publishTrack(),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
             child: Text(context.l10n.publishAction),
           ),
         ],
-        ),
       ),
     );
   }
@@ -2112,9 +2162,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       );
 
       if (success) {
-        await _tracksRepository.updateTrack(_track.id!, isPublic: true);
+        await _tracksRepository.updateTrack(_track.id!,
+            isPublic: true, hiddenFromFeed: hiddenFromFeed);
         setState(() {
-          _track = _track.copyWith(isPublic: true);
+          _track =
+              _track.copyWith(isPublic: true, hiddenFromFeed: hiddenFromFeed);
         });
         
         if (mounted) {
