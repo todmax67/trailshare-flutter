@@ -573,6 +573,12 @@ service cloud.firestore {
       allow update: if request.auth != null
         && resource.data.ownerId == request.auth.uid
         && request.resource.data.ownerId == request.auth.uid;
+      // Curatela redazionale "Tour del mese": l'admin può mettere in
+      // evidenza anche il tour di un altro utente, ma SOLO toccando
+      // isEditorial — non può riscrivere i contenuti altrui.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['isEditorial']);
       allow delete: if request.auth != null
         && resource.data.ownerId == request.auth.uid;
     }

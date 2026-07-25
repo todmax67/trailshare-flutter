@@ -38,6 +38,7 @@ import '../../../core/services/health_service.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../widgets/flat_section.dart';
 import '../../widgets/track_stats_bar.dart';
+import '../../../data/repositories/admin_repository.dart';
 
 class TrackDetailPage extends StatefulWidget {
   final Track track;
@@ -76,16 +77,25 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   // True mentre ricarichiamo i punti dalla geometria (traccia aperta da una
   // lista): mostra uno spinner invece del "nessun dato GPS" che sembrava un errore.
   bool _isHydrating = false;
+  // Admin: abilita l'opzione "non mostrare nel feed" in pubblicazione
+  // (account redazionale che pubblica le tappe di un tour).
+  bool _isAdminUser = false;
 
   @override
   void initState() {
     super.initState();
     _track = widget.track;
+    _loadAdminFlag();
     // La traccia può arrivare da una lista (metodo lightweight/paginato) con i
     // punti VUOTI: ora vivono nel doc geometria. Idratiamo qui — una sola read
     // — così mappa, 3D, export, condivisione e pubblicazione hanno i punti.
     _isHydrating = _track.points.isEmpty && _track.id != null;
     _hydratePointsIfNeeded();
+  }
+
+  Future<void> _loadAdminFlag() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted && isAdmin) setState(() => _isAdminUser = true);
   }
 
   /// Ricarica i punti dalla geometria se la traccia è arrivata "leggera".
@@ -1847,9 +1857,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   }
 
   void _showPublishDialog() {
+    // Scelta admin, resettata ad ogni apertura del dialog.
+    bool hiddenFromFeed = false;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
         title: Text(context.l10n.publishToCommunity),
         // Wrap in SingleChildScrollView: senza, una descrizione lunga
         // sforava verticalmente il dialog (overflow). Constrain max
@@ -1875,6 +1888,29 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     _track.description!.isNotEmpty)
                   _buildSummaryRow(
                       context.l10n.descriptionLabel, _track.description!),
+                // Solo admin: pubblica senza finire nel feed cronologico
+                // (tappe di un tour redazionale). La traccia resta
+                // pubblica, apribile dal tour e promuovibile a Sentiero.
+                if (_isAdminUser) ...[
+                  const Divider(height: 24),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    dense: true,
+                    value: hiddenFromFeed,
+                    onChanged: (v) =>
+                        setDialogState(() => hiddenFromFeed = v ?? false),
+                    title: const Text(
+                      'Non mostrare nel feed Community',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Resta pubblica e navigabile dal tour, ma non compare '
+                      'nel feed né in "I sentieri più amati".',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1885,11 +1921,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
             child: Text(context.l10n.cancel),
           ),
           ElevatedButton(
-            onPressed: () => _publishTrack(),
+            onPressed: () => _publishTrack(hiddenFromFeed: hiddenFromFeed),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
             child: Text(context.l10n.publishAction),
           ),
         ],
+        ),
       ),
     );
   }
@@ -2020,7 +2057,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     );
   }
 
-  Future<void> _publishTrack() async {
+  Future<void> _publishTrack({bool hiddenFromFeed = false}) async {
     Navigator.pop(context); // Chiudi dialog
     
     final user = FirebaseAuth.instance.currentUser;
@@ -2046,6 +2083,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         photoUrls: _track.photos.map((p) => p.url).toList(),
         computedDifficulty: _track.computedDifficulty,
         manualDifficulty: _track.manualDifficulty,
+        hiddenFromFeed: hiddenFromFeed,
       );
 
       if (success) {

@@ -437,7 +437,13 @@ class ToursRepository {
         final tracks = await _loadTracksInOrder(updated.trackIds);
         final stages = await _buildStageSummaries(
             tracks, uid, updated.stageAccommodations);
-        await _communityTours.doc(tourId).set(updated.toCommunityFirestore(stages));
+        // Il rebuild è un set() pieno: rileggiamo il flag editoriale
+        // dalla copia pubblica per non azzerarlo ad ogni modifica.
+        final existing = await _communityTours.doc(tourId).get();
+        final wasEditorial = existing.data()?['isEditorial'] == true;
+        await _communityTours.doc(tourId).set(
+              updated.toCommunityFirestore(stages, keepEditorial: wasEditorial),
+            );
       } else {
         // Solo metadati cambiati: merge per preservare le stage esistenti.
         await _communityTours.doc(tourId).set(
@@ -475,6 +481,46 @@ class ToursRepository {
         .limit(limit)
         .get();
     return snap.docs.map((d) => Tour.fromFirestore(d.id, d.data())).toList();
+  }
+
+  // ─── Curatela editoriale ("Tour del mese") ─────────────────────────────────
+
+  /// Il tour scelto dalla redazione per la Home, se c'è.
+  ///
+  /// Query di sola uguaglianza: i tour senza il campo semplicemente non
+  /// matchano (nessuna migrazione necessaria) e non serve indice composito.
+  Future<Tour?> getEditorialTour() async {
+    try {
+      final snap = await _communityTours
+          .where('isEditorial', isEqualTo: true)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return null;
+      final d = snap.docs.first;
+      return Tour.fromFirestore(d.id, d.data());
+    } catch (e) {
+      debugPrint('[ToursRepository] getEditorialTour fallita: $e');
+      return null;
+    }
+  }
+
+  /// Mette (o toglie) un tour dallo spazio "Tour del mese". Solo admin —
+  /// il gate è lato UI, come per le altre azioni redazionali.
+  ///
+  /// Lo spazio è singolo: impostandone uno, il flag viene tolto agli
+  /// altri, così non resta mai ambiguo quale sia in evidenza.
+  Future<void> setEditorialTour(String tourId, bool isEditorial) async {
+    if (isEditorial) {
+      final previous = await _communityTours
+          .where('isEditorial', isEqualTo: true)
+          .get();
+      for (final doc in previous.docs) {
+        if (doc.id == tourId) continue;
+        await doc.reference.update({'isEditorial': false});
+      }
+    }
+    await _communityTours.doc(tourId).update({'isEditorial': isEditorial});
+    debugPrint('[ToursRepository] Tour $tourId editoriale: $isEditorial');
   }
 
   // ─── Helper ────────────────────────────────────────────────────────────────

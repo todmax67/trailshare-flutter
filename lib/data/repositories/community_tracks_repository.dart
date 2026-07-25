@@ -302,6 +302,21 @@ class CommunityTracksRepository {
     return _firestore.collection('published_tracks');
   }
 
+  /// Traccia pubblicata ma tenuta fuori dal feed cronologico della
+  /// Community (flag admin "non mostrare nel feed", usato dall'account
+  /// redazionale per pubblicare le tappe di un tour senza inondare il
+  /// feed). La traccia resta pubblica a tutti gli effetti: apribile dal
+  /// tour, dal profilo dell'autore, dalla ricerca e promuovibile a
+  /// Sentiero in Scopri.
+  ///
+  /// Il filtro è **client-side** di proposito: un `where(isNotEqualTo)`
+  /// in Firestore scarta i documenti privi del campo, e le tracce
+  /// pubblicate prima di questo flag non ce l'hanno.
+  static bool _isHiddenFromFeed(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    return data != null && data['hiddenFromFeed'] == true;
+  }
+
   /// Versione lightweight: solo metadati per preview/picker, SENZA parsing
   /// dei GPS points (che possono essere migliaia per track).
   ///
@@ -336,6 +351,7 @@ class CommunityTracksRepository {
 
       final out = <CommunityTrackPreview>[];
       for (final doc in snapshot.docs) {
+        if (_isHiddenFromFeed(doc)) continue;
         final p = _docToPreview(doc);
         if (p == null) continue;
         // Filtro lng + radiusKm preciso (Haversine)
@@ -423,6 +439,7 @@ class CommunityTracksRepository {
         () {
           final list = <CommunityTrack>[];
           for (final doc in snapshot.docs) {
+            if (_isHiddenFromFeed(doc)) continue;
             final track = _docToTrack(doc);
             if (track != null) list.add(track);
           }
@@ -468,6 +485,7 @@ class CommunityTracksRepository {
         () {
           final list = <CommunityTrack>[];
           for (final doc in snapshot.docs) {
+            if (_isHiddenFromFeed(doc)) continue;
             final track = _docToTrack(doc);
             if (track != null) list.add(track);
           }
@@ -515,6 +533,7 @@ class CommunityTracksRepository {
               '${s.docs.length} doc da ${batch.length} seguiti, fromCache=${s.metadata.isFromCache}',
         );
         for (final doc in snapshot.docs) {
+          if (_isHiddenFromFeed(doc)) continue;
           final track = _docToTrack(doc);
           if (track != null) all.add(track);
         }
@@ -582,6 +601,7 @@ class CommunityTracksRepository {
     for (final docs in snapshots) {
       for (final doc in docs) {
         if (result.length >= limit) return result;
+        if (_isHiddenFromFeed(doc)) continue;
         final t = _docToTrack(doc);
         if (t != null && seen.add(t.id)) result.add(t);
       }
@@ -763,6 +783,7 @@ class CommunityTracksRepository {
     String? difficulty,
     String? computedDifficulty, // Komoot K1a Step 2
     String? manualDifficulty, // 2026-05-27 override utente
+    bool hiddenFromFeed = false, // flag admin: fuori dal feed Community
   }) async {
     try {
       // Converti punti in formato Firestore
@@ -792,6 +813,7 @@ class CommunityTracksRepository {
         if (manualDifficulty != null) 'manualDifficulty': manualDifficulty,
         'startLat': points.isNotEmpty ? points.first.latitude : null,
         'startLng': points.isNotEmpty ? points.first.longitude : null,
+        if (hiddenFromFeed) 'hiddenFromFeed': true,
       });
 
       debugPrint('[CommunityTracks] Traccia pubblicata: $trackId');

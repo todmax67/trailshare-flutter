@@ -9,6 +9,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../data/models/tour.dart';
 import '../../../data/models/track.dart';
+import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/community_tracks_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../discover/community_track_detail_page.dart';
@@ -39,6 +40,8 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
   final CommunityTracksRepository _communityTracksRepo = CommunityTracksRepository();
   Tour? _tour;
   bool _loading = true;
+  bool _isAdminUser = false;
+  bool _settingEditorial = false;
 
   /// Mapping live `privateTrackId -> communityDocId`.
   /// Prevale sul denorm `communityTrackId` del tour (che può essere stale se
@@ -60,6 +63,45 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
   void initState() {
     super.initState();
     _load();
+    _loadAdminFlag();
+  }
+
+  Future<void> _loadAdminFlag() async {
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (mounted && isAdmin) setState(() => _isAdminUser = true);
+  }
+
+  /// Mette/toglie il tour dallo spazio "Tour del mese" in Home.
+  Future<void> _toggleEditorial() async {
+    final tour = _tour;
+    if (tour == null || _settingEditorial) return;
+    final next = !tour.isEditorial;
+    setState(() => _settingEditorial = true);
+    try {
+      await _repo.setEditorialTour(tour.id, next);
+      if (!mounted) return;
+      setState(() {
+        _tour = tour.copyWith(isEditorial: next);
+        _settingEditorial = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(next
+              ? 'Tour in evidenza in Home come "Tour del mese"'
+              : 'Tour rimosso dallo spazio "Tour del mese"'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _settingEditorial = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.errorWithDetails(e.toString())),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _load() async {
@@ -146,6 +188,24 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
       appBar: AppBar(
         title: Text(tour.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
+          // Admin: scelta redazionale dello spazio "Tour del mese".
+          if (_isAdminUser)
+            IconButton(
+              icon: _settingEditorial
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      tour.isEditorial ? Icons.push_pin : Icons.push_pin_outlined,
+                      color: tour.isEditorial ? AppColors.primary : null,
+                    ),
+              tooltip: tour.isEditorial
+                  ? 'Togli da "Tour del mese"'
+                  : 'Metti in evidenza come "Tour del mese"',
+              onPressed: _settingEditorial ? null : _toggleEditorial,
+            ),
           IconButton(
             icon: const Icon(Icons.share),
             onPressed: () => SharePlus.instance.share(ShareParams(

@@ -215,6 +215,13 @@ class Tour {
   final TourBounds? bounds;
 
   final bool isPublic;
+
+  /// Tour scelto dalla redazione per lo spazio "Tour del mese" in Home.
+  /// Vive SOLO sulla copia pubblica (`community_tours`): è una decisione
+  /// editoriale, non una proprietà del tour privato dell'autore — per
+  /// questo non compare in [toFirestore] e viene scritto solo da
+  /// `ToursRepository.setEditorialTour`.
+  final bool isEditorial;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -244,6 +251,7 @@ class Tour {
     required this.daysCount,
     this.bounds,
     this.isPublic = false,
+    this.isEditorial = false,
     required this.createdAt,
     this.updatedAt,
     this.stages,
@@ -269,6 +277,7 @@ class Tour {
     int? daysCount,
     TourBounds? bounds,
     bool? isPublic,
+    bool? isEditorial,
     DateTime? updatedAt,
   }) {
     return Tour(
@@ -293,6 +302,7 @@ class Tour {
       daysCount: daysCount ?? this.daysCount,
       bounds: bounds ?? this.bounds,
       isPublic: isPublic ?? this.isPublic,
+      isEditorial: isEditorial ?? this.isEditorial,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -332,10 +342,18 @@ class Tour {
 
   /// Serializza per il mirror pubblico (`community_tours`).
   /// Include [stages] con polyline downsamplate per rendering standalone.
-  Map<String, dynamic> toCommunityFirestore(List<TourStageSummary> stages) {
+  /// [keepEditorial] va passato dal chiamante rileggendo il valore già
+  /// presente su `community_tours`: questo write è un `.set()` pieno e
+  /// senza di esso una qualsiasi modifica al tour toglierebbe in
+  /// silenzio la scelta editoriale fatta dall'admin.
+  Map<String, dynamic> toCommunityFirestore(
+    List<TourStageSummary> stages, {
+    bool keepEditorial = false,
+  }) {
     return {
       ...toFirestore(),
       'stages': stages.map((s) => s.toMap()).toList(),
+      if (keepEditorial) 'isEditorial': true,
     };
   }
 
@@ -377,6 +395,7 @@ class Tour {
         data['bounds'] is Map ? Map<String, dynamic>.from(data['bounds'] as Map) : null,
       ),
       isPublic: data['isPublic'] == true,
+      isEditorial: data['isEditorial'] == true,
       createdAt: parseDate(data['createdAt']),
       updatedAt: data['updatedAt'] != null ? parseDate(data['updatedAt']) : null,
       stages: (data['stages'] as List?)

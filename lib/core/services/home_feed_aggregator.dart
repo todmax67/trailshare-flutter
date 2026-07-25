@@ -263,9 +263,11 @@ class HomeFeedAggregator {
   }
 
   Future<Tour?> _loadEditorialTour() async {
-    // Il modello Tour non ha (ancora) un flag isEditorial: usiamo il
-    // tour pubblico più recente come "Tour del mese". Quando si
-    // aggiungerà la curatela editoriale, filtrare qui.
+    // Se la redazione ne ha scelto uno, quello vince e resta finché non
+    // lo cambia. Altrimenti si ricade sul tour pubblico più recente,
+    // così lo spazio non resta mai vuoto.
+    final curated = await _toursRepo.getEditorialTour();
+    if (curated != null) return curated;
     final tours = await _toursRepo.getPublicTours(limit: 10);
     if (tours.isEmpty) return null;
     return tours.first;
