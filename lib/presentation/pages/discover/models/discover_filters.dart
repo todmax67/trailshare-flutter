@@ -50,7 +50,7 @@ class DiscoverFilters {
   final TrailSortBy sortBy;
 
   /// Epic 4.5 — codice regione amministrativa italiana (vedi
-  /// [ItalianRegion.code]). Null = nessun filtro regionale. La
+  /// [GeoRegion.code]). Null = nessun filtro regionale. La
   /// regione `international` non è usata come filtro (sentinella
   /// profilo utente). Il filtro confronta il primo punto del trail
   /// con il bbox della regione.

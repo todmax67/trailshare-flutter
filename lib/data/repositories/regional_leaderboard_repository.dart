@@ -49,7 +49,7 @@ class RegionalLeaderboardEntry {
 /// Repository per le classifiche regionali.
 ///
 /// Le query lavorano su `user_profiles` che deve avere i campi:
-/// - `region`: code della regione (vedi [ItalianRegions])
+/// - `region`: code della regione (vedi [GeoRegions])
 /// - `xp`, `level`: per il ranking all-time
 /// - `monthlyDistanceCurrent`, `monthlyElevationCurrent`,
 ///   `monthlyTracksCurrent`, `monthlyStatsMonthId`: denormalizzati dal

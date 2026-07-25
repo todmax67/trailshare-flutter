@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/italian_regions.dart';
+import '../../core/constants/geo_regions.dart';
 import '../../core/extensions/l10n_extension.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 import '../../core/services/user_region_service.dart';
@@ -15,11 +15,11 @@ import 'app_snackbar.dart';
 /// final selected = await showRegionPickerSheet(context);
 /// if (selected != null) { ... }
 /// ```
-Future<ItalianRegion?> showRegionPickerSheet(
+Future<GeoRegion?> showRegionPickerSheet(
   BuildContext context, {
   String? currentCode,
 }) async {
-  return showModalBottomSheet<ItalianRegion>(
+  return showModalBottomSheet<GeoRegion>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
@@ -42,7 +42,7 @@ class _RegionPickerSheet extends StatefulWidget {
 class _RegionPickerSheetState extends State<_RegionPickerSheet> {
   bool _saving = false;
 
-  Future<void> _select(ItalianRegion region) async {
+  Future<void> _select(GeoRegion region) async {
     if (_saving) return;
     setState(() => _saving = true);
     final ok = await UserRegionService().setRegion(region.code);
@@ -104,10 +104,10 @@ class _RegionPickerSheetState extends State<_RegionPickerSheet> {
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: ItalianRegions.all.length,
+                itemCount: GeoRegions.all.length,
                 separatorBuilder: (_, i) => const SizedBox(height: 2),
                 itemBuilder: (_, i) {
-                  final region = ItalianRegions.all[i];
+                  final region = GeoRegions.all[i];
                   final isSelected = region.code == widget.currentCode;
                   return Material(
                     color: Colors.transparent,

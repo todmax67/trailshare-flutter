@@ -3,7 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/italian_regions.dart';
+import '../../../core/constants/geo_regions.dart';
 import '../../../core/services/trail_import_service.dart';
 import '../../../core/extensions/l10n_extension.dart';
 
@@ -29,7 +29,7 @@ class _TrailImportPageState extends State<TrailImportPage> {
   final TextEditingController _singleUrlController = TextEditingController();
   final ScrollController _logScrollController = ScrollController();
 
-  ItalianRegion? _selectedRegion; // A1: regione ufficiale
+  GeoRegion? _selectedRegion; // A1: regione ufficiale
   bool _useCustomRegion = false; // toggle "Area custom"
   bool _updateExisting = false; // C10: aggiorna invece di skip
 
@@ -442,7 +442,7 @@ class _TrailImportPageState extends State<TrailImportPage> {
             ),
             const SizedBox(height: 8),
             if (!_useCustomRegion)
-              DropdownButtonFormField<ItalianRegion>(
+              DropdownButtonFormField<GeoRegion>(
                 initialValue: _selectedRegion,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
@@ -451,7 +451,7 @@ class _TrailImportPageState extends State<TrailImportPage> {
                       EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                   hintText: 'Seleziona regione',
                 ),
-                items: ItalianRegions.all
+                items: GeoRegions.all
                     .where((r) => r.code != 'international')
                     .map((r) => DropdownMenuItem(
                           value: r,

@@ -9,7 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/italian_regions.dart';
+import '../../../core/constants/geo_regions.dart';
 import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_profile_page.dart';
@@ -128,12 +128,8 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
   List<Business> get _filteredBusinesses {
     Iterable<Business> result = _businesses;
     if (_mode == _DiscoveryMode.nationwide && _filterRegionCode != null) {
-      final region = ItalianRegions.all.firstWhere(
-        (r) => r.code == _filterRegionCode,
-        orElse: () => const ItalianRegion(
-            code: '', nameIt: '', nameEn: '', flag: ''),
-      );
-      if (region.code.isNotEmpty) {
+      final region = GeoRegions.byCode(_filterRegionCode);
+      if (region != null) {
         result = result.where((b) =>
             region.contains(b.location.lat, b.location.lng));
       }
@@ -391,7 +387,7 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         children: [
           _regionChip(null, 'Tutte le regioni'),
-          ...ItalianRegions.all
+          ...GeoRegions.all
               .where((r) => r.code != 'international')
               .map((r) => _regionChip(r.code, '${r.flag} ${r.nameIt}')),
         ],

@@ -18,7 +18,7 @@ import 'trail_detail_page.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/constants/api_keys.dart';
-import '../../../core/constants/italian_regions.dart';
+import '../../../core/constants/geo_regions.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../../core/services/map_style_prefs.dart';
 import '../../widgets/map_layer_button.dart';
@@ -320,7 +320,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       //  2) Fallback su bbox di startLat/startLng (sempre presenti).
       // Esce false solo se ENTRAMBI i check falliscono.
       if (_filters.regionCode != null && _filters.regionCode!.isNotEmpty) {
-        final region = ItalianRegions.byCode(_filters.regionCode);
+        final region = GeoRegions.byCode(_filters.regionCode);
         if (region == null) return false;
         bool match = false;
         final trailRegion = trail.region?.trim().toLowerCase();
@@ -336,10 +336,19 @@ class _DiscoverPageState extends State<DiscoverPage> {
           }
         }
         if (!match) {
-          // Fallback bbox su startLat/startLng denormalizzato (sempre
-          // disponibile, anche se trail.points è vuoto nella lista
-          // lightweight).
-          match = region.contains(trail.startLat, trail.startLng);
+          // Fallback per i trail senza `region` taggato: si risolve la
+          // regione PIÙ SPECIFICA che contiene il punto di partenza e la
+          // si confronta con quella scelta.
+          //
+          // NB: non basta chiedere "il punto sta nel bbox della regione
+          // scelta". I rettangoli si accavallano oltre confine — il bbox
+          // del Piemonte arriva a 6.6 di longitudine e ingloba Chamonix,
+          // così i sentieri francesi del Monte Bianco comparivano sotto
+          // "Piemonte". Con la risoluzione più specifica Chamonix cade
+          // in Alta Savoia e smette di sporcare i filtri italiani.
+          match = GeoRegions.resolveByBbox(trail.startLat, trail.startLng)
+                  ?.code ==
+              region.code;
         }
         if (!match) return false;
       }

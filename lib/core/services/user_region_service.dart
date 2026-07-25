@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
-import '../constants/italian_regions.dart';
+import '../constants/geo_regions.dart';
 
 /// Servizio per leggere/scrivere la regione associata al profilo utente.
 ///
@@ -27,8 +27,8 @@ class UserRegionService {
   String? get cachedRegionCode => _cachedRegionCode;
 
   /// Ritorna la regione (oggetto) cached o null se non settata.
-  ItalianRegion? get cachedRegion =>
-      ItalianRegions.byCode(_cachedRegionCode);
+  GeoRegion? get cachedRegion =>
+      GeoRegions.byCode(_cachedRegionCode);
 
   /// True se l'utente ha una regione impostata nella cache locale.
   bool get hasRegionSet =>

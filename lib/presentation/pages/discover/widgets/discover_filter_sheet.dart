@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/italian_regions.dart';
+import '../../../../core/constants/geo_regions.dart';
 import '../models/discover_filters.dart';
 import '../../../../core/extensions/theme_colors_extension.dart';
 import '../../../../core/extensions/l10n_extension.dart';
@@ -318,7 +318,7 @@ class _RegionPickerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final region = ItalianRegions.byCode(currentCode);
+    final region = GeoRegions.byCode(currentCode);
     final locale = Localizations.localeOf(context).toLanguageTag();
     return Row(
       children: [
@@ -326,7 +326,7 @@ class _RegionPickerRow extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
             onTap: () async {
-              final picked = await showModalBottomSheet<ItalianRegion>(
+              final picked = await showModalBottomSheet<GeoRegion>(
                 context: context,
                 isScrollControlled: true,
                 builder: (_) => _DiscoverRegionPickerSheet(
@@ -393,7 +393,7 @@ class _DiscoverRegionPickerSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final regions = ItalianRegions.all
+    final regions = GeoRegions.all
         .where((r) => r.code != 'international')
         .toList();
     return SafeArea(

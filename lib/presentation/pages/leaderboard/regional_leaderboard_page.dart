@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/italian_regions.dart';
+import '../../../core/constants/geo_regions.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/services/user_region_service.dart';
@@ -152,7 +152,7 @@ class _RegionalLeaderboardPageState extends State<RegionalLeaderboardPage>
     );
   }
 
-  Widget _buildRegionHeader(ItalianRegion region, String locale) {
+  Widget _buildRegionHeader(GeoRegion region, String locale) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
