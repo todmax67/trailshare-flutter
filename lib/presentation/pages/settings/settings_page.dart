@@ -1222,6 +1222,14 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.8.1',
+        title: 'Pubblica un cammino senza riempire il feed 🥾',
+        bullets: [
+          'Nuova opzione "Pubblica solo nel tour": le tappe di un cammino diventano apribili dal tour senza comparire una per una nel feed di chi ti segue',
+          'La scelta è reversibile quando vuoi: dal menu della traccia puoi portarla nel feed o toglierla, senza ripubblicarla',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.8.0',
         title: 'La Home si rifà il look 🏔️',
         bullets: [
