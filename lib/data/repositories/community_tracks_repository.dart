@@ -422,35 +422,70 @@ class CommunityTracksRepository {
     return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 
+  /// Quante pagine al massimo scorrere per riempirne una di visibili.
+  /// Cap di sicurezza: senza, un blocco molto lungo di tracce nascoste
+  /// farebbe scandire l'intera collection in un colpo solo.
+  static const _maxFeedPageScans = 5;
+
+  /// Legge il feed saltando le tracce nascoste, **continuando a paginare**
+  /// finché non ne ha [limit] visibili (o finiscono i documenti).
+  ///
+  /// Serve perché il filtro `hiddenFromFeed` è client-side e agisce DOPO
+  /// la query: un blocco di tracce nascoste pubblicate insieme — es. le
+  /// 11 tappe di un tour redazionale — può occupare per intero la prima
+  /// pagina e far sembrare il feed vuoto.
+  Future<({List<CommunityTrack> tracks, QueryDocumentSnapshot? cursor, bool hasMore})>
+      _fetchVisibleFeedPage({
+    required int limit,
+    QueryDocumentSnapshot? startAfter,
+  }) async {
+    final tracks = <CommunityTrack>[];
+    QueryDocumentSnapshot? cursor = startAfter;
+    var hasMore = true;
+    var scans = 0;
+
+    while (tracks.length < limit && hasMore && scans < _maxFeedPageScans) {
+      scans++;
+      Query<Map<String, dynamic>> query = _tracksCollection
+          .orderBy('sharedAt', descending: true)
+          .limit(limit);
+      if (cursor != null) query = query.startAfterDocument(cursor);
+
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        hasMore = false;
+        break;
+      }
+      // `hasMore` guarda i doc GREZZI, non quelli visibili: se la pagina
+      // era piena ci possono essere altri documenti oltre il cursore.
+      hasMore = snapshot.docs.length == limit;
+      cursor = snapshot.docs.last;
+
+      for (final doc in snapshot.docs) {
+        if (tracks.length >= limit) break;
+        if (_isHiddenFromFeed(doc)) continue;
+        final track = _docToTrack(doc);
+        if (track != null) tracks.add(track);
+      }
+    }
+
+    if (scans > 1) {
+      debugPrint('[CommunityTracks] Feed: $scans pagine lette per '
+          '${tracks.length} tracce visibili (tracce nascoste saltate)');
+    }
+    return (tracks: tracks, cursor: cursor, hasMore: hasMore);
+  }
+
   /// Ottieni tracce recenti della community
   Future<List<CommunityTrack>> getRecentTracks({int limit = 30}) async {
     try {
-      final snapshot = await PerfTrace.track(
+      final page = await PerfTrace.track(
         'community.recent.query',
-        () => _tracksCollection
-            .orderBy('sharedAt', descending: true)
-            .limit(limit)
-            .get(),
-        describe: (s) => '${s.docs.length} doc, fromCache=${s.metadata.isFromCache}',
+        () => _fetchVisibleFeedPage(limit: limit),
+        describe: (p) => '${p.tracks.length} tracce visibili',
       );
-
-      final tracks = PerfTrace.trackSync(
-        'community.recent.parse',
-        () {
-          final list = <CommunityTrack>[];
-          for (final doc in snapshot.docs) {
-            if (_isHiddenFromFeed(doc)) continue;
-            final track = _docToTrack(doc);
-            if (track != null) list.add(track);
-          }
-          return list;
-        },
-        describe: (l) =>
-            '${l.length} tracce, ${l.fold<int>(0, (s, t) => s + t.points.length)} punti tot',
-      );
-
-      debugPrint('[CommunityTracks] Caricate ${tracks.length} tracce');
-      return tracks;
+      debugPrint('[CommunityTracks] Caricate ${page.tracks.length} tracce');
+      return page.tracks;
     } catch (e) {
       debugPrint('[CommunityTracks] Errore: $e');
       return [];
@@ -467,40 +502,20 @@ class CommunityTracksRepository {
     QueryDocumentSnapshot? startAfterDoc,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _tracksCollection
-          .orderBy('sharedAt', descending: true)
-          .limit(limit);
-
-      if (startAfterDoc != null) {
-        query = query.startAfterDocument(startAfterDoc);
-      }
-
-      final snapshot = await PerfTrace.track(
+      final page = await PerfTrace.track(
         'community.recentPaginated.query',
-        () => query.get(),
-        describe: (s) => '${s.docs.length} doc, fromCache=${s.metadata.isFromCache}',
-      );
-      final tracks = PerfTrace.trackSync(
-        'community.recentPaginated.parse',
-        () {
-          final list = <CommunityTrack>[];
-          for (final doc in snapshot.docs) {
-            if (_isHiddenFromFeed(doc)) continue;
-            final track = _docToTrack(doc);
-            if (track != null) list.add(track);
-          }
-          return list;
-        },
-        describe: (l) =>
-            '${l.length} tracce, ${l.fold<int>(0, (s, t) => s + t.points.length)} punti tot',
+        () => _fetchVisibleFeedPage(limit: limit, startAfter: startAfterDoc),
+        describe: (p) =>
+            '${p.tracks.length} tracce, ${p.tracks.fold<int>(0, (s, t) => s + t.points.length)} punti tot',
       );
 
-      debugPrint('[CommunityTracks] Paginate: ${tracks.length} tracce (hasMore: ${snapshot.docs.length == limit})');
+      debugPrint('[CommunityTracks] Paginate: ${page.tracks.length} tracce '
+          '(hasMore: ${page.hasMore})');
 
       return PaginatedCommunityTracks(
-        tracks: tracks,
-        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
-        hasMore: snapshot.docs.length == limit,
+        tracks: page.tracks,
+        lastDocument: page.cursor,
+        hasMore: page.hasMore,
       );
     } catch (e) {
       debugPrint('[CommunityTracks] Errore paginazione: $e');
