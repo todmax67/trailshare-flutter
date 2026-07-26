@@ -6902,6 +6902,24 @@ abstract class AppLocalizations {
   /// **'È stata trovata una registrazione non salvata:'**
   String get unsavedRecordingFound;
 
+  /// No description provided for @unsyncedRecordingFound.
+  ///
+  /// In it, this message translates to:
+  /// **'Una registrazione salvata non è mai arrivata al server:'**
+  String get unsyncedRecordingFound;
+
+  /// No description provided for @trackSavedPendingSync.
+  ///
+  /// In it, this message translates to:
+  /// **'Traccia salvata sul dispositivo: verrà sincronizzata appena torna la rete'**
+  String get trackSavedPendingSync;
+
+  /// No description provided for @pendingSyncBadge.
+  ///
+  /// In it, this message translates to:
+  /// **'Da sincronizzare'**
+  String get pendingSyncBadge;
+
   /// No description provided for @wantToRecover.
   ///
   /// In it, this message translates to:

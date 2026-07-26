@@ -59,6 +59,26 @@ class RecordingPersistenceService {
     }
   }
 
+  /// Marca il backup come "già salvato su Firestore ma non ancora
+  /// confermato dal server" (commit andato in timeout, offline).
+  ///
+  /// Il file NON viene cancellato: finché la coda di mutazioni Firestore è
+  /// l'unica copia della registrazione, il backup su disco resta la rete di
+  /// sicurezza. Al riavvio [RecordingBackup.savedTrackId] dice a chi legge
+  /// che non si tratta di una registrazione interrotta da riprendere, ma di
+  /// un salvataggio da verificare.
+  Future<void> markSaved(String trackId) async {
+    try {
+      final backup = await loadState();
+      if (backup == null) return;
+      await saveState(backup.copyWithSavedTrackId(trackId));
+      debugPrint('[RecordingPersistence] Backup marcato come salvato '
+          '(trackId=$trackId), in attesa di conferma dal server');
+    } catch (e) {
+      debugPrint('[RecordingPersistence] Errore markSaved: $e');
+    }
+  }
+
   /// Elimina il backup (dopo salvataggio completato)
   Future<void> clearState() async {
     try {
@@ -88,6 +108,11 @@ class RecordingBackup {
   final List<PhotoBackup> photos;
   final DateTime lastSaveTime;
 
+  /// Non-null se questa registrazione è già stata salvata su Firestore con
+  /// questo ID, ma il commit non è stato confermato dal server (offline).
+  /// null = backup di una registrazione interrotta, mai salvata.
+  final String? savedTrackId;
+
   RecordingBackup({
     required this.points,
     required this.startTime,
@@ -95,7 +120,18 @@ class RecordingBackup {
     required this.activityType,
     required this.photos,
     DateTime? lastSaveTime,
+    this.savedTrackId,
   }) : lastSaveTime = lastSaveTime ?? DateTime.now();
+
+  RecordingBackup copyWithSavedTrackId(String trackId) => RecordingBackup(
+        points: points,
+        startTime: startTime,
+        pausedDuration: pausedDuration,
+        activityType: activityType,
+        photos: photos,
+        lastSaveTime: lastSaveTime,
+        savedTrackId: trackId,
+      );
 
   Map<String, dynamic> toMap() => {
     'points': points.map((p) => p.toMap()).toList(),
@@ -104,6 +140,7 @@ class RecordingBackup {
     'activityType': activityType.index,
     'photos': photos.map((p) => p.toMap()).toList(),
     'lastSaveTime': lastSaveTime.toIso8601String(),
+    if (savedTrackId != null) 'savedTrackId': savedTrackId,
   };
 
   factory RecordingBackup.fromMap(Map<String, dynamic> map) {
@@ -118,6 +155,7 @@ class RecordingBackup {
           ?.map((p) => PhotoBackup.fromMap(p as Map<String, dynamic>))
           .toList() ?? [],
       lastSaveTime: DateTime.parse(map['lastSaveTime'] as String),
+      savedTrackId: map['savedTrackId'] as String?,
     );
   }
 }

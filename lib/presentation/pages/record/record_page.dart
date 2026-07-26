@@ -486,6 +486,38 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     await _persistence.saveState(backup);
   }
 
+  /// Butta via `recording_backup.json` SOLO se il server ha confermato la
+  /// scrittura. Se il commit è finito in timeout (offline) la coda di
+  /// mutazioni Firestore sarebbe l'unica copia della registrazione: il
+  /// backup resta, marcato con l'ID della traccia, e viene cancellato
+  /// appena la coda si svuota.
+  Future<void> _releaseBackupAfterSave(SaveTrackResult result) async {
+    if (result.confirmedByServer) {
+      await _persistence.clearState();
+      return;
+    }
+    await _persistence.markSaved(result.trackId);
+    unawaited(_clearBackupWhenSynced());
+  }
+
+  /// Attende che Firestore svuoti la coda di scritture e solo allora
+  /// cancella il backup. Non usa `mounted`: deve completare anche se la
+  /// pagina è stata chiusa nel frattempo.
+  Future<void> _clearBackupWhenSynced() async {
+    try {
+      await _repository.waitForPendingWrites();
+      final backup = await _persistence.loadState();
+      // Cancella solo se il backup è ancora quello del salvataggio: se nel
+      // frattempo è partita una nuova registrazione, il file è suo.
+      if (backup?.savedTrackId != null) {
+        await _persistence.clearState();
+        debugPrint('[RecordPage] Sync confermata, backup rilasciato');
+      }
+    } catch (e) {
+      debugPrint('[RecordPage] Errore attesa sync backup: $e');
+    }
+  }
+
   Future<void> _checkForBackup() async {
     // Se una registrazione è GIÀ viva (in questa o in un'altra istanza di
     // RecordPage), il backup su disco è il salvataggio incrementale di
@@ -502,14 +534,40 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       return;
     }
     
+    // Backup di una traccia GIÀ salvata ma con commit mai confermato: non è
+    // una registrazione da riprendere. Se il doc è arrivato sul server il
+    // backup ha esaurito il suo compito; se la scrittura è andata persa
+    // proponiamo il recupero (a qualunque età: è l'unica copia rimasta).
+    bool lostWrite = false;
+    if (backup.savedTrackId != null) {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final exists = uid == null
+          ? null
+          : await _repository.trackExistsOnServer(uid, backup.savedTrackId!);
+      if (exists == true) {
+        debugPrint('[RecordPage] Traccia ${backup.savedTrackId} confermata sul '
+            'server, backup rilasciato');
+        await _persistence.clearState();
+        return;
+      }
+      if (exists == null) {
+        // Offline: non sappiamo se è arrivata. Teniamo il backup e riproviamo
+        // al prossimo avvio, senza disturbare l'utente.
+        debugPrint('[RecordPage] Sync di ${backup.savedTrackId} non '
+            'verificabile (offline): backup conservato');
+        return;
+      }
+      lostWrite = true;
+    }
+
     final age = DateTime.now().difference(backup.lastSaveTime);
-    if (age.inHours > 24) {
+    if (!lostWrite && age.inHours > 24) {
       await _persistence.clearState();
       return;
     }
-    
+
     if (!mounted) return;
-    
+
     final shouldRestore = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -519,7 +577,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(context.l10n.unsavedRecordingFound),
+            Text(lostWrite
+                ? context.l10n.unsyncedRecordingFound
+                : context.l10n.unsavedRecordingFound),
             const SizedBox(height: 12),
             _buildBackupInfo(backup),
             const SizedBox(height: 12),
@@ -929,9 +989,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       final activityName = track.activityType.displayName;
       if (!mounted) return;
       final trackToSave = track.copyWith(name: '$activityName ${now.day}/${now.month}/${now.year} ${context.l10n.autoSaved}');
-      
-      await _repository.saveTrack(trackToSave);
-      await _persistence.clearState();
+
+      final result = await _repository.saveTrackDetailed(trackToSave);
+      await _releaseBackupAfterSave(result);
       await LiveTrackService().stop();
       _photos.clear();
       
@@ -2138,8 +2198,20 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       }
       
       final trackToSave = track.copyWith(name: nameController.text.trim());
-      final trackId = await _repository.saveTrack(trackToSave);
-      
+      final saveResult = await _repository.saveTrackDetailed(trackToSave);
+      final trackId = saveResult.trackId;
+
+      // Commit ancora in coda (offline): avvisa che la traccia c'è ma non è
+      // ancora sul server. Il backup su disco resta finché non lo è, vedi
+      // _releaseBackupAfterSave più sotto.
+      if (!saveResult.confirmedByServer && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(context.l10n.trackSavedPendingSync),
+          backgroundColor: AppColors.warning,
+          duration: const Duration(seconds: 5),
+        ));
+      }
+
       if (_photos.isNotEmpty) {
         final result = await _photosService.uploadPhotos(photos: _photos, trackId: trackId, onProgress: (c, t) => debugPrint('[RecordPage] Upload foto $c/$t'));
         if (result.uploaded.isNotEmpty) {
@@ -2229,7 +2301,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         }
       }();
       
-      await _persistence.clearState();
+      await _releaseBackupAfterSave(saveResult);
       await LiveTrackService().stop();
       _photos.clear();
 

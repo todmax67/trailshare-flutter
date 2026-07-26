@@ -3741,6 +3741,17 @@ class AppLocalizationsIt extends AppLocalizations {
       'È stata trovata una registrazione non salvata:';
 
   @override
+  String get unsyncedRecordingFound =>
+      'Una registrazione salvata non è mai arrivata al server:';
+
+  @override
+  String get trackSavedPendingSync =>
+      'Traccia salvata sul dispositivo: verrà sincronizzata appena torna la rete';
+
+  @override
+  String get pendingSyncBadge => 'Da sincronizzare';
+
+  @override
   String get wantToRecover => 'Vuoi recuperarla?';
 
   @override

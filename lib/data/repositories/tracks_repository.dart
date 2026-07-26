@@ -24,6 +24,23 @@ class PaginatedTracksResult {
   });
 }
 
+/// Esito di [TracksRepository.saveTrackDetailed]: oltre all'ID dice se la
+/// scrittura è stata **confermata dal server** o se è solo accodata nella
+/// coda di mutazioni locale (offline / rete lenta).
+///
+/// Serve al chiamante per decidere se può buttare via il proprio backup
+/// (es. `recording_backup.json`): finché `confirmedByServer` è false la
+/// coda Firestore è l'unica copia della registrazione.
+class SaveTrackResult {
+  final String trackId;
+  final bool confirmedByServer;
+
+  const SaveTrackResult({
+    required this.trackId,
+    required this.confirmedByServer,
+  });
+}
+
 /// Repository unificato per gestire le tracce su Firestore
 /// Compatibile con la struttura dati esistente dall'app JavaScript
 class TracksRepository {
@@ -77,6 +94,14 @@ class TracksRepository {
   /// preliminari, il chart si aggiorna entro pochi secondi quando la
   /// correzione completa.
   Future<String> saveTrack(Track track) async {
+    final result = await saveTrackDetailed(track);
+    return result.trackId;
+  }
+
+  /// Come [saveTrack] ma restituisce anche l'esito della sincronizzazione
+  /// (vedi [SaveTrackResult]). Da usare nei flussi che, dopo il save,
+  /// distruggono la propria copia locale dei dati.
+  Future<SaveTrackResult> saveTrackDetailed(Track track) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Utente non autenticato');
 
@@ -105,15 +130,20 @@ class TracksRepository {
       // coda locale e non risolve finché non torna il segnale → l'UI restava
       // col a spinner all'infinito (finally mai raggiunto). NON blocchiamo: la
       // traccia è già salvata localmente (ID generato) e sincronizza da sola.
-      // Timeout = successo locale.
+      // Timeout = successo LOCALE, non conferma del server: lo diciamo al
+      // chiamante con `confirmedByServer` così può tenersi il proprio backup
+      // finché la coda non si svuota (vedi [SaveTrackResult]).
+      bool confirmedByServer = true;
       try {
         await batch.commit().timeout(const Duration(seconds: 5));
       } on TimeoutException {
+        confirmedByServer = false;
         debugPrint(
             '[TracksRepository] saveTrack: commit offline → salvata in locale, sync differita');
       }
 
-      debugPrint('[TracksRepository] Traccia salvata con ID: ${docRef.id}');
+      debugPrint('[TracksRepository] Traccia salvata con ID: ${docRef.id} '
+          '(confermata dal server: $confirmedByServer)');
 
       // Lancia correzione DEM in background, non-bloccante. Eventuali
       // errori (offline, AWS down) sono loggati ma non risalgono al
@@ -123,10 +153,34 @@ class TracksRepository {
         unawaited(_autoCorrectElevationsInBackground(docRef.id, user.uid));
       }
 
-      return docRef.id;
+      return SaveTrackResult(
+        trackId: docRef.id,
+        confirmedByServer: confirmedByServer,
+      );
     } catch (e) {
       debugPrint('[TracksRepository] Errore saveTrack: $e');
       rethrow;
+    }
+  }
+
+  /// Si risolve quando Firestore ha svuotato la coda di mutazioni locali
+  /// (tutte le scritture in sospeso sono state confermate dal server).
+  /// Usata dai flussi che tengono un backup su disco finché il save non è
+  /// davvero arrivato. Non risolve mai finché l'app resta offline.
+  Future<void> waitForPendingWrites() => _firestore.waitForPendingWrites();
+
+  /// `true` se il doc traccia esiste **sul server** (bypassa la cache, che
+  /// mostrerebbe come esistente anche una scrittura mai sincronizzata).
+  /// `null` se non è possibile saperlo (offline, errore di rete).
+  Future<bool?> trackExistsOnServer(String userId, String trackId) async {
+    try {
+      final snap = await _tracksCollection(userId)
+          .doc(trackId)
+          .get(const GetOptions(source: Source.server));
+      return snap.exists;
+    } catch (e) {
+      debugPrint('[TracksRepository] trackExistsOnServer($trackId): $e');
+      return null;
     }
   }
 
@@ -251,7 +305,6 @@ class TracksRepository {
     try {
       Query<Map<String, dynamic>> query = _tracksCollection(userId)
           .orderBy('createdAt', descending: true)
-          .limit(50)
           .limit(limit);
 
       // Se abbiamo un documento di partenza, inizia da lì
@@ -264,7 +317,8 @@ class TracksRepository {
       debugPrint('[TracksRepository] Paginazione: ${snapshot.docs.length} tracce caricate');
 
       final tracks = snapshot.docs.map((doc) {
-        return _trackFromFirestore(doc.id, doc.data());
+        return _trackFromFirestore(doc.id, doc.data(),
+            pendingSync: doc.metadata.hasPendingWrites);
       }).toList();
 
       return PaginatedTracksResult(
@@ -290,7 +344,8 @@ class TracksRepository {
 
       return snapshot.docs.map((doc) {
         final data = doc.data();
-        return _trackFromFirestore(doc.id, data);
+        return _trackFromFirestore(doc.id, data,
+            pendingSync: doc.metadata.hasPendingWrites);
       }).toList();
     } catch (e) {
       debugPrint('[TracksRepository] Errore getUserTracks: $e');
@@ -326,7 +381,8 @@ class TracksRepository {
         () => snapshot.docs.map((doc) {
           final data = Map<String, dynamic>.from(doc.data());
           data.remove('points');
-          final t = _trackFromFirestore(doc.id, data);
+          final t = _trackFromFirestore(doc.id, data,
+              pendingSync: doc.metadata.hasPendingWrites);
           // Fallback userId dal path (per tracce con campo top-level
           // mancante) — qui usiamo userId della firma, non currentUser.
           return t.userId == null ? t.copyWith(userId: userId) : t;
@@ -377,7 +433,8 @@ class TracksRepository {
           // Copia mutabile + rimozione points prima del parse
           final data = Map<String, dynamic>.from(doc.data());
           data.remove('points');
-          final t = _trackFromFirestore(doc.id, data);
+          final t = _trackFromFirestore(doc.id, data,
+              pendingSync: doc.metadata.hasPendingWrites);
           // Fallback userId dal path (tracce vecchie senza campo
           // top-level userId — vedi getTrackById per dettagli).
           return t.userId == null ? t.copyWith(userId: userId) : t;
@@ -457,7 +514,8 @@ class TracksRepository {
         .limit(20) // ⚠️ LIMITE per evitare OutOfMemory
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => _trackFromFirestore(doc.id, doc.data()))
+            .map((doc) => _trackFromFirestore(doc.id, doc.data(),
+                pendingSync: doc.metadata.hasPendingWrites))
             .toList());
   }
 
@@ -494,7 +552,8 @@ class TracksRepository {
       final data = doc.data()!;
       var track = PerfTrace.trackSync(
         'tracks.byId.parse[$trackId]',
-        () => _trackFromFirestore(doc.id, data),
+        () => _trackFromFirestore(doc.id, data,
+            pendingSync: doc.metadata.hasPendingWrites),
         describe: (t) => '${t.points.length} punti inline',
       );
       // Lazy-load dei punti dalla sub-collezione geometria (tracce nuove).
@@ -867,6 +926,14 @@ class TracksRepository {
       'activityType': track.activityType.name,
       'recordedAt': track.recordedAt?.toIso8601String(),
       'createdAt': FieldValue.serverTimestamp(),
+      // Gemello client-side di `createdAt`. Il serverTimestamp resta null in
+      // locale finché la scrittura non arriva al backend (offline possono
+      // essere ore): senza questo la traccia in coda veniva mostrata con la
+      // data di parsing (`DateTime.now()`), cioè sbagliata.
+      // NON è la chiave di ordinamento — le liste continuano a ordinare su
+      // `createdAt`, che è l'unico campo presente anche sulle tracce
+      // storiche (ordinare su un campo nuovo le escluderebbe tutte).
+      'clientCreatedAt': Timestamp.fromDate(DateTime.now()),
       'userId': userId,
       'isPublic': track.isPublic,
       'hiddenFromFeed': track.hiddenFromFeed,
@@ -1090,7 +1157,12 @@ class TracksRepository {
 
   /// Converte dati Firestore in Track
   /// Gestisce sia il formato nuovo che quello esistente dell'app JS
-  Track _trackFromFirestore(String id, Map<String, dynamic> data) {
+  ///
+  /// [pendingSync] arriva da `snapshot.metadata.hasPendingWrites`: chi legge
+  /// da uno snapshot lo passa così la UI può segnalare la traccia come non
+  /// ancora sincronizzata (vedi [Track.pendingSync]).
+  Track _trackFromFirestore(String id, Map<String, dynamic> data,
+      {bool pendingSync = false}) {
     // Parse points dal formato legacy INLINE. Le tracce nuove non hanno
     // 'points' qui (vivono nel doc geometria): per loro questo resta vuoto e
     // i punti vengono attaccati da _attachGeometryIfNeeded sui full-load.
@@ -1131,13 +1203,18 @@ class TracksRepository {
       }
     }
 
+    // `createdAt` è un serverTimestamp: finché la scrittura è in coda vale
+    // null in locale. Ripiega su `clientCreatedAt` (scritto insieme, ora del
+    // dispositivo) e poi su `recordedAt`, invece di mostrare "adesso" — che
+    // per una traccia registrata offline giorni prima è una data sbagliata.
     DateTime createdAt = DateTime.now();
-    if (data['createdAt'] != null) {
-      if (data['createdAt'] is Timestamp) {
-        createdAt = (data['createdAt'] as Timestamp).toDate();
-      } else if (data['createdAt'] is int) {
-        createdAt = DateTime.fromMillisecondsSinceEpoch(data['createdAt']);
-      }
+    final rawCreatedAt = data['createdAt'] ?? data['clientCreatedAt'];
+    if (rawCreatedAt is Timestamp) {
+      createdAt = rawCreatedAt.toDate();
+    } else if (rawCreatedAt is int) {
+      createdAt = DateTime.fromMillisecondsSinceEpoch(rawCreatedAt);
+    } else if (recordedAt != null) {
+      createdAt = recordedAt;
     }
 
     // Stats - usa valori pre-calcolati se disponibili
@@ -1194,6 +1271,7 @@ class TracksRepository {
       computedDifficulty: data['computedDifficulty']?.toString(),
       manualDifficulty: data['manualDifficulty']?.toString(),
       elevationCorrectedFromDem: data['elevationCorrectedFromDem'] == true,
+      pendingSync: pendingSync,
     );
   }
 

@@ -539,6 +539,28 @@ class _TrackCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                  // Badge "non ancora sul server": la traccia esiste solo
+                  // nella coda di scritture Firestore locale (salvata offline).
+                  if (track.pendingSync)
+                    Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off, size: 12, color: AppColors.warning),
+                          const SizedBox(width: 4),
+                          Text(
+                            context.l10n.pendingSyncBadge,
+                            style: const TextStyle(fontSize: 10, color: AppColors.warning, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
                   // Badge pianificata
                   if (track.isPlanned)
                     Container(

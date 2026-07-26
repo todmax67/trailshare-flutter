@@ -457,6 +457,13 @@ class Track {
   /// Aggiunto 2026-05-27 dopo feedback utente.
   final String? manualDifficulty;
 
+  /// `true` se il documento Firestore da cui arriva questa traccia ha
+  /// ancora scritture in coda (`snapshot.metadata.hasPendingWrites`): la
+  /// traccia esiste in locale ma il server non l'ha ancora confermata.
+  /// Campo **transiente**: vive solo in memoria, non viene serializzato
+  /// (non ha senso persistere lo stato di sync dentro il doc stesso).
+  final bool pendingSync;
+
   /// Difficoltà effettiva = override manuale se presente, altrimenti
   /// quella computata. Usare questa nelle UI per visualizzazione e
   /// nei filtri community (no distinzione fra auto/manual).
@@ -499,6 +506,7 @@ class Track {
     this.computedDifficulty,
     this.manualDifficulty,
     this.elevationCorrectedFromDem = false,
+    this.pendingSync = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -583,6 +591,7 @@ class Track {
     String? manualDifficulty,
     bool clearManualDifficulty = false,
     bool? elevationCorrectedFromDem,
+    bool? pendingSync,
   }) {
     return Track(
       id: id ?? this.id,
@@ -611,6 +620,7 @@ class Track {
           : (manualDifficulty ?? this.manualDifficulty),
       elevationCorrectedFromDem:
           elevationCorrectedFromDem ?? this.elevationCorrectedFromDem,
+      pendingSync: pendingSync ?? this.pendingSync,
     );
   }
 }
