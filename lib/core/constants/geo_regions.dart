@@ -94,7 +94,7 @@ class GeoRegions {
   GeoRegions._();
 
   /// Paesi con almeno una regione a catalogo, in ordine di priorità.
-  static const List<String> countries = ['IT', 'FR', 'CH'];
+  static const List<String> countries = ['IT', 'FR', 'CH', 'AT', 'SI'];
 
   static const Map<String, String> countryNamesIt = {
     'IT': 'Italia',
@@ -167,6 +167,43 @@ class GeoRegions {
     // ─── Svizzera (ISO 3166-2:CH) ────────────────────────────────────
     GeoRegion(code: 'valais', countryCode: 'CH', nameIt: 'Vallese', nameEn: 'Valais', flag: '⛰️',
         latMin: 45.8582, latMax: 46.6540, lngMin: 6.7706, lngMax: 8.4785),
+
+
+    // ── Francia (dipartimenti alpini) ──
+    GeoRegion(code: 'isere', countryCode: 'FR', nameIt: 'Isère', nameEn: 'Isère', flag: '🏔️',
+        latMin: 44.6959, latMax: 45.8836, lngMin: 4.7416, lngMax: 6.3591),
+    GeoRegion(code: 'hautes_alpes', countryCode: 'FR', nameIt: 'Alte Alpi', nameEn: 'Hautes-Alpes', flag: '🏔️',
+        latMin: 44.1864, latMax: 45.1266, lngMin: 5.4184, lngMax: 7.0771),
+    GeoRegion(code: 'alpes_maritimes', countryCode: 'FR', nameIt: 'Alpi Marittime', nameEn: 'Alpes-Maritimes', flag: '🏔️',
+        latMin: 43.4801, latMax: 44.3625, lngMin: 6.6352, lngMax: 7.719),
+    GeoRegion(code: 'alpes_hte_provence', countryCode: 'FR', nameIt: 'Alpi dell\'Alta Provenza', nameEn: 'Alpes-de-Haute-Provence', flag: '🏔️',
+        latMin: 43.6682, latMax: 44.6599, lngMin: 5.4964, lngMax: 6.9691),
+
+    // ── Svizzera (cantoni) ──
+    GeoRegion(code: 'ticino', countryCode: 'CH', nameIt: 'Ticino', nameEn: 'Ticino', flag: '⛰️',
+        latMin: 45.818, latMax: 46.6325, lngMin: 8.3822, lngMax: 9.1597),
+    GeoRegion(code: 'grigioni', countryCode: 'CH', nameIt: 'Grigioni', nameEn: 'Grisons', flag: '⛰️',
+        latMin: 46.1691, latMax: 47.0651, lngMin: 8.6511, lngMax: 10.4922),
+    GeoRegion(code: 'vaud', countryCode: 'CH', nameIt: 'Vaud', nameEn: 'Vaud', flag: '⛰️',
+        latMin: 46.1871, latMax: 46.9869, lngMin: 6.0639, lngMax: 7.2492),
+    GeoRegion(code: 'berna', countryCode: 'CH', nameIt: 'Berna', nameEn: 'Bern', flag: '⛰️',
+        latMin: 46.3265, latMax: 47.3453, lngMin: 6.8615, lngMax: 8.4552),
+    GeoRegion(code: 'friburgo', countryCode: 'CH', nameIt: 'Friburgo', nameEn: 'Fribourg', flag: '⛰️',
+        latMin: 46.4379, latMax: 47.0068, lngMin: 6.7419, lngMax: 7.3802),
+
+    // ── Austria (Länder) ──
+    GeoRegion(code: 'tirolo', countryCode: 'AT', nameIt: 'Tirolo', nameEn: 'Tyrol', flag: '🏔️',
+        latMin: 46.6514, latMax: 47.743, lngMin: 10.0978, lngMax: 12.966),
+    GeoRegion(code: 'carinzia', countryCode: 'AT', nameIt: 'Carinzia', nameEn: 'Carinthia', flag: '🏔️',
+        latMin: 46.3723, latMax: 47.1313, lngMin: 12.6568, lngMax: 15.0652),
+    GeoRegion(code: 'vorarlberg', countryCode: 'AT', nameIt: 'Vorarlberg', nameEn: 'Vorarlberg', flag: '🏔️',
+        latMin: 46.8409, latMax: 47.5961, lngMin: 9.5307, lngMax: 10.2372),
+    GeoRegion(code: 'stiria', countryCode: 'AT', nameIt: 'Stiria', nameEn: 'Styria', flag: '🏔️',
+        latMin: 46.612, latMax: 47.8279, lngMin: 13.5633, lngMax: 16.1718),
+
+    // ── Slovenia ──
+    GeoRegion(code: 'slovenia', countryCode: 'SI', nameIt: 'Slovenia', nameEn: 'Slovenia', flag: '🏔️',
+        latMin: 45.4215, latMax: 46.8767, lngMin: 13.3755, lngMax: 16.5967),
 
     // Sentinella per chi non vuole dichiarare la posizione.
     GeoRegion(code: 'international', countryCode: '', nameIt: 'Internazionale', nameEn: 'International', flag: '🌍'),

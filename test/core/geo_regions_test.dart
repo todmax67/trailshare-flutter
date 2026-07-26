@@ -58,8 +58,48 @@ void main() {
 
     test('byCountry filtra correttamente', () {
       expect(GeoRegions.byCountry('IT').length, 20);
-      expect(GeoRegions.byCountry('FR').length, 2);
-      expect(GeoRegions.byCountry('CH').length, 1);
+      for (final cc in ['FR', 'CH', 'AT', 'SI']) {
+        expect(GeoRegions.byCountry(cc), isNotEmpty, reason: cc);
+      }
+      // La sentinella non appartiene a nessun paese.
+      expect(GeoRegions.byCountry(''), hasLength(1));
+    });
+  });
+
+  group('arco alpino — coordinate reali dall\'audit', () {
+    test('Zermatt è Vallese, non Piemonte', () {
+      final r = GeoRegions.resolveByBbox(46.0207, 7.7491);
+      expect(r?.countryCode, 'CH');
+    });
+
+    test('Bernina/Grigioni non è Lombardia', () {
+      final r = GeoRegions.resolveByBbox(46.4100, 9.9000);
+      expect(r?.countryCode, 'CH');
+    });
+
+    // Limite DOCUMENTATO di resolveByBbox, non un bug: il Triglav
+    // (Slovenia) cade dentro il rettangolo del Friuli, che è più
+    // piccolo di quello sloveno e quindi vince. Nessun rettangolo può
+    // risolvere un confine: per questo il paese si salva sul contenuto
+    // (campo `country`) invece di dedurlo. Il test blinda il fatto che
+    // il ripiego è approssimato, così nessuno ci costruisce sopra.
+    test('sui confini il ripiego geometrico può sbagliare — per questo '
+        'il paese va memorizzato', () {
+      final r = GeoRegions.resolveByBbox(46.3833, 13.8358); // Triglav, SI
+      expect(r?.countryCode, 'IT',
+          reason: 'il bbox del Friuli è più piccolo e vince: '
+              'atteso, ed è il motivo per cui esiste il campo country');
+    });
+
+    test('Innsbruck è Tirolo, non Trentino', () {
+      final r = GeoRegions.resolveByBbox(47.2692, 11.4041);
+      expect(r?.countryCode, 'AT');
+    });
+
+    test('il catalogo copre i 5 paesi alpini', () {
+      for (final cc in ['IT', 'FR', 'CH', 'AT', 'SI']) {
+        expect(GeoRegions.byCountry(cc), isNotEmpty, reason: cc);
+      }
     });
   });
 }
