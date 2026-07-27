@@ -4754,12 +4754,52 @@ exports.importOsmBusinesses = onCall(
       });
     }
 
+    // Dedup #2: stesso NOME a meno di 150 m. Il dedup su sourceUrl non
+    // basta perche' OSM mappa spesso la stessa struttura DUE volte, come
+    // node e come way: sourceUrl diversi, stesso rifugio. Nel luglio 2026
+    // questo ha prodotto 11 doppioni (Prudenzini, Maison Vieille, Orestes
+    // Hütte...), poi fusi a mano.
+    //
+    // NB: 150 m e' volutamente stretto. Esistono rifugi omonimi distinti a
+    // pochi km (due "Refuge de la Balme" a 13 km) e complessi di piu'
+    // edifici con lo stesso nome (Lochalm, 4 way entro 74 m): quelli NON
+    // sono duplicati e vanno tenuti.
+    const normName = (s) => (s || '').toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+    const haversine = (aLat, aLng, bLat, bLng) => {
+      const r = (x) => (x * Math.PI) / 180;
+      const h = Math.sin(r(bLat - aLat) / 2) ** 2 +
+        Math.cos(r(aLat)) * Math.cos(r(bLat)) * Math.sin(r(bLng - aLng) / 2) ** 2;
+      return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+    };
+    // Indice per nome dei rifugi gia presenti dello stesso tipo.
+    const existingByName = new Map();
+    {
+      const snap = await db.collection('businesses')
+        .where('type', '==', businessType)
+        .get();
+      snap.forEach((d) => {
+        const x = d.data();
+        const key = normName(x.name);
+        const L = x.location || {};
+        if (!key || L.lat == null) return;
+        if (!existingByName.has(key)) existingByName.set(key, []);
+        existingByName.get(key).push({ lat: L.lat, lng: L.lng });
+      });
+    }
+    const isNearDuplicate = (doc) => {
+      const list = existingByName.get(normName(doc.name));
+      if (!list) return false;
+      return list.some((e) =>
+        haversine(e.lat, e.lng, doc.location.lat, doc.location.lng) < 150);
+    };
+
     let created = 0, skipped = 0;
     const errors = [];
     const samples = []; // per dryRun mostra primi 5 doc
 
     for (const doc of candidates) {
-      if (existingUrls.has(doc.sourceUrl)) {
+      if (existingUrls.has(doc.sourceUrl) || isNearDuplicate(doc)) {
         skipped++;
         continue;
       }
