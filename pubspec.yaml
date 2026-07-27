@@ -124,6 +124,7 @@ dependencies:
   in_app_review: ^2.0.10
   webview_flutter: ^4.13.1
   flutter_screen_recording: ^2.0.25
+  firebase_crashlytics: ^4.3.10
 
 dependency_overrides:
   # Fork locale minimale: su Android 14+ forza il dialog MediaProjection al

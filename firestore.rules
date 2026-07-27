@@ -647,6 +647,19 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
+    // --- DIAGNOSTICA SALVATAGGIO TRACCE ---
+    // Telemetria append-only scritta dal client (SaveDiagnosticsService) per
+    // misurare quanti salvataggi restano solo locali o falliscono. Il client
+    // può SOLO creare, e solo eventi propri: niente read (nemmeno dei suoi,
+    // non gli servono), niente update, niente delete → nessuno può ripulire o
+    // falsificare la telemetria. Si legge con l'admin SDK dagli script di
+    // supporto.
+    match /save_diagnostics/{eventId} {
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+
     // --- REGOLE NOTIFICHE ---
     // create stretto: senderId deve combaciare con l'utente autenticato
     // (evita spam con recipientId arbitrario da parte di terzi).

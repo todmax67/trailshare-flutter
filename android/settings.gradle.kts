@@ -21,7 +21,12 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.11.1" apply false
     // START: FlutterFire Configuration
-    id("com.google.gms.google-services") version("4.3.15") apply false
+    // 4.4.1 e' il minimo preteso dal plugin Crashlytics 3.x: con la 4.3.15 la
+    // build RELEASE fallisce su :app:uploadCrashlyticsMappingFileRelease
+    // ("Failed to query ... property 'appIdFile'"). In debug non si vede,
+    // perche' quel task esiste solo nelle varianti con minify.
+    id("com.google.gms.google-services") version("4.4.2") apply false
+    id("com.google.firebase.crashlytics") version("3.0.2") apply false
     // END: FlutterFire Configuration
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
 }

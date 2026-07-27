@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
@@ -59,6 +61,50 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Crashlytics — prima di tutto il resto, così cattura anche i fallimenti di
+  // init dei servizi qui sotto. Non esiste su web (il plugin non ha
+  // implementazione web): lì restiamo senza.
+  //
+  // Nato dal ticket del 2026-07-26: senza crash reporting non sapevamo né
+  // quante volte un salvataggio falliva, né se iOS uccideva l'app durante le
+  // registrazioni lunghe. In release `debugPrint` non esiste: eravamo ciechi.
+  if (!kIsWeb) {
+    try {
+      // In debug NON raccogliere: la dashboard si sporcherebbe con gli errori
+      // di sviluppo e il crash-free rate diventerebbe inutilizzabile.
+      await FirebaseCrashlytics.instance
+          .setCrashlyticsCollectionEnabled(!kDebugMode);
+
+      // Chain, non sostituzione: l'overflow hunter di debug qui sopra ha già
+      // installato il suo handler e va preservato.
+      final previousOnError = FlutterError.onError;
+      FlutterError.onError = (FlutterErrorDetails details) {
+        previousOnError?.call(details);
+        // `recordFlutterError` (non-fatal) e non `recordFlutterFatalError`:
+        // marcare fatale ogni errore del framework farebbe crollare il
+        // crash-free rate per banali overflow di layout, seppellendo i
+        // problemi veri sotto il rumore.
+        FirebaseCrashlytics.instance.recordFlutterError(details);
+      };
+
+      // Errori async non gestiti fuori dallo zone di Flutter.
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+
+      // Collega i crash all'utente: quando qualcuno scrive al supporto
+      // possiamo cercare il suo uid invece di andare a intuito.
+      FirebaseAuth.instance.authStateChanges().listen((user) {
+        FirebaseCrashlytics.instance
+            .setUserIdentifier(user?.uid ?? '')
+            .catchError((_) {});
+      });
+    } catch (e) {
+      debugPrint('[Crashlytics] Init fallita: $e');
+    }
+  }
 
   // 2.4.6 — Firestore cache cap a 20MB (era 40 in 2.4.5, default 100).
   //

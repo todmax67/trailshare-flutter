@@ -23,6 +23,7 @@ import '../../../core/services/heading_service.dart';
 import '../../../core/services/hud_prefs_service.dart';
 import '../../../core/utils/eta_estimator.dart';
 import '../../../core/services/recording_status_service.dart';
+import '../../../core/services/save_diagnostics_service.dart';
 import '../../widgets/map_heading_toggle.dart';
 import '../../widgets/map_layer_button.dart';
 import '../../../core/constants/map_styles.dart';
@@ -990,7 +991,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       if (!mounted) return;
       final trackToSave = track.copyWith(name: '$activityName ${now.day}/${now.month}/${now.year} ${context.l10n.autoSaved}');
 
-      final result = await _repository.saveTrackDetailed(trackToSave);
+      final attemptId = SaveDiagnosticsService.instance.newAttemptId();
+      unawaited(SaveDiagnosticsService.instance.record(
+        SaveOutcome.started,
+        attemptId: attemptId,
+        pointsCount: trackToSave.points.length,
+        activityType: trackToSave.activityType.name,
+      ));
+      final result = await _repository.saveTrackDetailed(trackToSave,
+          attemptId: attemptId);
       await _releaseBackupAfterSave(result);
       await LiveTrackService().stop();
       _photos.clear();
@@ -2198,7 +2207,21 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       }
       
       final trackToSave = track.copyWith(name: nameController.text.trim());
-      final saveResult = await _repository.saveTrackDetailed(trackToSave);
+
+      // Funnel di salvataggio: `started` qui, l'esito lo emette il
+      // repository (che è l'unico a sapere se il commit è arrivato al
+      // server). Correlati dallo stesso attemptId.
+      final attemptId = SaveDiagnosticsService.instance.newAttemptId();
+      unawaited(SaveDiagnosticsService.instance.record(
+        SaveOutcome.started,
+        attemptId: attemptId,
+        pointsCount: trackToSave.points.length,
+        durationSeconds: trackToSave.stats.duration.inSeconds,
+        activityType: trackToSave.activityType.name,
+      ));
+
+      final saveResult = await _repository.saveTrackDetailed(trackToSave,
+          attemptId: attemptId);
       final trackId = saveResult.trackId;
 
       // Commit ancora in coda (offline): avvisa che la traccia c'è ma non è
@@ -2331,8 +2354,17 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         Navigator.of(context).pop();
         return;
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[RecordPage] Errore salvataggio: $e');
+      // In release `debugPrint` non esiste: senza questo il fallimento più
+      // grave dell'app (l'utente perde il trek) resterebbe invisibile. Il
+      // funnel lo conta già quando è saveTrack a fallire; qui prendiamo tutto
+      // il resto (stopRecording, foto, post-save).
+      unawaited(SaveDiagnosticsService.instance.recordHandledError(
+        e,
+        st,
+        reason: 'Errore nel flusso di salvataggio traccia (RecordPage)',
+      ));
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.errorWithDetails(e.toString())), backgroundColor: AppColors.danger));
     } finally {
       if (mounted) setState(() => _isSaving = false);

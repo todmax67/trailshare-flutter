@@ -10,6 +10,7 @@ import '../../core/utils/difficulty_calculator.dart';
 import '../../core/utils/elevation_dem_corrector.dart';
 import '../../core/utils/elevation_processor.dart';
 import '../../core/utils/perf_trace.dart';
+import '../../core/services/save_diagnostics_service.dart';
 
 /// Risultato paginato per le tracce
 class PaginatedTracksResult {
@@ -101,7 +102,14 @@ class TracksRepository {
   /// Come [saveTrack] ma restituisce anche l'esito della sincronizzazione
   /// (vedi [SaveTrackResult]). Da usare nei flussi che, dopo il save,
   /// distruggono la propria copia locale dei dati.
-  Future<SaveTrackResult> saveTrackDetailed(Track track) async {
+  ///
+  /// [attemptId] correla questo salvataggio con l'evento `started` emesso dal
+  /// chiamante nel funnel di [SaveDiagnosticsService]. Se omesso si usa l'ID
+  /// della traccia, che però esiste solo dal momento in cui il doc è creato.
+  Future<SaveTrackResult> saveTrackDetailed(
+    Track track, {
+    String? attemptId,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Utente non autenticato');
 
@@ -153,12 +161,35 @@ class TracksRepository {
         unawaited(_autoCorrectElevationsInBackground(docRef.id, user.uid));
       }
 
+      // Telemetria: è QUI che sappiamo se il salvataggio è arrivato sul
+      // server o è rimasto in coda. Fire-and-forget, non deve mai rallentare
+      // né far fallire il salvataggio.
+      unawaited(SaveDiagnosticsService.instance.record(
+        confirmedByServer
+            ? SaveOutcome.confirmedServer
+            : SaveOutcome.localOnly,
+        attemptId: attemptId ?? docRef.id,
+        trackId: docRef.id,
+        pointsCount: savedPoints.length,
+        distanceMeters: stats.distance,
+        durationSeconds: stats.duration.inSeconds,
+        activityType: track.activityType.name,
+      ));
+
       return SaveTrackResult(
         trackId: docRef.id,
         confirmedByServer: confirmedByServer,
       );
     } catch (e) {
       debugPrint('[TracksRepository] Errore saveTrack: $e');
+      unawaited(SaveDiagnosticsService.instance.record(
+        SaveOutcome.failed,
+        attemptId: attemptId ?? 'unknown',
+        pointsCount: track.points.length,
+        distanceMeters: track.stats.distance,
+        activityType: track.activityType.name,
+        error: e,
+      ));
       rethrow;
     }
   }
