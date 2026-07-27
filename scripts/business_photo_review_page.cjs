@@ -52,11 +52,21 @@ const COUNTRY_NAME = {
 const totalImgs = data.huts.reduce((s, h) => s + h.candidates.length, 0);
 const countries = [...new Set(data.huts.map((h) => h.country))].sort();
 
+/// "Quasi certa": viene da una categoria Commons omonima le cui coordinate
+/// cadono praticamente sul rifugio. Non e' una prova — resta una foto che
+/// qualcuno deve guardare — ma e' la classe in cui non ho ancora visto un
+/// errore, e permette di approvare in blocco dopo un controllo a campione.
+function isSure(c) {
+  return c.strategy === 'cat' && c.geoVerified && !c.weak &&
+    c.distance != null && c.distance <= 500;
+}
+
 function candidateCard(hut, c, idx) {
   const badges = [];
   badges.push(c.strategy === 'cat'
     ? '<span class="b b-cat">categoria omonima</span>'
     : '<span class="b b-geo">foto geolocalizzata</span>');
+  if (isSure(c) && idx === 0) badges.push('<span class="b b-sure">quasi certa</span>');
   if (c.distance != null) badges.push(`<span class="b">${c.distance} m</span>`);
   if (c.strategy === 'cat' && !c.geoVerified) {
     badges.push('<span class="b b-warn">posizione non verificata</span>');
@@ -86,9 +96,11 @@ function hutCard(hut) {
   const place = [hut.city, hut.region, COUNTRY_NAME[hut.country] || hut.country]
     .filter(Boolean).join(' · ');
   const osm = `https://www.openstreetmap.org/?mlat=${hut.lat}&mlon=${hut.lng}#map=15/${hut.lat}/${hut.lng}`;
+  const sure = hut.candidates.length && isSure(hut.candidates[0]);
   return `
-<section class="hut" id="hut_${esc(hut.id)}" data-hut="${esc(hut.id)}"
-         data-name="${esc(hut.name.toLowerCase())}" data-country="${esc(hut.country)}">
+<section class="hut${sure ? ' sure' : ''}" id="hut_${esc(hut.id)}" data-hut="${esc(hut.id)}"
+         data-name="${esc(hut.name.toLowerCase())}" data-country="${esc(hut.country)}"
+         data-sure="${sure ? '1' : ''}" data-surefile="${sure ? esc(hut.candidates[0].file) : ''}">
   <header>
     <div>
       <h2>${esc(hut.name)}</h2>
@@ -167,6 +179,7 @@ main{padding:18px;max-width:1180px;margin:0 auto}
 .b-cat{background:var(--accentSoft);color:var(--accent);font-weight:600}
 .b-warn{background:var(--warnSoft);color:var(--warn);font-weight:600}
 .b-weak{background:var(--warnSoft);color:var(--warn)}
+.b-sure{background:var(--accent);color:#fff;font-weight:600}
 .cats{display:block;color:var(--dim);font-size:10.5px;margin-bottom:4px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lic{display:block;color:var(--dim);font-size:10.5px;margin-bottom:4px;
@@ -192,9 +205,11 @@ kbd{background:var(--line);border-radius:4px;padding:1px 5px;font-size:11px;
   <select id="fState">
     <option value="todo">da rivedere</option>
     <option value="all">tutti</option>
+    <option value="sure">solo quasi certe</option>
     <option value="ok">approvati</option>
   </select>
   <div class="bar"><i id="barfill"></i></div>
+  <button id="bulk">approva le quasi certe</button>
   <button id="copy">copia JSON</button>
   <button class="primary" id="dl">scarica approvals.json</button>
 </header>
@@ -232,18 +247,25 @@ function approvals() {
 
 function refresh() {
   const rev = Object.keys(state).length, ok = approvals().length;
+  const pendingSure = [...document.querySelectorAll('.hut[data-sure="1"]')]
+    .filter((h) => state[h.dataset.hut] === undefined).length;
   document.getElementById('counts').textContent =
     rev + ' / ' + TOTAL + ' rifugi rivisti — ' + ok + ' foto approvate';
   document.getElementById('barfill').style.width = (rev / TOTAL * 100) + '%';
   document.getElementById('dl').disabled = ok === 0;
   document.getElementById('copy').disabled = ok === 0;
+  const b = document.getElementById('bulk');
+  b.textContent = 'approva le ' + pendingSure + ' quasi certe';
+  b.disabled = pendingSure === 0;
 }
 
 document.querySelectorAll('.hut').forEach((h) => {
   const id = h.dataset.hut, cur = state[id];
   if (cur !== undefined) {
     h.classList.add('done');
-    const inp = h.querySelector('input[value="' + (cur || '').replace(/"/g, '\\\\"') + '"]');
+    // confronto sui valori, non un selettore CSS: i titoli dei file possono
+    // contenere virgolette e romperebbero l'attributo
+    const inp = [...h.querySelectorAll('input')].find((x) => x.value === cur);
     if (inp) inp.checked = true;
   }
   // Niente applyFilter() qui: se la scheda sparisse appena scelta non si
@@ -268,6 +290,7 @@ function applyFilter() {
     if (co && h.dataset.country !== co) ok = false;
     if (st === 'todo' && state[id] !== undefined) ok = false;
     if (st === 'ok' && !state[id]) ok = false;
+    if (st === 'sure' && !h.dataset.sure) ok = false;
     h.classList.toggle('hide', !ok);
     if (ok) shown++;
   });
@@ -275,6 +298,27 @@ function applyFilter() {
 }
 ['q', 'fCountry', 'fState'].forEach((i) =>
   document.getElementById(i).addEventListener('input', applyFilter));
+
+// Approvazione in blocco: tocca SOLO i rifugi non ancora decisi e solo la
+// prima proposta quando e' della classe "quasi certa". Chiede conferma
+// dicendo quanti sono, cosi' non si preme per sbaglio.
+document.getElementById('bulk').onclick = () => {
+  const pending = [...document.querySelectorAll('.hut[data-sure="1"]')]
+    .filter((h) => state[h.dataset.hut] === undefined);
+  if (!pending.length) { alert('Nessuna proposta "quasi certa" ancora da decidere.'); return; }
+  const msg = 'Approvo la prima foto di ' + pending.length + ' rifugi con categoria ' +
+    'Commons omonima verificata entro 500 m.\\n\\nPuoi sempre correggerne una a mano ' +
+    'dopo: restano tutte modificabili.';
+  if (!confirm(msg)) return;
+  for (const h of pending) {
+    const f = h.dataset.surefile;
+    const inp = [...h.querySelectorAll('input')].find((x) => x.value === f);
+    if (inp) inp.checked = true;
+    state[h.dataset.hut] = f;
+    h.classList.add('done');
+  }
+  save(); refresh();
+};
 
 function payload() {
   return JSON.stringify({
@@ -323,6 +367,17 @@ refresh(); applyFilter();
 `;
 
 fs.writeFileSync(OUT, html);
+
+const byCountry = {};
+for (const h of data.huts) byCountry[h.country] = (byCountry[h.country] || 0) + 1;
+const unverified = data.huts.filter((h) =>
+  h.candidates.some((c) => c.strategy === 'cat' && !c.geoVerified)).length;
+
 console.log(`Pagina di revisione: ${OUT}`);
-console.log(`Rifugi con proposte: ${data.huts.length} — immagini da vagliare: ${totalImgs}`);
-console.log(`Aprila con:  open ${OUT}`);
+console.log(`Rifugi con proposte: ${data.huts.length} su ${data.scanned} interrogati ` +
+  `— immagini da vagliare: ${totalImgs}`);
+console.log('Per paese: ' + Object.entries(byCountry)
+  .sort((a, b) => b[1] - a[1])
+  .map(([c, n]) => `${COUNTRY_NAME[c] || c} ${n}`).join(' · '));
+console.log(`Da guardare con piu' attenzione (posizione non verificata): ${unverified}`);
+console.log(`\nAprila con:  open ${OUT}`);
