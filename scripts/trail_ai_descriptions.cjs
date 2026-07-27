@@ -108,6 +108,9 @@ function regioniLungo(pts) {
 /// Quote implausibili: meglio tacere che pubblicare "quota minima -5 m".
 const quotaPlausibile = v => v != null && Number.isFinite(v) && v >= 0 && v <= 5000;
 
+/// Nomi che promettono un giro: se il dato dice il contrario, vince il nome.
+const NOMI_ANELLO = /\b(rund|ring|circuit|circolare|anello|giro|loop|tour|periplo)/i;
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371, toRad = x => x * Math.PI / 180;
   const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
@@ -140,8 +143,28 @@ async function generate(trail, nearbyRifugi) {
   if (trail.elevationGain != null) f.push(`Dislivello positivo: ${Math.round(trail.elevationGain)} m`);
   if (quotaPlausibile(trail.maxAltitude)) f.push(`Quota massima: ${Math.round(trail.maxAltitude)} m`);
   if (quotaPlausibile(trail.minAltitude)) f.push(`Quota minima: ${Math.round(trail.minAltitude)} m`);
-  if (trail.isCircular != null) f.push(`Anello: ${trail.isCircular ? 'sì' : 'no'}`);
-  if (trail.difficulty) f.push(`Difficoltà: ${trail.difficulty}`);
+  // "Anello: sì" si verifica da solo (primo e ultimo punto a meno di 100 m).
+  // "Anello: no" no: sulle relazioni OSM aggregate l'ordine dei punti e'
+  // arbitrario, e lo Steirischer LANDESRUNDwanderweg risultava non-anello.
+  // Se il nome promette un giro, o il percorso e' lungo abbastanza da essere
+  // una relazione composta, il dato non si passa.
+  if (trail.isCircular === true) {
+    f.push('Anello: sì');
+  } else if (trail.isCircular === false
+    && !NOMI_ANELLO.test(String(trail.name || ''))
+    && (trail.distance / 1000) <= DIST_MAX_KM) {
+    f.push('Anello: no');
+  }
+
+  // La difficolta' non e' rilevata sul terreno: _estimateDifficulty la deduce
+  // da lunghezza e dislivello, e QUALUNQUE percorso oltre 1200 m di D+
+  // complessivo diventa EE. Su un cammino lungo e in pendenza dolce (la Via
+  // del Sale: 12 m/km) e' un allarme falso, e un'etichetta di rischio
+  // sbagliata in montagna e' peggio che nessuna etichetta.
+  const km = (trail.distance || 0) / 1000;
+  const pendenza = km > 0 && trail.elevationGain != null ? trail.elevationGain / km : null;
+  const eeGonfiata = trail.difficulty === 'EE' && km > 20 && pendenza !== null && pendenza < 40;
+  if (trail.difficulty && !eeGonfiata) f.push(`Difficoltà: ${trail.difficulty}`);
   if (trail.network) f.push(`Rete: ${trail.network}`);
   if (trail.operator) f.push(`Gestore/sezione: ${trail.operator}`);
   // Se il percorso ne attraversa piu' d'una si dicono tutte; se non e'
