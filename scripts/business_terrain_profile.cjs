@@ -199,7 +199,9 @@ async function undo() {
 
   console.log(`\n=== PROFILI ${DRY ? '(SIMULAZIONE)' : ''} ===`);
   console.log(`scritti in questo giro: ${scritti} | scartati: ${scartati} | chiamate: ${chiamate}`);
-  console.log(`totale profili: ${fatti.length} su ${tutti.length + fatti.length} rifugi senza foto`);
+  // `tutti` sono i rifugi che a inizio giro il profilo NON ce l'avevano, quindi
+  // e' gia' il totale da fare: sommarci `fatti` conterebbe due volte i propri.
+  console.log(`profilati in tutto: ${fatti.length} | ne restano ${tutti.length - scritti}`);
   if (fermato) {
     console.log(`\nFermato al tetto di ${MAX_CHIAMATE} chiamate per non sbattere contro il ` +
       `limite giornaliero. Domani:\n  node scripts/business_terrain_profile.cjs --resume`);
