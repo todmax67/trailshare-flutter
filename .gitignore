@@ -67,3 +67,6 @@ social_lab/assets/**/*.mkv
 social_lab/assets/**/*.webm
 social_lab/assets/**/*.psd
 social_lab/assets/**/*.ai
+
+# Coda di revisione foto rifugi (generata da scripts/business_photo_candidates.cjs)
+.photo_review/
