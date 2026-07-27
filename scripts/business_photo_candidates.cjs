@@ -234,6 +234,13 @@ async function categoryCoords(cat) {
   return null;
 }
 
+/// Le categorie Commons disambiguano col comune fra parentesi:
+/// "Rifugio Le Malghe (Lizzano in Belvedere)". Quella parentesi e' un LUOGO,
+/// non il nome del rifugio, e va tolta prima del confronto — altrimenti tre
+/// "Rifugio Belvedere" sparsi fra Marche, Valle d'Aosta e Calabria si prendono
+/// tutti la foto di un rifugio dell'Appennino bolognese.
+const senzaParentesi = (s) => String(s || '').replace(/\s*\([^)]*\)\s*/g, ' ');
+
 async function viaCategory(hut, tokens) {
   const search = await commons({
     action: 'query', list: 'search', srnamespace: '14',
@@ -243,7 +250,7 @@ async function viaCategory(hut, tokens) {
     .map((s) => s.title)
     // qui pretendo TUTTE le parole distintive: la categoria e' un'affermazione
     // forte ("questo E' il rifugio"), non una vicinanza.
-    .filter((t) => matchedTokens(tokens, t).length === tokens.length);
+    .filter((t) => matchedTokens(tokens, senzaParentesi(t)).length === tokens.length);
   if (!hits.length) return [];
 
   const cat = hits[0];
