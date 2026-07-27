@@ -4793,6 +4793,18 @@ exports.importOsmBusinesses = onCall(
       return list.some((e) =>
         haversine(e.lat, e.lng, doc.location.lat, doc.location.lng) < 150);
     };
+    // L'indice va aggiornato mano a mano: costruito solo dall'archivio, non
+    // vede i doc creati DENTRO questo stesso import. Due node OSM omonimi a
+    // 3 m ("Berghutte Hohsaas", luglio 2026) passavano entrambi perche' al
+    // loro turno nessuno dei due era ancora in archivio.
+    const rememberCreated = (doc) => {
+      const key = normName(doc.name);
+      if (!key || doc.location.lat == null) return;
+      if (!existingByName.has(key)) existingByName.set(key, []);
+      existingByName.get(key).push({
+        lat: doc.location.lat, lng: doc.location.lng,
+      });
+    };
 
     let created = 0, skipped = 0;
     const errors = [];
@@ -4813,6 +4825,9 @@ exports.importOsmBusinesses = onCall(
             lng: doc.location.lng,
           });
         }
+        // anche in simulazione, per non promettere piu' doc di quanti ne
+        // creerebbe davvero
+        rememberCreated(doc);
         created++;
         continue;
       }
@@ -4820,6 +4835,7 @@ exports.importOsmBusinesses = onCall(
         // Slug unique al momento del write per evitare collisioni.
         const slug = await uniqueSlug(slugify(doc.name));
         await db.collection('businesses').add({ ...doc, slug });
+        rememberCreated(doc);
         created++;
       } catch (e) {
         errors.push({ name: doc.name, error: e.message });
