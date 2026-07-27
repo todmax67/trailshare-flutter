@@ -1222,6 +1222,16 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.8.2',
+        title: 'Le Alpi, non solo l\'Italia 🏔️',
+        bullets: [
+          'Sentieri e rifugi di Francia, Svizzera, Austria, Slovenia e Croazia: 16.350 sentieri e 4.318 rifugi, con il filtro per regione che ora conosce anche il Vallese, il Tirolo e l\'Alta Savoia',
+          'Filtri per regione più precisi: i sentieri d\'oltreconfine non finiscono più sotto le regioni italiane vicine',
+          '460 rifugi in più con una foto, e per quelli che ancora non ce l\'hanno la scheda mostra il profilo reale del terreno attorno invece di un riquadro vuoto',
+          'La traccia registrata resta al sicuro finché il server non conferma di averla salvata: se la rete cade a metà salvataggio, il backup locale non viene più cancellato',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.8.1',
         title: 'Pubblica un cammino senza riempire il feed 🥾',
         bullets: [
