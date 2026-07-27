@@ -9,6 +9,7 @@
 const admin = require('../functions/node_modules/firebase-admin');
 const sa = require('../functions/serviceAccountKey.json');
 const fs = require('fs');
+const path = require('path');
 admin.initializeApp({ credential: admin.credential.cert(sa) });
 const db = admin.firestore();
 
@@ -28,7 +29,18 @@ const AUTOPUBLISH = args.includes('--autopublish');
 const CONCURRENCY = Number(opt('concurrency', 6));
 
 // ── Regioni (point-in-polygon, riuso pipeline schede) ─────────────────────
-const gj = JSON.parse(fs.readFileSync('/tmp/it_regions.geojson', 'utf8'));
+// Il backfill della regione e' un di piu': se i confini non ci sono lo
+// script genera lo stesso le descrizioni, che sono il lavoro vero. Il file
+// stava in /tmp e le pulizie del disco se lo portano via.
+const GEOJSON = [
+  path.join(__dirname, '..', 'assets', 'geo', 'it_regions.geojson'),
+  '/tmp/it_regions.geojson',
+].find(p => fs.existsSync(p));
+if (!GEOJSON) {
+  console.log('· confini regionali assenti: salto il backfill di location.region');
+  console.log('  (per riattivarlo: assets/geo/it_regions.geojson)');
+}
+const gj = GEOJSON ? JSON.parse(fs.readFileSync(GEOJSON, 'utf8')) : { features: [] };
 const regions = gj.features.map(f => {
   const name = String(f.properties.reg_name).split('/')[0].trim();
   const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
@@ -62,6 +74,40 @@ function regionOf(lng, lat) {
   return null;
 }
 
+// Un'etichetta di regione sola non regge sui grandi itinerari: il Sentiero
+// Italia non e' piemontese e la Via Alpina non e' dei Grigioni. Prima si
+// prendeva la regione del PRIMO punto e la si passava al modello come fatto:
+// lui rispettava la consegna di non inventare, ma il fatto era gia' falso.
+// Ora: se il tracciato spazia troppo, la regione non si passa affatto.
+const SPAN_MAX_KM = 50;   // diagonale del rettangolo che contiene il percorso
+const DIST_MAX_KM = 100;  // lunghezza oltre la quale una regione sola non regge
+
+function estensioneKm(pts) {
+  if (pts.length < 2) return 0;
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const [la, ln] of pts) {
+    if (la < minLat) minLat = la; if (la > maxLat) maxLat = la;
+    if (ln < minLng) minLng = ln; if (ln > maxLng) maxLng = ln;
+  }
+  return haversineKm(minLat, minLng, maxLat, maxLng);
+}
+
+/// Le regioni toccate campionando il percorso (inizio, quarti, fine).
+/// Vuoto se non abbiamo i confini caricati: in quel caso decide l'estensione.
+function regioniLungo(pts) {
+  if (!regions.length || !pts.length) return [];
+  const viste = [];
+  for (const q of [0, 0.25, 0.5, 0.75, 1]) {
+    const p = pts[Math.min(pts.length - 1, Math.floor(q * (pts.length - 1)))];
+    const r = regionOf(p[1], p[0]);
+    if (r && !viste.includes(r)) viste.push(r);
+  }
+  return viste;
+}
+
+/// Quote implausibili: meglio tacere che pubblicare "quota minima -5 m".
+const quotaPlausibile = v => v != null && Number.isFinite(v) && v >= 0 && v <= 5000;
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371, toRad = x => x * Math.PI / 180;
   const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
@@ -92,13 +138,19 @@ async function generate(trail, nearbyRifugi) {
   if (trail.to) f.push(`Arrivo/meta: ${trail.to}`);
   f.push(`Lunghezza: ${(trail.distance / 1000).toFixed(1)} km`);
   if (trail.elevationGain != null) f.push(`Dislivello positivo: ${Math.round(trail.elevationGain)} m`);
-  if (trail.maxAltitude != null) f.push(`Quota massima: ${Math.round(trail.maxAltitude)} m`);
-  if (trail.minAltitude != null) f.push(`Quota minima: ${Math.round(trail.minAltitude)} m`);
+  if (quotaPlausibile(trail.maxAltitude)) f.push(`Quota massima: ${Math.round(trail.maxAltitude)} m`);
+  if (quotaPlausibile(trail.minAltitude)) f.push(`Quota minima: ${Math.round(trail.minAltitude)} m`);
   if (trail.isCircular != null) f.push(`Anello: ${trail.isCircular ? 'sì' : 'no'}`);
   if (trail.difficulty) f.push(`Difficoltà: ${trail.difficulty}`);
   if (trail.network) f.push(`Rete: ${trail.network}`);
   if (trail.operator) f.push(`Gestore/sezione: ${trail.operator}`);
-  if (trail.region) f.push(`Regione: ${trail.region}`);
+  // Se il percorso ne attraversa piu' d'una si dicono tutte; se non e'
+  // accertabile (vedi SPAN_MAX_KM) region arriva null e non si nomina nulla.
+  if (trail.regioniAttraversate && trail.regioniAttraversate.length > 1) {
+    f.push(`Regioni attraversate: ${trail.regioniAttraversate.join(', ')}`);
+  } else if (trail.region) {
+    f.push(`Regione: ${trail.region}`);
+  }
   if (nearbyRifugi.length) f.push(`Rifugi lungo o vicino al percorso (dalla nostra banca dati, max 1,5 km): ${nearbyRifugi.join(', ')}`);
 
   const system = `Scrivi la descrizione di un sentiero per TrailShare, app outdoor italiana.
@@ -152,18 +204,31 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
   cands = cands.slice(0, LIMIT);
   console.log('Sentieri da processare:', cands.length);
 
-  let ok = 0, unreliable = 0, errors = 0, regionsSet = 0;
+  let ok = 0, unreliable = 0, errors = 0, regionsSet = 0, vasti = 0;
   let inTok = 0, outTok = 0;
   let nextIdx = 0;
   async function processOne(t, i) {
     const label = `[${i + 1}/${cands.length}] ${String(t.name).slice(0, 50)}`;
     try {
       const pts = trailPoints(t);
-      // regione (backfill se mancante)
+      // Regione: attendibile solo se il percorso sta in un'area contenuta.
+      // Il campo salvato su Firestore vale quanto il primo punto da cui e'
+      // stato dedotto, quindi sui grandi itinerari non ci si fida nemmeno
+      // di quello.
       let region = t.region || null;
-      if (!region && pts.length) {
-        region = regionOf(pts[0][1], pts[0][0]);
-        if (region) { await t.docRef.update({ region }); regionsSet++; }
+      const attraversate = regioniLungo(pts);
+      const spanKm = estensioneKm(pts);
+      const troppoVasto = spanKm > SPAN_MAX_KM || (t.distance / 1000) > DIST_MAX_KM;
+
+      if (attraversate.length > 1) {
+        region = null;                       // le elenca il blocco dei fatti
+      } else if (troppoVasto) {
+        region = null;                       // niente regione: meglio tacere
+        vasti++;
+      } else if (!region && attraversate.length === 1) {
+        region = attraversate[0];
+        await t.docRef.update({ region });
+        regionsSet++;
       }
       // rifugi entro 1.5 km da uno dei punti del percorso
       const step = Math.max(1, Math.floor(pts.length / 25));
@@ -180,7 +245,8 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
       near.sort((a, b) => a.d - b.d);
       const nearNames = near.slice(0, 3).map(n => n.name);
 
-      const { parsed, usage } = await generate({ ...t, region }, nearNames);
+      const { parsed, usage } = await generate(
+        { ...t, region, regioniAttraversate: attraversate }, nearNames);
       inTok += usage?.input_tokens || 0;
       outTok += usage?.output_tokens || 0;
       if (!parsed.affidabile || !parsed.description || parsed.description.length < 40) {
@@ -226,6 +292,7 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
   const cost = (inTok / 1e6) * 1 + (outTok / 1e6) * 5;
   console.log(`\n=== SENTIERI BATCH COMPLETO ===`);
   console.log(`bozze: ${ok} | scarni: ${unreliable} | errori: ${errors} | regioni backfillate: ${regionsSet}`);
+  if (vasti) console.log(`percorsi troppo estesi per una regione sola (non nominata): ${vasti}`);
   console.log(`token: ${inTok} in / ${outTok} out ≈ $${cost.toFixed(2)}`);
   process.exit(0);
 })().catch(e => { console.error('ERR', e.message); process.exit(1); });
