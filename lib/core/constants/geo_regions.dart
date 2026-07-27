@@ -94,7 +94,7 @@ class GeoRegions {
   GeoRegions._();
 
   /// Paesi con almeno una regione a catalogo, in ordine di priorità.
-  static const List<String> countries = ['IT', 'FR', 'CH', 'AT', 'SI'];
+  static const List<String> countries = ['IT', 'FR', 'CH', 'AT', 'SI', 'HR', 'HU'];
 
   static const Map<String, String> countryNamesIt = {
     'IT': 'Italia',
@@ -102,6 +102,8 @@ class GeoRegions {
     'CH': 'Svizzera',
     'AT': 'Austria',
     'SI': 'Slovenia',
+    'HR': 'Croazia',
+    'HU': 'Ungheria',
     'DE': 'Germania',
   };
 
@@ -111,6 +113,8 @@ class GeoRegions {
     'CH': 'Switzerland',
     'AT': 'Austria',
     'SI': 'Slovenia',
+    'HR': 'Croatia',
+    'HU': 'Hungary',
     'DE': 'Germany',
   };
 
@@ -204,6 +208,28 @@ class GeoRegions {
     // ── Slovenia ──
     GeoRegion(code: 'slovenia', countryCode: 'SI', nameIt: 'Slovenia', nameEn: 'Slovenia', flag: '🏔️',
         latMin: 45.4215, latMax: 46.8767, lngMin: 13.3755, lngMax: 16.5967),
+
+    // ── Croazia (ISO 3166-2:HR) ──
+    // Arrivata di rimbalzo: gli sweep di Slovenia e Stiria sfiorano il
+    // confine e hanno portato 215 sentieri croati. Copertura PARZIALE,
+    // sulle contee dove i contenuti ci sono davvero — chi cade fuori
+    // resta con `country` e senza regione, che e' meglio di un'etichetta
+    // sbagliata.
+    GeoRegion(code: 'zagabria', countryCode: 'HR', nameIt: 'Regione di Zagabria', nameEn: 'Zagreb County', flag: '🏞️',
+        latMin: 45.4671, latMax: 46.0717, lngMin: 15.3279, lngMax: 16.7141),
+    GeoRegion(code: 'karlovac', countryCode: 'HR', nameIt: 'Karlovac', nameEn: 'Karlovac', flag: '🏞️',
+        latMin: 44.8797, latMax: 45.7625, lngMin: 14.9612, lngMax: 15.9251),
+    GeoRegion(code: 'primorje_gorski', countryCode: 'HR', nameIt: 'Litorale-Gorski Kotar', nameEn: 'Primorje-Gorski Kotar', flag: '⛰️',
+        latMin: 44.2603, latMax: 45.6729, lngMin: 13.9172, lngMax: 15.2352),
+    GeoRegion(code: 'istria', countryCode: 'HR', nameIt: 'Istria', nameEn: 'Istria', flag: '🌊',
+        latMin: 44.4689, latMax: 45.5884, lngMin: 13.2125, lngMax: 14.2586),
+
+    // ── Ungheria (ISO 3166-2:HU) ──
+    // Solo la fascia occidentale confinante: 9 sentieri in tutto.
+    GeoRegion(code: 'vas', countryCode: 'HU', nameIt: 'Vas', nameEn: 'Vas', flag: '🌳',
+        latMin: 46.7142, latMax: 47.4608, lngMin: 16.1139, lngMax: 17.2957),
+    GeoRegion(code: 'zala', countryCode: 'HU', nameIt: 'Zala', nameEn: 'Zala', flag: '🌳',
+        latMin: 46.2912, latMax: 47.0491, lngMin: 16.3626, lngMax: 17.4191),
 
     // Sentinella per chi non vuole dichiarare la posizione.
     GeoRegion(code: 'international', countryCode: '', nameIt: 'Internazionale', nameEn: 'International', flag: '🌍'),
