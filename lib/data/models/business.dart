@@ -332,6 +332,15 @@ class Business {
   /// in UI ovunque la foto sia visibile a schermo intero.
   final Map<String, dynamic>? photoAttribution;
 
+  /// Sezione del terreno attorno alla struttura, per disegnare una copertina
+  /// quando la foto non c'è (vedi `TerrainCover`). Chiavi: `p` (campioni
+  /// quantizzati in base64), `n`, `minM`, `maxM`, `widthKm`, `source`.
+  ///
+  /// Sta compresso apposta: `getNearby` carica fino a mille schede per volta
+  /// e sessanta interi a testa sarebbero lo stesso errore dei punti GPS
+  /// annegati nei doc delle tracce.
+  final Map<String, dynamic>? terrainProfile;
+
   /// Servizi/dotazioni STRUTTURATI della struttura (≠ dal "listino"
   /// BusinessService a testo libero): chiavi stabili filtrabili in
   /// discovery e mostrate come chip sul profilo. Chiavi note:
@@ -368,6 +377,7 @@ class Business {
     this.outreachEmailSentAt,
     this.outreachStatus,
     this.photoAttribution,
+    this.terrainProfile,
     this.amenities = const [],
   });
 
@@ -499,6 +509,8 @@ class Business {
           : null,
       outreachStatus: m['outreachStatus']?.toString(),
       photoAttribution: (m['photoAttribution'] as Map?)
+          ?.map((k, v) => MapEntry(k.toString(), v)),
+      terrainProfile: (m['terrainProfile'] as Map?)
           ?.map((k, v) => MapEntry(k.toString(), v)),
       amenities: (m['amenities'] as List?)
               ?.map((e) => e.toString())

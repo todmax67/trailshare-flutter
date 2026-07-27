@@ -14,6 +14,32 @@ import '../../../data/models/business.dart';
 import '../../../data/repositories/business_repository.dart';
 import 'business_profile_page.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../widgets/terrain_cover.dart';
+
+/// Copertina per una scheda senza foto: il profilo vero del terreno attorno,
+/// se ce l'ha. Sono 2.575 rifugi su 4.318, e prima mostravano tutti la stessa
+/// icona su fondo verde. Dove il profilo manca — fuori dalla copertura del DEM
+/// europeo, o in pianura dove non c'è rilievo — resta il ripiego di prima.
+Widget _generatedCover(
+  Business b, {
+  required double fallbackIconSize,
+  bool compact = false,
+}) {
+  final profile = TerrainProfile.fromMap(b.terrainProfile);
+  if (profile == null) {
+    return Container(
+      color: AppColors.primary.withValues(alpha: 0.15),
+      alignment: Alignment.center,
+      child: Text(b.type.icon, style: TextStyle(fontSize: fallbackIconSize)),
+    );
+  }
+  return TerrainCover(
+    profile: profile,
+    elevationM: b.location.elevation?.round(),
+    subtitle: b.location.city ?? b.location.region,
+    compact: compact,
+  );
+}
 
 /// Pagina Discovery degli Spazi Pro: lista + mappa dei business nelle
 /// vicinanze. Filtri per tipo. Niente login richiesto per la lettura
@@ -203,12 +229,7 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
                         imageUrl: b.branding.heroPhotoUrl!,
                         fit: BoxFit.cover,
                       )
-                    : Container(
-                        color: AppColors.primary.withValues(alpha: 0.15),
-                        alignment: Alignment.center,
-                        child: Text(b.type.icon,
-                            style: const TextStyle(fontSize: 56)),
-                      ),
+                    : _generatedCover(b, fallbackIconSize: 56),
               ),
             ),
             const SizedBox(height: 12),
@@ -686,12 +707,7 @@ class _BusinessCard extends StatelessWidget {
                           imageUrl: b.branding.logoUrl!,
                           fit: BoxFit.cover,
                         )
-                      : Container(
-                          color: AppColors.primary.withValues(alpha: 0.15),
-                          alignment: Alignment.center,
-                          child: Text(b.type.icon,
-                              style: const TextStyle(fontSize: 36)),
-                        ),
+                      : _generatedCover(b, fallbackIconSize: 36, compact: true),
             ),
             // Info
             Expanded(

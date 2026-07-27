@@ -14,6 +14,7 @@ import '../../widgets/business_claim_banner.dart';
 import '../../widgets/photo_credit_chip.dart';
 import '../../widgets/expandable_description.dart';
 import '../../widgets/star_rating.dart';
+import '../../widgets/terrain_cover.dart';
 import 'business_claim_request_page.dart';
 import 'business_analytics_page.dart';
 import 'business_community_sheet.dart';
@@ -158,6 +159,20 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
     );
   }
 
+  /// Copertina per le schede senza foto: il profilo vero del terreno attorno
+  /// alla struttura. Il nome non lo ripeto qui — sta due righe sotto, dentro
+  /// l'header. Se il profilo manca (fuori dalla copertura del DEM, o pianura
+  /// senza rilievo) resta il ripiego di sempre.
+  Widget _buildGeneratedCover(Business b) {
+    final profile = TerrainProfile.fromMap(b.terrainProfile);
+    if (profile == null) return BusinessCoverFallback(icon: b.type.icon);
+    return TerrainCover(
+      profile: profile,
+      elevationM: b.location.elevation?.round(),
+      subtitle: b.location.city ?? b.location.region,
+    );
+  }
+
   // ─── HEADER (hero + logo + nome) ─────────────────────────────────────────
   Widget _buildAppBar(Business b, bool isOwner) {
     return SliverAppBar(
@@ -187,22 +202,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                     ),
                 ],
               )
-            : Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.primary.withValues(alpha: 0.85),
-                      AppColors.primaryDark.withValues(alpha: 0.85),
-                    ],
-                  ),
-                ),
-                child: Center(
-                  child: Text(b.type.icon,
-                      style: const TextStyle(fontSize: 80)),
-                ),
-              ),
+            : _buildGeneratedCover(b),
       ),
       actions: [
         if (isOwner)
