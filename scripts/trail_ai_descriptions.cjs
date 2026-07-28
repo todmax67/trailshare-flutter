@@ -188,10 +188,22 @@ async function generate(trail, nearbyRifugi) {
   // Su una via attrezzata la difficolta' salvata e' spesso "T" o "facile",
   // perche' dedotta da lunghezza e dislivello: corta e ripida finisce sotto
   // le soglie. Non si passa, e al suo posto va il fatto che conta davvero.
-  const ferrata = eFerrata(trail.name);
+  // Il nome non basta: la sonda OSM ha trovato vie attrezzate chiamate
+  // "Wanderweg 548" o "Garfagnana Trekking Tappa 3b". Il campo viaFerrata
+  // viene dai tag delle way (highway=via_ferrata, via_ferrata_scale) ed e'
+  // la fonte piu' affidabile; il nome resta come rete di sicurezza.
+  const ferrata = trail.viaFerrata === true || eFerrata(trail.name);
   if (ferrata) {
-    f.push('Via attrezzata: SI — richiede imbrago, casco e set da ferrata, '
-      + 'ed esperienza specifica. Non e\' un sentiero escursionistico.');
+    // Un itinerario lungo che attraversa un tratto attrezzato non e' "una
+    // ferrata": dirlo cosi' sarebbe falso in senso opposto. Ma il grado
+    // resta quello del passaggio peggiore, perche' quel tratto non si evita.
+    f.push(trail.viaFerrataParziale === true
+      ? 'Tratto attrezzato lungo il percorso: SI — comprende almeno un tratto '
+        + 'di via ferrata, che richiede imbrago, casco e set da ferrata ed '
+        + 'esperienza specifica. Non e\' aggirabile: chi affronta l\'itinerario '
+        + 'deve essere attrezzato.'
+      : 'Via attrezzata: SI — richiede imbrago, casco e set da ferrata, '
+        + 'ed esperienza specifica. Non e\' un sentiero escursionistico.');
   } else if (trail.difficulty && !eeGonfiata) {
     f.push(`Difficoltà: ${trail.difficulty}`);
   }
@@ -219,6 +231,11 @@ REGOLE FERREE:
   scrivere che non presenta difficoltà tecniche: anche se breve e con poco
   dislivello, senza attrezzatura una caduta è fatale. Nel dubbio, meno
   invitante e più chiaro.
+- SICUREZZA — se invece c'è "Tratto attrezzato lungo il percorso: SI", NON
+  chiamarlo "una via ferrata": è un itinerario escursionistico che ne
+  attraversa un tratto. Scrivi che comprende un passaggio attrezzato, che
+  serve l'attrezzatura per affrontarlo e che non si può aggirare. Valgono
+  gli stessi divieti: niente "adatto a tutti", niente "facile".
 
 Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
 
@@ -255,12 +272,15 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
     const hasDesc = x.description && String(x.description).trim().length >= 30;
     if (hasDesc || x.aiDraft) return;
     if (ONLY_RIFUGIO_ROUTE && x.isRifugioRoute !== true) return;
-    if (ONLY_FERRATE && !eFerrata(x.name)) return;
+    // Nome OPPURE tag OSM: dopo la raccolta la seconda e' la fonte buona,
+    // e le nuove trovate si chiamano "Wanderweg 548".
+    const attrezzata = x.viaFerrata === true || eFerrata(x.name);
+    if (ONLY_FERRATE && !attrezzata) return;
     // La soglia dei 300 m tiene fuori i frammenti OSM senza sostanza, ma le
     // vie attrezzate sono corte per natura (una ferrata di 200 m e' normale)
     // ed e' proprio sulla loro scheda che deve stare l'avvertimento
     // sull'attrezzatura obbligatoria. Per loro la soglia non si applica.
-    if (!x.distance || (x.distance < 300 && !eFerrata(x.name))) return;
+    if (!x.distance || (x.distance < 300 && !attrezzata)) return;
     cands.push({ ...x, docRef: d.ref, id: d.id });
   });
   // priorità: rifugioRoute prima, poi i più lunghi (più "raccontabili")
