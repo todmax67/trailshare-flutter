@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/utils/geohash_util.dart';
+import '../../core/utils/difficulty_calculator.dart';
+import '../../data/models/track.dart';
 
 /// Servizio per importare sentieri da fonti esterne
 /// 
@@ -572,9 +574,29 @@ class TrailImportService {
 
     // C9 — Activity type smart dai tag OSM (route=hiking|mtb|bicycle|foot)
     final activityType = _activityTypeFromTags(details.tags);
-    // Difficoltà smart: prima `sac_scale` OSM, poi fallback su euristica
-    final difficulty = _difficultyFromTags(details.tags) ??
-        _estimateDifficulty(distance, elevationStats.gain);
+    // Difficoltà TECNICA: solo se rilevata. Prima i tag della relazione, poi
+    // quelli delle way (dove sac_scale sta quasi sempre). Se non c'è nulla
+    // resta null — "non classificato" è la verità, e la vecchia euristica su
+    // lunghezza e dislivello non poteva dirla: giudicava la fatica, non il
+    // terreno, e così dava "T — turistico" alle ferrate corte e ripide.
+    Map<String, dynamic> difficolta = {};
+    final daRelazione = _difficultyFromTags(details.tags);
+    if (daRelazione != null) {
+      difficolta = {'difficulty': daRelazione, 'difficultySource': 'osm_sac'};
+    } else {
+      difficolta = await _difficultyFromWays(details.id) ?? const {};
+    }
+
+    // IMPEGNO: quello sì che si calcola da distanza e dislivello, ed è cosa
+    // diversa dalla difficoltà tecnica. Va in un campo suo, col suo nome.
+    final impegno = DifficultyCalculator.compute(
+      stats: TrackStats(
+        distance: distance,
+        elevationGain: elevationStats.gain,
+        elevationLoss: elevationStats.loss,
+      ),
+      activityType: _parseActivityType(activityType),
+    );
 
     // Calcola simplifiedPoints (max ~30 pt) per il Discover map: il doc
     // index resta piccolo (~2 KB) e si carica veloce anche con 1000+ trail.
@@ -611,7 +633,8 @@ class TrailImportService {
       'maxAltitude': elevationStats.max.round(),
       'minAltitude': elevationStats.min.round(),
       'isCircular': isCircular,
-      'difficulty': difficulty,
+      ...difficolta,
+      if (impegno != null) 'computedDifficulty': impegno.firestoreKey,
       'activityType': activityType,
       'quality': 'excellent',
       'isRoute': true,
@@ -778,13 +801,117 @@ class TrailImportService {
   bool _isCircular(List<List<double>> coords) => 
       coords.length >= 3 && _haversineDistance(coords.first[1], coords.first[0], coords.last[1], coords.last[0]) < 100;
 
-  String _estimateDifficulty(double dist, double gain) {
-    final km = dist / 1000;
-    if (km < 5 && gain < 300) return 'T';
-    if (km < 10 && gain < 600) return 'E';
-    if (gain / km > 100 || gain > 1200) return 'EE';
-    return 'E';
+  /// Difficoltà tecnica dai tag delle WAY della relazione, via Overpass.
+  ///
+  /// I tag della relazione (che è quanto ci dà Waymarked) portano `sac_scale`
+  /// nell'1% dei casi: sta quasi sempre sulle singole way. Una query per
+  /// import è del tutto sostenibile — il problema, quando abbiamo rifatto il
+  /// catalogo, era farne 16.000, non farne una.
+  ///
+  /// Ritorna null se il servizio non risponde o se nessuna way porta i tag:
+  /// in quel caso la difficoltà resta NON CLASSIFICATA, che è la verità.
+  Future<Map<String, dynamic>?> _difficultyFromWays(int relationId) async {
+    // Si chiedono al server SOLO le way che portano i tag utili: su una
+    // traversata lunga, farsele mandare tutte significa decine di MB.
+    final q = '[out:json][timeout:60];rel($relationId);out body;'
+        '(way(r)[sac_scale];way(r)[highway=via_ferrata];'
+        'way(r)[via_ferrata_scale];way(r)["climbing"="via_ferrata"];);out tags;';
+    try {
+      final resp = await http
+          .post(Uri.parse('https://overpass-api.de/api/interpreter'),
+              headers: const {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'TrailShare/1.0 (info@trailshare.app)',
+              },
+              body: 'data=${Uri.encodeComponent(q)}')
+          .timeout(const Duration(seconds: 45));
+      if (resp.statusCode != 200) {
+        debugPrint('[TrailImport] Overpass HTTP ${resp.statusCode}: '
+            'difficoltà non classificata');
+        return null;
+      }
+      final elements =
+          (jsonDecode(resp.body)['elements'] as List?) ?? const [];
+
+      var totWays = 0, conSac = 0, ferrate = 0, peggiore = -1;
+      final tagPerWay = <int, Map>{};
+      for (final el in elements) {
+        if (el['type'] == 'way') {
+          tagPerWay[el['id'] as int] = (el['tags'] as Map?) ?? const {};
+        } else if (el['type'] == 'relation') {
+          totWays = ((el['members'] as List?) ?? const [])
+              .where((m) => m['type'] == 'way')
+              .length;
+        }
+      }
+      for (final tags in tagPerWay.values) {
+        if (tags['highway'] == 'via_ferrata' ||
+            tags.containsKey('via_ferrata_scale') ||
+            tags['climbing'] == 'via_ferrata') {
+          ferrate++;
+        }
+        final sac = tags['sac_scale']?.toString().toLowerCase();
+        if (sac != null) {
+          final r = _scalaSac.indexOf(sac);
+          if (r >= 0) {
+            conSac++;
+            if (r > peggiore) peggiore = r;
+          }
+        }
+      }
+
+      // Via attrezzata: prevale su tutto. Il grado è quello del passaggio
+      // peggiore, che non si aggira — ma se è attrezzata solo una parte del
+      // percorso va detto, perché "è una ferrata" sarebbe falso all'opposto.
+      if (ferrate > 0) {
+        return {
+          'difficulty': 'eea',
+          'difficultySource': 'osm_ferrata',
+          'viaFerrata': true,
+          'viaFerrataParziale': totWays > 0 && ferrate < totWays,
+        };
+      }
+      if (peggiore < 0) return null;
+      return {
+        'difficulty': _sacACai[_scalaSac[peggiore]],
+        'difficultySource': 'osm_sac',
+        'sacCopertura': totWays > 0 ? conSac / totWays : null,
+      };
+    } catch (e) {
+      debugPrint('[TrailImport] tag way non recuperati ($e): '
+          'difficoltà non classificata');
+      return null;
+    }
   }
+
+  /// Dal nome che scriviamo su Firestore all'enum. Corrispondenza esatta e
+  /// ripiego su trekking, come _parseActivity in tracks_repository: chi
+  /// calcola l'impegno deve usare gli stessi fattori ovunque, o la stessa
+  /// traccia riceve due valutazioni diverse.
+  ActivityType _parseActivityType(String nome) {
+    for (final t in ActivityType.values) {
+      if (t.name == nome) return t;
+    }
+    return ActivityType.trekking;
+  }
+
+  /// Scala SAC dal facile al difficile: l'indice serve a prendere il massimo.
+  static const _scalaSac = [
+    'hiking',
+    'mountain_hiking',
+    'demanding_mountain_hiking',
+    'alpine_hiking',
+    'demanding_alpine_hiking',
+    'difficult_alpine_hiking',
+  ];
+  static const _sacACai = {
+    'hiking': 't',
+    'mountain_hiking': 'e',
+    'demanding_mountain_hiking': 'ee',
+    'alpine_hiking': 'eea',
+    'demanding_alpine_hiking': 'eea',
+    'difficult_alpine_hiking': 'eea',
+  };
 
   List<String> _generateSearchTerms(String name, String? ref, String? from, String? to) {
     final terms = <String>{};
