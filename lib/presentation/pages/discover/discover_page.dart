@@ -5,6 +5,7 @@ import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/difficulty_calculator.dart';
 import '../../widgets/trail_route_thumb.dart';
 import '../../widgets/photo_credit_chip.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -1904,35 +1905,7 @@ class _TrailCard extends StatelessWidget {
                       // l'elemento più lungo della riga: con distanza,
                       // dislivello e tempo accanto, su schermi stretti è lui
                       // a dover cedere, non la riga a sfondare.
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _getDifficultyColor().withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(trail.difficultyIcon, style: const TextStyle(fontSize: 12)),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  trail.difficultyName,
-                                  maxLines: 1,
-                                  softWrap: false,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: _getDifficultyColor(),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      Flexible(child: _buildGradeBadge()),
 
                       const Spacer(),
                       
@@ -2304,6 +2277,71 @@ class _TrailCard extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.chevron_right, size: 18, color: context.textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Badge del grado. Mostra la difficoltà TECNICA solo se rilevata sul
+  /// terreno: quella dedotta da lunghezza e dislivello sbagliava nel 58% dei
+  /// casi dove abbiamo potuto verificarla, e darle lo stesso aspetto di un
+  /// dato accertato e' esattamente cio' che abbiamo passato la settimana a
+  /// smontare.
+  ///
+  /// Dove il rilievo manca non si tace: si mostra l'IMPEGNO, che sappiamo
+  /// calcolare sul 93,5% del catalogo ed e' onesto perche' non pretende di
+  /// descrivere il terreno. Due scale diverse, due aspetti diversi.
+  Widget _buildGradeBadge() {
+    final rilevata = trail.difficultySource != null
+        && (trail.difficulty?.isNotEmpty ?? false);
+
+    late final Color colore;
+    late final String testo;
+    late final Widget guida;
+
+    if (rilevata) {
+      colore = _getDifficultyColor();
+      testo = trail.difficultyName;
+      guida = Text(trail.difficultyIcon, style: const TextStyle(fontSize: 12));
+    } else {
+      final imp = ComputedDifficulty.fromKey(trail.computedDifficulty);
+      if (imp == null) {
+        colore = AppColors.textMuted;
+        testo = 'Non classificato';
+        guida = const Text('⚪', style: TextStyle(fontSize: 12));
+      } else {
+        colore = imp.color;
+        testo = '${imp.code} ${imp.label}';
+        // Icona diversa dai pallini della scala CAI: e' un'altra grandezza e
+        // non deve sembrare la stessa cosa con un colore diverso.
+        guida = Icon(Icons.fitness_center, size: 11, color: imp.color);
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colore.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          guida,
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              testo,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colore,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
