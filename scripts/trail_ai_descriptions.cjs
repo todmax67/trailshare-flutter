@@ -111,6 +111,21 @@ const quotaPlausibile = v => v != null && Number.isFinite(v) && v >= 0 && v <= 5
 /// Nomi che promettono un giro: se il dato dice il contrario, vince il nome.
 const NOMI_ANELLO = /\b(rund|ring|circuit|circolare|anello|giro|loop|tour|periplo)/i;
 
+/// Vie attrezzate. Riconoscerle conta piu' di ogni altro fatto: la formula
+/// _estimateDifficulty dava "T — turistico" a una ferrata di 200 m con 130
+/// di dislivello (corta e ripida = sotto le sue soglie), e le descrizioni
+/// arrivavano a scrivere "ideale per escursionisti di ogni livello". Su una
+/// via che richiede imbrago e set da ferrata quella frase e' pericolosa.
+const NOMI_FERRATA = /\b(ferrata|ferrate|klettersteig|sentiero attrezzato|via attrezzata|sentiero alpinistico attrezzato)/i;
+
+/// Segmenti di servizio di una ferrata: avvicinamento, attacco, uscita,
+/// rientro. Portano "ferrata" nel nome ma non sono la via attrezzata, quindi
+/// non si puo' affermare ne' che siano attrezzati ne' che siano facili.
+const NOMI_FERRATA_SERVIZIO = /\b(approach|zustieg|ausstieg|abstieg|attacco|accesso|avvicinamento|rientro|return|exit|start|uscita|discesa)\b/i;
+
+const eFerrata = (nome) => NOMI_FERRATA.test(String(nome || ''))
+  && !NOMI_FERRATA_SERVIZIO.test(String(nome || ''));
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371, toRad = x => x * Math.PI / 180;
   const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
@@ -164,7 +179,17 @@ async function generate(trail, nearbyRifugi) {
   const km = (trail.distance || 0) / 1000;
   const pendenza = km > 0 && trail.elevationGain != null ? trail.elevationGain / km : null;
   const eeGonfiata = trail.difficulty === 'EE' && km > 20 && pendenza !== null && pendenza < 40;
-  if (trail.difficulty && !eeGonfiata) f.push(`Difficoltà: ${trail.difficulty}`);
+
+  // Su una via attrezzata la difficolta' salvata e' spesso "T" o "facile",
+  // perche' dedotta da lunghezza e dislivello: corta e ripida finisce sotto
+  // le soglie. Non si passa, e al suo posto va il fatto che conta davvero.
+  const ferrata = eFerrata(trail.name);
+  if (ferrata) {
+    f.push('Via attrezzata: SI — richiede imbrago, casco e set da ferrata, '
+      + 'ed esperienza specifica. Non e\' un sentiero escursionistico.');
+  } else if (trail.difficulty && !eeGonfiata) {
+    f.push(`Difficoltà: ${trail.difficulty}`);
+  }
   if (trail.network) f.push(`Rete: ${trail.network}`);
   if (trail.operator) f.push(`Gestore/sezione: ${trail.operator}`);
   // Se il percorso ne attraversa piu' d'una si dicono tutte; se non e'
@@ -183,6 +208,12 @@ REGOLE FERREE:
 - Italiano, testo originale, tono informativo e invitante ma sobrio.
 - 50-90 parole, 1-2 paragrafi. Cita numero sentiero (se c'è), meta, lunghezza, dislivello e, se presenti, i rifugi vicini.
 - Se i fatti sono troppo scarni per un testo sensato, "affidabile": false.
+- SICUREZZA — se fra i fatti c'è "Via attrezzata: SI": è una via ferrata.
+  Dillo chiaramente e cita l'attrezzatura obbligatoria. È VIETATO definirla
+  facile, turistica, adatta a tutti, a principianti o a famiglie, e vietato
+  scrivere che non presenta difficoltà tecniche: anche se breve e con poco
+  dislivello, senza attrezzatura una caduta è fatale. Nel dubbio, meno
+  invitante e più chiaro.
 
 Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
 
@@ -219,7 +250,11 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
     const hasDesc = x.description && String(x.description).trim().length >= 30;
     if (hasDesc || x.aiDraft) return;
     if (ONLY_RIFUGIO_ROUTE && x.isRifugioRoute !== true) return;
-    if (!x.distance || x.distance < 300) return;
+    // La soglia dei 300 m tiene fuori i frammenti OSM senza sostanza, ma le
+    // vie attrezzate sono corte per natura (una ferrata di 200 m e' normale)
+    // ed e' proprio sulla loro scheda che deve stare l'avvertimento
+    // sull'attrezzatura obbligatoria. Per loro la soglia non si applica.
+    if (!x.distance || (x.distance < 300 && !eFerrata(x.name))) return;
     cands.push({ ...x, docRef: d.ref, id: d.id });
   });
   // priorità: rifugioRoute prima, poi i più lunghi (più "raccontabili")
