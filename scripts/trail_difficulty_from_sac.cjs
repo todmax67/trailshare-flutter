@@ -38,6 +38,9 @@ const argv = process.argv.slice(2);
 const DRY = argv.includes('--dry');
 const opt = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 ? argv[i + 1] : d; };
 const SOGLIA_GIU = Number(opt('soglia', 0.8));
+// --marca-concordi: dove la stima gia' coincideva col rilievo, scrive solo
+// la provenienza. Nessun grado cambia, nessuna descrizione si tocca.
+const MARCA_CONCORDI = argv.includes('--marca-concordi');
 const RACCOLTO = path.join(__dirname, '..', '.photo_review', 'osm_way_tags.json');
 
 const SAC_A_CAI = {
@@ -71,7 +74,7 @@ const GENERATA = ['ai_facts', 'ai_facts_reviewed'];
   const snap = await db.collection('public_trails').get();
   const daFare = [];
   let alzati = 0, abbassati = 0, giuScartati = 0, gia = 0, senzaDato = 0, ferrate = 0;
-  let descRitirate = 0;
+  let descRitirate = 0, marcati = 0;
   const perSalto = { 1: 0, 2: 0, 3: 0 };
   const esempi = [];
 
@@ -84,7 +87,17 @@ const GENERATA = ['ai_facts', 'ai_facts_reviewed'];
     const cai = SAC_A_CAI[r.sac];
     const vero = RANGO_CAI[cai];
     const nostro = RANGO_NOSTRO[String(x.difficulty || '').toLowerCase()];
-    if (nostro === vero) { gia++; return; }
+    if (nostro === vero) {
+      gia++;
+      // Concordi: la stima azzeccava. Il grado non cambia, ma senza
+      // provenienza resterebbe indistinguibile da una tirata a indovinare —
+      // ed e' proprio quella confusione il difetto da cui siamo partiti.
+      if (MARCA_CONCORDI && x.difficultySource !== 'osm_sac') {
+        marcati++;
+        daFare.push({ ref: d.ref, upd: { difficultySource: 'osm_sac' } });
+      }
+      return;
+    }
 
     const copertura = r.conSac / r.ways;
     const inSu = nostro === undefined || nostro < vero;
@@ -118,6 +131,7 @@ const GENERATA = ['ai_facts', 'ai_facts_reviewed'];
   console.log(`vie attrezzate saltate (gia' eea):     ${ferrate}`);
   console.log(`senza dato rilevato:                   ${senzaDato}`);
   console.log(`gia' corretti:                         ${gia}`);
+  if (MARCA_CONCORDI) console.log(`  di cui da marcare come rilevati:     ${marcati}`);
   console.log(`\nDA ALZARE:                             ${alzati}`);
   console.log(`  di 1 grado: ${perSalto[1]}   di 2: ${perSalto[2]}   di 3: ${perSalto[3]}`);
   console.log(`DA ABBASSARE (copertura sufficiente):  ${abbassati}`);

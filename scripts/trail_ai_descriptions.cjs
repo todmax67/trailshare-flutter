@@ -27,6 +27,14 @@ const ONLY_RIFUGIO_ROUTE = args.includes('--rifugioroute');
 // migliaia di candidati — mentre sono quelle che devono essere sistemate
 // per prime.
 const ONLY_FERRATE = args.includes('--ferrate');
+// --rilevati: solo i sentieri la cui difficolta' viene da un rilievo OSM
+// (difficultySource valorizzato), non dalla stima su lunghezza e dislivello.
+// Sono i piu' urgenti: comprendono quelli la cui descrizione e' stata
+// ritirata perche' dichiarava un grado ormai superato, e sono gli unici su
+// cui possiamo scrivere una difficolta' vera invece di una congettura.
+// Servono perche' l'ordinamento privilegia i percorsi lunghi e in coda ce ne
+// sono migliaia: senza filtro questi finirebbero sparsi in mezzo.
+const ONLY_RILEVATI = args.includes('--rilevati');
 // --autopublish: scrive direttamente description (descriptionSource
 // 'ai_facts') invece della coda di revisione. Da usare SOLO dopo che il
 // formato è stato validato dal founder sul pilota.
@@ -276,6 +284,7 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
     // e le nuove trovate si chiamano "Wanderweg 548".
     const attrezzata = x.viaFerrata === true || eFerrata(x.name);
     if (ONLY_FERRATE && !attrezzata) return;
+    if (ONLY_RILEVATI && !x.difficultySource) return;
     // La soglia dei 300 m tiene fuori i frammenti OSM senza sostanza, ma le
     // vie attrezzate sono corte per natura (una ferrata di 200 m e' normale)
     // ed e' proprio sulla loro scheda che deve stare l'avvertimento
