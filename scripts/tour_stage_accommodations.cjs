@@ -61,7 +61,7 @@ function arrivo(pts) {
   for (let i = pts.length - 1; i >= 0; i--) {
     const p = pts[i];
     const la = p?.latitude ?? p?.lat ?? (Array.isArray(p) ? p[0] : null);
-    const ln = p?.longitude ?? p?.lng ?? (Array.isArray(p) ? p[1] : null);
+    const ln = p?.longitude ?? p?.lng ?? p?.lon ?? (Array.isArray(p) ? p[1] : null);
     if (Number.isFinite(Number(la)) && Number.isFinite(Number(ln))) {
       return [Number(la), Number(ln)];
     }
