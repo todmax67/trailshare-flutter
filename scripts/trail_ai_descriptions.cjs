@@ -230,7 +230,24 @@ async function generate(trail, nearbyRifugi) {
   } else if (trail.region) {
     f.push(`Regione: ${trail.region}`);
   }
-  if (nearbyRifugi.length) f.push(`Rifugi lungo o vicino al percorso (dalla nostra banca dati, max 1,5 km): ${nearbyRifugi.join(', ')}`);
+  // I rifugi si cercano entro 1,5 km dai punti di simplifiedPoints, che sono
+  // ~30 PER SCELTA (servono a disegnare la traccia sulla mappa, non a
+  // descriverla). Su un percorso lungo significa un punto ogni dieci
+  // chilometri: quel che si trova e' un campione arbitrario, non l'elenco.
+  // Sul Walserweg — 315 km, 31 punti — ne uscivano due mentre solo nei
+  // dintorni dei punti campionati ce n'erano diciannove, e il testo li
+  // presentava come "i rifugi lungo il percorso". Su una traversata di
+  // quindici giorni e' la frase su cui qualcuno pianifica le notti.
+  if (nearbyRifugi.length) {
+    const puntiPerKm = trail.pointsCount && km > 0 ? trail.pointsCount / km : null;
+    const elencoParziale = km > 30 || (puntiPerKm !== null && puntiPerKm < 1);
+    f.push(elencoParziale
+      ? `Alcuni rifugi vicini al percorso (ELENCO NON ESAUSTIVO: il tracciato `
+        + `e' campionato di rado, lungo l'itinerario ce ne sono altri): `
+        + nearbyRifugi.join(', ')
+      : `Rifugi lungo o vicino al percorso (dalla nostra banca dati, max 1,5 km): `
+        + nearbyRifugi.join(', '));
+  }
 
   const system = `Scrivi la descrizione di un sentiero per TrailShare, app outdoor italiana.
 
@@ -250,6 +267,10 @@ REGOLE FERREE:
   attraversa un tratto. Scrivi che comprende un passaggio attrezzato, che
   serve l'attrezzatura per affrontarlo e che non si può aggirare. Valgono
   gli stessi divieti: niente "adatto a tutti", niente "facile".
+- Se i rifugi sono dati come "ELENCO NON ESAUSTIVO", NON scrivere "lungo il
+  percorso si trovano i rifugi X e Y" come se fossero quelli: cita al più
+  che nei pressi si incontrano anche X e Y, oppure non nominarli. Su un
+  itinerario di più giorni chi legge ci pianifica le notti.
 - SICUREZZA — se la difficoltà fornita è EE o EEA, è VIETATO definire il
   sentiero facile, accessibile, tranquillo, "una passeggiata" o adatto a
   tutti, anche quando lunghezza e dislivello sono modesti. La scala CAI
