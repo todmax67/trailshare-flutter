@@ -22,6 +22,11 @@ const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; };
 const LIMIT = Number(opt('limit', 25));
 const ONLY_RIFUGIO_ROUTE = args.includes('--rifugioroute');
+// --ferrate: solo vie attrezzate. Serve perche' l'ordinamento privilegia i
+// percorsi lunghi e le ferrate, corte, finirebbero in fondo a una coda di
+// migliaia di candidati — mentre sono quelle che devono essere sistemate
+// per prime.
+const ONLY_FERRATE = args.includes('--ferrate');
 // --autopublish: scrive direttamente description (descriptionSource
 // 'ai_facts') invece della coda di revisione. Da usare SOLO dopo che il
 // formato è stato validato dal founder sul pilota.
@@ -250,6 +255,7 @@ Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
     const hasDesc = x.description && String(x.description).trim().length >= 30;
     if (hasDesc || x.aiDraft) return;
     if (ONLY_RIFUGIO_ROUTE && x.isRifugioRoute !== true) return;
+    if (ONLY_FERRATE && !eFerrata(x.name)) return;
     // La soglia dei 300 m tiene fuori i frammenti OSM senza sostanza, ma le
     // vie attrezzate sono corte per natura (una ferrata di 200 m e' normale)
     // ed e' proprio sulla loro scheda che deve stare l'avvertimento
