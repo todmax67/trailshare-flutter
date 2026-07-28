@@ -284,10 +284,23 @@ class _DiscoverPageState extends State<DiscoverPage> {
         if (!hit) return false;
       }
 
-      // Difficoltà
+      // Vie attrezzate: filtro di sicurezza, prima di ogni altra cosa.
+      if (_filters.excludeViaFerrata && trail.viaFerrata) return false;
+
+      // Difficoltà tecnica: vale solo se RILEVATA. Il grado dedotto dalla
+      // vecchia euristica sbagliava nel 58% dei casi dove abbiamo potuto
+      // verificarlo, quindi qui non conta come classificazione — ma non si
+      // butta via nulla: quei sentieri finiscono fra i non classificati, che
+      // hanno una loro voce e un loro interruttore.
+      final rilevata = trail.difficultySource != null
+          && (trail.difficulty?.isNotEmpty ?? false);
+      if (_filters.excludeUnclassified && !rilevata) return false;
+
       if (_filters.difficulties.isNotEmpty) {
-        final diff = trail.difficulty?.toLowerCase();
-        if (diff == null || !_filters.difficulties.contains(diff)) return false;
+        final chiave = rilevata
+            ? trail.difficulty!.toLowerCase()
+            : DiscoverFilters.nonClassificato;
+        if (!_filters.difficulties.contains(chiave)) return false;
       }
 
       // Lunghezza

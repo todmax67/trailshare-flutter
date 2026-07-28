@@ -606,6 +606,9 @@ class PublicTrailsRepository {
         network: data['network']?.toString(),
         operator: data['operator']?.toString(),
         difficulty: data['difficulty']?.toString(),
+        difficultySource: data['difficultySource']?.toString(),
+        viaFerrata: data['viaFerrata'] == true,
+        viaFerrataParziale: data['viaFerrataParziale'] == true,
         points: points,
         length: (data['distance'] as num?)?.toDouble(),
         elevationGain: (data['elevationGain'] as num?)?.toDouble(),
@@ -886,6 +889,19 @@ class PublicTrail {
   final String? network;
   final String? operator;
   final String? difficulty;
+
+  /// Provenienza di [difficulty]: 'osm_sac' o 'osm_ferrata' se rilevata sul
+  /// terreno, null se e' una stima storica. Serve a non spacciare per
+  /// verificato un grado dedotto da lunghezza e dislivello.
+  final String? difficultySource;
+
+  /// Via attrezzata: richiede imbrago, casco e set da ferrata. Dai tag OSM
+  /// delle way, non dal nome — 168 non lo dichiaravano.
+  final bool viaFerrata;
+
+  /// L'itinerario COMPRENDE un tratto attrezzato senza esserlo per intero.
+  final bool viaFerrataParziale;
+
   final List<TrackPoint> points;
   final double? length;
   final double? elevationGain;
@@ -942,6 +958,9 @@ class PublicTrail {
     this.network,
     this.operator,
     this.difficulty,
+    this.difficultySource,
+    this.viaFerrata = false,
+    this.viaFerrataParziale = false,
     required this.points,
     this.length,
     this.elevationGain,

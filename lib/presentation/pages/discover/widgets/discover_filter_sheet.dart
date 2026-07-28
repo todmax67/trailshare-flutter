@@ -43,6 +43,10 @@ class _DiscoverFilterSheetState extends State<DiscoverFilterSheet> {
     _DifficultyOption('e', 'Escursionistico', '🔵'),
     _DifficultyOption('ee', 'Esperti', '🟠'),
     _DifficultyOption('eea', 'Alpinistico', '🔴'),
+    // Il grado tecnico e' rilevato su meno della meta' dei sentieri. Senza
+    // questa voce, attivare un filtro qualsiasi faceva sparire tutti gli
+    // altri senza dirlo: erano la maggioranza.
+    _DifficultyOption(DiscoverFilters.nonClassificato, 'Non classificato', '⚪'),
   ];
 
   @override
@@ -152,6 +156,33 @@ class _DiscoverFilterSheetState extends State<DiscoverFilterSheet> {
                         onTap: () => _toggleDifficulty(opt.code),
                       );
                     }).toList(),
+                  ),
+
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _filters.excludeUnclassified,
+                    onChanged: (v) => setState(
+                        () => _filters = _filters.copyWith(excludeUnclassified: v)),
+                    title: const Text('Solo difficoltà verificata'),
+                    subtitle: const Text(
+                      'Nasconde i sentieri il cui grado non è stato rilevato sul terreno',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  // Interruttore di sicurezza. Possibile solo da quando le
+                  // vie attrezzate si riconoscono dai tag OSM: 168 non lo
+                  // dichiaravano nel nome e 136 risultavano "turistiche".
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _filters.excludeViaFerrata,
+                    onChanged: (v) =>
+                        setState(() => _filters = _filters.copyWith(excludeViaFerrata: v)),
+                    title: const Text('Escludi vie attrezzate'),
+                    subtitle: const Text(
+                      'Nasconde i percorsi che richiedono imbrago, casco e set da ferrata',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
 
                   const SizedBox(height: 24),

@@ -31,8 +31,31 @@ enum TrailSortBy {
 /// Stato immutabile dei filtri della pagina Scopri
 @immutable
 class DiscoverFilters {
-  /// Codici difficoltà CAI: 't', 'e', 'ee', 'eea'
+  /// Codici difficoltà CAI: 't', 'e', 'ee', 'eea', più il valore speciale
+  /// [nonClassificato].
+  ///
+  /// Il grado tecnico è rilevato su meno della metà del catalogo: prima
+  /// questo filtro faceva sparire in silenzio tutti gli altri, cioè la
+  /// maggioranza. Ora "non classificato" è una scelta come le altre, così
+  /// l'utente sa che esistono e decide lui.
   final Set<String> difficulties;
+
+  /// Chiave per i sentieri di cui non conosciamo la difficoltà tecnica.
+  static const nonClassificato = 'nd';
+
+  /// Nasconde i sentieri di cui non conosciamo la difficolta' TECNICA, cioe'
+  /// quelli il cui grado e' una stima storica invece di un rilievo.
+  ///
+  /// Serve perche' la vecchia euristica su lunghezza e dislivello sbagliava
+  /// nel 58% dei casi dove abbiamo potuto verificarla: tenerla nel filtro
+  /// come se fosse un dato accertato ingannava, toglierla d'ufficio avrebbe
+  /// svuotato la ricerca. Cosi' decide chi cerca.
+  final bool excludeUnclassified;
+
+  /// Nasconde le vie attrezzate (imbrago, casco, set da ferrata).
+  /// Possibile solo da quando le riconosciamo dai tag OSM: prima 168 non
+  /// erano nemmeno individuabili, e 136 risultavano "turistiche".
+  final bool excludeViaFerrata;
 
   /// Range lunghezza in km (null = nessun filtro)
   final RangeValues? lengthKm;
@@ -62,6 +85,8 @@ class DiscoverFilters {
 
   const DiscoverFilters({
     this.difficulties = const {},
+    this.excludeUnclassified = false,
+    this.excludeViaFerrata = false,
     this.lengthKm,
     this.elevation,
     this.categories = const {},
@@ -77,6 +102,8 @@ class DiscoverFilters {
   int get activeCount {
     var count = 0;
     if (difficulties.isNotEmpty) count++;
+    if (excludeUnclassified) count++;
+    if (excludeViaFerrata) count++;
     if (lengthKm != null) count++;
     if (elevation != null) count++;
     if (categories.isNotEmpty) count++;
@@ -99,6 +126,8 @@ class DiscoverFilters {
 
   Map<String, dynamic> toJson() => {
         'difficulties': difficulties.toList(),
+        'excludeUnclassified': excludeUnclassified,
+        'excludeViaFerrata': excludeViaFerrata,
         if (lengthKm != null) 'lengthKm': [lengthKm!.start, lengthKm!.end],
         if (elevation != null) 'elevation': [elevation!.start, elevation!.end],
         'categories': categories.map((c) => c.name).toList(),
@@ -115,6 +144,8 @@ class DiscoverFilters {
     return DiscoverFilters(
       difficulties:
           ((j['difficulties'] as List?) ?? const []).cast<String>().toSet(),
+      excludeUnclassified: j['excludeUnclassified'] == true,
+      excludeViaFerrata: j['excludeViaFerrata'] == true,
       lengthKm: range(j['lengthKm']),
       elevation: range(j['elevation']),
       categories: ((j['categories'] as List?) ?? const [])
@@ -159,6 +190,8 @@ class DiscoverFilters {
 
   DiscoverFilters copyWith({
     Set<String>? difficulties,
+    bool? excludeUnclassified,
+    bool? excludeViaFerrata,
     RangeValues? lengthKm,
     bool clearLengthKm = false,
     RangeValues? elevation,
@@ -172,6 +205,8 @@ class DiscoverFilters {
   }) {
     return DiscoverFilters(
       difficulties: difficulties ?? this.difficulties,
+      excludeUnclassified: excludeUnclassified ?? this.excludeUnclassified,
+      excludeViaFerrata: excludeViaFerrata ?? this.excludeViaFerrata,
       lengthKm: clearLengthKm ? null : (lengthKm ?? this.lengthKm),
       elevation: clearElevation ? null : (elevation ?? this.elevation),
       categories: categories ?? this.categories,
