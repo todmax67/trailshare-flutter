@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/tour.dart';
 import '../../business/business_profile_page.dart';
+import '../../../widgets/photo_credit_chip.dart';
 
 /// Epic 11 — Sezioni "ricche" della scheda Tour: gallery carousel,
 /// chip difficoltà/periodo, blocchi descrizione strutturata
@@ -39,7 +40,10 @@ class TourRichHeaderSections extends StatelessWidget {
           const SizedBox(height: 16),
         ],
         if (hasGallery) ...[
-          _GallerySection(urls: tour.galleryUrls),
+          _GallerySection(
+            urls: tour.galleryUrls,
+            crediti: tour.galleryAttributions,
+          ),
           const SizedBox(height: 20),
         ],
         if (hasEquipment) ...[
@@ -124,7 +128,13 @@ class _MetaChipsRow extends StatelessWidget {
 
 class _GallerySection extends StatelessWidget {
   final List<String> urls;
-  const _GallerySection({required this.urls});
+
+  /// url -> attribuzione. Le foto dei rifugi vengono in gran parte da
+  /// Wikimedia Commons con licenze CC BY o CC BY-SA, che obbligano a citare
+  /// l'autore ovunque l'immagine sia mostrata — anche in una miniatura.
+  final Map<String, Map<String, dynamic>> crediti;
+
+  const _GallerySection({required this.urls, this.crediti = const {}});
 
   @override
   Widget build(BuildContext context) {
@@ -140,16 +150,27 @@ class _GallerySection extends StatelessWidget {
             onTap: () => _openFullScreen(ctx, urls, i),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: CachedNetworkImage(
-                imageUrl: url,
-                width: 180,
-                height: 140,
-                fit: BoxFit.cover,
-                placeholder: (c, _) => Container(
-                  width: 180,
-                  height: 140,
-                  color: AppColors.surface,
-                ),
+              child: Stack(
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: url,
+                    width: 180,
+                    height: 140,
+                    fit: BoxFit.cover,
+                    placeholder: (c, _) => Container(
+                      width: 180,
+                      height: 140,
+                      color: AppColors.surface,
+                    ),
+                  ),
+                  if (crediti[url] != null)
+                    Positioned(
+                      left: 4,
+                      right: 4,
+                      bottom: 4,
+                      child: PhotoCreditChip(attribution: crediti[url]!),
+                    ),
+                ],
               ),
             ),
           );

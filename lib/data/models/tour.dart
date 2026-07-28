@@ -224,6 +224,16 @@ class Tour {
   /// `public_trail_geometries`: stessa forma, sorgente diversa.
   final Map<String, String> stageSources;
 
+  /// Crediti delle foto in galleria: url -> {author, license, source, ...}.
+  ///
+  /// Le immagini dei rifugi arrivano in gran parte da Wikimedia Commons, e
+  /// due terzi hanno licenze CC BY o CC BY-SA che OBBLIGANO a citare
+  /// l'autore ovunque la foto sia mostrata. `galleryUrls` da sola e' una
+  /// lista di stringhe: pubblicarci dentro una CC BY-SA significherebbe
+  /// mostrarla senza credito. Assente = foto propria, nessun credito da
+  /// mostrare, e i tour esistenti non cambiano.
+  final Map<String, Map<String, dynamic>> galleryAttributions;
+
   final double totalDistance; // metri
   final double totalElevationGain; // metri
   final Duration totalDuration;
@@ -263,6 +273,7 @@ class Tour {
     required this.trackIds,
     this.stageAccommodations = const {},
     this.stageSources = const {},
+    this.galleryAttributions = const {},
     required this.totalDistance,
     required this.totalElevationGain,
     required this.totalDuration,
@@ -290,6 +301,7 @@ class Tour {
     List<String>? trackIds,
     Map<String, String>? stageAccommodations,
     Map<String, String>? stageSources,
+    Map<String, Map<String, dynamic>>? galleryAttributions,
     double? totalDistance,
     double? totalElevationGain,
     Duration? totalDuration,
@@ -316,6 +328,7 @@ class Tour {
       trackIds: trackIds ?? this.trackIds,
       stageAccommodations: stageAccommodations ?? this.stageAccommodations,
       stageSources: stageSources ?? this.stageSources,
+      galleryAttributions: galleryAttributions ?? this.galleryAttributions,
       totalDistance: totalDistance ?? this.totalDistance,
       totalElevationGain: totalElevationGain ?? this.totalElevationGain,
       totalDuration: totalDuration ?? this.totalDuration,
@@ -348,6 +361,8 @@ class Tour {
       if (stageAccommodations.isNotEmpty)
         'stageAccommodations': stageAccommodations,
       if (stageSources.isNotEmpty) 'stageSources': stageSources,
+      if (galleryAttributions.isNotEmpty)
+        'galleryAttributions': galleryAttributions,
       'totalDistance': totalDistance,
       'totalElevationGain': totalElevationGain,
       'totalDurationSeconds': totalDuration.inSeconds,
@@ -410,6 +425,11 @@ class Tour {
           const {},
       stageSources: (data['stageSources'] as Map?)?.map(
             (k, v) => MapEntry(k.toString(), v.toString()),
+          ) ??
+          const {},
+      galleryAttributions: (data['galleryAttributions'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(),
+                Map<String, dynamic>.from(v as Map? ?? const {})),
           ) ??
           const {},
       totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0,
