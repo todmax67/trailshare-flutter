@@ -1900,30 +1900,40 @@ class _TrailCard extends StatelessWidget {
                   // Statistiche
                   Row(
                     children: [
-                      // Difficoltà
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _getDifficultyColor().withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(trail.difficultyIcon, style: const TextStyle(fontSize: 12)),
-                            const SizedBox(width: 4),
-                            Text(
-                              trail.difficultyName,
-                              style: TextStyle(
-                                color: _getDifficultyColor(),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
+                      // Difficoltà. Flexible perché "Escursionistico" è
+                      // l'elemento più lungo della riga: con distanza,
+                      // dislivello e tempo accanto, su schermi stretti è lui
+                      // a dover cedere, non la riga a sfondare.
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _getDifficultyColor().withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(trail.difficultyIcon, style: const TextStyle(fontSize: 12)),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  trail.difficultyName,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: _getDifficultyColor(),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                      
+
                       const Spacer(),
                       
                       // Distanza
@@ -1942,7 +1952,7 @@ class _TrailCard extends StatelessWidget {
                       
                       // Dislivello
                       if (trail.elevationGain != null) ...[
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                         const Icon(Icons.trending_up, size: 14, color: AppColors.success),
                         const SizedBox(width: 4),
                         Text(
@@ -1951,6 +1961,35 @@ class _TrailCard extends StatelessWidget {
                             fontWeight: FontWeight.w500,
                             color: AppColors.success,
                             fontSize: 13,
+                          ),
+                        ),
+                      ],
+
+                      // Tempo di percorrenza: copre il 99,7% del catalogo ed
+                      // è la domanda che gli escursionisti fanno per prima.
+                      // Sugli itinerari lunghi diventa "~4 giorni", che dice
+                      // molto più di un livello di difficoltà saturo.
+                      if (trail.tempoLeggibile != null) ...[
+                        const SizedBox(width: 8),
+                        Icon(
+                          trail.piuGiorni
+                              ? Icons.calendar_month
+                              : Icons.schedule,
+                          size: 14,
+                          color: AppColors.warning,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            trail.tempoLeggibile!,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.warning,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ],

@@ -609,6 +609,10 @@ class PublicTrailsRepository {
         difficultySource: data['difficultySource']?.toString(),
         viaFerrata: data['viaFerrata'] == true,
         viaFerrataParziale: data['viaFerrataParziale'] == true,
+        oreStimate: (data['oreStimate'] as num?)?.toDouble(),
+        piuGiorni: data['piuGiorni'] == true,
+        giorniStimati: (data['giorniStimati'] as num?)?.toInt(),
+        computedDifficulty: data['computedDifficulty']?.toString(),
         points: points,
         length: (data['distance'] as num?)?.toDouble(),
         elevationGain: (data['elevationGain'] as num?)?.toDouble(),
@@ -902,6 +906,23 @@ class PublicTrail {
   /// L'itinerario COMPRENDE un tratto attrezzato senza esserlo per intero.
   final bool viaFerrataParziale;
 
+  /// Tempo di percorrenza stimato in ore (formula DIN 33466 col passo
+  /// scelto per attività). E' il dato con la copertura piu' alta del
+  /// catalogo, 99,7%, e quello che gli utenti chiedono per primo.
+  final double? oreStimate;
+
+  /// Non fattibile in giornata: sopra le 8 ore. Per questi non esiste un
+  /// livello di impegno, esistono i giorni.
+  final bool piuGiorni;
+
+  /// Giorni stimati (ore/6, arrotondati per eccesso). E' una CONVENZIONE,
+  /// va presentata con il "circa".
+  final int? giorniStimati;
+
+  /// Impegno calcolato T1..T5. Null sugli itinerari di piu' giorni, dove la
+  /// scala satura e non direbbe nulla.
+  final String? computedDifficulty;
+
   final List<TrackPoint> points;
   final double? length;
   final double? elevationGain;
@@ -961,6 +982,10 @@ class PublicTrail {
     this.difficultySource,
     this.viaFerrata = false,
     this.viaFerrataParziale = false,
+    this.oreStimate,
+    this.piuGiorni = false,
+    this.giorniStimati,
+    this.computedDifficulty,
     required this.points,
     this.length,
     this.elevationGain,
@@ -990,6 +1015,21 @@ class PublicTrail {
       case 'eea': case 'alpinistico': return '🔴';
       default: return '⚪';
     }
+  }
+
+  /// Tempo di percorrenza pronto da stampare: "2h 30", "45 min", oppure
+  /// "~4 giorni" per gli itinerari che in giornata non si fanno.
+  String? get tempoLeggibile {
+    if (piuGiorni) {
+      final g = giorniStimati;
+      return g == null ? 'più giorni' : '~$g giorni';
+    }
+    final h = oreStimate;
+    if (h == null || h <= 0) return null;
+    if (h < 1) return '${(h * 60).round()} min';
+    final ore = h.floor();
+    final min = ((h - ore) * 60).round();
+    return min == 0 ? '${ore}h' : '${ore}h ${min.toString().padLeft(2, '0')}';
   }
 
   String get difficultyName {

@@ -503,10 +503,29 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
         children: [
           Icon(icon, size: 18, color: context.textMuted),
           const SizedBox(width: 12),
+          // Prima il valore restava a larghezza naturale e su un testo lungo
+          // sfondava la riga. Ora possono stringersi entrambi, con più spazio
+          // all'etichetta che di solito è la più lunga.
           Expanded(
-            child: Text(label, style: TextStyle(color: context.textSecondary)),
+            flex: 3,
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: context.textSecondary),
+            ),
           ),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 2,
+            child: Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
         ],
       ),
     );
