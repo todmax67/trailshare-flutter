@@ -212,7 +212,13 @@ async function generate(trail, nearbyRifugi) {
         + 'deve essere attrezzato.'
       : 'Via attrezzata: SI — richiede imbrago, casco e set da ferrata, '
         + 'ed esperienza specifica. Non e\' un sentiero escursionistico.');
-  } else if (trail.difficulty && !eeGonfiata) {
+  } else if (trail.difficulty && trail.difficultySource && !eeGonfiata) {
+    // SOLO se rilevata. Il grado dedotto da lunghezza e dislivello sbagliava
+    // nel 58% dei casi verificabili, e passarlo come fatto lo faceva
+    // ricamare: "terreno difficile e esposto caratteristico della difficolta'
+    // EE" su un percorso a cui quella EE gliel'aveva data una formula che il
+    // terreno non l'ha mai visto. Senza il fatto, il modello tace — che e'
+    // la cosa giusta.
     f.push(`Difficoltà: ${trail.difficulty}`);
   }
   if (trail.network) f.push(`Rete: ${trail.network}`);
