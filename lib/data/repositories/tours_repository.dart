@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/tour.dart';
 import '../models/track.dart';
+import 'public_trails_repository.dart';
 import 'tracks_repository.dart';
 
 /// Repository per i tour multi-giorno.
@@ -29,6 +30,8 @@ class ToursRepository {
 
   CollectionReference<Map<String, dynamic>> _toursCollection(String userId) =>
       _firestore.collection('users').doc(userId).collection('tours');
+
+  final PublicTrailsRepository _trailRepo = PublicTrailsRepository();
 
   CollectionReference<Map<String, dynamic>> get _communityTours =>
       _firestore.collection('community_tours');
@@ -464,8 +467,39 @@ class ToursRepository {
 
   /// Carica le tracce di un tour nell'ordine corretto.
   /// Tracce mancanti vengono saltate silenziosamente.
-  Future<List<Track>> loadTourTracks(Tour tour) =>
-      _loadTracksInOrder(tour.trackIds);
+  /// Le tappe di un tour come Track, da qualunque sorgente vengano.
+  ///
+  /// Sta qui e non nelle pagine perche' serve a tutte: la scheda del
+  /// proprietario, l'editor, e chiunque altro debba mostrare le tappe. La
+  /// prima versione la teneva solo nell'editor, e la scheda restava vuota.
+  Future<List<Track>> loadTourTracks(Tour tour) async {
+    final daTracce = await _loadTracksInOrder(tour.trackIds);
+    if (tour.stageSources.isEmpty) return daTracce;
+
+    final perId = {for (final t in daTracce) t.id: t};
+    final out = <Track>[];
+    for (final id in tour.trackIds) {
+      if (tour.stageSources[id] == 'public_trail') {
+        final t = await _trailRepo.getTrailById(id);
+        if (t == null) continue;
+        out.add(Track(
+          id: id,
+          name: t.name,
+          points: t.points,
+          activityType: t.parsedActivityType,
+          createdAt: DateTime.now(),
+          isPlanned: true,
+          stats: TrackStats(
+            distance: t.length ?? 0,
+            elevationGain: t.elevationGain ?? 0,
+          ),
+        ));
+      } else if (perId[id] != null) {
+        out.add(perId[id]!);
+      }
+    }
+    return out;
+  }
 
   Future<List<Track>> _loadTracksInOrder(List<String> trackIds) async {
     final fetched = <String, Track>{};

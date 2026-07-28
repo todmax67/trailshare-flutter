@@ -12,7 +12,6 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../../../data/repositories/tracks_repository.dart';
-import '../../../data/repositories/public_trails_repository.dart';
 
 /// Crea o modifica un tour.
 ///
@@ -127,24 +126,11 @@ class _TourEditPageState extends State<TourEditPage> {
     // Le tappe prese dal catalogo non sono fra le tracce dell'utente: senza
     // caricarle qui, l'editor mostrava "?" e "0.0 km" perche' cadeva sul
     // segnaposto dell'orElse piu' sotto.
-    final daCatalogo = <Track>[];
-    for (final entry in _stageSources.entries) {
-      if (entry.value != 'public_trail') continue;
-      final t = await PublicTrailsRepository().getTrailById(entry.key);
-      if (t == null) continue;
-      daCatalogo.add(Track(
-        id: entry.key,
-        name: t.name,
-        points: t.points,
-        activityType: t.parsedActivityType,
-        createdAt: DateTime.now(),
-        isPlanned: true,
-        stats: TrackStats(
-          distance: t.length ?? 0,
-          elevationGain: t.elevationGain ?? 0,
-        ),
-      ));
-    }
+    final daCatalogo = widget.existing == null
+        ? const <Track>[]
+        : (await _toursRepo.loadTourTracks(widget.existing!))
+            .where((t) => _stageSources[t.id] == 'public_trail')
+            .toList();
 
     if (!mounted) return;
     setState(() {
