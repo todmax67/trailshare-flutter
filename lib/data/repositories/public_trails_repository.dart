@@ -480,6 +480,20 @@ class PublicTrailsRepository {
   // DOCUMENT PARSING
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /// Un solo sentiero per id. Serve a chi ha un riferimento e basta — per
+  /// esempio una tappa di tour presa dal catalogo, che deve poter aprire la
+  /// scheda del sentiero invece di quella di una traccia community.
+  Future<PublicTrail?> getTrailById(String id) async {
+    try {
+      final doc = await _firestore.collection('public_trails').doc(id).get();
+      if (!doc.exists) return null;
+      return _docToTrail(doc, simplified: false);
+    } catch (e) {
+      debugPrint('[PublicTrails] getTrailById($id) fallita: $e');
+      return null;
+    }
+  }
+
   PublicTrail? _docToTrail(DocumentSnapshot<Map<String, dynamic>> doc, {bool simplified = true, bool metadataOnly = false}) {
     try {
       final data = doc.data();

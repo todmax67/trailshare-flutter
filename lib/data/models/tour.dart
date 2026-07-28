@@ -40,6 +40,11 @@ class TourStageSummary {
   final String? accommodationName;
   final String? accommodationSlug;
 
+  /// La tappa e' un sentiero del catalogo, non una traccia registrata.
+  /// Cambia dove porta il tocco: la scheda del sentiero, non quella della
+  /// traccia community.
+  final bool isPublicTrail;
+
   const TourStageSummary({
     required this.trackId,
     required this.name,
@@ -54,6 +59,7 @@ class TourStageSummary {
     this.accommodationBusinessId,
     this.accommodationName,
     this.accommodationSlug,
+    this.isPublicTrail = false,
   });
 
   double get distanceKm => distance / 1000;
@@ -69,6 +75,7 @@ class TourStageSummary {
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList(),
         'isTrackPublic': isTrackPublic,
+        if (isPublicTrail) 'isPublicTrail': true,
         if (elevationSamples.isNotEmpty) 'elevationSamples': elevationSamples,
         if (communityTrackId != null) 'communityTrackId': communityTrackId,
         if (accommodationBusinessId != null)
@@ -96,6 +103,7 @@ class TourStageSummary {
       duration: Duration(seconds: (map['durationSeconds'] as num?)?.toInt() ?? 0),
       points: points,
       isTrackPublic: map['isTrackPublic'] == true,
+      isPublicTrail: map['isPublicTrail'] == true,
       elevationSamples: (map['elevationSamples'] as List?)
               ?.whereType<num>()
               .map((e) => e.toDouble())
@@ -207,6 +215,15 @@ class Tour {
   /// bivacco free, etc).
   final Map<String, String> stageAccommodations;
 
+  /// Provenienza di ogni tappa: trackId -> 'public_trail'.
+  ///
+  /// Assente significa `track`, cioè una traccia registrata dall'utente —
+  /// così i tour esistenti continuano a funzionare senza migrazione, come
+  /// per [stageAccommodations]. Le tappe di un itinerario del catalogo
+  /// vivono in `public_trails` e la loro geometria in
+  /// `public_trail_geometries`: stessa forma, sorgente diversa.
+  final Map<String, String> stageSources;
+
   final double totalDistance; // metri
   final double totalElevationGain; // metri
   final Duration totalDuration;
@@ -245,6 +262,7 @@ class Tour {
     this.naturalNotes,
     required this.trackIds,
     this.stageAccommodations = const {},
+    this.stageSources = const {},
     required this.totalDistance,
     required this.totalElevationGain,
     required this.totalDuration,
@@ -271,6 +289,7 @@ class Tour {
     String? naturalNotes,
     List<String>? trackIds,
     Map<String, String>? stageAccommodations,
+    Map<String, String>? stageSources,
     double? totalDistance,
     double? totalElevationGain,
     Duration? totalDuration,
@@ -296,6 +315,7 @@ class Tour {
       naturalNotes: naturalNotes ?? this.naturalNotes,
       trackIds: trackIds ?? this.trackIds,
       stageAccommodations: stageAccommodations ?? this.stageAccommodations,
+      stageSources: stageSources ?? this.stageSources,
       totalDistance: totalDistance ?? this.totalDistance,
       totalElevationGain: totalElevationGain ?? this.totalElevationGain,
       totalDuration: totalDuration ?? this.totalDuration,
@@ -327,6 +347,7 @@ class Tour {
       'trackIds': trackIds,
       if (stageAccommodations.isNotEmpty)
         'stageAccommodations': stageAccommodations,
+      if (stageSources.isNotEmpty) 'stageSources': stageSources,
       'totalDistance': totalDistance,
       'totalElevationGain': totalElevationGain,
       'totalDurationSeconds': totalDuration.inSeconds,
@@ -384,6 +405,10 @@ class Tour {
       naturalNotes: data['naturalNotes']?.toString(),
       trackIds: (data['trackIds'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       stageAccommodations: (data['stageAccommodations'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), v.toString()),
+          ) ??
+          const {},
+      stageSources: (data['stageSources'] as Map?)?.map(
             (k, v) => MapEntry(k.toString(), v.toString()),
           ) ??
           const {},

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -94,7 +96,8 @@ class ToursRepository {
     await docRef.set(tour.toFirestore());
     if (isPublic) {
       final stages =
-          await _buildStageSummaries(tracks, uid, stageAccommodations);
+          await _buildStageSummaries(tracks, uid, stageAccommodations,
+              trackIds, tour.stageSources);
       await _communityTours.doc(docRef.id).set(tour.toCommunityFirestore(stages));
     }
 
@@ -143,11 +146,103 @@ class ToursRepository {
     return result;
   }
 
+  /// Stesse riduzioni, ma su liste gia' pronte: le tappe del catalogo
+  /// arrivano come LatLng e quote separate, non come TrackPoint.
+  List<T> _riduci<T>(List<T> v, int max) {
+    if (v.length <= max) return v;
+    final r = <T>[v.first];
+    final step = v.length / (max - 2);
+    for (var i = 1; i < max - 1; i++) {
+      final idx = (i * step).round();
+      if (idx < v.length - 1) r.add(v[idx]);
+    }
+    r.add(v.last);
+    return r;
+  }
+
+  List<LatLng> _downsamplePolylineLatLng(List<LatLng> p, {int maxPoints = 200}) =>
+      p.isEmpty ? const [] : _riduci(p, maxPoints);
+
+  List<double> _downsampleValues(List<double> v, {int maxSamples = 60}) =>
+      v.isEmpty ? const [] : _riduci(v, maxSamples);
+
   /// Costruisce le stage summary denormalizzate + mapping pubblico.
+  /// Una tappa presa dal catalogo invece che dalle tracce dell'utente.
+  ///
+  /// Ha tutto quello che serve a [TourStageSummary], e in due casi meglio:
+  /// la geometria completa sta in `public_trail_geometries/{id}` come
+  /// `coordinatesJson` — 890 punti CON LA QUOTA contro la polilinea
+  /// decimata — e la durata viene da `oreStimate`, calcolato col passo
+  /// dell'attività invece che cronometrato.
+  ///
+  /// ATTENZIONE all'ordine: in coordinatesJson e' [lon, lat, quota],
+  /// longitudine PRIMA. E' l'opposto di come le scriviamo altrove.
+  Future<TourStageSummary?> _publicTrailAsStage(
+    String trailId,
+    Map<String, String> stageAccommodations,
+    Map<String, ({String name, String slug})> accommodationById,
+  ) async {
+    try {
+      final doc = await _firestore.collection('public_trails').doc(trailId).get();
+      if (!doc.exists) return null;
+      final x = doc.data()!;
+
+      var punti = <LatLng>[];
+      var quote = <double>[];
+      final g = await _firestore
+          .collection('public_trail_geometries').doc(trailId).get();
+      final raw = g.data()?['coordinatesJson'];
+      if (raw is String && raw.isNotEmpty) {
+        for (final c in (jsonDecode(raw) as List)) {
+          if (c is List && c.length >= 2) {
+            punti.add(LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()));
+            quote.add(c.length > 2 ? (c[2] as num).toDouble() : 0);
+          }
+        }
+      }
+      if (punti.isEmpty) {
+        // Ripiego sui punti campionati per la mappa: pochi, ma meglio di nulla.
+        for (final p in (x['simplifiedPoints'] as List? ?? const [])) {
+          if (p is List && p.length >= 2) {
+            punti.add(LatLng((p[0] as num).toDouble(), (p[1] as num).toDouble()));
+          }
+        }
+      }
+
+      final ore = (x['oreStimate'] as num?)?.toDouble();
+      final bizId = stageAccommodations[trailId];
+      final acc = bizId != null ? accommodationById[bizId] : null;
+      return TourStageSummary(
+        trackId: trailId,
+        name: x['name']?.toString() ?? 'Tappa',
+        activityType: x['activityType']?.toString() ?? 'trekking',
+        distance: (x['distance'] as num?)?.toDouble() ?? 0,
+        elevationGain: (x['elevationGain'] as num?)?.toDouble() ?? 0,
+        duration: Duration(seconds: ((ore ?? 0) * 3600).round()),
+        points: _downsamplePolylineLatLng(punti),
+        elevationSamples: _downsampleValues(quote),
+        isTrackPublic: false,
+        communityTrackId: null,
+        accommodationBusinessId: bizId,
+        accommodationName: acc?.name,
+        accommodationSlug: acc?.slug,
+        isPublicTrail: true,
+      );
+    } catch (e) {
+      debugPrint('[ToursRepository] tappa da catalogo $trailId non caricata: $e');
+      return null;
+    }
+  }
+
+  /// Costruisce le tappe rispettando l'ORDINE degli id, non quello delle
+  /// tracce caricate: una tappa presa dal catalogo non e' fra `tracks`, e
+  /// senza l'elenco ordinato finirebbe in coda o sparirebbe.
   Future<List<TourStageSummary>> _buildStageSummaries(
     List<Track> tracks,
     String ownerId, [
     Map<String, String> stageAccommodations = const {},
+    List<String> ordine = const [],
+    Map<String, String> stageSources = const {},
   ]) async {
     final publicMap = await _resolvePublicTrackMap(tracks, ownerId);
 
@@ -177,6 +272,33 @@ class ToursRepository {
       }
     }
 
+    // Senza provenienze da smistare si resta sul percorso di sempre.
+    if (stageSources.isEmpty || ordine.isEmpty) {
+      return _daTracce(tracks, stageAccommodations, accommodationById, publicMap);
+    }
+
+    final perTraccia = <String, TourStageSummary>{
+      for (final st in _daTracce(tracks, stageAccommodations, accommodationById, publicMap))
+        st.trackId: st,
+    };
+    final out = <TourStageSummary>[];
+    for (final id in ordine) {
+      if (stageSources[id] == 'public_trail') {
+        final st = await _publicTrailAsStage(id, stageAccommodations, accommodationById);
+        if (st != null) out.add(st);
+      } else if (perTraccia[id] != null) {
+        out.add(perTraccia[id]!);
+      }
+    }
+    return out;
+  }
+
+  List<TourStageSummary> _daTracce(
+    List<Track> tracks,
+    Map<String, String> stageAccommodations,
+    Map<String, ({String name, String slug})> accommodationById,
+    Map<String, String> publicMap,
+  ) {
     return [
       for (final t in tracks)
         () {
@@ -436,7 +558,8 @@ class ToursRepository {
       if (needsRebuild) {
         final tracks = await _loadTracksInOrder(updated.trackIds);
         final stages = await _buildStageSummaries(
-            tracks, uid, updated.stageAccommodations);
+            tracks, uid, updated.stageAccommodations,
+            updated.trackIds, updated.stageSources);
         // Il rebuild è un set() pieno: rileggiamo il flag editoriale
         // dalla copia pubblica per non azzerarlo ad ogni modifica.
         final existing = await _communityTours.doc(tourId).get();

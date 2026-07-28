@@ -19,6 +19,8 @@ import 'widgets/multi_stage_elevation_chart.dart';
 import 'widgets/tour_hero.dart';
 import 'widgets/tour_rich_sections.dart';
 import '../../widgets/flat_section.dart';
+import '../../../data/repositories/public_trails_repository.dart';
+import '../discover/trail_detail_page.dart';
 
 /// Vista community (read-only) di un tour pubblico.
 ///
@@ -152,10 +154,22 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
     return null;
   }
 
+  // Una tappa presa dal catalogo e' sempre apribile: il sentiero ha una sua
+  // scheda, con descrizione, difficolta' rilevata, tempo di percorrenza e
+  // l'eventuale segnalazione di via attrezzata.
   bool _isStageTappable(TourStageSummary stage) =>
-      _resolveCommunityId(stage) != null;
+      stage.isPublicTrail || _resolveCommunityId(stage) != null;
 
   Future<void> _openStage(TourStageSummary stage) async {
+    if (stage.isPublicTrail) {
+      final trail = await PublicTrailsRepository().getTrailById(stage.trackId);
+      if (!mounted || trail == null) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TrailDetailPage(trail: trail)),
+      );
+      return;
+    }
     final communityId = _resolveCommunityId(stage);
     if (communityId == null) return;
     final track = await _communityTracksRepo.getTrackById(communityId);
