@@ -791,12 +791,27 @@ class _Track3DPageState extends State<Track3DPage> {
               ),
               const Spacer(),
               // Velocità — pill con contrasto netto attivo/inattivo.
-              for (final s in const [0.5, 1.0, 2.0])
-                _SpeedPill(
-                  label: '${s == s.toInt() ? s.toInt() : s}×',
-                  selected: _speed == s,
-                  onTap: () => _setSpeed(s),
+              // Flexible + scorrimento: quattro pulsanti da 40 px piu' tre
+              // pillole non entrano sugli schermi stretti, e la barra
+              // sfondava di 31 px. Cosi' le pillole scorrono invece di
+              // spingere fuori la riga.
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  reverse: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final s in const [0.5, 1.0, 2.0])
+                        _SpeedPill(
+                          label: '${s == s.toInt() ? s.toInt() : s}×',
+                          selected: _speed == s,
+                          onTap: () => _setSpeed(s),
+                        ),
+                    ],
+                  ),
                 ),
+              ),
             ],
           ),
           const Padding(
