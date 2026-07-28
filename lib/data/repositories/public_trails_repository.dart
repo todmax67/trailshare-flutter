@@ -480,6 +480,30 @@ class PublicTrailsRepository {
   // DOCUMENT PARSING
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /// Cerca sentieri per nome, sui `searchTerms` che l'import gia' scrive su
+  /// ogni documento. Serve a chi compone un tour e deve pescare una tappa
+  /// dal catalogo invece che dalle proprie tracce.
+  Future<List<PublicTrail>> searchByName(String query, {int limit = 25}) async {
+    final q = query.trim().toLowerCase();
+    if (q.length < 3) return const [];
+    try {
+      final snap = await _firestore
+          .collection('public_trails')
+          .where('searchTerms', arrayContains: q)
+          .limit(limit)
+          .get();
+      final out = <PublicTrail>[];
+      for (final d in snap.docs) {
+        final t = _docToTrail(d, simplified: true);
+        if (t != null) out.add(t);
+      }
+      return out;
+    } catch (e) {
+      debugPrint('[PublicTrails] searchByName("$q") fallita: $e');
+      return const [];
+    }
+  }
+
   /// Un solo sentiero per id. Serve a chi ha un riferimento e basta — per
   /// esempio una tappa di tour presa dal catalogo, che deve poter aprire la
   /// scheda del sentiero invece di quella di una traccia community.
