@@ -84,6 +84,19 @@ class _ChooseUsernamePageState extends State<ChooseUsernamePage> {
       }
       await profileRef.set(data, SetOptions(merge: true));
 
+      // Anche sul profilo di FirebaseAuth: il gate all'avvio, se trova un
+      // displayName valido, si fida senza leggere Firestore. Chi accede con
+      // email e password non ce l'ha (glielo popolano solo Google e Apple),
+      // quindi ogni accesso dipendeva da una lettura dal server con timeout
+      // di 10 secondi — e se tardava, con la cache vuota, ricompariva questa
+      // stessa pagina a chi lo username ce l'aveva gia'.
+      try {
+        await FirebaseAuth.instance.currentUser?.updateDisplayName(username);
+      } catch (e) {
+        // Non blocca: il profilo su Firestore e' comunque salvato.
+        debugPrint('[ChooseUsername] displayName non aggiornato: $e');
+      }
+
       if (mounted) {
         widget.onUsernameChosen();
       }
