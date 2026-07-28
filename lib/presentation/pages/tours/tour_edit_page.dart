@@ -12,6 +12,7 @@ import '../../../data/models/track.dart';
 import '../../../data/repositories/business_repository.dart';
 import '../../../data/repositories/tours_repository.dart';
 import '../../../data/repositories/tracks_repository.dart';
+import '../../../data/repositories/public_trails_repository.dart';
 
 /// Crea o modifica un tour.
 ///
@@ -54,6 +55,9 @@ class _TourEditPageState extends State<TourEditPage> {
   TourType _type = TourType.consecutive;
   // Mappa trackId → businessId rifugio
   Map<String, String> _stageAccommodations = {};
+
+  /// trackId -> 'public_trail' per le tappe che vengono dal catalogo.
+  Map<String, String> _stageSources = {};
   // Cache business per visualizzazione (id → Business). Popolata on-demand
   // dal picker.
   final Map<String, Business> _accommodationCache = {};
@@ -99,6 +103,7 @@ class _TourEditPageState extends State<TourEditPage> {
       _difficultyGrade = e.difficultyGrade;
       _type = e.type;
       _stageAccommodations = Map.of(e.stageAccommodations);
+      _stageSources = Map.of(e.stageSources);
       _daysCtrl.text = e.daysCount.toString();
     }
     _loadTracks();
@@ -118,9 +123,32 @@ class _TourEditPageState extends State<TourEditPage> {
     final tracks = await _tracksRepo.getMyTracks();
     final ids = tracks.map((t) => t.id).whereType<String>().toList();
     final publicIds = await _toursRepo.getPublicTrackIds(ids);
+
+    // Le tappe prese dal catalogo non sono fra le tracce dell'utente: senza
+    // caricarle qui, l'editor mostrava "?" e "0.0 km" perche' cadeva sul
+    // segnaposto dell'orElse piu' sotto.
+    final daCatalogo = <Track>[];
+    for (final entry in _stageSources.entries) {
+      if (entry.value != 'public_trail') continue;
+      final t = await PublicTrailsRepository().getTrailById(entry.key);
+      if (t == null) continue;
+      daCatalogo.add(Track(
+        id: entry.key,
+        name: t.name,
+        points: t.points,
+        activityType: t.parsedActivityType,
+        createdAt: DateTime.now(),
+        isPlanned: true,
+        stats: TrackStats(
+          distance: t.length ?? 0,
+          elevationGain: t.elevationGain ?? 0,
+        ),
+      ));
+    }
+
     if (!mounted) return;
     setState(() {
-      _availableTracks = tracks;
+      _availableTracks = [...tracks, ...daCatalogo];
       _publicTrackIds = publicIds;
       _loading = false;
     });
