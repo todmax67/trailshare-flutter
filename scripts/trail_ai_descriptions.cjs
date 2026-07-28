@@ -267,6 +267,12 @@ REGOLE FERREE:
   attraversa un tratto. Scrivi che comprende un passaggio attrezzato, che
   serve l'attrezzatura per affrontarlo e che non si può aggirare. Valgono
   gli stessi divieti: niente "adatto a tutti", niente "facile".
+- Se fra i fatti NON c'è una difficoltà, non usare le parole con cui si
+  chiamano i gradi CAI — "turistico", "escursionisti esperti", "alpinistico"
+  — nemmeno per descrivere chi è adatto al percorso: chi conosce la scala le
+  legge come una classificazione del terreno che noi non abbiamo. Puoi
+  parlare dell'impegno ("richiede allenamento", "per camminatori allenati",
+  "itinerario lungo"), che discende dai chilometri e dai giorni.
 - Se i rifugi sono dati come "ELENCO NON ESAUSTIVO", NON scrivere "lungo il
   percorso si trovano i rifugi X e Y" come se fossero quelli: cita al più
   che nei pressi si incontrano anche X e Y, oppure non nominarli. Su un
