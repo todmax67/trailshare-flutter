@@ -244,6 +244,13 @@ REGOLE FERREE:
   attraversa un tratto. Scrivi che comprende un passaggio attrezzato, che
   serve l'attrezzatura per affrontarlo e che non si può aggirare. Valgono
   gli stessi divieti: niente "adatto a tutti", niente "facile".
+- SICUREZZA — se la difficoltà fornita è EE o EEA, è VIETATO definire il
+  sentiero facile, accessibile, tranquillo, "una passeggiata" o adatto a
+  tutti, anche quando lunghezza e dislivello sono modesti. La scala CAI
+  classifica il TERRENO, non la fatica: un traverso esposto o su detrito
+  può essere quasi pianeggiante e restare da escursionisti esperti. Non
+  dedurre la facilità dai numeri: se il grado dice EE, il terreno è
+  impegnativo e va detto.
 
 Rispondi SOLO con JSON: {"description": "...", "affidabile": true/false}`;
 
