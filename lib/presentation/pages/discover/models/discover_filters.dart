@@ -43,6 +43,12 @@ class DiscoverFilters {
   /// Chiave per i sentieri di cui non conosciamo la difficoltà tecnica.
   static const nonClassificato = 'nd';
 
+  /// Fondo scala del cursore lunghezza. A questo valore il filtro NON ha
+  /// più un limite superiore: 939 sentieri superano i 30 km — tutte le
+  /// Alte Vie e il Tour du Mont Blanc — e trattare il fondo scala come un
+  /// tetto vero li faceva sparire appena si sfiorava il cursore.
+  static const maxLengthKm = 30.0;
+
   /// Nasconde i sentieri di cui non conosciamo la difficolta' TECNICA, cioe'
   /// quelli il cui grado e' una stima storica invece di un rilievo.
   ///

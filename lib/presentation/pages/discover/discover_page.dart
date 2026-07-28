@@ -306,7 +306,12 @@ class _DiscoverPageState extends State<DiscoverPage> {
       // Lunghezza
       if (_filters.lengthKm != null) {
         final km = (trail.length ?? 0) / 1000;
-        if (km < _filters.lengthKm!.start || km > _filters.lengthKm!.end) return false;
+        final r = _filters.lengthKm!;
+        // A fondo scala il cursore significa "senza limite", non "esattamente
+        // 30 km": altrimenti i 939 sentieri più lunghi sparirebbero appena
+        // lo si sfiora.
+        final senzaTetto = r.end >= DiscoverFilters.maxLengthKm;
+        if (km < r.start || (!senzaTetto && km > r.end)) return false;
       }
 
       // Dislivello
@@ -979,7 +984,11 @@ class _DiscoverPageState extends State<DiscoverPage> {
               PolylineLayer(
                 polylines: trails.map((trail) {
                   final isSelected = trail.id == _selectedTrail?.id;
-                  final color = _activityColor(trail.activityType);
+                  // Stesso rosso del marcatore: sulla mappa la traccia di una
+                  // via attrezzata si distingue anche senza toccarla.
+                  final color = trail.viaFerrata
+                      ? AppColors.danger
+                      : _activityColor(trail.activityType);
                   final isHighZoom = _currentZoom >= 15;
                   return Polyline(
                     points: trail.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
@@ -1017,8 +1026,17 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   final startLng = trail.startLng;
                   if (startLat == 0 && startLng == 0) return null;
                   final isSelected = trail.id == _selectedTrail?.id;
-                  final color = _activityColor(trail.activityType);
-                  final icon = _activityIcon(trail.activityType);
+                  // Le vie attrezzate hanno un aspetto tutto loro: sono 323
+                  // su 16.350 e sono quelle che devi riconoscere da lontano,
+                  // perché richiedono imbrago, casco e set da ferrata. Il
+                  // colore per attività resta a tutte le altre, dove è
+                  // completo e significativo.
+                  final color = trail.viaFerrata
+                      ? AppColors.danger
+                      : _activityColor(trail.activityType);
+                  final icon = trail.viaFerrata
+                      ? Icons.warning_amber_rounded
+                      : _activityIcon(trail.activityType);
                   final isLowZoom = _currentZoom < 13;
                   final size = isSelected ? 44.0 : (isLowZoom ? 40.0 : 28.0);
 
@@ -1481,15 +1499,23 @@ class _MapListSegmentedToggle extends StatelessWidget {
                   color: active
                       ? AppColors.textPrimary
                       : AppColors.textSecondary),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: active
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
+              const SizedBox(width: 5),
+              // Flexible: su schermi stretti icona + spazio + testo
+              // sforavano di pochi pixel. Meglio che l'etichetta si
+              // stringa da sola che vedere la banda gialla.
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: active
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                  ),
                 ),
               ),
             ],

@@ -35,7 +35,7 @@ class _DiscoverFilterSheetState extends State<DiscoverFilterSheet> {
   late DiscoverFilters _filters;
 
   // Limiti degli slider
-  static const _maxLengthKm = 30.0;
+  static const _maxLengthKm = DiscoverFilters.maxLengthKm;
   static const _maxElevation = 2000.0;
 
   static const _difficultyOptions = [
@@ -209,7 +209,9 @@ class _DiscoverFilterSheetState extends State<DiscoverFilterSheet> {
                     min: 0,
                     max: _maxLengthKm,
                     divisions: 30,
-                    labelFormat: (v) => '${v.toStringAsFixed(0)} km',
+                    labelFormat: (v) => v >= _maxLengthKm
+                        ? '30+ km'
+                        : '${v.toStringAsFixed(0)} km',
                     onChanged: (values) {
                       setState(() {
                         final isFull = values.start == 0 && values.end == _maxLengthKm;
