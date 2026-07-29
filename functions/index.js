@@ -7642,11 +7642,18 @@ exports.onSegmentCreate = onDocumentCreated({
 
             const risultati = confrontaSegmenti(punti, [seg], t.activityType);
             if (!risultati.length) continue;
-            const r = risultati[0];
 
+            // Una traccia puo' produrre PIU' passaggi sullo stesso segmento:
+            // allenamento a ripetute, anello ripercorso. La chiave e' l'indice
+            // di partenza, non il solo trackId.
             const gia = await snap.ref.collection('efforts')
-                .where('trackId', '==', d.id).limit(1).get();
-            if (!gia.empty) continue;
+                .where('trackId', '==', d.id).get();
+            const indici = new Set(gia.docs.map((e) =>
+                e.data().trackStartIdx !== undefined ? e.data().trackStartIdx : 0));
+
+            for (const r of risultati) {
+            if (indici.has(r.iPartenza)) continue;
+            indici.add(r.iPartenza);
 
             await snap.ref.collection('efforts').add({
                 userId: uid, username, avatarUrl,
@@ -7659,9 +7666,12 @@ exports.onSegmentCreate = onDocumentCreated({
                 // tracce sono decimate a 1000 punti al salvataggio, quindi il
                 // tempo puo' differire di qualche secondo (in genere piu'
                 // lento). Marcarlo permette di distinguerlo e di rifarlo.
+                trackStartIdx: r.iPartenza,
+                passIndex: r.indicePassaggio,
                 fromBackfill: true,
             });
             scritti++;
+            }
         }
     }
 

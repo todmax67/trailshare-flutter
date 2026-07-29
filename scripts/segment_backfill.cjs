@@ -93,6 +93,10 @@ async function verifica(segmenti) {
     for (const e of eff.docs) {
       const y = e.data();
       if (!y.trackId || !y.userId) continue;
+      // Gli sforzi con attivita' incompatibile sono fuori dalle classifiche:
+      // confrontarli non dice nulla sulla fedelta' del gemello, e uno di
+      // loro faceva scattare un falso allarme.
+      if (y.activityMismatch === true) continue;
       const tRef = db.collection('users').doc(y.userId).collection('tracks').doc(y.trackId);
       const tSnap = await tRef.get();
       if (!tSnap.exists) continue;
@@ -105,13 +109,24 @@ async function verifica(segmenti) {
         ottenuto: r ? r.durataSecondi : 'nessun match', chi: y.username });
     }
   }
+  // Le tracce sono decimate a 1000 punti al salvataggio: l'app confrontava
+  // sui punti pieni, il gemello legge quelli ridotti, e ingresso e uscita dal
+  // segmento cadono su punti leggermente diversi. Uno scarto di pochi
+  // secondi e' quello, non un algoritmo che diverge. Sopra i 10 secondi
+  // invece qualcosa non torna e va capito prima di scrivere.
+  const SCARTO_DECIMAZIONE = 10;
+  const piccole = diversi.filter((d) => typeof d.ottenuto === 'number'
+    && Math.abs(d.ottenuto - d.atteso) <= SCARTO_DECIMAZIONE);
+  const grosse = diversi.filter((d) => !piccole.includes(d));
+
   console.log(`sforzi confrontati: ${confrontati}`);
   console.log(`tempi identici:     ${uguali}`);
-  console.log(`divergenti:         ${diversi.length}`);
-  diversi.slice(0, 10).forEach((d) => console.log(
+  console.log(`scarti entro ${SCARTO_DECIMAZIONE}s (decimazione): ${piccole.length}`);
+  console.log(`DIVERGENZE VERE:    ${grosse.length}`);
+  grosse.slice(0, 10).forEach((d) => console.log(
     `  ${String(d.seg).slice(0, 28).padEnd(30)} app ${String(d.atteso).padStart(5)}s  gemello ${String(d.ottenuto).padStart(5)}  (${d.chi})`));
-  console.log(diversi.length === 0
-    ? '\nGEMELLO FEDELE: si puo\' usare per il recupero.'
+  console.log(grosse.length === 0
+    ? `\nGEMELLO FEDELE: ${uguali} identici, ${piccole.length} entro lo scarto della decimazione, 0 divergenze vere.`
     : '\nATTENZIONE: divergenze da spiegare PRIMA di scrivere.');
 }
 
@@ -141,8 +156,16 @@ async function verifica(segmenti) {
       tracce++;
       for (const r of confronta(punti, segmenti, x.activityType)) {
         const effCol = db.collection('segments').doc(r.segmento.id).collection('efforts');
-        const esiste = await effCol.where('trackId', '==', d.id).limit(1).get();
-        if (!esiste.empty) { gia++; continue; }
+        // Una traccia puo' ora produrre PIU' passaggi sullo stesso segmento
+        // (allenamento a ripetute, anello ripercorso): la chiave e' l'indice
+        // di partenza, non il solo trackId. Gli sforzi scritti prima non ce
+        // l'hanno: valgono per il primo passaggio, cosi' non si duplicano.
+        const esistenti = await effCol.where('trackId', '==', d.id).get();
+        const indici = new Set(esistenti.docs.map((e) =>
+          e.data().trackStartIdx !== undefined ? e.data().trackStartIdx : 0));
+        if (indici.has(r.iPartenza) || (r.indicePassaggio === 0 && indici.has(0))) {
+          gia++; continue;
+        }
         nuovi++;
         console.log(`${DRY ? '·' : '✓'} ${String(x.name || '?').slice(0, 30).padEnd(32)} → ` +
           `${String(r.segmento.name).slice(0, 26).padEnd(28)} ${String(r.durataSecondi).padStart(5)}s  ${username}`);
@@ -154,6 +177,10 @@ async function verifica(segmenti) {
             distance: r.segmento.distance,
             averageSpeedKmh: r.velocitaMediaKmh,
             completedAt: admin.firestore.Timestamp.fromDate(r.quando),
+            // Indice del punto di partenza dentro la traccia: distingue i
+            // passaggi multipli sullo stesso segmento nella stessa uscita.
+            trackStartIdx: r.iPartenza,
+            passIndex: r.indicePassaggio,
             // Marcato: questo sforzo viene dal recupero storico, non da una
             // registrazione dal vivo. Serve a poterlo rifare o annullare.
             fromBackfill: true,

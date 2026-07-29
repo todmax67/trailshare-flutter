@@ -54,12 +54,11 @@ function segueIlTracciato(sottoPunti, polilinea) {
   return true;
 }
 
-/// Un solo segmento contro una traccia. Ritorna null se non e' stato
-/// percorso: partenza mai avvicinata, arrivo mai raggiunto dopo la
-/// partenza, percorso troppo lontano, o durata non positiva.
-function confrontaSingolo(punti, seg) {
+/// Un passaggio a partire dall'indice [da]. Null se da li' in poi il
+/// segmento non viene percorso.
+function passaggioDa(punti, seg, da) {
   let iPartenza = null;
-  for (let i = 0; i < punti.length; i++) {
+  for (let i = da; i < punti.length; i++) {
     if (distanzaMetri(punti[i].lat, punti[i].lng, seg.startLat, seg.startLng) < RAGGIO_PARTENZA) {
       iPartenza = i;
       break;
@@ -77,10 +76,16 @@ function confrontaSingolo(punti, seg) {
   if (iArrivo === null) return null;
 
   const sotto = punti.slice(iPartenza, iArrivo + 1);
-  if (!segueIlTracciato(sotto, seg.polyline)) return null;
+  if (!segueIlTracciato(sotto, seg.polyline)) {
+    // Non e' il segmento: fra i due estremi si e' passati altrove (tipico
+    // dell'andata e ritorno che aggancia la partenza dell'andata con
+    // l'arrivo del ritorno). Si riprova da dopo questa falsa partenza,
+    // invece di rinunciare: piu' avanti il passaggio buono puo' esserci.
+    return passaggioDa(punti, seg, iPartenza + 1);
+  }
 
   const durata = Math.round((punti[iArrivo].t - punti[iPartenza].t) / 1000);
-  if (durata <= 0) return null;
+  if (durata <= 0) return passaggioDa(punti, seg, iPartenza + 1);
 
   return {
     segmento: seg,
@@ -90,6 +95,30 @@ function confrontaSingolo(punti, seg) {
     velocitaMediaKmh: seg.distance > 0 ? (seg.distance / durata) * 3.6 : 0,
     quando: new Date(punti[iArrivo].t),
   };
+}
+
+/// TUTTI i passaggi sul segmento dentro una traccia.
+///
+/// Prima se ne contava uno solo: su un allenamento a ripetute — o su un
+/// anello ripercorso — i giri successivi sparivano, e proprio li' il
+/// confronto fra un giro e l'altro e' l'informazione che serve. Dopo ogni
+/// arrivo la ricerca riparte dal punto successivo.
+function passaggi(punti, seg, max = 20) {
+  const out = [];
+  let da = 0;
+  while (out.length < max) {
+    const r = passaggioDa(punti, seg, da);
+    if (!r) break;
+    out.push({ ...r, indicePassaggio: out.length });
+    da = r.iArrivo + 1;          // sempre in avanti: niente cicli infiniti
+  }
+  return out;
+}
+
+/// Compatibilita': il primo passaggio, o null.
+function confrontaSingolo(punti, seg) {
+  const p = passaggi(punti, seg, 1);
+  return p.length ? p[0] : null;
 }
 
 /// Attivita' confrontabili fra loro. Un segmento di corsa non ha senso in
@@ -128,11 +157,10 @@ function confronta(punti, segmenti, attivita) {
     if (!attivitaCompatibili(attivita, seg.activityType)) continue;
     if (seg.startLat < minLat - PADDING_BBOX || seg.startLat > maxLat + PADDING_BBOX) continue;
     if (seg.startLng < minLng - PADDING_BBOX || seg.startLng > maxLng + PADDING_BBOX) continue;
-    const r = confrontaSingolo(punti, seg);
-    if (r) out.push(r);
+    for (const r of passaggi(punti, seg)) out.push(r);
   }
   return out;
 }
 
-module.exports = { confronta, confrontaSingolo, distanzaMetri, attivitaCompatibili,
+module.exports = { confronta, confrontaSingolo, passaggi, distanzaMetri, attivitaCompatibili,
   RAGGIO_PARTENZA, RAGGIO_ARRIVO, TOLLERANZA_MEDIA, TOLLERANZA_MASSIMA };
