@@ -78,6 +78,43 @@ class SegmentsRepository {
   /// Segmenti creati da una specifica traccia personale.
   /// Se [publicOnly] è true, filtra ulteriormente per `isPublic: true`
   /// (usato nelle view community).
+  /// I segmenti ATTRAVERSATI da una traccia, col tempo che ci hai messo.
+  ///
+  /// Diverso da [getSegmentsCreatedFromTrack], che restituisce quelli NATI da
+  /// quella traccia: se passi su un segmento creato da un'altra tua uscita o
+  /// da qualcun altro, il primo lo trova e il secondo no. La scheda usava
+  /// solo il secondo, e restava vuota anche passando su un segmento.
+  ///
+  /// Si appoggia agli effort, che portano il trackId: una query di gruppo
+  /// sulle sottocollezioni `efforts` trova i passaggi, e da li' si risale ai
+  /// segmenti.
+  Future<List<({Segment segment, SegmentEffort effort})>>
+      getSegmentsTraversedByTrack(String trackId) async {
+    try {
+      final snap = await _firestore
+          .collectionGroup('efforts')
+          .where('trackId', isEqualTo: trackId)
+          .get();
+      final out = <({Segment segment, SegmentEffort effort})>[];
+      for (final d in snap.docs) {
+        final segRef = d.reference.parent.parent;
+        if (segRef == null) continue;
+        final seg = await segRef.get();
+        if (!seg.exists) continue;
+        out.add((
+          segment: Segment.fromFirestore(seg),
+          effort: SegmentEffort.fromFirestore(d),
+        ));
+      }
+      return out;
+    } catch (e) {
+      // Serve l'indice di gruppo su efforts.trackId: senza, Firestore
+      // rifiuta la query e la scheda resta come prima invece di rompersi.
+      debugPrint('[Segments] getSegmentsTraversedByTrack: $e');
+      return const [];
+    }
+  }
+
   Future<List<Segment>> getSegmentsCreatedFromTrack(
     String sourceTrackId, {
     bool publicOnly = false,

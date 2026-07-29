@@ -77,10 +77,22 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
   Future<void> _load() async {
     setState(() => _loading = true);
 
-    final segments = await _repo.getSegmentsCreatedFromTrack(
+    final creati = await _repo.getSegmentsCreatedFromTrack(
       _trackId,
       publicOnly: widget.readOnly,
     );
+    // Anche quelli semplicemente ATTRAVERSATI: passare su un segmento creato
+    // da un'altra uscita, tua o di qualcun altro, e' il caso normale — e
+    // finora non compariva niente.
+    final attraversati = await _repo.getSegmentsTraversedByTrack(_trackId);
+    final gia = creati.map((s) => s.id).toSet();
+    final segments = [
+      ...creati,
+      for (final a in attraversati)
+        if (!gia.contains(a.segment.id) &&
+            (!widget.readOnly || a.segment.isPublic))
+          a.segment,
+    ];
     final champs = await Future.wait(segments.map((s) => _repo.getTopEffort(s.id)));
     if (!mounted) return;
 

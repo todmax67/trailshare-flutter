@@ -74,10 +74,20 @@ class _SegmentResultsDialog extends StatelessWidget {
     Color accent;
     IconData icon;
     String badgeLabel;
+    // La PRIMA volta su un segmento isNewPB e' sempre vero — quel tempo e'
+    // l'unico che hai, quindi e' anche il migliore. Ma annunciarlo come
+    // "Personal best!" a ogni segmento nuovo svuota il premio: un record si
+    // batte, non si inaugura. Qui si distingue il primo passaggio dal
+    // miglioramento vero, che e' quello che merita la stella.
+    final primoPassaggio = r.isNewPB && r.previousPBSeconds == null;
     if (r.isNewRecord) {
       accent = Colors.amber;
       icon = Icons.emoji_events;
       badgeLabel = 'Nuovo record!';
+    } else if (primoPassaggio) {
+      accent = AppColors.info;
+      icon = Icons.flag_outlined;
+      badgeLabel = 'Primo tempo';
     } else if (r.isNewPB) {
       accent = AppColors.primary;
       icon = Icons.star;
