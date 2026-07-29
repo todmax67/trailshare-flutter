@@ -617,20 +617,6 @@
       "density": "SPARSE_ALL"
     },
     {
-      "collectionGroup": "efforts",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        {
-          "fieldPath": "trackId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "completedAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "businesses",
       "queryScope": "COLLECTION",
       "fields": [
@@ -690,6 +676,25 @@
     {
       "collectionGroup": "integrations",
       "fieldPath": "athleteId",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "efforts",
+      "fieldPath": "trackId",
       "ttl": false,
       "indexes": [
         {
