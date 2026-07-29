@@ -23,6 +23,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
   final SegmentsRepository _repo = SegmentsRepository();
   List<SegmentEffort> _leaderboard = [];
   SegmentEffort? _myBest;
+  List<SegmentEffort> _mieiTentativi = const [];
   int? _myRank; // 1-based
   bool _loading = true;
   bool _isAdmin = false;
@@ -47,6 +48,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       mine = await _repo.getUserBestEffort(widget.segment.id, uid);
+      _mieiTentativi = await _repo.getUserEfforts(widget.segment.id, uid);
       if (mine != null) {
         final pos = board.indexWhere((e) => e.userId == uid);
         if (pos >= 0) myRank = pos + 1;
@@ -121,6 +123,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
                   ],
                   const SizedBox(height: 20),
                   _buildMyPerformance(),
+                  _buildStorico(),
                   const SizedBox(height: 16),
                   _buildLeaderboard(),
                 ],
@@ -296,6 +299,67 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
               ],
             ),
           ),
+      ],
+    );
+  }
+
+  /// I passaggi precedenti: e' qui che si vedono progressi e cali, cosa che
+  /// in classifica generale non ha posto — li' vale un tempo a testa.
+  Widget _buildStorico() {
+    if (_mieiTentativi.length < 2) return const SizedBox.shrink();
+    final migliore = _mieiTentativi
+        .map((e) => e.durationSeconds)
+        .reduce((a, b) => a < b ? a : b);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Text('I tuoi ${_mieiTentativi.length} passaggi',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        for (var i = 0; i < _mieiTentativi.length; i++)
+          Builder(builder: (_) {
+            final e = _mieiTentativi[i];
+            // Confronto col passaggio PRECEDENTE nel tempo, non col record:
+            // serve a dire "stai migliorando", non "non sei al tuo massimo".
+            final prima = i + 1 < _mieiTentativi.length
+                ? _mieiTentativi[i + 1].durationSeconds
+                : null;
+            final delta = prima == null ? null : e.durationSeconds - prima;
+            final isRecord = e.durationSeconds == migliore;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(isRecord ? Icons.star : Icons.circle_outlined,
+                      size: 14,
+                      color: isRecord ? AppColors.primary : context.textMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${e.completedAt.day}/${e.completedAt.month}/${e.completedAt.year}',
+                      style: TextStyle(fontSize: 13, color: context.textSecondary),
+                    ),
+                  ),
+                  if (delta != null && delta != 0)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        '${delta < 0 ? '−' : '+'}${delta.abs()}s',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: delta < 0 ? AppColors.success : AppColors.textMuted,
+                        ),
+                      ),
+                    ),
+                  Text(e.durationFormatted,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            );
+          }),
       ],
     );
   }

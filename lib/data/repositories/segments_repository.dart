@@ -200,13 +200,46 @@ class SegmentsRepository {
           .orderBy('durationSeconds')
           .limit(limit * 4)
           .get();
-      return snap.docs
-          .where((d) => d.data()['activityMismatch'] != true)
-          .take(limit)
-          .map((d) => SegmentEffort.fromFirestore(d))
-          .toList();
+      // UN TEMPO A TESTA. In graduatoria vale il record di ciascuno: i tuoi
+      // passaggi successivi sono progressi tuoi, non concorrenti in piu'.
+      // Chi ha corso dieci volte occuperebbe dieci posizioni e la classifica
+      // direbbe chi si allena, non chi va forte. Lo storico personale sta in
+      // [getUserEfforts].
+      final visti = <String>{};
+      final out = <SegmentEffort>[];
+      for (final d in snap.docs) {
+        if (d.data()['activityMismatch'] == true) continue;
+        final uid = d.data()['userId']?.toString() ?? d.id;
+        if (!visti.add(uid)) continue;      // gia' presente col tempo migliore
+        out.add(SegmentEffort.fromFirestore(d));
+        if (out.length >= limit) break;
+      }
+      return out;
     } catch (e) {
       debugPrint('[Segments] Errore getLeaderboard: $e');
+      return [];
+    }
+  }
+
+  /// TUTTI i passaggi di un utente su un segmento, dal piu' recente.
+  ///
+  /// E' la cronologia personale: serve a vedere i progressi e i cali, che in
+  /// classifica generale non hanno posto. Ordinata in memoria perche' i
+  /// passaggi di una persona su un segmento sono pochi, e cosi' non serve
+  /// un altro indice composito.
+  Future<List<SegmentEffort>> getUserEfforts(String segmentId, String userId) async {
+    try {
+      final snap = await _effortsCol(segmentId)
+          .where('userId', isEqualTo: userId)
+          .get();
+      final list = snap.docs
+          .where((d) => d.data()['activityMismatch'] != true)
+          .map((d) => SegmentEffort.fromFirestore(d))
+          .toList();
+      list.sort((a, b) => b.completedAt.compareTo(a.completedAt));
+      return list;
+    } catch (e) {
+      debugPrint('[Segments] Errore getUserEfforts: $e');
       return [];
     }
   }
