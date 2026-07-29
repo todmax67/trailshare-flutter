@@ -647,6 +647,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "efforts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "durationSeconds",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

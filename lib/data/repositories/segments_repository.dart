@@ -189,13 +189,22 @@ class SegmentsRepository {
   // ─── Leaderboard ─────────────────────────────────────────────────────────
 
   /// Top N efforts ordinati per durata crescente (il primo è il primatista).
+  /// Classifica del segmento, senza gli sforzi con attività incompatibile:
+  /// una pedalata a 20 km/h su un segmento di corsa non sta in graduatoria
+  /// coi podisti. Si chiede piu' del necessario e si scarta in memoria,
+  /// perche' una disuguaglianza su Firestore escluderebbe anche i documenti
+  /// privi del campo — cioe' tutti quelli scritti prima della correzione.
   Future<List<SegmentEffort>> getLeaderboard(String segmentId, {int limit = 10}) async {
     try {
       final snap = await _effortsCol(segmentId)
           .orderBy('durationSeconds')
-          .limit(limit)
+          .limit(limit * 4)
           .get();
-      return snap.docs.map((d) => SegmentEffort.fromFirestore(d)).toList();
+      return snap.docs
+          .where((d) => d.data()['activityMismatch'] != true)
+          .take(limit)
+          .map((d) => SegmentEffort.fromFirestore(d))
+          .toList();
     } catch (e) {
       debugPrint('[Segments] Errore getLeaderboard: $e');
       return [];
