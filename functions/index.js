@@ -7540,3 +7540,131 @@ exports.suuntoImportRecent = onCall(
     return { imported, skipped, errors, total: items.length };
   }
 );
+
+// ═══════════════════════════════════════════════════════════════════════
+// SEGMENTI — confronto retroattivo alla creazione
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Il confronto girava SOLO al salvataggio di una traccia, quindi un segmento
+// appena creato nasceva vuoto e restava a zero finche' qualcuno non lo
+// ripercorreva. E' la differenza fra una funzione che sembra viva e una che
+// sembra abbandonata: chi crea un segmento decide in quel momento se la cosa
+// gli interessa, e se vede zero non torna.
+//
+// Qui il confronto scatta alla creazione e ripassa le tracce esistenti. Usa
+// lo stesso modulo del recupero storico (segment_matching.js), gemello
+// dell'algoritmo dell'app.
+//
+// LIMITE DI SCALA, da sapere: le tracce non hanno coordinate a livello di
+// documento (nessun bbox, nessun geohash), quindi non si possono scremare
+// per zona con una query — bisogna leggere la geometria di ognuna. Il filtro
+// per attivita' taglia molto, ma resta una scansione. Con qualche centinaio
+// di tracce va bene; oltre le poche migliaia servira' un bbox sul documento
+// traccia e una query geografica.
+const { confronta: confrontaSegmenti } = require('./segment_matching');
+
+/// Le tre forme di orario che convivono nei punti: numerico dal telefono,
+/// ISO dall'orologio (Garmin/Polar/Suunto), Timestamp dai documenti vecchi.
+/// Leggerne una sola fa sparire un terzo delle tracce.
+function istantePunto(p) {
+    if (typeof p.timestamp === 'number') return p.timestamp;
+    if (p.timestamp && p.timestamp._seconds) return p.timestamp._seconds * 1000;
+    for (const k of ['time', 'timestamp', 'ts']) {
+        if (typeof p[k] === 'string') {
+            const d = Date.parse(p[k]);
+            if (!Number.isNaN(d)) return d;
+        }
+    }
+    return null;
+}
+
+async function puntiDiTraccia(ref, data) {
+    let raw = Array.isArray(data.points) && data.points.length ? data.points : null;
+    if (!raw) {
+        const g = await ref.collection('geometry').doc('data').get();
+        if (!g.exists) return [];
+        try { raw = JSON.parse(g.data().pointsJson); } catch (e) { return []; }
+    }
+    const out = [];
+    for (const p of raw) {
+        const lat = p.latitude ?? p.lat, lng = p.longitude ?? p.lng;
+        const t = istantePunto(p);
+        if (lat == null || lng == null || t == null) continue;
+        out.push({ lat: Number(lat), lng: Number(lng), t });
+    }
+    return out;
+}
+
+exports.onSegmentCreate = onDocumentCreated({
+    document: "segments/{segmentId}",
+    timeoutSeconds: 540,
+    memory: "1GiB",
+}, async (event) => {
+    const snap = event.data;
+    if (!snap) return null;
+    const x = snap.data();
+    const segmentId = event.params.segmentId;
+
+    if (x.startLat == null || x.endLat == null) {
+        logger.log(`[onSegmentCreate] ${segmentId}: senza estremi, salto`);
+        return null;
+    }
+    const seg = {
+        id: segmentId,
+        name: x.name,
+        startLat: x.startLat, startLng: x.startLng,
+        endLat: x.endLat, endLng: x.endLng,
+        distance: x.distance || 0,
+        activityType: x.activityType,
+        polyline: (x.polyline || [])
+            .map((p) => ({ lat: p.lat ?? p.latitude, lng: p.lng ?? p.longitude }))
+            .filter((p) => p.lat != null && p.lng != null),
+    };
+
+    const profili = await db.collection('user_profiles').get();
+    let esaminate = 0, scritti = 0;
+
+    for (const prof of profili.docs) {
+        const uid = prof.id;
+        const tracce = await db.collection('users').doc(uid).collection('tracks').get();
+        if (tracce.empty) continue;
+        const username = prof.data().username || 'Utente';
+        const avatarUrl = prof.data().avatarUrl || null;
+
+        for (const d of tracce.docs) {
+            const t = d.data();
+            // I percorsi pianificati col Planner non sono attivita' svolte:
+            // stessa guardia di veridicita' che usa onTrackCreate.
+            if (t.isPlanned === true) continue;
+            const punti = await puntiDiTraccia(d.ref, t);
+            if (punti.length < 2) continue;
+            esaminate++;
+
+            const risultati = confrontaSegmenti(punti, [seg], t.activityType);
+            if (!risultati.length) continue;
+            const r = risultati[0];
+
+            const gia = await snap.ref.collection('efforts')
+                .where('trackId', '==', d.id).limit(1).get();
+            if (!gia.empty) continue;
+
+            await snap.ref.collection('efforts').add({
+                userId: uid, username, avatarUrl,
+                trackId: d.id,
+                durationSeconds: r.durataSecondi,
+                distance: seg.distance,
+                averageSpeedKmh: r.velocitaMediaKmh,
+                completedAt: admin.firestore.Timestamp.fromDate(r.quando),
+                // Ricostruito dallo storico, non cronometrato dal vivo: le
+                // tracce sono decimate a 1000 punti al salvataggio, quindi il
+                // tempo puo' differire di qualche secondo (in genere piu'
+                // lento). Marcarlo permette di distinguerlo e di rifarlo.
+                fromBackfill: true,
+            });
+            scritti++;
+        }
+    }
+
+    logger.log(`[onSegmentCreate] "${seg.name}": ${esaminate} tracce esaminate, ${scritti} passaggi trovati`);
+    return null;
+});
