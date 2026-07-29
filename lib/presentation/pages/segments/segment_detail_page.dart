@@ -290,7 +290,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        '${mine.averageSpeedKmh.toStringAsFixed(1)} km/h',
+                        '${mine.averageSpeedKmh.toStringAsFixed(1)} km/h · ${_data(mine.completedAt)}',
                         style: TextStyle(fontSize: 12, color: context.textMuted),
                       ),
                     ],
@@ -302,6 +302,11 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
       ],
     );
   }
+
+  /// Data compatta: una classifica senza date non dice se un record e' di
+  /// ieri o di due anni fa, che sul confronto fra prestazioni conta.
+  String _data(DateTime d) =>
+      '${d.day}/${d.month}/${d.year.toString().substring(2)}';
 
   /// I passaggi precedenti: e' qui che si vedono progressi e cali, cosa che
   /// in classifica generale non ha posto — li' vale un tempo a testa.
@@ -337,7 +342,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '${e.completedAt.day}/${e.completedAt.month}/${e.completedAt.year}',
+                      _data(e.completedAt),
                       style: TextStyle(fontSize: 13, color: context.textSecondary),
                     ),
                   ),
@@ -463,7 +468,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '${effort.averageSpeedKmh.toStringAsFixed(1)} km/h',
+                  '${effort.averageSpeedKmh.toStringAsFixed(1)} km/h · ${_data(effort.completedAt)}',
                   style: TextStyle(fontSize: 11, color: context.textMuted),
                 ),
               ],
