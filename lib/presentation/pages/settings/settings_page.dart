@@ -1222,7 +1222,7 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
-        version: '2.9.0',
+        version: '2.9.1',
         title: 'La difficoltà dice la verità ⛰️',
         bullets: [
           'Le vie ferrate sono segnalate come tali: 323 percorsi che richiedono imbrago, casco e set da ferrata, 168 dei quali non lo dicevano nemmeno nel nome. Sulla mappa sono in rosso, e nei filtri puoi escluderle',
@@ -1231,7 +1231,7 @@ class _SettingsPageState extends State<SettingsPage> {
           'Descrizioni su 15.473 sentieri, da 9.751 che erano: cosa colleghi, quanto sali, quali rifugi incontri',
           'Filtri più onesti: puoi cercare solo fra i sentieri con difficoltà verificata, oppure vedere anche i non classificati invece di trovarli spariti. E il cursore della lunghezza non taglia più via i percorsi oltre i 30 km',
           'Segmenti cronometrati come si deve: classifiche divise per attività — niente più bici fra i podisti — un tempo a testa in graduatoria, e uno storico personale con tutti i tuoi passaggi e le date, per vedere se stai migliorando',
-          'Su un allenamento a ripetute ogni giro fa storia a sé: prima ne veniva contato uno solo',
+          'Su un allenamento a ripetute ogni giro fa storia a sé, con l\'ora in cui hai davvero tagliato il traguardo: prima veniva salvato solo il giro più veloce, e proprio i giri in cui cali sono quelli che dicono come stai andando',
           'Chi entra con email e password non si vede più chiedere uno username che aveva già scelto',
         ],
       ),

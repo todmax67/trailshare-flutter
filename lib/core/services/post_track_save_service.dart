@@ -218,8 +218,12 @@ class PostTrackSaveService {
         final segments = await _segmentsRepo.getAllSegments();
         final attempts = SegmentMatchingService.match(track, segments);
 
-        for (final attempt in attempts) {
-          // Ricava username/avatar denormalizzati
+        if (attempts.isNotEmpty) {
+          // Il profilo si legge UNA volta, non a ogni giro. Stava dentro il
+          // ciclo: finche' i passaggi erano al massimo uno per segmento la
+          // differenza non si vedeva, ma con le ripetute il ciclo gira fino
+          // a venti volte per segmento e rileggere lo stesso documento venti
+          // volte e' solo attesa in piu' fra l'arrivo e il riepilogo.
           final profileDoc = await _firestore
               .collection('user_profiles')
               .doc(user.uid)
@@ -231,41 +235,76 @@ class PostTrackSaveService {
               'Utente';
           final avatarUrl = (profileData['avatarUrl'] as String?) ?? user.photoURL;
 
-          // Top assoluto e PB precedenti
-          final topBefore = await _segmentsRepo.getTopEffort(attempt.segment.id);
-          final pbBefore = await _segmentsRepo.getUserBestEffort(attempt.segment.id, user.uid);
-
-          final isNewRecord = topBefore == null ||
-              attempt.durationSeconds < topBefore.durationSeconds;
-          final isNewPB = pbBefore == null ||
-              attempt.durationSeconds < pbBefore.durationSeconds;
-
-          // Salva l'effort solo se PB (evita clutter)
-          if (isNewPB) {
-            final effort = SegmentEffort(
-              id: '',
-              userId: user.uid,
-              username: username,
-              avatarUrl: avatarUrl,
-              trackId: trackId,
-              durationSeconds: attempt.durationSeconds,
-              distance: attempt.segment.distance,
-              averageSpeedKmh: attempt.averageSpeedKmh,
-              completedAt: DateTime.now(),
-            );
-            await _segmentsRepo.saveEffort(attempt.segment.id, effort);
+          // I giri si raggruppano per segmento: le classifiche e i primati si
+          // ragionano una volta per segmento, non una volta per giro.
+          final giriPerSegmento = <String, List<SegmentMatchAttempt>>{};
+          for (final a in attempts) {
+            giriPerSegmento.putIfAbsent(a.segment.id, () => []).add(a);
           }
 
-          segmentResults.add(SegmentMatchResult(
-            segment: attempt.segment,
-            durationSeconds: attempt.durationSeconds,
-            distance: attempt.segment.distance,
-            isNewRecord: isNewRecord,
-            isNewPB: isNewPB,
-            previousPBSeconds: pbBefore?.durationSeconds,
-          ));
+          for (final giri in giriPerSegmento.values) {
+            final seg = giri.first.segment;
+
+            // Letti una volta per segmento, PRIMA di scrivere: sono il
+            // "com'era prima di oggi". Rileggendoli dentro il ciclo dei giri
+            // il secondo giro si sarebbe confrontato col primo appena
+            // scritto, e ogni ripetuta in progressione avrebbe annunciato un
+            // nuovo record.
+            final topBefore = await _segmentsRepo.getTopEffort(seg.id);
+            final pbBefore = await _segmentsRepo.getUserBestEffort(seg.id, user.uid);
+
+            // TUTTI i passaggi, non solo i primati.
+            //
+            // Prima qui c'era `if (isNewPB)`, per "evitare clutter" in
+            // classifica. Ma la classifica ora tiene da sola un tempo a testa
+            // (getLeaderboard deduplica per utente), mentre scartare i giri
+            // piu' lenti buttava via proprio il dato che serve in un
+            // allenamento a ripetute: se stai calando giro dopo giro lo si
+            // vede solo avendoli tutti.
+            for (final attempt in giri) {
+              final effort = SegmentEffort(
+                id: '',
+                userId: user.uid,
+                username: username,
+                avatarUrl: avatarUrl,
+                trackId: trackId,
+                durationSeconds: attempt.durationSeconds,
+                distance: seg.distance,
+                averageSpeedKmh: attempt.averageSpeedKmh,
+                // L'ora in cui si e' TAGLIATO IL TRAGUARDO, letta dalla
+                // traccia. DateTime.now() era l'ora del salvataggio:
+                // sbagliata su una traccia sincronizzata dall'orologio a
+                // fine giornata, e uguale per tutti i giri dell'uscita.
+                completedAt: track.points[attempt.endIdx].timestamp,
+                // Niente trackStartIdx: e' un indice sui punti a piena
+                // risoluzione, mentre il server legge la traccia decimata a
+                // mille punti e ne calcolerebbe un altro. Vedi il commento
+                // sul campo in segment.dart.
+                passIndex: attempt.passIndex,
+              );
+              await _segmentsRepo.saveEffort(seg.id, effort);
+            }
+
+            // UN risultato per segmento, col migliore dei giri: e' quello che
+            // si confronta col passato ed e' quello che si annuncia.
+            final migliore = giri.reduce(
+                (a, b) => a.durationSeconds <= b.durationSeconds ? a : b);
+
+            segmentResults.add(SegmentMatchResult(
+              segment: seg,
+              durationSeconds: migliore.durationSeconds,
+              distance: seg.distance,
+              isNewRecord: topBefore == null ||
+                  migliore.durationSeconds < topBefore.durationSeconds,
+              isNewPB: pbBefore == null ||
+                  migliore.durationSeconds < pbBefore.durationSeconds,
+              previousPBSeconds: pbBefore?.durationSeconds,
+              passCount: giri.length,
+            ));
+          }
         }
-        debugPrint('[PostTrackSave] 🏁 Segmenti completati: ${segmentResults.length}');
+        debugPrint('[PostTrackSave] 🏁 Segmenti: ${segmentResults.length}, '
+            'passaggi totali: ${attempts.length}');
       } catch (e) {
         debugPrint('[PostTrackSave] ❌ Errore segmenti: $e');
       }

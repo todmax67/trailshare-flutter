@@ -7644,16 +7644,29 @@ exports.onSegmentCreate = onDocumentCreated({
             if (!risultati.length) continue;
 
             // Una traccia puo' produrre PIU' passaggi sullo stesso segmento:
-            // allenamento a ripetute, anello ripercorso. La chiave e' l'indice
-            // di partenza, non il solo trackId.
+            // allenamento a ripetute, anello ripercorso.
+            //
+            // La chiave e' PASSINDEX, non l'indice di partenza. trackStartIdx
+            // e' l'indice del punto dentro la traccia, e le due sponde contano
+            // punti diversi: l'app confronta sui punti a piena risoluzione che
+            // ha in memoria, qui si legge la traccia salvata, decimata a mille
+            // punti. Deduplicando su quello, nessuno sforzo scritto dall'app
+            // sarebbe mai stato riconosciuto e ogni giro finiva scritto due
+            // volte. passIndex e' un ordinale — primo giro, secondo giro — e
+            // vale uguale da entrambe le parti.
             const gia = await snap.ref.collection('efforts')
                 .where('trackId', '==', d.id).get();
-            const indici = new Set(gia.docs.map((e) =>
-                e.data().trackStartIdx !== undefined ? e.data().trackStartIdx : 0));
+            const indici = new Set(gia.docs.map((e) => {
+                const x = e.data();
+                // Gli sforzi scritti prima della 2.9.1 non hanno passIndex:
+                // erano per forza uno solo per traccia, quindi valgono come
+                // primo giro.
+                return x.passIndex !== undefined ? x.passIndex : 0;
+            }));
 
             for (const r of risultati) {
-            if (indici.has(r.iPartenza)) continue;
-            indici.add(r.iPartenza);
+            if (indici.has(r.indicePassaggio)) continue;
+            indici.add(r.indicePassaggio);
 
             await snap.ref.collection('efforts').add({
                 userId: uid, username, avatarUrl,

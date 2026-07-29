@@ -21,6 +21,11 @@ class SegmentDetailPage extends StatefulWidget {
 
 class _SegmentDetailPageState extends State<SegmentDetailPage> {
   final SegmentsRepository _repo = SegmentsRepository();
+  /// Quante posizioni tiene la classifica. Deve combaciare col `limit` di
+  /// [SegmentsRepository.getLeaderboard]: il riquadro in cima dice "10+"
+  /// quando e' piena, invece di far credere che gli atleti siano dieci.
+  static const int _maxClassifica = 10;
+
   List<SegmentEffort> _leaderboard = [];
   SegmentEffort? _myBest;
   List<SegmentEffort> _mieiTentativi = const [];
@@ -142,7 +147,18 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
             const SizedBox(width: 12),
             _stat(Icons.trending_up, '+${seg.elevationGain.round()} m', 'Dislivello'),
             const SizedBox(width: 12),
-            _stat(Icons.people, '${_leaderboard.length}', 'Tentativi'),
+            // "Tentativi" era rimasto indietro rispetto a cosa conta questo
+            // numero: la classifica tiene un tempo a testa, quindi sono le
+            // PERSONE in graduatoria. Con dieci ripetute in un pomeriggio
+            // avrebbe detto "1 tentativo". Il tetto della classifica e' 10:
+            // oltre, si dice "10+" invece di far credere che siano dieci.
+            _stat(
+              Icons.people,
+              _leaderboard.length >= _maxClassifica
+                  ? '$_maxClassifica+'
+                  : '${_leaderboard.length}',
+              'In classifica',
+            ),
           ],
         ),
       ),

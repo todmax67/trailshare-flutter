@@ -39,6 +39,10 @@ class _SegmentResultsDialog extends StatelessWidget {
                 const Icon(Icons.flag, color: AppColors.primary, size: 28),
                 const SizedBox(width: 10),
                 Text(
+                  // Si conta per SEGMENTO. Ogni riga e' un segmento, e i giri
+                  // multipli stanno dentro la riga: contare i passaggi qui
+                  // faceva dire "8 segmenti completati" a chi aveva fatto
+                  // otto ripetute su una salita sola.
                   results.length == 1
                       ? 'Segmento completato'
                       : '${results.length} segmenti completati',
@@ -148,6 +152,18 @@ class _SegmentResultsDialog extends StatelessWidget {
                 '${(r.distance / 1000).toStringAsFixed(2)} km',
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
+              // Le ripetute: il tempo mostrato e' il migliore dei giri, e
+              // senza dirlo sembrerebbe l'unico. Gli altri stanno nello
+              // storico del segmento, giro per giro.
+              if (r.passCount > 1) ...[
+                const SizedBox(width: 10),
+                Icon(Icons.repeat, size: 14, color: AppColors.textMuted),
+                const SizedBox(width: 4),
+                Text(
+                  '${r.passCount} giri, il migliore',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
             ],
           ),
           if (improvement != null && improvement > 0) ...[

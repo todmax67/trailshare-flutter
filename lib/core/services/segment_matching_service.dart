@@ -12,13 +12,27 @@ class SegmentMatchAttempt {
   final int durationSeconds;
   final double averageSpeedKmh;
 
+  /// Quale giro e', dentro questa uscita: 0 il primo. GEMELLO di
+  /// `indicePassaggio` in functions/segment_matching.js.
+  final int passIndex;
+
   const SegmentMatchAttempt({
     required this.segment,
     required this.startIdx,
     required this.endIdx,
     required this.durationSeconds,
     required this.averageSpeedKmh,
+    this.passIndex = 0,
   });
+
+  SegmentMatchAttempt conPassaggio(int i) => SegmentMatchAttempt(
+        segment: segment,
+        startIdx: startIdx,
+        endIdx: endIdx,
+        durationSeconds: durationSeconds,
+        averageSpeedKmh: averageSpeedKmh,
+        passIndex: i,
+      );
 }
 
 /// Servizio puro (stateless) che, data una [Track] appena salvata e la lista
@@ -106,7 +120,7 @@ class SegmentMatchingService {
     while (out.length < max) {
       final r = _matchSingle(track, seg, da);
       if (r == null) break;
-      out.add(r);
+      out.add(r.conPassaggio(out.length));
       da = r.endIdx + 1; // sempre in avanti: niente cicli infiniti
     }
     return out;

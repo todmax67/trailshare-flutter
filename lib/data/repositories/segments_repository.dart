@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -95,16 +97,28 @@ class SegmentsRepository {
           .collectionGroup('efforts')
           .where('trackId', isEqualTo: trackId)
           .get();
-      final out = <({Segment segment, SegmentEffort effort})>[];
+      // UN elemento per SEGMENTO, col passaggio migliore.
+      //
+      // La query torna un documento per passaggio: da quando un allenamento a
+      // ripetute ne scrive fino a venti sullo stesso segmento, restituirli
+      // tutti faceva comparire venti volte lo stesso nome nella scheda della
+      // traccia, e rileggeva venti volte lo stesso documento di segmento.
+      final migliori = <String, SegmentEffort>{};
       for (final d in snap.docs) {
         final segRef = d.reference.parent.parent;
         if (segRef == null) continue;
-        final seg = await segRef.get();
+        final e = SegmentEffort.fromFirestore(d);
+        final attuale = migliori[segRef.id];
+        if (attuale == null || e.durationSeconds < attuale.durationSeconds) {
+          migliori[segRef.id] = e;
+        }
+      }
+
+      final out = <({Segment segment, SegmentEffort effort})>[];
+      for (final voce in migliori.entries) {
+        final seg = await _segmentsCol.doc(voce.key).get();
         if (!seg.exists) continue;
-        out.add((
-          segment: Segment.fromFirestore(seg),
-          effort: SegmentEffort.fromFirestore(d),
-        ));
+        out.add((segment: Segment.fromFirestore(seg), effort: voce.value));
       }
       return out;
     } catch (e) {
@@ -196,23 +210,41 @@ class SegmentsRepository {
   /// privi del campo — cioe' tutti quelli scritti prima della correzione.
   Future<List<SegmentEffort>> getLeaderboard(String segmentId, {int limit = 10}) async {
     try {
-      final snap = await _effortsCol(segmentId)
-          .orderBy('durationSeconds')
-          .limit(limit * 4)
-          .get();
       // UN TEMPO A TESTA. In graduatoria vale il record di ciascuno: i tuoi
       // passaggi successivi sono progressi tuoi, non concorrenti in piu'.
       // Chi ha corso dieci volte occuperebbe dieci posizioni e la classifica
       // direbbe chi si allena, non chi va forte. Lo storico personale sta in
       // [getUserEfforts].
+      //
+      // Si PAGINA invece di leggere una finestra sola. Da quando si scrivono
+      // tutti i passaggi e non piu' solo i primati, una persona che ripete
+      // dieci volte lo stesso tratto occupa da sola i primi documenti per
+      // tempo: con una finestra fissa la classifica si sarebbe fermata a due
+      // o tre nomi, e sarebbe sembrato che non ci fosse nessun altro. Il
+      // tetto di pagine evita che un segmento molto frequentato si porti
+      // dietro la lettura dell'intera sottocollezione.
+      const maxPagine = 5;
       final visti = <String>{};
       final out = <SegmentEffort>[];
-      for (final d in snap.docs) {
-        if (d.data()['activityMismatch'] == true) continue;
-        final uid = d.data()['userId']?.toString() ?? d.id;
-        if (!visti.add(uid)) continue;      // gia' presente col tempo migliore
-        out.add(SegmentEffort.fromFirestore(d));
-        if (out.length >= limit) break;
+      final dimensionePagina = limit * 4;
+      DocumentSnapshot<Map<String, dynamic>>? ultimo;
+
+      for (var pagina = 0; pagina < maxPagine && out.length < limit; pagina++) {
+        Query<Map<String, dynamic>> q =
+            _effortsCol(segmentId).orderBy('durationSeconds').limit(dimensionePagina);
+        if (ultimo != null) q = q.startAfterDocument(ultimo);
+        final snap = await q.get();
+        if (snap.docs.isEmpty) break;
+        ultimo = snap.docs.last;
+
+        for (final d in snap.docs) {
+          if (d.data()['activityMismatch'] == true) continue;
+          final uid = d.data()['userId']?.toString() ?? d.id;
+          if (!visti.add(uid)) continue;    // gia' presente col tempo migliore
+          out.add(SegmentEffort.fromFirestore(d));
+          if (out.length >= limit) break;
+        }
+        if (snap.docs.length < dimensionePagina) break;  // sottocollezione esaurita
       }
       return out;
     } catch (e) {
@@ -286,8 +318,23 @@ class SegmentsRepository {
   /// Salva un nuovo effort.
   Future<bool> saveEffort(String segmentId, SegmentEffort effort) async {
     try {
-      await _effortsCol(segmentId).add(effort.toFirestoreCreate());
+      // Con la persistenza offline attiva (main.dart) il Future di una
+      // scrittura si completa solo quando il server conferma: senza rete
+      // resterebbe appeso per sempre, e chi torna da un'uscita in valle non
+      // vedrebbe mai il riepilogo di fine giro perche' il salvataggio dei
+      // segmenti non ha mai restituito. Con le ripetute le scritture sono
+      // fino a venti, quindi venti attese potenzialmente infinite in fila.
+      // Stessa medicina di tracks_repository.dart:146 per batch.commit().
+      // Il documento resta comunque in coda e parte da solo al ritorno della
+      // rete: il timeout molla l'attesa, non la scrittura.
+      await _effortsCol(segmentId)
+          .add(effort.toFirestoreCreate())
+          .timeout(const Duration(seconds: 5));
       return true;
+    } on TimeoutException {
+      debugPrint('[Segments] saveEffort: nessuna conferma dal server entro 5s '
+          '(scrittura in coda, riparte con la rete)');
+      return false;
     } catch (e) {
       debugPrint('[Segments] Errore saveEffort: $e');
       return false;

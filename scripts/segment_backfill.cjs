@@ -19,7 +19,7 @@
 //   node scripts/segment_backfill.cjs [--utente UID]
 const admin = require('../functions/node_modules/firebase-admin');
 const sa = require('../functions/serviceAccountKey.json');
-const { confronta, confrontaSingolo } = require('../functions/segment_matching');
+const { confronta, passaggi } = require('../functions/segment_matching');
 
 admin.initializeApp({ credential: admin.credential.cert(sa) });
 const db = admin.firestore();
@@ -102,7 +102,14 @@ async function verifica(segmenti) {
       if (!tSnap.exists) continue;
       const punti = await puntiDi(tRef, tSnap.data());
       if (punti.length < 2) continue;
-      const r = confrontaSingolo(punti, seg);
+      // Si confronta il giro GIUSTO. Prima si prendeva sempre il primo
+      // passaggio: da quando l'app scrive tutti i giri di un allenamento a
+      // ripetute, confrontare il secondo giro col primo dava divergenze
+      // inventate — e la prova di fedelta' e' proprio cio' che dice se ci si
+      // puo' fidare del gemello prima di scrivere.
+      const tutti = passaggi(punti, seg);
+      const iGiro = y.passIndex !== undefined ? y.passIndex : 0;
+      const r = tutti[iGiro] || null;
       confrontati++;
       if (r && r.durataSecondi === y.durationSeconds) uguali++;
       else diversi.push({ seg: seg.name, atteso: y.durationSeconds,
@@ -157,15 +164,21 @@ async function verifica(segmenti) {
       for (const r of confronta(punti, segmenti, x.activityType)) {
         const effCol = db.collection('segments').doc(r.segmento.id).collection('efforts');
         // Una traccia puo' ora produrre PIU' passaggi sullo stesso segmento
-        // (allenamento a ripetute, anello ripercorso): la chiave e' l'indice
-        // di partenza, non il solo trackId. Gli sforzi scritti prima non ce
-        // l'hanno: valgono per il primo passaggio, cosi' non si duplicano.
+        // (allenamento a ripetute, anello ripercorso).
+        //
+        // La chiave e' PASSINDEX, non trackStartIdx. Quest'ultimo e' l'indice
+        // del punto dentro la traccia, e le due sponde contano punti diversi:
+        // l'app confronta sui punti a piena risoluzione che tiene in memoria,
+        // questo script legge la traccia salvata, decimata a mille punti. Un
+        // indice del client non combacia mai con uno calcolato qui, e ogni
+        // giro sarebbe stato riscritto. passIndex e' un ordinale e vale
+        // uguale da entrambe le parti.
+        // Gli sforzi scritti prima della 2.9.1 non ce l'hanno: erano per forza
+        // uno solo per traccia, quindi valgono come primo giro.
         const esistenti = await effCol.where('trackId', '==', d.id).get();
         const indici = new Set(esistenti.docs.map((e) =>
-          e.data().trackStartIdx !== undefined ? e.data().trackStartIdx : 0));
-        if (indici.has(r.iPartenza) || (r.indicePassaggio === 0 && indici.has(0))) {
-          gia++; continue;
-        }
+          e.data().passIndex !== undefined ? e.data().passIndex : 0));
+        if (indici.has(r.indicePassaggio)) { gia++; continue; }
         nuovi++;
         console.log(`${DRY ? '·' : '✓'} ${String(x.name || '?').slice(0, 30).padEnd(32)} → ` +
           `${String(r.segmento.name).slice(0, 26).padEnd(28)} ${String(r.durataSecondi).padStart(5)}s  ${username}`);

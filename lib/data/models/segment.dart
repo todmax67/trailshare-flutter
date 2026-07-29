@@ -120,6 +120,23 @@ class SegmentEffort {
   final double averageSpeedKmh;
   final DateTime completedAt;
 
+  /// Indice del punto di partenza dentro la traccia.
+  ///
+  /// LO SCRIVE SOLO IL LATO SERVER (Cloud Function e recupero storico), che
+  /// legge la traccia COME E' SALVATA. L'app confronta invece sui punti in
+  /// memoria a piena risoluzione, mentre su Firestore ne finiscono al massimo
+  /// mille (`_downsamplePoints`): lo stesso passaggio ha quindi due indici
+  /// diversi, e un indice del client non combacerebbe mai con quello del
+  /// server. Per distinguere i giri fra le due sponde si usa [passIndex],
+  /// che e' un ordinale e non dipende da quanti punti sono rimasti.
+  final int? trackStartIdx;
+
+  /// Quale giro e', dentro quella uscita: 0 il primo. GEMELLO di
+  /// `indicePassaggio` in functions/segment_matching.js. E' la chiave con cui
+  /// il recupero storico riconosce i passaggi gia' scritti.
+  /// Assente sugli sforzi scritti prima della 2.9.1.
+  final int? passIndex;
+
   const SegmentEffort({
     required this.id,
     required this.userId,
@@ -130,6 +147,8 @@ class SegmentEffort {
     required this.distance,
     required this.averageSpeedKmh,
     required this.completedAt,
+    this.trackStartIdx,
+    this.passIndex,
   });
 
   factory SegmentEffort.fromFirestore(DocumentSnapshot doc) {
@@ -144,6 +163,8 @@ class SegmentEffort {
       distance: (data['distance'] as num?)?.toDouble() ?? 0,
       averageSpeedKmh: (data['averageSpeedKmh'] as num?)?.toDouble() ?? 0,
       completedAt: (data['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      trackStartIdx: (data['trackStartIdx'] as num?)?.toInt(),
+      passIndex: (data['passIndex'] as num?)?.toInt(),
     );
   }
 
@@ -155,7 +176,15 @@ class SegmentEffort {
         'durationSeconds': durationSeconds,
         'distance': distance,
         'averageSpeedKmh': averageSpeedKmh,
-        'completedAt': FieldValue.serverTimestamp(),
+        // L'ORA DEL PASSAGGIO, non quella della scrittura. Con
+        // FieldValue.serverTimestamp() i giri di una stessa uscita finivano
+        // tutti allo stesso istante e lo storico personale non poteva piu'
+        // dire quale venisse prima — cioe' proprio il confronto fra un giro
+        // e l'altro. Su una traccia sincronizzata dall'orologio a fine
+        // giornata l'ora del server e' anche l'ora sbagliata.
+        'completedAt': Timestamp.fromDate(completedAt),
+        if (trackStartIdx != null) 'trackStartIdx': trackStartIdx,
+        if (passIndex != null) 'passIndex': passIndex,
       };
 
   String get durationFormatted {
@@ -176,12 +205,20 @@ class SegmentMatchResult {
   final bool isNewPB; // record personale dell'utente
   final int? previousPBSeconds;
 
+  /// Quanti giri su questo segmento in questa uscita. UNO risultato per
+  /// segmento, non uno per giro: otto ripetute sulla stessa salita sono un
+  /// segmento fatto otto volte, e il riepilogo che diceva "8 segmenti
+  /// completati" elencando otto volte lo stesso nome era semplicemente falso.
+  /// [durationSeconds] e' il MIGLIORE dei giri.
+  final int passCount;
+
   const SegmentMatchResult({
     required this.segment,
     required this.durationSeconds,
     required this.distance,
     this.isNewRecord = false,
     this.isNewPB = false,
+    this.passCount = 1,
     this.previousPBSeconds,
   });
 
