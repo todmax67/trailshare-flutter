@@ -38,6 +38,28 @@ class SegmentMatchingService {
   static const double _avgPolylineTolerance = 40;
   static const double _maxPolylineTolerance = 80;
 
+  /// Attività confrontabili fra loro. Un segmento di corsa non ha senso in
+  /// bici: si va molto più forte e ogni passaggio diventa un primato — è il
+  /// motivo per cui il founder vedeva "record personale" su qualsiasi
+  /// attività. Ma corsa e trail running sulla stessa salita sono la stessa
+  /// gara, e camminare è la versione lenta di correre: separarli darebbe
+  /// classifiche vuote. Sci ed e-bike stanno per conto loro.
+  ///
+  /// GEMELLO di FAMIGLIE in functions/segment_matching.js: cambiarne uno
+  /// solo fa divergere l'app dal recupero storico.
+  static const _famiglie = <List<String>>[
+    ['trekking', 'walking', 'running', 'trailRunning'],
+    ['cycling', 'gravelBiking', 'mountainBiking'],
+    ['eBike', 'eMountainBike'],
+    ['skiTouring', 'alpineSkiing', 'nordicSkiing', 'snowboarding', 'snowshoeing'],
+  ];
+
+  static bool _attivitaCompatibili(String? a, String? b) {
+    if (a == null || b == null || a.isEmpty || b.isEmpty) return true;
+    if (a == b) return true;
+    return _famiglie.any((f) => f.contains(a) && f.contains(b));
+  }
+
   static List<SegmentMatchAttempt> match(Track track, List<Segment> segments) {
     final results = <SegmentMatchAttempt>[];
     if (track.points.length < 2 || segments.isEmpty) return results;
@@ -52,6 +74,11 @@ class SegmentMatchingService {
     }
 
     for (final seg in segments) {
+      // Un segmento di un'altra famiglia di attività non si confronta:
+      // altrimenti una pedalata entra nella classifica dei podisti.
+      if (!_attivitaCompatibili(track.activityType.name, seg.activityType)) {
+        continue;
+      }
       // Early out: startPoint del segment deve essere nel bbox (con padding)
       const pad = 0.01; // ~1km
       if (seg.startLat < minLat - pad || seg.startLat > maxLat + pad) continue;

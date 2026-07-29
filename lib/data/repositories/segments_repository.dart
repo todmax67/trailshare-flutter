@@ -208,10 +208,11 @@ class SegmentsRepository {
       final snap = await _effortsCol(segmentId)
           .where('userId', isEqualTo: userId)
           .orderBy('durationSeconds')
-          .limit(1)
+          .limit(20)
           .get();
-      if (snap.docs.isEmpty) return null;
-      return SegmentEffort.fromFirestore(snap.docs.first);
+      final validi = snap.docs.where((d) => d.data()['activityMismatch'] != true);
+      if (validi.isEmpty) return null;
+      return SegmentEffort.fromFirestore(validi.first);
     } catch (e) {
       debugPrint('[Segments] Errore getUserBestEffort: $e');
       return null;
@@ -219,14 +220,21 @@ class SegmentsRepository {
   }
 
   /// Miglior effort assoluto (qualsiasi utente) su un segmento.
+  /// Gli sforzi registrati con un'attività incompatibile col segmento sono
+  /// marcati `activityMismatch` e non entrano in classifica: 13 dei 16
+  /// esistenti erano pedalate in e-bike su segmenti di corsa, e vincendo
+  /// sempre rendevano la graduatoria priva di senso. Si filtra in memoria
+  /// perché gli sforzi per segmento sono pochi e una disuguaglianza su
+  /// Firestore escluderebbe anche i documenti privi del campo.
   Future<SegmentEffort?> getTopEffort(String segmentId) async {
     try {
       final snap = await _effortsCol(segmentId)
           .orderBy('durationSeconds')
-          .limit(1)
+          .limit(20)
           .get();
-      if (snap.docs.isEmpty) return null;
-      return SegmentEffort.fromFirestore(snap.docs.first);
+      final validi = snap.docs.where((d) => d.data()['activityMismatch'] != true);
+      if (validi.isEmpty) return null;
+      return SegmentEffort.fromFirestore(validi.first);
     } catch (e) {
       debugPrint('[Segments] Errore getTopEffort: $e');
       return null;
