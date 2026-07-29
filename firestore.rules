@@ -712,6 +712,15 @@ service cloud.firestore {
       allow read: if request.auth != null;
     }
 
+    // Collection group query per i segmenti ATTRAVERSATI da una traccia.
+    // La regola sul percorso diretto (segments/{id}/efforts/{id}) non basta:
+    // una query di gruppo viene valutata contro {path=**} e senza questa
+    // regola il client si vede negare la lettura — la sezione restava vuota
+    // anche con l'indice a posto e i dati presenti.
+    match /{path=**}/efforts/{effortId} {
+      allow read: if request.auth != null;
+    }
+
     // --- REGOLE GRUPPI ---
     match /groups/{groupId} {
       allow read: if request.auth != null;
