@@ -47,6 +47,24 @@ async function caricaSegmenti() {
   return out;
 }
 
+/// L'orario di un punto, in millisecondi. Tre forme convivono:
+///   `timestamp` numerico   — registrazione dal telefono
+///   `time` stringa ISO     — sincronizzazione dall'orologio (Garmin, Polar)
+///   Timestamp di Firestore — documenti piu' vecchi
+/// Leggendo solo la prima, ogni traccia registrata al polso risultava priva
+/// di orari e spariva dal recupero: 220 punti buttati per un nome di campo.
+function istante(p) {
+  if (typeof p.timestamp === 'number') return p.timestamp;
+  if (p.timestamp && p.timestamp._seconds) return p.timestamp._seconds * 1000;
+  for (const k of ['time', 'timestamp', 'ts']) {
+    if (typeof p[k] === 'string') {
+      const d = Date.parse(p[k]);
+      if (!Number.isNaN(d)) return d;
+    }
+  }
+  return null;
+}
+
 /// I punti stanno inline sulle tracce vecchie e in geometry/data su quelle
 /// migrate (lo spostamento che ha risolto la saturazione della cache).
 async function puntiDi(ref, x) {
@@ -59,10 +77,9 @@ async function puntiDi(ref, x) {
   const out = [];
   for (const p of raw) {
     const lat = p.latitude ?? p.lat, lng = p.longitude ?? p.lng;
-    const t = typeof p.timestamp === 'number' ? p.timestamp
-      : (p.timestamp && p.timestamp._seconds ? p.timestamp._seconds * 1000 : null);
+    const t = istante(p);
     if (lat == null || lng == null || t == null) continue;
-    out.push({ lat: Number(lat), lng: Number(lng), t: Number(t) });
+    out.push({ lat: Number(lat), lng: Number(lng), t });
   }
   return out;
 }
