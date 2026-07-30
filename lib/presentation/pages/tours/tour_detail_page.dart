@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../../core/utils/durata_percorrenza.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
@@ -36,6 +37,12 @@ class _TourDetailPageState extends State<TourDetailPage> {
   List<Track> _tracks = [];
   bool _loading = true;
 
+  /// Tappe con la geometria completa e le quote, per il solo grafico
+  /// altimetrico. Arriva dopo il primo render: le tappe da catalogo hanno in
+  /// [_tracks] i punti decimati 2D, che non bastano al grafico. Finche' e'
+  /// null il grafico non viene mostrato.
+  List<Track>? _tracksConQuote;
+
   // Palette di colori per differenziare le tappe sulla mappa.
   static const _stageColors = <Color>[
     Color(0xFF1976D2),
@@ -67,8 +74,32 @@ class _TourDetailPageState extends State<TourDetailPage> {
     setState(() {
       _tour = tour;
       _tracks = tracks;
+      _tracksConQuote = null;
       _loading = false;
     });
+    _caricaQuoteGrafico(tour, tracks);
+  }
+
+  /// Seconda passata, fuori dal percorso critico: scarica la geometria
+  /// completa delle tappe da catalogo solo per alimentare il grafico
+  /// altimetrico. Se non c'e' nulla da idratare ritorna la stessa lista e il
+  /// grafico compare subito.
+  Future<void> _caricaQuoteGrafico(Tour tour, List<Track> tracks) async {
+    if (tour.type != TourType.consecutive) return;
+    final conQuote = await _repo.hydrateStageElevations(tour, tracks);
+    if (!mounted || _tour?.id != tour.id) return;
+    setState(() => _tracksConQuote = conQuote);
+  }
+
+  /// La tappa da aprire in detail: quella con le quote se l'hydration e' già
+  /// arrivata, altrimenti quella leggera. Gli indici combaciano perche'
+  /// [hydrateStageElevations] preserva ordine e lunghezza della lista.
+  Track _tappaPerDetail(int i) {
+    final conQuote = _tracksConQuote;
+    if (conQuote != null && i < conQuote.length && conQuote[i].id == _tracks[i].id) {
+      return conQuote[i];
+    }
+    return _tracks[i];
   }
 
   Future<void> _shareWebLink(Tour tour) async {
@@ -127,9 +158,9 @@ class _TourDetailPageState extends State<TourDetailPage> {
     }
 
     final tour = _tour!;
-    final hours = tour.totalDuration.inHours;
-    final mins = tour.totalDuration.inMinutes % 60;
-    final durStr = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
+    // Solo se sta in giornata: i giorni sono già nel chip delle tappe qui
+    // sopra, e "64h 6m" non è un'informazione con cui si pianifica.
+    final durStr = durataInGiornata(tour.totalDuration);
 
     return Scaffold(
       appBar: AppBar(
@@ -196,7 +227,7 @@ class _TourDetailPageState extends State<TourDetailPage> {
                     ),
                     _stat(Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
                     _stat(Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
-                    if (tour.totalDuration.inMinutes > 0) _stat(Icons.schedule, durStr),
+                    if (durStr != null) _stat(Icons.schedule, durStr),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -207,8 +238,10 @@ class _TourDetailPageState extends State<TourDetailPage> {
                 // elevation).
                 // Per le collezioni le tracce sono indipendenti: il
                 // grafico cumulativo sarebbe fuorviante.
-                if (_tracks.isNotEmpty && tour.type == TourType.consecutive) ...[
-                  MultiStageElevationChart.fromTracks(_tracks),
+                if (_tracksConQuote != null &&
+                    _tracksConQuote!.isNotEmpty &&
+                    tour.type == TourType.consecutive) ...[
+                  MultiStageElevationChart.fromTracks(_tracksConQuote!),
                   const SizedBox(height: 20),
                 ],
                 // Epic 11 — sezioni ricche: chip difficoltà/periodo,
@@ -228,9 +261,14 @@ class _TourDetailPageState extends State<TourDetailPage> {
                       index: i + 1,
                       track: _tracks[i],
                       color: _stageColors[i % _stageColors.length],
+                      // Se le quote sono già arrivate passa la versione
+                      // completa, così la detail della tappa ha il suo
+                      // grafico altimetrico invece di "nessun dato".
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => TrackDetailPage(track: _tracks[i])),
+                        MaterialPageRoute(
+                          builder: (_) => TrackDetailPage(track: _tappaPerDetail(i)),
+                        ),
                       ),
                     ),
                   ),

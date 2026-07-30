@@ -654,6 +654,9 @@ class PublicTrailsRepository {
         points: points,
         length: (data['distance'] as num?)?.toDouble(),
         elevationGain: (data['elevationGain'] as num?)?.toDouble(),
+        elevationLoss: (data['elevationLoss'] as num?)?.toDouble(),
+        minAltitude: (data['minAltitude'] as num?)?.toDouble(),
+        maxAltitude: (data['maxAltitude'] as num?)?.toDouble(),
         region: data['region']?.toString(),
         isCircular: data['isCircular'] == true,
         quality: data['quality']?.toString(),
@@ -964,6 +967,15 @@ class PublicTrail {
   final List<TrackPoint> points;
   final double? length;
   final double? elevationGain;
+
+  /// Dislivello negativo e quote min/max del catalogo. Esistono sul doc ma
+  /// finora nessuno li leggeva: le tappe di un tour prese da qui mostravano
+  /// Max 0 / Min 0 perche' [points] arriva da `simplifiedPoints`, che e'
+  /// 2D e non permette di ricavarli dai punti.
+  final double? elevationLoss;
+  final double? minAltitude;
+  final double? maxAltitude;
+
   final String? region;
   final bool isCircular;
   final String? quality;
@@ -1027,6 +1039,9 @@ class PublicTrail {
     required this.points,
     this.length,
     this.elevationGain,
+    this.elevationLoss,
+    this.minAltitude,
+    this.maxAltitude,
     this.region,
     this.isCircular = false,
     this.quality,

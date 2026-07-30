@@ -474,12 +474,23 @@ class ToursRepository {
   /// prima versione la teneva solo nell'editor, e la scheda restava vuota.
   Future<List<Track>> loadTourTracks(Tour tour) async {
     final daTracce = await _loadTracksInOrder(tour.trackIds);
-    if (tour.stageSources.isEmpty) return daTracce;
-
     final perId = {for (final t in daTracce) t.id: t};
     final out = <Track>[];
     for (final id in tour.trackIds) {
-      if (tour.stageSources[id] == 'public_trail') {
+      // Prima le tracce dell'utente, poi il catalogo.
+      //
+      // NON ci si affida a `stageSources` per decidere: quel campo e' nato il
+      // 28/07 alle 19:07, e i tour creati poco prima con tappe dal catalogo lo
+      // hanno vuoto. Con un gate su quel campo le loro tappe sparivano del
+      // tutto — la lista tornava vuota perche' `users/{uid}/tracks/wmt_*` non
+      // esiste. Provare entrambe le fonti costa una lettura e rende il tour
+      // indipendente da come e' stato scritto il doc.
+      final tracciaUtente = perId[id];
+      if (tracciaUtente != null) {
+        out.add(tracciaUtente);
+        continue;
+      }
+      {
         final t = await _trailRepo.getTrailById(id);
         if (t == null) continue;
         out.add(Track(
@@ -489,14 +500,67 @@ class ToursRepository {
           activityType: t.parsedActivityType,
           createdAt: DateTime.now(),
           isPlanned: true,
+          // Le quote NON si possono ricavare da `points`: qui arrivano da
+          // `simplifiedPoints`, 2D. Vanno lette dai campi del catalogo,
+          // altrimenti la detail della tappa mostra Max 0 / Min 0 / durata 0.
           stats: TrackStats(
             distance: t.length ?? 0,
             elevationGain: t.elevationGain ?? 0,
+            elevationLoss: t.elevationLoss ?? 0,
+            maxElevation: t.maxAltitude ?? 0,
+            minElevation: t.minAltitude ?? 0,
+            duration: Duration(seconds: ((t.oreStimate ?? 0) * 3600).round()),
           ),
         ));
-      } else if (perId[id] != null) {
-        out.add(perId[id]!);
       }
+    }
+    return out;
+  }
+
+  /// Ricarica le tappe da catalogo con la geometria COMPLETA e le quote.
+  ///
+  /// [loadTourTracks] usa `simplifiedPoints` (~30 punti, 2D): abbastanza per
+  /// la lista tappe e la polilinea in mappa, e leggero da caricare. Il grafico
+  /// altimetrico invece ha bisogno delle quote, che stanno solo in
+  /// `public_trail_geometries/{id}.coordinatesJson` (~900 punti, 3D).
+  ///
+  /// Va chiamato DOPO il primo render, non al posto di [loadTourTracks]: un
+  /// tour di 7 tappe passa da ~200 a ~6000 punti e l'apertura si sentirebbe.
+  /// Ritorna la lista invariata se non c'e' niente da idratare.
+  Future<List<Track>> hydrateStageElevations(Tour tour, List<Track> tracks) async {
+    final out = <Track>[];
+    var idratate = 0;
+    for (final t in tracks) {
+      final id = t.id;
+      // Come in [loadTourTracks]: niente gate su `stageSources`, che sui tour
+      // creati prima del 28/07 e' vuoto. Si tenta la geometria di catalogo e
+      // se il doc non c'e' si tiene la traccia leggera. Costa una lettura per
+      // tappa, ma gira dopo il primo render, fuori dal percorso critico.
+      if (id == null) {
+        out.add(t);
+        continue;
+      }
+      try {
+        final completi = await _trailRepo.getFullGeometry(id);
+        // NON basta `elevation != null`: parte del catalogo ha geometrie 3D
+        // con tutte le quote a 0 (struttura presente, valori mai popolati).
+        // Passandole al grafico si otterrebbe una riga piatta a zero, che e'
+        // peggio del messaggio "dati non disponibili". Serve una quota vera.
+        final conQuota = completi != null &&
+            completi.any((p) => p.elevation != null && p.elevation != 0);
+        if (completi != null && completi.length >= 2 && conQuota) {
+          out.add(t.copyWith(points: completi));
+          idratate++;
+        } else {
+          out.add(t);
+        }
+      } catch (e) {
+        debugPrint('[ToursRepository] hydration quote fallita per $id: $e');
+        out.add(t);
+      }
+    }
+    if (idratate > 0) {
+      debugPrint('[ToursRepository] quote idratate per $idratate tappe da catalogo');
     }
     return out;
   }
