@@ -386,6 +386,49 @@ class TrackPhotoMetadata {
 }
 
 
+/// Un giro chiuso DAL DISPOSITIVO durante la registrazione.
+///
+/// Diverso dai giri che la scheda calcola da sola ogni chilometro: questi sono
+/// i giri veri, quelli che hai segnato col tasto o che l'orologio ha chiuso
+/// all'auto-giro. In un allenamento a ripetute è la differenza fra vedere i
+/// tuoi intervalli e vedere dei chilometri qualsiasi.
+///
+/// Non porta indici di punto di proposito: il buffer dell'orologio si dimezza
+/// sulle uscite lunghe e un indice registrato prima indicherebbe un altro
+/// punto. Gli indici li ricava chi disegna, camminando sui punti fino alla
+/// distanza cumulata — così restano giusti anche se la traccia viene
+/// risalvata e i punti decimati.
+class TrackLap {
+  final double distance; // metri
+  final Duration duration;
+  final double elevationGain; // metri
+  final int? avgHeartRate;
+
+  const TrackLap({
+    required this.distance,
+    required this.duration,
+    this.elevationGain = 0,
+    this.avgHeartRate,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'distance': distance,
+        'duration': duration.inSeconds,
+        'elevationGain': elevationGain,
+        if (avgHeartRate != null && avgHeartRate! > 0) 'avgHeartRate': avgHeartRate,
+      };
+
+  factory TrackLap.fromMap(Map<String, dynamic> map) {
+    final hr = (map['avgHeartRate'] as num?)?.toInt();
+    return TrackLap(
+      distance: (map['distance'] as num?)?.toDouble() ?? 0,
+      duration: Duration(seconds: (map['duration'] as num?)?.toInt() ?? 0),
+      elevationGain: (map['elevationGain'] as num?)?.toDouble() ?? 0,
+      avgHeartRate: (hr != null && hr > 0) ? hr : null,
+    );
+  }
+}
+
 /// Traccia completa (CON FOTO)
 class Track {
   final String? id;
@@ -418,6 +461,11 @@ class Track {
   
   // 📸 NUOVO: Lista foto
   final List<TrackPhotoMetadata> photos;
+
+  /// Giri chiusi dal dispositivo durante la registrazione (orologio Garmin).
+  /// Vuota su tutte le tracce che non arrivano da un device che li segna: in
+  /// quel caso la scheda continua a calcolarli ogni chilometro.
+  final List<TrackLap> laps;
 
   // ❤️ Dati battito cardiaco da Health Connect/Apple Health
   // Mappa: timestamp -> BPM
@@ -497,6 +545,7 @@ class Track {
     this.stats = const TrackStats(),
     this.groupIds = const [],
     this.photos = const [], // 📸 Default: nessuna foto
+    this.laps = const [], // giri dal dispositivo, se li manda
     this.heartRateData, // ❤️ Battito cardiaco (opzionale)
     this.healthCalories, // 🔥 Calorie reali (opzionale)
     this.healthSteps, // 👣 Passi (opzionale)
@@ -529,6 +578,9 @@ class Track {
       'movingTime': stats.movingTime.inSeconds,
       // 📸 NUOVO
       'photos': photos.map((p) => p.toMap()).toList(),
+      // Solo se ci sono: l'assenza del campo e' gia' il segnale per tornare
+      // ai giri calcolati al chilometro.
+      if (laps.isNotEmpty) 'laps': laps.map((l) => l.toMap()).toList(),
     };
 
     // ❤️ Battito cardiaco (aggiunto separatamente per chiarezza)
@@ -581,6 +633,7 @@ class Track {
     TrackStats? stats,
     List<String>? groupIds,
     List<TrackPhotoMetadata>? photos, // 📸 NUOVO
+    List<TrackLap>? laps,
     Map<DateTime, int>? heartRateData, // ❤️
     double? healthCalories, // 🔥
     int? healthSteps, // 👣
@@ -608,6 +661,7 @@ class Track {
       stats: stats ?? this.stats,
       groupIds: groupIds ?? this.groupIds,
       photos: photos ?? this.photos, // 📸 NUOVO
+      laps: laps ?? this.laps,
       heartRateData: heartRateData ?? this.heartRateData, // ❤️
       healthCalories: healthCalories ?? this.healthCalories, // 🔥
       healthSteps: healthSteps ?? this.healthSteps, // 👣

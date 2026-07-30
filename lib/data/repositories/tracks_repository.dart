@@ -1214,6 +1214,22 @@ class TracksRepository {
       }
     }
 
+    // Giri chiusi dal dispositivo (orologio Garmin). Assenti su tutto il
+    // resto: la scheda torna a calcolarli ogni chilometro da sola.
+    List<TrackLap> laps = [];
+    final lapsData = data['laps'];
+    if (lapsData != null && lapsData is List) {
+      for (var l in lapsData) {
+        try {
+          if (l is Map) {
+            laps.add(TrackLap.fromMap(Map<String, dynamic>.from(l)));
+          }
+        } catch (e) {
+          debugPrint('[TracksRepository] Errore parsing giro: $e');
+        }
+      }
+    }
+
     // Activity type
     ActivityType activityType = ActivityType.trekking;
     final activityStr = data['activityType'] as String?;
@@ -1290,6 +1306,7 @@ class TracksRepository {
           const [],
       stats: stats,
       photos: photos, // 📸 Foto
+      laps: laps,
       heartRateData: heartRateData, // ❤️ Battito cardiaco
       healthCalories: healthCalories, // 🔥 Calorie reali
       healthSteps: healthSteps, // 👣 Passi

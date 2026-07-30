@@ -1959,7 +1959,25 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
         // creavano 3 tracce identiche "TrailShare").
         const clientId = data.clientId ? String(data.clientId) : null;
 
-        logger.info(`[GarminSync] Ricevuta traccia da ${userId}: ${points.length} punti (clientId=${clientId || 'n/d'})`);
+        // Giri chiusi dall'orologio (auto ogni tot km o segnati a mano).
+        //
+        // Arrivano come PARZIALI — distanza, durata, dislivello, FC media di
+        // ciascun giro — e non come indici di punto: sull'orologio il buffer
+        // si dimezza ogni 400 punti, quindi un indice registrato prima di un
+        // dimezzamento indicherebbe un altro punto. Qui si normalizza nelle
+        // stesse unita' del resto delle stat (metri e SECONDI, non ms) e non
+        // si salva nessun indice: li ricava l'app camminando sui punti, cosi'
+        // i giri sopravvivono a un eventuale risalvataggio della traccia.
+        // Assenti sulle versioni vecchie dell'orologio: lista vuota, e la
+        // scheda torna a calcolarli da sola ogni chilometro.
+        const laps = Array.isArray(data.laps) ? data.laps.slice(0, 200).map((l) => ({
+            distance: Number(l.d) || 0,
+            duration: Math.round((Number(l.t) || 0) / 1000),
+            elevationGain: Number(l.a) || 0,
+            avgHeartRate: Number(l.hr) || 0,
+        })).filter((l) => l.distance > 0 || l.duration > 0) : [];
+
+        logger.info(`[GarminSync] Ricevuta traccia da ${userId}: ${points.length} punti, ${laps.length} giri (clientId=${clientId || 'n/d'})`);
 
         // Dedup veloce PRIMA di elaborare i punti: se un doc con questo
         // clientId esiste già, è un retry → rispondi 200 e basta.
@@ -2059,6 +2077,10 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
             isPlanned: false,
             source: 'garmin',
             garminClientId: clientId,
+            // Solo se ce ne sono: un array vuoto su ogni traccia sarebbe
+            // rumore, e l'assenza del campo e' gia' il segnale giusto per
+            // tornare ai giri calcolati al chilometro.
+            ...(laps.length > 0 ? { laps: laps } : {}),
             heartRateData: heartRateData,
             // Stat anche a livello top-level: è lo schema che l'app legge
             // (tracks_repository). Distanze/dislivelli in metri, durata in

@@ -485,6 +485,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                     LapSplitsWidget(
                       points: _track.points,
                       totalDuration: _track.stats.duration,
+                      // Se l'orologio ha segnato i giri veri si mostrano
+                      // quelli; altrimenti il widget li calcola al chilometro
+                      // come ha sempre fatto.
+                      deviceLaps: _track.laps,
                       onLapTap: (startIndex, endIndex) {
                         setState(() => _selectedPointIndex = startIndex);
                         debugPrint('[TrackDetail] Lap tap: $startIndex - $endIndex');

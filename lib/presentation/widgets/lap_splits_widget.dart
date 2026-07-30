@@ -108,12 +108,20 @@ class LapSplitsWidget extends StatefulWidget {
   /// Callback quando si tocca un lap (per evidenziare sulla mappa)
   final void Function(int startIndex, int endIndex)? onLapTap;
 
+  /// Giri chiusi DAL DISPOSITIVO durante la registrazione. Se ci sono, si
+  /// mostrano questi invece di quelli calcolati ogni chilometro: in un
+  /// allenamento a ripetute sono i tuoi intervalli, non dei chilometri
+  /// qualsiasi. Vuota su tutte le tracce che non arrivano da un orologio
+  /// che li segna.
+  final List<TrackLap> deviceLaps;
+
   const LapSplitsWidget({
     super.key,
     required this.points,
     this.totalDuration,
     this.heartRateData,
     this.onLapTap,
+    this.deviceLaps = const [],
   });
 
   @override
@@ -134,9 +142,77 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
   @override
   void didUpdateWidget(LapSplitsWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.points != widget.points) {
+    if (oldWidget.points != widget.points ||
+        oldWidget.deviceLaps != widget.deviceLaps) {
       _calculateLaps();
     }
+  }
+
+  /// Trasforma i giri del dispositivo in righe della tabella.
+  ///
+  /// Gli indici dei punti NON arrivano dal dispositivo — di proposito: il
+  /// buffer dell'orologio si dimezza sulle uscite lunghe e un indice
+  /// registrato prima indicherebbe un altro punto. Si ricavano qui,
+  /// camminando sui punti fino alla distanza cumulata di ogni giro, così
+  /// restano giusti anche se la traccia viene risalvata coi punti decimati.
+  /// Servono solo a evidenziare il tratto sulla mappa quando si tocca la riga:
+  /// tempo, distanza e battito restano quelli misurati al polso.
+  List<LapData> _lapsFromDevice() {
+    final punti = widget.points;
+    final out = <LapData>[];
+
+    // Distanza cumulata punto per punto, calcolata una volta sola.
+    final cumulata = List<double>.filled(punti.length, 0);
+    for (var i = 1; i < punti.length; i++) {
+      cumulata[i] = cumulata[i - 1] + punti[i].distanceTo(punti[i - 1]);
+    }
+
+    // Il dislivello NEGATIVO non viene dal dispositivo: si ricava dal tratto
+    // corrispondente, con lo stesso filtro usato per i giri calcolati.
+    final eleResult =
+        const ElevationProcessor().process(punti.map((p) => p.elevation).toList());
+
+    var iStart = 0;
+    var metriFinora = 0.0;
+    var tempoCumulato = Duration.zero;
+
+    for (var n = 0; n < widget.deviceLaps.length; n++) {
+      final lap = widget.deviceLaps[n];
+      metriFinora += lap.distance;
+
+      // Primo punto oltre la distanza cumulata di fine giro.
+      var iEnd = iStart;
+      while (iEnd < punti.length - 1 && cumulata[iEnd] < metriFinora) {
+        iEnd++;
+      }
+      if (iEnd <= iStart) iEnd = min(iStart + 1, punti.length - 1);
+
+      var perso = 0.0;
+      final quote = eleResult.smoothedElevations;
+      for (var i = iStart + 1; i <= iEnd && i < quote.length; i++) {
+        final d = quote[i] - quote[i - 1];
+        if (d < 0) perso += -d;
+      }
+
+      tempoCumulato += lap.duration;
+      final secondi = lap.duration.inSeconds;
+
+      out.add(LapData(
+        lapNumber: n + 1,
+        time: lap.duration,
+        distance: lap.distance,
+        elevationGain: lap.elevationGain,
+        elevationLoss: perso,
+        avgSpeed: secondi > 0 ? (lap.distance / secondi) * 3.6 : 0,
+        avgHeartRate: lap.avgHeartRate,
+        startPointIndex: iStart,
+        endPointIndex: iEnd,
+        cumulativeTime: tempoCumulato,
+      ));
+
+      iStart = iEnd;
+    }
+    return out;
   }
 
   void _calculateLaps() {
@@ -144,6 +220,12 @@ class _LapSplitsWidgetState extends State<LapSplitsWidget> {
       _laps = [];
       return;
     }
+
+    if (widget.deviceLaps.isNotEmpty) {
+      _laps = _lapsFromDevice();
+      return;
+    }
+    // Sotto: giri calcolati ogni chilometro, per le tracce senza giri veri.
 
     final laps = <LapData>[];
     double cumulativeDistance = 0;
