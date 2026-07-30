@@ -1222,6 +1222,13 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.9.2',
+        title: 'Orologi Garmin, niente più chiusure a sorpresa 🔧',
+        bullets: [
+          'Chi ha un orologio Garmin abbinato non si vede più chiudere l\'app da sola quando l\'orologio si connette o si disconnette. Succedeva da marzo, in silenzio: sembrava il telefono che chiude le app in background per risparmiare batteria. Solo Android',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.9.1',
         title: 'La difficoltà dice la verità ⛰️',
         bullets: [
