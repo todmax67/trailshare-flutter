@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/utils/geohash_util.dart';
 import '../../core/utils/difficulty_calculator.dart';
 import '../../data/models/track.dart';
+import '../utils/elevation_processor.dart';
 
 /// Servizio per importare sentieri da fonti esterne
 /// 
@@ -184,65 +185,128 @@ class TrailImportService {
   }
 
   /// Scarica elevazioni per coordinate
-  Future<List<double>> fetchElevations(List<List<double>> coords) async {
-    final elevations = <double>[];
+  /// Quote lungo [coords], `null` dove non si sono potute ottenere.
+  ///
+  /// La quota mancante DEVE restare `null` e non diventare 0: un batch di
+  /// import di dic-2025/gen-2026 ha riempito di zeri 421 sentieri quando
+  /// OpenTopoData rispondeva male, e nessuno se n'e' accorto perche' zero e'
+  /// un numero valido. Il chiamante decide se scartare il sentiero: meglio non
+  /// importarlo che importarlo con un profilo altimetrico finto.
+  ///
+  /// La lista ritornata ha SEMPRE lunghezza [coords].length: l'allineamento
+  /// fra indice del punto e indice della quota non va perso, altrimenti i
+  /// batch successivi finiscono sulle coordinate sbagliate.
+  Future<List<double?>> fetchElevations(List<List<double>> coords) async {
     final sampleRate = (coords.length / 500).ceil().clamp(1, 10);
     final sampledCoords = <List<double>>[];
-    
     for (int i = 0; i < coords.length; i += sampleRate) {
       sampledCoords.add(coords[i]);
     }
-    
+
+    final elevations = <double?>[];
     for (int i = 0; i < sampledCoords.length; i += _maxElevationPointsPerRequest) {
       final batch = sampledCoords.skip(i).take(_maxElevationPointsPerRequest).toList();
-      final locations = batch.map((c) => '${c[1]},${c[0]}').join('|');
-      
-      try {
-        final response = await http.get(Uri.parse('$_openTopoDataBase?locations=$locations'));
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data['results'] != null) {
-            for (final r in data['results']) {
-              elevations.add((r['elevation'] as num?)?.toDouble() ?? 0);
-            }
-          }
-        } else {
-          elevations.addAll(List.filled(batch.length, 0.0));
-        }
-      } catch (e) {
-        elevations.addAll(List.filled(batch.length, 0.0));
+      final quote = await _fetchBatchConRetry(batch);
+      // Qualunque cosa sia andata storta, il batch contribuisce esattamente
+      // batch.length valori (null dove manca): niente disallineamenti.
+      elevations.addAll(quote);
+      if (i + _maxElevationPointsPerRequest < sampledCoords.length) {
+        await Future.delayed(_elevationDelay);
       }
-      
-      if (i + _maxElevationPointsPerRequest < sampledCoords.length) await Future.delayed(_elevationDelay);
     }
-    
-    return sampleRate > 1 && elevations.isNotEmpty 
-        ? _interpolateElevations(coords.length, elevations, sampleRate) 
+
+    return sampleRate > 1
+        ? _interpolateElevations(coords.length, elevations, sampleRate)
         : elevations;
   }
 
-  /// Calcola statistiche elevazione
-  ElevationStats calculateElevationStats(List<double> elevations) {
-    if (elevations.isEmpty) return const ElevationStats(gain: 0, loss: 0, min: 0, max: 0);
-    
-    double gain = 0, loss = 0, min = elevations.first, max = elevations.first;
-    
-    for (int i = 1; i < elevations.length; i++) {
-      final diff = elevations[i] - elevations[i - 1];
-      if (diff > 3) {
-        gain += diff;
-      } else if (diff < -3) {
-        loss += diff.abs();
+  /// Un batch di quote, con reintento sui guasti temporanei.
+  ///
+  /// Prima si arrendeva al primo errore. Un 429 o un timeout isolato bastava a
+  /// rovinare il sentiero in modo permanente, quindi vale la pena insistere:
+  /// il rate limit di OpenTopoData e' 1 richiesta/s, gli attesa crescenti lo
+  /// rispettano.
+  Future<List<double?>> _fetchBatchConRetry(List<List<double>> batch) async {
+    final locations = batch.map((c) => '${c[1]},${c[0]}').join('|');
+    const tentativi = 3;
+
+    for (int t = 1; t <= tentativi; t++) {
+      try {
+        final response = await http
+            .get(Uri.parse('$_openTopoDataBase?locations=$locations'))
+            .timeout(const Duration(seconds: 30));
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final results = data['results'];
+          if (results is List) {
+            final out = <double?>[
+              // `elevation` e' null quando il punto cade fuori dal dataset:
+              // e' un "non lo so" legittimo, non un livello del mare.
+              for (final r in results) (r['elevation'] as num?)?.toDouble(),
+            ];
+            // Risposta piu' corta del batch: completa con null invece di
+            // lasciare che lo scarto sfasi tutti i punti successivi.
+            while (out.length < batch.length) {
+              out.add(null);
+            }
+            return out.take(batch.length).toList();
+          }
+        }
+        // 429/5xx sono transitori: vale un altro giro.
+        if (t < tentativi) {
+          await Future.delayed(Duration(seconds: 2 * t));
+          continue;
+        }
+        debugPrint('[TrailImport] quote non ottenute (HTTP ${response.statusCode}) '
+            'per ${batch.length} punti dopo $tentativi tentativi');
+      } catch (e) {
+        if (t < tentativi) {
+          await Future.delayed(Duration(seconds: 2 * t));
+          continue;
+        }
+        debugPrint('[TrailImport] quote non ottenute ($e) per ${batch.length} '
+            'punti dopo $tentativi tentativi');
       }
-      if (elevations[i] < min) min = elevations[i];
-      if (elevations[i] > max) max = elevations[i];
     }
-    
+    return List<double?>.filled(batch.length, null);
+  }
+
+  /// Calcola statistiche elevazione
+  /// Statistiche di dislivello, delegate a [ElevationProcessor] — lo stesso
+  /// calcolo che l'app usa per le tracce GPS, gli import GPX/TCX/FIT e i
+  /// percorsi del pianificatore.
+  ///
+  /// Prima qui c'era una formula propria che confrontava solo punti ADIACENTI e
+  /// scartava i passi sotto i 3 m invece di accumularli. Due conseguenze:
+  ///
+  /// 1. Il risultato dipendeva dalla DENSITA' di campionamento, non dal
+  ///    terreno: su una traccia fitta una salita costante di 2 m per punto
+  ///    contava zero, mentre il rumore del DEM sopra i 3 m veniva sommato.
+  /// 2. Lo stesso percorso mostrava un dislivello diverso se importato in
+  ///    catalogo o registrato dall'utente.
+  ///
+  /// ElevationProcessor filtra gli spike, smussa e poi applica un'isteresi a
+  /// riferimento mobile (l'approccio di Garmin/Strava). Sul solo caso con
+  /// riscontro esterno indipendente — Garda Brenta tappa 1, 1886 m secondo
+  /// AllTrails — dava 1922 m contro i 2171 m della vecchia formula.
+  ///
+  /// ATTENZIONE: i valori cambiano rispetto a quanto e' in catalogo oggi. Il
+  /// dislivello alimenta `gainPerKm` in DifficultyCalculator e la DIN 33466 di
+  /// `oreStimate`, quindi ricalcolare le schede esistenti sposta grado e tempi
+  /// (su un campione di 355: 30% sale di un grado, 4% scende). Va fatto come
+  /// operazione dichiarata, non di soppiatto.
+  ElevationStats calculateElevationStats(List<double?> quote,
+      {String activityType = 'trekking'}) {
+    if (quote.every((q) => q == null)) {
+      return const ElevationStats(gain: 0, loss: 0, min: 0, max: 0);
+    }
+    final r = ElevationProcessor.forActivity(activityType).process(quote);
     return ElevationStats(
-      gain: gain.round().toDouble(), 
-      loss: loss.round().toDouble(), 
-      min: min.round().toDouble(), 
-      max: max.round().toDouble(),
+      gain: r.elevationGain.roundToDouble(),
+      loss: r.elevationLoss.roundToDouble(),
+      min: r.minElevation.roundToDouble(),
+      max: r.maxElevation.roundToDouble(),
     );
   }
 
@@ -528,7 +592,23 @@ class TrailImportService {
     }
 
     final elevations = await fetchElevations(coords);
-    final elevationStats = calculateElevationStats(elevations);
+    // Senza quote a sufficienza il sentiero e' meglio non importarlo: entra in
+    // catalogo con un profilo altimetrico piatto e indistinguibile da uno vero
+    // (e' cosi' che 421 doc sono finiti con tutte le quote a zero). Ripassera'
+    // al prossimo import, quando il servizio quote risponde.
+    final quoteValide = elevations.whereType<double>().length;
+    if (elevations.isEmpty || quoteValide < elevations.length * 0.8) {
+      skipped.add(SkippedTrail(
+        name: route.name,
+        reason: 'Quote incomplete ($quoteValide/${elevations.length})',
+      ));
+      return;
+    }
+    // Serve prima delle stats: ElevationProcessor usa soglie diverse per
+    // attività (trekking 4 m, bici e trail running 3 m).
+    final activityType = _activityTypeFromTags(details.tags);
+    final elevationStats =
+        calculateElevationStats(elevations, activityType: activityType);
     final distance = _calculateTotalDistance(coords);
     final isCircular = _isCircular(coords);
     final center = coords[coords.length ~/ 2];
@@ -540,12 +620,15 @@ class TrailImportService {
     }
     final geoHash = GeoHashUtil.encode(center[1], center[0], precision: 7);
 
-    final coordsWithEle = <List<double>>[];
+    // Terza componente nullable: i lettori fanno `(p[2] as num?)?.toDouble()`,
+    // quindi un null in JSON diventa quota assente. Meglio di uno zero, che
+    // verrebbe disegnato come livello del mare.
+    final coordsWithEle = <List<double?>>[];
     for (int j = 0; j < coords.length; j++) {
       coordsWithEle.add([
         coords[j][0],
         coords[j][1],
-        j < elevations.length ? elevations[j] : 0.0,
+        j < elevations.length ? elevations[j] : null,
       ]);
     }
 
@@ -557,7 +640,7 @@ class TrailImportService {
     const maxJsonBytes = 800 * 1024;
     while (coordsJson.length > maxJsonBytes && coordsForWrite.length > 500) {
       final stride = (coordsForWrite.length / (coordsForWrite.length / 2).ceil()).ceil();
-      final reduced = <List<double>>[];
+      final reduced = <List<double?>>[];
       for (int j = 0; j < coordsForWrite.length; j += stride) {
         reduced.add(coordsForWrite[j]);
       }
@@ -573,7 +656,7 @@ class TrailImportService {
     }
 
     // C9 — Activity type smart dai tag OSM (route=hiking|mtb|bicycle|foot)
-    final activityType = _activityTypeFromTags(details.tags);
+
     // Difficoltà TECNICA: solo se rilevata. Prima i tag della relazione, poi
     // quelli delle way (dove sac_scale sta quasi sempre). Se non c'è nulla
     // resta null — "non classificato" è la verità, e la vecchia euristica su
@@ -756,9 +839,11 @@ class TrailImportService {
   /// Campiona N punti equidistanti per simplifiedPoints.
   /// Output: List<Map<String,double>> [{lng, lat}, ...]. Firestore non
   /// accetta array di array, per questo usiamo lista di mappe.
-  List<Map<String, double>> _samplePoints(List<List<double>> coords, int maxPoints) {
+  /// Legge solo lon/lat (indici 0 e 1), che non sono mai nulli: nullable e'
+  /// soltanto la quota in terza posizione.
+  List<Map<String, double>> _samplePoints(List<List<double?>> coords, int maxPoints) {
     if (coords.isEmpty) return const [];
-    Map<String, double> toPt(List<double> c) => {'lng': c[0], 'lat': c[1]};
+    Map<String, double> toPt(List<double?> c) => {'lng': c[0]!, 'lat': c[1]!};
     if (coords.length <= maxPoints) return coords.map(toPt).toList();
     final stride = coords.length / maxPoints;
     final out = <Map<String, double>>[];
@@ -925,21 +1010,29 @@ class TrailImportService {
     return terms.toList();
   }
 
-  List<double> _interpolateElevations(int total, List<double> sampled, int rate) {
-    final result = List<double>.filled(total, 0);
+  /// Riporta le quote campionate su tutti i [total] punti, interpolando fra i
+  /// campioni. I buchi restano `null`: se un campione manca, i punti che
+  /// dipendono da lui non sono inventati.
+  ///
+  /// Prima la sentinella di "non riempito" era `result[i] == 0`, quindi una
+  /// quota reale a livello del mare veniva scambiata per un buco e
+  /// sovrascritta. Ora il vuoto e' `null` e non si confonde con un valore.
+  List<double?> _interpolateElevations(int total, List<double?> sampled, int rate) {
+    final result = List<double?>.filled(total, null);
     for (int i = 0; i < sampled.length; i++) {
       final idx = i * rate;
       if (idx < total) result[idx] = sampled[i];
     }
     for (int i = 0; i < total; i++) {
-      if (result[i] == 0) {
-        final p = (i ~/ rate) * rate, n = p + rate;
-        if (p < total && n < total) {
-          result[i] = result[p] + (i - p) / rate * (result[n] - result[p]);
-        } else if (p < total) {
-          result[i] = result[p];
-        }
-      }
+      if (result[i] != null) continue;
+      final p = (i ~/ rate) * rate, n = p + rate;
+      final qp = p < total ? result[p] : null;
+      final qn = n < total ? result[n] : null;
+      if (qp != null && qn != null) {
+        result[i] = qp + (i - p) / rate * (qn - qp);
+      } else if (qp != null) {
+        result[i] = qp;
+      } // entrambi mancanti: resta null, il chiamante decide
     }
     return result;
   }
