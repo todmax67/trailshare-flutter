@@ -1222,6 +1222,14 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.9.3',
+        title: 'I giri dell\'orologio nella scheda \u23f1\ufe0f',
+        bullets: [
+          'Se registri con un orologio Garmin e usi i giri — quelli automatici o quelli che segni tu — nella scheda della traccia trovi i tuoi giri veri, non dei chilometri qualsiasi. In un allenamento a ripetute sono i tuoi intervalli, con tempo, passo, dislivello e battito medio di ciascuno',
+          'Sulle tracce senza giri la scheda continua a calcolarli ogni chilometro, come prima',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.9.2',
         title: 'Orologi Garmin, niente più chiusure a sorpresa 🔧',
         bullets: [
