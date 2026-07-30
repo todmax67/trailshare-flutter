@@ -17,8 +17,22 @@ class GarminSyncService {
 
   Stream<GarminSyncEvent> get syncEvents => _syncController.stream;
 
+  /// Il ponte nativo esiste SOLO su Android.
+  ///
+  /// La SDK Garmin Connect IQ (`com.garmin.connectiq:ciq-companion-app-sdk`)
+  /// e' una libreria Android: su iPhone e sul web dall'altra parte del
+  /// MethodChannel non c'e' nessuno. Prima si escludeva solo il web, quindi
+  /// ogni avvio su iPhone tentava la chiamata e incassava una
+  /// MissingPluginException — nessun crash, ma un errore stampato a ogni
+  /// avvio, che e' esattamente il rumore che fa ignorare i log veri.
+  ///
+  /// Si usa `defaultTargetPlatform` e non `Platform.isAndroid` di dart:io,
+  /// che sul web non compila.
+  static bool get _disponibile =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   Future<void> initialize() async {
-    if (kIsWeb) return; // MethodChannel nativo non disponibile su web
+    if (!_disponibile) return;
     try {
       await _methodChannel.invokeMethod('initialize');
       debugPrint('[GarminSync] Inizializzato');
@@ -32,6 +46,9 @@ class GarminSyncService {
   }
 
   Future<Map<String, dynamic>> getStatus() async {
+    if (!_disponibile) {
+      return {'initialized': false, 'deviceConnected': false};
+    }
     try {
       final result = await _methodChannel.invokeMethod('getStatus');
       return Map<String, dynamic>.from(result);
@@ -155,8 +172,19 @@ class GarminSyncService {
   }
 
   Future<void> shutdown() async {
+    // La sottoscrizione si chiude sempre, anche dove il ponte nativo non c'e':
+    // e' roba Dart e non dipende dalla piattaforma.
     await _eventSubscription?.cancel();
-    await _methodChannel.invokeMethod('shutdown');
+    _eventSubscription = null;
+    if (!_disponibile) return;
+    try {
+      await _methodChannel.invokeMethod('shutdown');
+    } catch (e) {
+      // Qui il try/catch non c'era: era l'unico metodo del servizio da cui
+      // un'eccezione poteva uscire e arrivare a chi chiama. Oggi non lo
+      // chiama nessuno, ma chiudere un servizio non deve poter fallire.
+      debugPrint('[GarminSync] Errore shutdown: $e');
+    }
   }
 }
 
