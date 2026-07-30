@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/durata_percorrenza.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -418,19 +419,24 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
   Widget _buildMainStats() {
     final trail = widget.trail;
 
-    // Durata stimata (Naismith) — molto più utile all'utente del conteggio
-    // "Punti GPS" (dato tecnico). La tilde comunica che è una stima.
-    String etaValue = '--';
-    if (trail.length != null) {
+    // Tempo di percorrenza. Si usa lo STESSO `tempoLeggibile` della card in
+    // Scopri: prima qui c'era un calcolo a parte con EtaEstimator, e lo stesso
+    // sentiero diceva "~2 giorni" nella card e "10h 36m" appena lo aprivi.
+    // Sopra le 8 ore diventa "~N giorni", perché qui — a differenza dei tour —
+    // non c'è nessun altro conteggio di giorni a fianco.
+    String etaValue = trail.tempoLeggibile ?? '--';
+    if (etaValue != '--' && !etaValue.startsWith('~')) etaValue = '~$etaValue';
+    if (trail.tempoLeggibile == null && trail.length != null) {
+      // Ripiego per le schede senza `oreStimate` in catalogo (copertura 99,7%,
+      // ma i vecchi doc possono non averlo).
       final eta = EtaEstimator.estimate(
         distanceMeters: trail.length!,
         elevationGainMeters: trail.elevationGain ?? 0,
         activityType: trail.parsedActivityType,
       );
-      if (eta > Duration.zero) {
-        final h = eta.inHours;
-        final m = eta.inMinutes % 60;
-        etaValue = h > 0 ? '~${h}h ${m}m' : '~${m}m';
+      final leggibile = durataLeggibile(eta);
+      if (leggibile != null) {
+        etaValue = leggibile.startsWith('~') ? leggibile : '~$leggibile';
       }
     }
 

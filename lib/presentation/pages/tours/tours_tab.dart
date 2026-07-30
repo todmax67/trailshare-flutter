@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/durata_percorrenza.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
@@ -150,9 +151,9 @@ class _TourCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hours = tour.totalDuration.inHours;
-    final mins = tour.totalDuration.inMinutes % 60;
-    final durStr = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
+    // Solo se sta in giornata: sopra le 8 ore contano i giorni, già mostrati
+    // nel conteggio tappe.
+    final durStr = durataInGiornata(tour.totalDuration);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -205,7 +206,7 @@ class _TourCard extends StatelessWidget {
                 children: [
                   _chip(context, Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
                   _chip(context, Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
-                  if (tour.totalDuration.inMinutes > 0)
+                  if (durStr != null)
                     _chip(context, Icons.schedule, durStr),
                 ],
               ),

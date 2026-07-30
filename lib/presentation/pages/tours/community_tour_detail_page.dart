@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/durata_percorrenza.dart';
 import '../../../core/utils/avatar_image.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -194,9 +195,9 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
 
     final tour = _tour!;
     final stages = tour.stages ?? const <TourStageSummary>[];
-    final hours = tour.totalDuration.inHours;
-    final mins = tour.totalDuration.inMinutes % 60;
-    final durStr = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
+    // Solo se sta in giornata: i giorni sono già nella testata, e "64h 6m" non
+    // è un'informazione con cui si pianifica.
+    final durStr = durataInGiornata(tour.totalDuration);
 
     return Scaffold(
       appBar: AppBar(
@@ -290,7 +291,7 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
                     ),
                     _stat(Icons.straighten, '${tour.totalDistanceKm.toStringAsFixed(1)} km'),
                     _stat(Icons.trending_up, '+${tour.totalElevationGain.toStringAsFixed(0)} m', AppColors.success),
-                    if (tour.totalDuration.inMinutes > 0) _stat(Icons.schedule, durStr),
+                    if (durStr != null) _stat(Icons.schedule, durStr),
                   ],
                 ),
                 const SizedBox(height: 16),
