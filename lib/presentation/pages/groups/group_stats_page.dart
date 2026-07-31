@@ -50,6 +50,9 @@ class _GroupStatsPageState extends State<GroupStatsPage> {
   }
 
   Future<void> _load() async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _loading = true);
     final results = await Future.wait([
       _groupsRepo.getGroup(widget.group.id),

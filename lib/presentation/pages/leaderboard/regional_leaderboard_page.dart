@@ -49,6 +49,9 @@ class _RegionalLeaderboardPageState extends State<RegionalLeaderboardPage>
   }
 
   Future<void> _load() async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _loading = true);
 
     if (!_regionService.isLoaded) {

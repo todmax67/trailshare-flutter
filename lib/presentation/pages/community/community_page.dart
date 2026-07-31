@@ -263,6 +263,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<void> _loadCommunityTracks() async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _isLoadingCommunity = true);
     try {
       final result = await _communityRepo.getRecentTracksPaginated(limit: 8);
@@ -391,6 +394,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<void> _loadMyGroups({bool forceServer = false}) async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _isLoadingMyGroups = true);
     try {
       final groups = await _groupsRepo.getMyGroups(forceServer: forceServer);
@@ -410,6 +416,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   }
 
   Future<void> _loadDiscoverableGroups() async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _isLoadingDiscoverable = true);
     try {
       final groups = await _groupsRepo.getDiscoverableGroups();
@@ -623,6 +632,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   }
 
   Future<void> _loadPublicEvents() async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _isLoadingPublicEvents = true);
     try {
       final events = await _groupsRepo.getPublicUpcomingEvents();
@@ -774,6 +786,9 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   // ═════════════════════════════════════════════════════════════════════════
 
   Future<void> _loadPublicTours() async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _isLoadingPublicTours = true);
     try {
       final tours = await _toursRepo.getPublicTours(limit: 30);

@@ -44,6 +44,9 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
   }
 
   Future<void> _loadMyGroups({bool forceServer = false}) async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _isLoadingMy = true);
     final groups = await _repo.getMyGroups(forceServer: forceServer);
     // Sprint B.2: pre-fetch flag Pro degli owner per evitare flicker
@@ -59,6 +62,9 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
   }
 
   Future<void> _loadPublicGroups() async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _isLoadingPublic = true);
     final groups = await _repo.getDiscoverableGroups();
     await OwnerProStatusCache()

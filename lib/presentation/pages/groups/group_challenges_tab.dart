@@ -32,6 +32,9 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
   }
 
   Future<void> _loadChallenges() async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _isLoading = true);
     final challenges = await _repo.getChallenges(widget.groupId, activeOnly: !_showAll);
     if (mounted) {

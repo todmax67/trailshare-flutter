@@ -35,6 +35,9 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
   }
 
   Future<void> _loadEvents() async {
+    // La callback di un pull-to-refresh puo' arrivare a pagina gia'
+    // smontata: li' `setState` dereferenzia `_element` a null e solleva.
+    if (!mounted) return;
     setState(() => _isLoading = true);
     final events = await _repo.getEvents(widget.groupId, upcomingOnly: !_showPast);
     if (mounted) {
