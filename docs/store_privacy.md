@@ -2,10 +2,79 @@
 
 Cosa spuntare in **App Store Connect → App Privacy** e in **Play Console → Sicurezza dei dati**.
 
-Compilato il 2026-07-31 leggendo il codice, non le schermate delle console: è un
-inventario di quello che l'app *fa*, da riconciliare con quello che oggi risulta
-dichiarato. Diverse voci qui sotto (Crashlytics, dati salute, contatti di
-emergenza) esistono da prima di questa build e vanno verificate comunque.
+Scritto il 2026-07-31 leggendo il codice, poi **riconciliato con la
+dichiarazione reale di App Store Connect** (pubblicata cinque mesi prima,
+verificata sulle schermate lo stesso giorno).
+
+Esito della riconciliazione: la dichiarazione Apple era già in ordine — dieci
+tipologie di dati, posizione e salute comprese. Il lavoro della 2.9.4 non apre
+una voragine, sposta due caselle. Le tabelle complete restano qui sotto come
+inventario di riferimento; il delta operativo è nella sezione subito seguente.
+
+> Non è consulenza legale. Le categorie e le finalità sono dedotte dal
+> comportamento del codice; la valutazione delle basi giuridiche resta tua, se
+> serve col tuo consulente.
+
+## Il delta della 2.9.4 — cosa cambiare davvero
+
+### App Store Connect
+
+**Due modifiche necessarie**, entrambe conseguenza del motore di crescita.
+
+1. **Aggiungere `Identificativi → ID dispositivo`**
+   Finalità: Analisi. Collegato all'identità: **no**. Tracciamento: no.
+   È l'ID istanza di Firebase Analytics, che prima della 2.9.4 non esisteva.
+
+2. **`Dati sull'utilizzo → Interazione con il prodotto`: da "non collegato" a
+   "collegato all'identità"**
+   Era dichiarato non collegato, ed era corretto finché non c'era nulla. Ora
+   `growth_users` è indicizzato per uid: quei dati d'uso *sono* legati
+   all'identità. Apple chiede di rispondere sì se anche una sola delle raccolte
+   di quel tipo è collegata.
+
+   Ha un costo visibile: sulla scheda pubblica "Dati sull'utilizzo" si sposta da
+   *Dati non collegati a te* a *Dati collegati a te*. L'alternativa sarebbe
+   slegare il funnel dall'uid, che distruggerebbe l'analisi per coorti — cioè
+   tutto il motivo per cui esiste. Si accetta il costo.
+
+**Due da valutare, preesistenti e indipendenti da questa build.**
+
+3. `Acquisti → Cronologia acquisti` — non dichiarata. Sui vostri server stanno
+   stato dell'abbonamento, prodotto attivo e scadenza. Probabilmente va aggiunta.
+
+4. `Contatti` — non dichiarata. Sono i contatti d'emergenza di Lifeline. La
+   definizione Apple parla di dati "dalla rubrica dell'utente", e i vostri
+   vengono digitati a mano: lettura prudente dichiararli, lettura letterale no.
+   Decisione del founder.
+
+Anche `Informazioni di contatto → Nome` non è dichiarata, mentre l'email sì. Se
+il displayName arriva da Google/Apple Sign-In e viene salvato, andrebbe aggiunta;
+se in pratica salvate solo lo username, resta coperta da `ID utente`.
+
+### Cosa risultava già dichiarato (verificato il 2026-07-31)
+
+Dieci tipologie, tutte con finalità e collegamento coerenti:
+
+| Voce | Finalità | Collegato |
+|---|---|---|
+| Posizione precisa | Funzionalità app | sì |
+| Indirizzo email | Funzionalità app | sì |
+| Salute · Fitness | Funzionalità app | sì |
+| Foto o video · Altri contenuti dell'utente | Funzionalità app | sì |
+| ID utente | Funzionalità app | sì |
+| Interazione con il prodotto | Analisi | no → **da cambiare in sì** |
+| Dati sui crash · Dati sulle prestazioni | Analisi | no |
+
+URL informativa già impostato su `https://trailshare.app/privacy`. Il campo
+facoltativo "URL delle scelte sulla privacy dell'utente" è vuoto: ora che
+esistono i due interruttori in Impostazioni → Privacy, si potrebbe valorizzare,
+ma serve una pagina web che spieghi come esercitare le scelte.
+
+### Play Console
+
+**Non ancora verificata.** Se rispecchia lo stato di Apple sarà anch'essa quasi
+completa, e il delta sarà lo stesso: aggiungere *ID dispositivo o altri ID* e
+rivedere le voci di *Attività nell'app*. Da controllare prima di pubblicare.
 
 > Non è consulenza legale. Le categorie e le finalità sono dedotte dal
 > comportamento del codice; la valutazione delle basi giuridiche resta tua, se
@@ -57,7 +126,12 @@ Conseguenza pratica: "tracking = No" resta la risposta corretta. Ma se un
 giorno qualcuno aggiunge `NSUserTrackingUsageDescription` per fare Search Ads,
 la raccolta IDFA parte da sola, perché il framework è già dentro. Da ricordare.
 
-## App Store Connect → App Privacy
+## Inventario completo — App Store Connect → App Privacy
+
+Quello che l'app raccoglie, dedotto dal codice. **Non è la lista da compilare da
+zero**: la dichiarazione esistente copre già le righe non evidenziate, e il
+delta vero è nella sezione in cima. Questa tabella serve a rileggere l'intero
+quadro fra sei mesi, o quando si aggiunge una feature.
 
 Per ogni tipo di dato: raccolto sì/no, collegato all'identità, usato per
 tracking, finalità.
@@ -73,11 +147,14 @@ tracking, finalità.
 | User Content → Photos or Videos | Sì | Sì | No | App Functionality |
 | User Content → Other User Content | Sì | Sì | No | App Functionality — commenti, descrizioni, segnalazioni |
 | Identifiers → User ID | Sì | Sì | No | App Functionality, **Analytics** |
-| Identifiers → Device ID | Sì | **No** | No | Analytics — l'ID istanza di Firebase Analytics |
-| Usage Data → Product Interaction | Sì | Sì | No | **Analytics**, Product Personalization ✗ |
-| Diagnostics → Crash Data | Sì | Sì | No | App Functionality |
-| Diagnostics → Performance Data | Sì | Sì | No | App Functionality |
-| Purchases → Purchase History | Sì | Sì | No | App Functionality — stato abbonamento Pro |
+| Identifiers → Device ID | Sì | **No** | No | Analytics — l'ID istanza di Firebase Analytics · ⚠️ **da aggiungere** |
+| Usage Data → Product Interaction | Sì | Sì | No | Analytics · ⚠️ **da correggere: oggi è dichiarato non collegato** |
+| Diagnostics → Crash Data | Sì | Sì | No | App Functionality (dichiarato come Analytics: accettabile, non lo cambierei) |
+| Diagnostics → Performance Data | Sì | Sì | No | App Functionality (idem) |
+| Purchases → Purchase History | Sì | Sì | No | App Functionality — stato abbonamento Pro · ⚠️ **non dichiarata** |
+
+Le righe senza ⚠️ risultavano già dichiarate correttamente il 2026-07-31, con la
+sola eccezione di `Contact Info → Name` e `Contacts`, discusse in cima.
 
 Note per la compilazione:
 
@@ -139,10 +216,14 @@ Sono le voci a cui rimandano entrambi i questionari e la policy.
 - Nuovi eventi che raccolgano campi non previsti qui
 - Aggiunta di SDK di terze parti
 
-## Cosa manca ancora prima di pubblicare
+## Cosa manca ancora prima di pubblicare la 2.9.4
 
-- [ ] Riconciliare queste tabelle con quanto già dichiarato nelle due console
-- [ ] Pubblicare `trailshare-website/privacy.html` aggiornata (il deploy web è
-      separato dal mobile — serve `firebase deploy --only hosting`)
+- [x] Riconciliare con App Store Connect — fatto il 2026-07-31: era già a posto,
+      restano le due modifiche in cima
+- [x] Pubblicare `trailshare-website/privacy.html` aggiornata — deploy hosting
+      fatto dal founder
+- [ ] **App Store Connect**: aggiungere `ID dispositivo`, correggere
+      `Interazione con il prodotto` a "collegato". Valutare `Cronologia acquisti`
+- [ ] **Play Console**: verificare lo stato attuale, poi lo stesso delta
 - [ ] Redeploy delle rules Firestore: `growth_users` ora ammette la delete
       dell'utente su sé stesso, e senza quella l'opposizione non cancella nulla
