@@ -23,6 +23,7 @@ import '../../../core/services/heading_service.dart';
 import '../../../core/services/hud_prefs_service.dart';
 import '../../../core/utils/eta_estimator.dart';
 import '../../../core/services/recording_status_service.dart';
+import '../../../core/services/review_prompt_service.dart';
 import '../../../core/services/save_diagnostics_service.dart';
 import '../../widgets/map_heading_toggle.dart';
 import '../../widgets/map_layer_button.dart';
@@ -2346,6 +2347,14 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       if (mounted) {
         await _showCompletionDialog(trackToSave);
       }
+
+      // Recensione: chiesta qui e non altrove perche' questo e' il picco
+      // della giornata dell'utente — traccia salva, punti guadagnati, dialog
+      // appena chiuso. Il servizio decide da solo se e' il caso: non prima
+      // della terza traccia, mai se il salvataggio non e' confermato dal
+      // server, e mai due volte a distanza ravvicinata.
+      unawaited(ReviewPromptService.instance
+          .onTrackSaved(confirmedByServer: saveResult.confirmedByServer));
 
       // In modalità guidata la pagina è stata aperta via Navigator.push dal
       // Planner o da un trail detail: dopo il salvataggio completato torna
