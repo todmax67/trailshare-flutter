@@ -32,6 +32,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/save_diagnostics_service.dart';
 
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key});
@@ -263,31 +264,47 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
   Future<void> _loadCommunityTracks() async {
     setState(() => _isLoadingCommunity = true);
-    final result = await _communityRepo.getRecentTracksPaginated(limit: 8);
-    if (mounted) {
-      setState(() {
-        _communityTracks = result.tracks;
-        _lastDocument = result.lastDocument;
-        _hasMoreTracks = result.hasMore;
-        _isLoadingCommunity = false;
-      });
+    try {
+      final result = await _communityRepo.getRecentTracksPaginated(limit: 8);
+      if (mounted) {
+        setState(() {
+          _communityTracks = result.tracks;
+          _lastDocument = result.lastDocument;
+          _hasMoreTracks = result.hasMore;
+        });
+      }
+    } catch (e, st) {
+      // Senza questo, l'errore risaliva alla zone e main.dart lo
+      // marcava fatale, mentre la tab restava con lo spinner acceso.
+      SaveDiagnosticsService.instance
+          .recordHandledError(e, st, reason: 'Community: tracce recenti');
+    } finally {
+      if (mounted) setState(() => _isLoadingCommunity = false);
     }
   }
 
   Future<void> _loadMoreCommunityTracks() async {
     if (_isLoadingMore || !_hasMoreTracks || _lastDocument == null) return;
     if (mounted) setState(() => _isLoadingMore = true);
-    final result = await _communityRepo.getRecentTracksPaginated(
-      limit: 8,
-      startAfterDoc: _lastDocument,
-    );
-    if (mounted) {
-      setState(() {
-        _communityTracks.addAll(result.tracks);
-        _lastDocument = result.lastDocument;
-        _hasMoreTracks = result.hasMore;
-        _isLoadingMore = false;
-      });
+    try {
+      final result = await _communityRepo.getRecentTracksPaginated(
+        limit: 8,
+        startAfterDoc: _lastDocument,
+      );
+      if (mounted) {
+        setState(() {
+          _communityTracks.addAll(result.tracks);
+          _lastDocument = result.lastDocument;
+          _hasMoreTracks = result.hasMore;
+        });
+      }
+    } catch (e, st) {
+      // Senza questo, l'errore risaliva alla zone e main.dart lo
+      // marcava fatale, mentre la tab restava con lo spinner acceso.
+      SaveDiagnosticsService.instance
+          .recordHandledError(e, st, reason: 'Community: altre tracce');
+    } finally {
+      if (mounted) setState(() => _isLoadingMore = false);
     }
   }
 
@@ -375,23 +392,39 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
   Future<void> _loadMyGroups({bool forceServer = false}) async {
     setState(() => _isLoadingMyGroups = true);
-    final groups = await _groupsRepo.getMyGroups(forceServer: forceServer);
-    if (mounted) {
-      setState(() {
-        _myGroups = groups;
-        _isLoadingMyGroups = false;
-      });
+    try {
+      final groups = await _groupsRepo.getMyGroups(forceServer: forceServer);
+      if (mounted) {
+        setState(() {
+          _myGroups = groups;
+        });
+      }
+    } catch (e, st) {
+      // Senza questo, l'errore risaliva alla zone e main.dart lo
+      // marcava fatale, mentre la tab restava con lo spinner acceso.
+      SaveDiagnosticsService.instance
+          .recordHandledError(e, st, reason: 'Community: i miei gruppi');
+    } finally {
+      if (mounted) setState(() => _isLoadingMyGroups = false);
     }
   }
 
   Future<void> _loadDiscoverableGroups() async {
     setState(() => _isLoadingDiscoverable = true);
-    final groups = await _groupsRepo.getDiscoverableGroups();
-    if (mounted) {
-      setState(() {
-        _discoverableGroups = groups;
-        _isLoadingDiscoverable = false;
-      });
+    try {
+      final groups = await _groupsRepo.getDiscoverableGroups();
+      if (mounted) {
+        setState(() {
+          _discoverableGroups = groups;
+        });
+      }
+    } catch (e, st) {
+      // Senza questo, l'errore risaliva alla zone e main.dart lo
+      // marcava fatale, mentre la tab restava con lo spinner acceso.
+      SaveDiagnosticsService.instance
+          .recordHandledError(e, st, reason: 'Community: gruppi da scoprire');
+    } finally {
+      if (mounted) setState(() => _isLoadingDiscoverable = false);
     }
   }
 
@@ -520,12 +553,20 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
   Future<void> _loadMyEvents() async {
     setState(() => _isLoadingMyEvents = true);
-    final events = await _groupsRepo.getAllUpcomingEvents();
-    if (mounted) {
-      setState(() {
-        _myEvents = events;
-        _isLoadingMyEvents = false;
-      });
+    try {
+      final events = await _groupsRepo.getAllUpcomingEvents();
+      if (mounted) {
+        setState(() {
+          _myEvents = events;
+        });
+      }
+    } catch (e, st) {
+      // Senza questo, l'errore risaliva alla zone e main.dart lo
+      // marcava fatale, mentre la tab restava con lo spinner acceso.
+      SaveDiagnosticsService.instance
+          .recordHandledError(e, st, reason: 'Community: i miei eventi');
+    } finally {
+      if (mounted) setState(() => _isLoadingMyEvents = false);
     }
   }
 
@@ -583,19 +624,35 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 
   Future<void> _loadPublicEvents() async {
     setState(() => _isLoadingPublicEvents = true);
-    final events = await _groupsRepo.getPublicUpcomingEvents();
-    if (mounted) {
-      setState(() {
-        _publicEvents = events;
-        _isLoadingPublicEvents = false;
-      });
+    try {
+      final events = await _groupsRepo.getPublicUpcomingEvents();
+      if (mounted) {
+        setState(() {
+          _publicEvents = events;
+        });
+      }
+    } catch (e, st) {
+      // Senza questo, l'errore risaliva alla zone e main.dart lo
+      // marcava fatale, mentre la tab restava con lo spinner acceso.
+      SaveDiagnosticsService.instance
+          .recordHandledError(e, st, reason: 'Community: eventi pubblici');
+    } finally {
+      if (mounted) setState(() => _isLoadingPublicEvents = false);
     }
   }
 
   Future<void> _loadActiveChallenges() async {
-    final challenges = await _groupsRepo.getAllActiveChallenges();
-    if (mounted) {
-      setState(() => _activeChallenges = challenges);
+    try {
+      final challenges = await _groupsRepo.getAllActiveChallenges();
+      if (mounted) {
+        setState(() => _activeChallenges = challenges);
+      }
+    } catch (e, st) {
+      // Nessuno spinner da spegnere qui, ma l'errore risaliva comunque alla
+      // zone e main.dart lo marcava fatale: le sfide non caricate non sono
+      // un crash dell'app.
+      SaveDiagnosticsService.instance
+          .recordHandledError(e, st, reason: 'Community: sfide attive');
     }
   }
 
