@@ -10,6 +10,7 @@ import '../../core/utils/difficulty_calculator.dart';
 import '../../core/utils/elevation_dem_corrector.dart';
 import '../../core/utils/elevation_processor.dart';
 import '../../core/utils/perf_trace.dart';
+import '../../core/services/growth_analytics_service.dart';
 import '../../core/services/save_diagnostics_service.dart';
 
 /// Risultato paginato per le tracce
@@ -175,6 +176,23 @@ class TracksRepository {
         durationSeconds: stats.duration.inSeconds,
         activityType: track.activityType.name,
       ));
+
+      // Attivazione: la prima traccia salvata e' il momento in cui un
+      // installato diventa un utente vero. E' la metrica su cui si giudica
+      // ogni canale di acquisizione — un canale che porta installazioni che
+      // non arrivano qui non sta portando niente.
+      unawaited(GrowthAnalyticsService.instance.milestone(
+        GrowthMilestone.firstTrackSaved,
+        params: {
+          'activity_type': track.activityType.name,
+          'distance_km': (stats.distance / 1000).round(),
+          'is_public': track.isPublic ? 1 : 0,
+        },
+      ));
+      if (track.isPublic) {
+        unawaited(GrowthAnalyticsService.instance
+            .milestone(GrowthMilestone.firstTrackPublic));
+      }
 
       return SaveTrackResult(
         trackId: docRef.id,

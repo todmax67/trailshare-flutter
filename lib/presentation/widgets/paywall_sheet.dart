@@ -9,6 +9,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/monetization_config.dart';
 import '../../core/constants/pro_products.dart';
 import '../../core/extensions/theme_colors_extension.dart';
+import '../../core/services/growth_analytics_service.dart';
 import '../../core/services/pro_gate_service.dart';
 import '../../core/services/subscription_manager.dart';
 import '../../core/extensions/l10n_extension.dart';
@@ -41,6 +42,11 @@ Future<bool?> showPaywallSheet(
   BuildContext context, {
   PaywallTrigger trigger = PaywallTrigger.generic,
 }) {
+  // Non e' una milestone: va contato ogni volta. La domanda utile e' quante
+  // visualizzazioni servono per una conversione, e quale trigger converte —
+  // cioe' quale feature vale davvero il prezzo.
+  GrowthAnalyticsService.instance.paywallViewed(trigger.name);
+
   // Su Android (monetizzazione disabilitata) non mostriamo il paywall
   // di acquisto ma una sheet informativa "Pro gratis su Android".
   if (Platform.isAndroid &&

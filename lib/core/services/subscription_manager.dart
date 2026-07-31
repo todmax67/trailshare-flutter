@@ -6,6 +6,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../constants/monetization_config.dart';
 import '../constants/pro_products.dart';
+import 'growth_analytics_service.dart';
 import 'pro_gate_service.dart';
 import 'receipt_validator_service.dart';
 
@@ -281,6 +282,15 @@ class SubscriptionManager extends ChangeNotifier {
             await ProGateService().setCurrentProductId(purchase.productID);
             debugPrint('[SubscriptionManager] Pro UNLOCKED via '
                 '${purchase.status} of ${purchase.productID}');
+            // Solo `purchased`: un `restored` e' lo stesso abbonamento che
+            // ricompare su un altro dispositivo, non una vendita nuova.
+            // Contarlo gonfierebbe la conversione di chi cambia telefono.
+            if (purchase.status == PurchaseStatus.purchased) {
+              GrowthAnalyticsService.instance.milestone(
+                GrowthMilestone.proPurchase,
+                params: {'product_id': purchase.productID},
+              );
+            }
           } else {
             debugPrint('[SubscriptionManager] receipt validation failed for '
                 '${purchase.productID}');

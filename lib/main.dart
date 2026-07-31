@@ -20,6 +20,7 @@ import 'core/services/map_style_prefs.dart';
 import 'core/services/pro_gate_service.dart';
 import 'core/services/subscription_manager.dart';
 import 'core/services/deep_link_service.dart';
+import 'core/services/growth_analytics_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -193,6 +194,17 @@ void main() async {
   // parallelo. Il PaywallSheet aspetta la lista prodotti via listener.
   SubscriptionManager().init().catchError((e) {
     debugPrint('[SubscriptionManager] Init fallita: $e');
+  });
+
+  // Motore di crescita: prima apertura, retention, attribuzione da install
+  // referrer (Fase 0). Non bloccante — alla prima apertura interroga il Play
+  // Store, che non deve stare sul percorso critico dell'avvio. Se fallisce
+  // restiamo ciechi, non fermi.
+  //
+  // Non c'e' corsa col DeepLinkService qui sotto: l'attribuzione e'
+  // first-touch, chi arriva primo vince e l'altro non sovrascrive.
+  GrowthAnalyticsService.instance.initialize().catchError((e) {
+    debugPrint('[Growth] Init fallita: $e');
   });
 
   // Deep link handler (custom scheme trailshare://g/{code} dal QR

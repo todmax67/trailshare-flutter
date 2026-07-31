@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/perf_trace.dart';
+import 'growth_analytics_service.dart';
 
 /// Stato della checklist "primi passi": quali azioni di attivazione il nuovo
 /// utente ha già completato.
@@ -50,6 +51,11 @@ class OnboardingChecklistService {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool(_kExplored) ?? false)) {
       await prefs.setBool(_kExplored, true);
+      // Stesso momento, due usi: la checklist lo mostra all'utente, il funnel
+      // lo conta. Meglio qui che nella pagina — il "primo Discover" e' gia'
+      // definito in questo punto e non va ridefinito altrove.
+      GrowthAnalyticsService.instance
+          .milestone(GrowthMilestone.firstDiscover);
     }
   }
 

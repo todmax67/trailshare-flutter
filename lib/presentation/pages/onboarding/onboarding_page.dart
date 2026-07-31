@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
+import '../../../core/services/growth_analytics_service.dart';
 
 /// Pagina Onboarding
 /// 
@@ -83,6 +84,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Future<void> _completeOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_completed', true);
+    // Anche chi salta le slide ha "completato": la domanda a cui serve
+    // rispondere e' quanti arrivano oltre l'onboarding, non quanti lo leggono.
+    GrowthAnalyticsService.instance.milestone(
+      GrowthMilestone.onboardingDone,
+      params: {'last_slide': _currentPage, 'skipped': _currentPage < _slideCount - 1 ? 1 : 0},
+    );
     widget.onComplete();
   }
 

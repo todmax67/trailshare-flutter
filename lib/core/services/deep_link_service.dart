@@ -10,6 +10,7 @@ import '../../data/repositories/groups_repository.dart';
 import '../../presentation/pages/business/business_profile_page.dart';
 import '../../presentation/pages/challenges/challenges_page.dart';
 import '../../presentation/pages/groups/group_detail_page.dart';
+import 'growth_analytics_service.dart';
 
 /// Singleton che gestisce i deep link in ingresso.
 ///
@@ -18,6 +19,10 @@ import '../../presentation/pages/groups/group_detail_page.dart';
 /// - `trailshare://b/{businessId}` — apre profilo Spazio Pro (7.C9)
 /// - `https://trailshare.app/g/{code}` — universal link gruppo
 /// - `https://trailshare.app/b/{slug}` — universal link Spazio Pro (slug)
+///
+/// Ogni link puo' inoltre portare l'attribuzione (`?src=`, `utm_source=`):
+/// e' cosi' che il QR di un rifugio o il link in bio diventano misurabili.
+/// Vedi `docs/growth_engine.md` per la convenzione dei link tracciabili.
 ///
 /// L'Universal Link/App Link richiede file ben noti su trailshare.app
 /// (`.well-known/apple-app-site-association` + `assetlinks.json`) —
@@ -54,6 +59,12 @@ class DeepLinkService {
 
   Future<void> _handle(Uri uri) async {
     debugPrint('[DeepLink] ricevuto: $uri');
+
+    // Attribuzione prima del routing: un link puo' portare `?src=` qualunque
+    // sia la sua destinazione, e alcuni (il QR del rifugio che apre la home)
+    // non hanno nessuna rotta da eseguire — cadrebbero in fondo a questo
+    // metodo senza che nessuno ne prenda nota.
+    unawaited(GrowthAnalyticsService.instance.recordDeepLinkOpen(uri));
 
     // trailshare://{strava|polar|suunto}/connected | .../error?msg=...
     if (uri.scheme == 'trailshare' &&

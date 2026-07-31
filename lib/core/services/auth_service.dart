@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import '../services/growth_analytics_service.dart';
 import '../services/push_notification_service.dart';
 
 /// Risultato autenticazione
@@ -31,10 +32,12 @@ class AuthService {
   /// Login con email e password
   Future<AuthResult> signInWithEmail(String email, String password) async {
     try {
+      GrowthAnalyticsService.instance.signupStarted('email');
       final credential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
+      _trackAuth(credential, 'email', isSignUp: false);
       return AuthResult(success: true, user: credential.user);
     } on FirebaseAuthException catch (e) {
       return AuthResult(success: false, errorMessage: _getErrorMessage(e.code));
@@ -46,10 +49,12 @@ class AuthService {
   /// Registrazione con email e password
   Future<AuthResult> registerWithEmail(String email, String password) async {
     try {
+      GrowthAnalyticsService.instance.signupStarted('email');
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
+      _trackAuth(credential, 'email', isSignUp: true);
       return AuthResult(success: true, user: credential.user);
     } on FirebaseAuthException catch (e) {
       return AuthResult(success: false, errorMessage: _getErrorMessage(e.code));
@@ -77,9 +82,10 @@ class AuthService {
   /// Login con Google
   Future<AuthResult> signInWithGoogle() async {
     try {
+      GrowthAnalyticsService.instance.signupStarted('google');
       // Avvia il flusso di autenticazione Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
+
       if (googleUser == null) {
         // L'utente ha annullato
         return AuthResult(success: false, errorMessage: 'Accesso annullato');
@@ -96,7 +102,8 @@ class AuthService {
 
       // Accedi a Firebase
       final userCredential = await _auth.signInWithCredential(credential);
-      
+
+      _trackAuth(userCredential, 'google');
       return AuthResult(success: true, user: userCredential.user);
     } on FirebaseAuthException catch (e) {
       return AuthResult(success: false, errorMessage: _getErrorMessage(e.code));
@@ -113,6 +120,7 @@ class AuthService {
   Future<AuthResult> signInWithApple() async {
     try {
       debugPrint('[AppleSignIn] Starting native Firebase Apple Sign-In...');
+      GrowthAnalyticsService.instance.signupStarted('apple');
 
       final appleProvider = AppleAuthProvider();
       appleProvider.addScope('email');
@@ -126,6 +134,7 @@ class AuthService {
       debugPrint('[AppleSignIn] email: ${userCredential.user?.email}');
       debugPrint('[AppleSignIn] displayName: ${userCredential.user?.displayName}');
 
+      _trackAuth(userCredential, 'apple');
       return AuthResult(success: true, user: userCredential.user);
     } on FirebaseAuthException catch (e) {
       debugPrint('[AppleSignIn] Firebase Auth Exception: code=${e.code}, message=${e.message}');
@@ -159,6 +168,31 @@ class AuthService {
   // ═══════════════════════════════════════════════════════════════════════════
   // HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Misura acquisizione, in un punto solo per tutti e tre i metodi.
+  ///
+  /// Google e Apple servono sia a registrarsi sia a rientrare: dal lato UI i
+  /// due casi sono indistinguibili (stessa schermata, stesso bottone), ed e'
+  /// il motivo per cui questo sta qui e non nelle pagine. `isNewUser` e'
+  /// l'unico dato che separa un utente nuovo — cioe' il numero che conta —
+  /// da uno che torna.
+  ///
+  /// [isSignUp] forza l'esito quando il metodo e' univoco per costruzione
+  /// (registrazione via email), dove `additionalUserInfo` non serve.
+  void _trackAuth(
+    UserCredential credential,
+    String method, {
+    bool? isSignUp,
+  }) {
+    final isNew = isSignUp ?? credential.additionalUserInfo?.isNewUser ?? false;
+    if (!isNew) return;
+    // Chi rientra non va segnato qui: `lastSeenAt` lo aggiorna il listener su
+    // authStateChanges dentro GrowthAnalyticsService, che copre anche il
+    // ripristino silenzioso della sessione — cioe' la gran parte dei rientri,
+    // che da questo metodo non passano mai.
+    GrowthAnalyticsService.instance
+        .milestone(GrowthMilestone.signup, params: {'method': method});
+  }
 
   /// Messaggi di errore localizzati
   String _getErrorMessage(String code) {

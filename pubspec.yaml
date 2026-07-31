@@ -125,7 +125,17 @@ dependencies:
   webview_flutter: ^4.13.1
   flutter_screen_recording: ^2.0.25
   firebase_crashlytics: ^4.3.10
-
+  # Motore di crescita (Fase 0): funnel acquisizione → attivazione →
+  # retention. Analytics e non solo Firestore perche' e' il sink su cui si
+  # agganciano l'attribuzione degli store e Apple Search Ads, e da' coorti
+  # e retention in console senza scrivere una query.
+  firebase_analytics: ^11.6.0
+  # Attribuzione delle installazioni nuove su Android: il Play Store porta
+  # fino alla prima apertura il `referrer` messo nel link del QR. E' l'unico
+  # modo di sapere che quell'utente arriva dal rifugio X e non dal nulla.
+  # Su iOS non esiste equivalente per il traffico organico: li' l'attribuzione
+  # resta aggregata, via campaign link di App Store Connect.
+  play_install_referrer: ^0.5.0
 dependency_overrides:
   # Fork locale minimale: su Android 14+ forza il dialog MediaProjection al
   # solo "schermo intero" (createConfigForDefaultDisplay) — il default

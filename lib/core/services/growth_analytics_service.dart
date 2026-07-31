@@ -1,0 +1,528 @@
+/// Motore di crescita — Fase 0: la spina dorsale della misura.
+///
+/// Nasce dalla constatazione del 2026-07-31: l'app non misurava **nulla** di
+/// acquisizione (zero `logEvent` in tutto `lib/`), mentre il manager social
+/// leggeva like e reach. Cioe' potevamo pubblicare per un anno senza sapere se
+/// un solo post avesse portato un utente. Ogni strategia costruita su quei
+/// numeri ottimizza la metrica sbagliata.
+///
+/// ## Due sink, un'unica API
+///
+/// **Firebase Analytics** riceve lo stream completo degli eventi. E' il sink su
+/// cui si agganciano l'attribuzione degli store, Apple Search Ads e le
+/// campagne, e da' coorti e retention in console senza scrivere una query.
+///
+/// **`growth_users/{uid}`** riceve le sole *milestone*: un documento per utente
+/// con il timestamp della prima volta che ha fatto una certa cosa, piu' la
+/// fonte da cui e' arrivato. Serve perche' Analytics ha 24h di ritardo e per
+/// interrogarlo davvero serve l'export BigQuery, mentre l'aggregatore del
+/// manager (`growth_daily`) deve poter calcolare il funnel **oggi** — e legge
+/// gia' il Firestore di produzione col service account cross-project.
+///
+/// Un doc per utente, non uno per evento come in [SaveDiagnosticsService]: qui
+/// gli eventi interessanti sono per-vita-utente ("la prima traccia salvata"), e
+/// la forma naturale per funnel e coorti e' la riga-utente. Costo: un update al
+/// giorno per utente attivo, al massimo.
+///
+/// ## Regola d'oro
+///
+/// Come per la telemetria di salvataggio: questa classe non deve **mai** far
+/// fallire nulla. Ogni metodo inghiotte le proprie eccezioni ed e'
+/// fire-and-forget.
+library;
+
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:play_install_referrer/play_install_referrer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Le tappe del funnel, dalla prima apertura all'abbonamento.
+///
+/// L'ordine e' quello del percorso utente: serve solo a leggere il codice, il
+/// funnel vero lo ricostruisce l'aggregatore dai timestamp.
+enum GrowthMilestone {
+  /// Primissima apertura dell'app su questo dispositivo (pre-registrazione).
+  firstOpen,
+
+  /// Account creato.
+  signup,
+
+  /// Slide di onboarding completate.
+  onboardingDone,
+
+  /// **Attivazione**: prima traccia salvata. E' il momento in cui un
+  /// installato diventa un utente vero — la metrica nord di questa fase.
+  firstTrackSaved,
+
+  /// Prima traccia resa pubblica: l'utente inizia a produrre contenuto per
+  /// gli altri (l'unico motore di network effect che abbiamo).
+  firstTrackPublic,
+
+  /// Primo Discover aperto.
+  firstDiscover,
+
+  /// Primo sentiero messo nei preferiti.
+  firstFavorite,
+
+  /// Abbonamento Pro acquistato.
+  proPurchase,
+}
+
+extension on GrowthMilestone {
+  /// Campo su `growth_users/{uid}` che porta il timestamp della milestone.
+  String get field => switch (this) {
+        GrowthMilestone.firstOpen => 'firstOpenAt',
+        GrowthMilestone.signup => 'signupAt',
+        GrowthMilestone.onboardingDone => 'onboardingDoneAt',
+        GrowthMilestone.firstTrackSaved => 'firstTrackSavedAt',
+        GrowthMilestone.firstTrackPublic => 'firstTrackPublicAt',
+        GrowthMilestone.firstDiscover => 'firstDiscoverAt',
+        GrowthMilestone.firstFavorite => 'firstFavoriteAt',
+        GrowthMilestone.proPurchase => 'proPurchaseAt',
+      };
+
+  /// Nome evento per Analytics.
+  ///
+  /// Attenzione ai nomi riservati da GA4 (`first_open`, `in_app_purchase`,
+  /// `session_start`…): riusarli fa scartare l'evento in silenzio.
+  String get eventName => switch (this) {
+        GrowthMilestone.firstOpen => 'ts_first_open',
+        GrowthMilestone.signup => 'signup_completed',
+        GrowthMilestone.onboardingDone => 'onboarding_completed',
+        GrowthMilestone.firstTrackSaved => 'activation_track_saved',
+        GrowthMilestone.firstTrackPublic => 'track_made_public',
+        GrowthMilestone.firstDiscover => 'discover_first_open',
+        GrowthMilestone.firstFavorite => 'trail_first_favorited',
+        GrowthMilestone.proPurchase => 'pro_purchase_completed',
+      };
+}
+
+/// Da dove e' arrivato l'utente. Riempita dai parametri del link d'ingresso
+/// (QR nei rifugi, bio social, articolo di stampa) e congelata al signup.
+class AcquisitionSource {
+  /// Chi ci ha portato l'utente: `qr_rifugio_arlaud`, `instagram`, `press`…
+  final String source;
+
+  /// Il mezzo: `qr`, `social`, `press`, `ads`, `referral`.
+  final String? medium;
+
+  /// La campagna specifica: `estate2026`, `lancio_2_9`…
+  final String? campaign;
+
+  const AcquisitionSource({
+    required this.source,
+    this.medium,
+    this.campaign,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'source': source,
+        if (medium != null) 'medium': medium,
+        if (campaign != null) 'campaign': campaign,
+      };
+
+  /// Legge i parametri da un URI di ingresso.
+  ///
+  /// Accetta sia la forma lunga standard (`utm_source`, `utm_medium`,
+  /// `utm_campaign`) sia quella corta (`src`, `med`, `cmp`): sui QR stampati
+  /// l'URL piu' corto e' un QR meno denso, quindi piu' facile da leggere con
+  /// poca luce — che nei rifugi capita spesso.
+  ///
+  /// Ritorna null se il link non porta attribuzione: la maggior parte dei deep
+  /// link (invito a un gruppo, callback di Strava) non ne ha, ed e' giusto che
+  /// non sovrascrivano quella gia' raccolta.
+  static AcquisitionSource? fromUri(Uri uri) {
+    final q = uri.queryParameters;
+    final source = q['utm_source'] ?? q['src'];
+    if (source == null || source.trim().isEmpty) return null;
+    return AcquisitionSource(
+      source: _clean(source),
+      medium: _cleanOrNull(q['utm_medium'] ?? q['med']),
+      campaign: _cleanOrNull(q['utm_campaign'] ?? q['cmp']),
+    );
+  }
+
+  /// Analytics rifiuta valori sopra i 100 caratteri e i nomi con spazi si
+  /// spezzano male nei report: normalizziamo qui una volta per tutte.
+  static String _clean(String v) {
+    final s = v.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9_-]+'), '_');
+    return s.length <= 100 ? s : s.substring(0, 100);
+  }
+
+  static String? _cleanOrNull(String? v) {
+    if (v == null || v.trim().isEmpty) return null;
+    return _clean(v);
+  }
+}
+
+class GrowthAnalyticsService {
+  GrowthAnalyticsService._();
+  static final GrowthAnalyticsService instance = GrowthAnalyticsService._();
+
+  static const String _collection = 'growth_users';
+
+  /// Attribuzione in attesa di un utente a cui essere attaccata: chi arriva da
+  /// un QR apre l'app prima di registrarsi, e quel momento e' l'unico in cui
+  /// conosciamo la fonte.
+  static const String _kPendingSource = 'growth_pending_source';
+  static const String _kPendingMedium = 'growth_pending_medium';
+  static const String _kPendingCampaign = 'growth_pending_campaign';
+
+  static const String _kFirstOpenDone = 'growth_first_open_done';
+  static const String _kLastSeenDay = 'growth_last_seen_day';
+
+  FirebaseAnalytics? _analytics;
+  bool _analyticsUnavailable = false;
+  String? _appVersion;
+
+  /// Ultimo giorno per cui `lastSeenAt` e' gia' stato aggiornato in questa
+  /// sessione. Vedi [_touchLastSeen] per il perche' non basti SharedPreferences.
+  String? _lastSeenDayInMemory;
+
+  /// Analytics non ha implementazione su tutte le piattaforme che compiliamo
+  /// (macOS/Windows) e su web richiede il measurementId in
+  /// `firebase_options.dart`: se manca, meglio restare senza che far esplodere
+  /// l'avvio.
+  FirebaseAnalytics? get _ga {
+    if (_analyticsUnavailable) return null;
+    try {
+      return _analytics ??= FirebaseAnalytics.instance;
+    } catch (e) {
+      _analyticsUnavailable = true;
+      debugPrint('[Growth] Analytics non disponibile: $e');
+      return null;
+    }
+  }
+
+  String get _platform {
+    if (kIsWeb) return 'web';
+    return defaultTargetPlatform.name;
+  }
+
+  Future<String> _version() async {
+    if (_appVersion != null) return _appVersion!;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      _appVersion = '${info.version}+${info.buildNumber}';
+    } catch (_) {
+      _appVersion = 'unknown';
+    }
+    return _appVersion!;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AVVIO
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Da chiamare una volta in `main()`, dopo l'init di Firebase.
+  ///
+  /// Registra la primissima apertura e tiene aggiornato `lastSeenAt` (che e'
+  /// cio' che permette di calcolare la retention a D1/D7/D30). Non blocca
+  /// l'avvio: se qualcosa va storto restiamo senza misura, non senza app.
+  Future<void> initialize() async {
+    try {
+      // In debug non raccogliere: i numeri di crescita si sporcherebbero con
+      // le decine di hot restart dello sviluppo, e la retention diventerebbe
+      // finzione. Stessa scelta fatta per Crashlytics.
+      await _ga?.setAnalyticsCollectionEnabled(!kDebugMode);
+      if (kDebugMode) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool(_kFirstOpenDone) ?? false)) {
+        await prefs.setBool(_kFirstOpenDone, true);
+        await _logEvent(GrowthMilestone.firstOpen.eventName, {
+          'platform': _platform,
+          'app_version': await _version(),
+        });
+        // Nessuna scrittura Firestore: qui l'utente non esiste ancora. La
+        // prima apertura viene riportata sul doc al momento della
+        // registrazione, insieme all'attribuzione.
+        await prefs.setString(
+          'growth_first_open_at',
+          DateTime.now().toUtc().toIso8601String(),
+        );
+        // Solo alla prima apertura: dopo, il referrer e' comunque lo stesso e
+        // interrogare il Play Store a ogni avvio e' spreco.
+        await _captureInstallReferrer();
+      }
+
+      // `lastSeenAt` va agganciato all'auth, non chiamato qui e basta: a
+      // questo punto dell'avvio `currentUser` e' quasi sempre ancora null
+      // anche per chi e' loggato, perche' il ripristino della sessione e'
+      // asincrono. Chiamandolo direttamente, l'utente che riapre l'app —
+      // cioe' esattamente quello che la retention deve contare — non
+      // verrebbe mai registrato.
+      //
+      // Il listener scatta anche ai refresh del token: il tetto giornaliero
+      // dentro `_touchLastSeen` rende le chiamate in piu' gratuite.
+      FirebaseAuth.instance.authStateChanges().listen((user) {
+        if (user != null) unawaited(_touchLastSeen());
+      });
+    } catch (e) {
+      debugPrint('[Growth] initialize: $e');
+    }
+  }
+
+  /// Aggiorna `lastSeenAt` al massimo una volta al giorno.
+  ///
+  /// Il cap giornaliero non e' un dettaglio di costo: senza, ogni apertura
+  /// sarebbe una scrittura, e con l'app in tasca durante un'escursione sono
+  /// decine di riaperture per utente al giorno.
+  Future<void> _touchLastSeen() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+    // Guardia sincrona, prima di qualunque await: il listener puo' emettere
+    // due volte a distanza di millisecondi (login + refresh token) e due
+    // chiamate concorrenti supererebbero entrambe il controllo su prefs,
+    // incrementando `activeDaysCount` due volte nello stesso giorno.
+    if (_lastSeenDayInMemory == today) return;
+    _lastSeenDayInMemory = today;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getString(_kLastSeenDay) == today) return;
+      await prefs.setString(_kLastSeenDay, today);
+
+      unawaited(_mergeDoc(uid, {
+        'lastSeenAt': FieldValue.serverTimestamp(),
+        'lastSeenDay': today,
+        'activeDaysCount': FieldValue.increment(1),
+        'appVersion': await _version(),
+        'platform': _platform,
+      }));
+    } catch (e) {
+      debugPrint('[Growth] touchLastSeen: $e');
+    }
+  }
+
+  /// Attribuzione delle installazioni **nuove** su Android.
+  ///
+  /// E' il pezzo che rende misurabile il ground game nei rifugi: chi inquadra
+  /// il QR non ha l'app, quindi non c'e' nessun deep link da leggere — ma il
+  /// Play Store trasporta fino alla prima apertura il parametro `referrer`
+  /// messo nel link. Senza questo, ogni installazione da QR sarebbe
+  /// indistinguibile da una organica.
+  ///
+  /// Il link del QR deve avere la forma:
+  /// `https://play.google.com/store/apps/details?id=...&referrer=utm_source%3Dqr_arlaud%26utm_medium%3Dqr`
+  ///
+  /// Su iOS il plugin solleva per costruzione (non esiste un equivalente per
+  /// il traffico organico): li' i numeri restano aggregati, nei campaign link
+  /// di App Store Connect.
+  Future<void> _captureInstallReferrer() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final details = await PlayInstallReferrer.installReferrer;
+      final raw = details.installReferrer;
+      if (raw == null || raw.isEmpty) return;
+
+      // Il referrer arriva come query string (`utm_source=x&utm_medium=y`),
+      // non come URL: gli diamo un host fittizio per poterlo parsare.
+      final acq = AcquisitionSource.fromUri(Uri.parse('https://x/?$raw'));
+      if (acq == null) {
+        // Play inietta `utm_source=google-play&utm_medium=organic` quando non
+        // c'e' campagna: non e' un errore, e' semplicemente traffico organico.
+        debugPrint('[Growth] referrer senza attribuzione utile: $raw');
+        return;
+      }
+      await recordAcquisition(acq);
+    } catch (e) {
+      // Play Services assenti (device cinesi, emulatori) o utente installato
+      // da APK: nessuna attribuzione, nessun dramma.
+      debugPrint('[Growth] install referrer non disponibile: $e');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ATTRIBUZIONE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Registra da dove arriva l'utente, letto dal link d'ingresso.
+  ///
+  /// Vale il **primo** tocco: se qualcuno arriva dal QR del rifugio e due
+  /// giorni dopo riapre da un link Instagram, l'utente resta attribuito al
+  /// rifugio. Altrimenti l'ultimo canale toccato si prenderebbe il merito del
+  /// lavoro fatto dal primo.
+  Future<void> recordAcquisition(AcquisitionSource acq) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final already = prefs.getString(_kPendingSource);
+      if (already != null && already.isNotEmpty) return;
+
+      await prefs.setString(_kPendingSource, acq.source);
+      if (acq.medium != null) await prefs.setString(_kPendingMedium, acq.medium!);
+      if (acq.campaign != null) {
+        await prefs.setString(_kPendingCampaign, acq.campaign!);
+      }
+
+      // Come proprieta' utente, non solo evento: cosi' in console si possono
+      // segmentare retention e conversione per fonte senza BigQuery.
+      await _ga?.setUserProperty(name: 'acq_source', value: acq.source);
+      if (acq.campaign != null) {
+        await _ga?.setUserProperty(name: 'acq_campaign', value: acq.campaign);
+      }
+
+      await _logEvent('acquisition_attributed', acq.toMap());
+
+      // Se l'utente e' gia' registrato (riapertura da link, non primo
+      // ingresso) l'attribuzione va scritta subito: non ci sara' un signup a
+      // farlo per noi.
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null && !kDebugMode) {
+        unawaited(_mergeDoc(uid, {'acquisition': _pendingMap(prefs)}));
+      }
+    } catch (e) {
+      debugPrint('[Growth] recordAcquisition: $e');
+    }
+  }
+
+  /// Segnala l'apertura da deep link, con o senza attribuzione: serve a sapere
+  /// quanti scan/click producono almeno un'apertura, che e' il numeratore del
+  /// tasso di conversione del ground game.
+  Future<void> recordDeepLinkOpen(Uri uri) async {
+    final acq = AcquisitionSource.fromUri(uri);
+    await _logEvent('deep_link_open', {
+      'link_kind': _linkKind(uri),
+      if (acq != null) ...acq.toMap(),
+    });
+    if (acq != null) await recordAcquisition(acq);
+  }
+
+  /// Categoria del link, per non mandare ad Analytics URL completi (che
+  /// possono contenere codici invito e altri dati personali).
+  String _linkKind(Uri uri) {
+    final first = uri.pathSegments.isNotEmpty
+        ? uri.pathSegments.first
+        : (uri.host.isNotEmpty ? uri.host : 'unknown');
+    return switch (first) {
+      'g' || 'group' => 'group_invite',
+      'b' => 'business',
+      'sfide' || 'challenges' => 'challenges',
+      'strava' || 'polar' || 'suunto' => 'integration_callback',
+      _ => 'other',
+    };
+  }
+
+  Map<String, dynamic>? _pendingMap(SharedPreferences prefs) {
+    final source = prefs.getString(_kPendingSource);
+    if (source == null || source.isEmpty) return null;
+    return {
+      'source': source,
+      if (prefs.getString(_kPendingMedium) != null)
+        'medium': prefs.getString(_kPendingMedium),
+      if (prefs.getString(_kPendingCampaign) != null)
+        'campaign': prefs.getString(_kPendingCampaign),
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MILESTONE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Registra una tappa del funnel, una sola volta per utente.
+  ///
+  /// Il doppio guardiano (flag locale + `_mergeDoc` che non sovrascrive un
+  /// timestamp gia' presente) e' voluto: il flag evita la scrittura inutile,
+  /// il controllo lato dato protegge dal caso reale in cui l'utente
+  /// reinstalla o cambia dispositivo — li' il flag locale e' vergine ma la
+  /// milestone e' gia' stata raggiunta, e riscriverla falserebbe le coorti.
+  Future<void> milestone(
+    GrowthMilestone m, {
+    Map<String, dynamic>? params,
+  }) async {
+    try {
+      if (kDebugMode) return;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'growth_ms_${uid ?? 'anon'}_${m.name}';
+      if (prefs.getBool(key) ?? false) return;
+      await prefs.setBool(key, true);
+
+      await _logEvent(m.eventName, params);
+      if (uid == null) return;
+
+      final data = <String, dynamic>{
+        m.field: FieldValue.serverTimestamp(),
+        // In UTC e lato client: se il doc resta in coda offline il
+        // serverTimestamp e' null finche' non sincronizza, e la milestone
+        // sparirebbe dalle query per giorni.
+        '${m.field}Client': DateTime.now().toUtc().toIso8601String(),
+        if (params != null) '${m.name}Params': params,
+      };
+
+      // La registrazione e' il momento in cui l'utente prende un'identita':
+      // e' li' che l'attribuzione raccolta prima del login trova un uid a cui
+      // attaccarsi, e che la prima apertura entra nel doc.
+      if (m == GrowthMilestone.signup) {
+        data['acquisition'] = _pendingMap(prefs) ?? {'source': 'organic'};
+        data['firstOpenAtClient'] = prefs.getString('growth_first_open_at');
+        data['platform'] = _platform;
+        data['appVersion'] = await _version();
+      }
+
+      unawaited(_mergeDoc(uid, data));
+    } catch (e) {
+      debugPrint('[Growth] milestone ${m.name}: $e');
+    }
+  }
+
+  /// L'utente ha scelto un metodo di registrazione (prima che vada a buon
+  /// fine). La differenza tra questo e [GrowthMilestone.signup] misura quanto
+  /// il login stesso perde per strada.
+  Future<void> signupStarted(String method) =>
+      _logEvent('signup_started', {'method': method});
+
+  /// Paywall mostrato. Non e' una milestone: va contato ogni volta, perche' la
+  /// domanda utile e' "quante visualizzazioni servono per una conversione".
+  Future<void> paywallViewed(String trigger) async {
+    await _logEvent('paywall_viewed', {'trigger': trigger});
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || kDebugMode) return;
+    unawaited(_mergeDoc(uid, {'paywallViews': FieldValue.increment(1)}));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SINK
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<void> _logEvent(String name, Map<String, dynamic>? params) async {
+    try {
+      await _ga?.logEvent(
+        name: name,
+        parameters: params == null || params.isEmpty
+            ? null
+            : params.map((k, v) => MapEntry(k, _asAnalyticsValue(v))),
+      );
+    } catch (e) {
+      debugPrint('[Growth] logEvent $name: $e');
+    }
+  }
+
+  /// Analytics accetta solo String e num come valori: tutto il resto va
+  /// convertito, altrimenti il plugin solleva e perdiamo l'evento.
+  Object _asAnalyticsValue(dynamic v) {
+    if (v is num) return v;
+    if (v is String) return v.length <= 100 ? v : v.substring(0, 100);
+    return v.toString();
+  }
+
+  Future<void> _mergeDoc(String uid, Map<String, dynamic> data) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection(_collection)
+          .doc(uid)
+          .set({...data, 'uid': uid}, SetOptions(merge: true));
+    } catch (e) {
+      // Un rifiuto delle rules o un'assenza di rete non devono trasformarsi in
+      // un errore non gestito: finirebbe in PlatformDispatcher.onError
+      // (main.dart), che marca fatal: true — un problema di telemetria
+      // travestito da crash.
+      debugPrint('[Growth] scrittura growth_users fallita: $e');
+    }
+  }
+}

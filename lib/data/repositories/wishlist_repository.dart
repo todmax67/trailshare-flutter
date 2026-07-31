@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../core/services/growth_analytics_service.dart';
+
 /// Repository per gestire la wishlist (percorsi da fare)
 class WishlistRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -80,6 +82,8 @@ class WishlistRepository {
         await profileRef.set({
           'wishlist': FieldValue.arrayUnion([trackId]),
         }, SetOptions(merge: true));
+        GrowthAnalyticsService.instance
+            .milestone(GrowthMilestone.firstFavorite);
         return WishlistResult(
           success: true,
           isNowInWishlist: true,

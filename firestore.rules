@@ -660,6 +660,48 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // --- MOTORE DI CRESCITA: FUNNEL PER UTENTE ---
+    // Un documento per utente con i timestamp delle tappe (prima apertura,
+    // registrazione, prima traccia salvata, Pro) e la fonte da cui e'
+    // arrivato. Lo scrive il client (GrowthAnalyticsService), lo legge solo
+    // l'aggregatore `growth_daily` del manager con l'admin SDK: al client le
+    // read non servono, quindi non le ha.
+    //
+    // Le milestone sono IMMUTABILI una volta scritte. Non e' diffidenza verso
+    // l'utente: al reinstall o al cambio dispositivo il guardiano locale
+    // riparte vergine e il client rimanda la milestone. Se potesse
+    // sovrascrivere, chi si e' attivato sei mesi fa risulterebbe attivato
+    // oggi, e le coorti — l'unica cosa per cui questi dati esistono —
+    // diventerebbero finzione. Qui la scrittura viene rifiutata e il
+    // timestamp originale resta.
+    match /growth_users/{userId} {
+      // In un update `request.resource.data` e' il documento RISULTANTE: un
+      // campo non toccato dalla merge ci compare col valore vecchio e il
+      // confronto passa da solo.
+      function milestoneKept(f) {
+        return !(f in resource.data)
+          || request.resource.data[f] == resource.data[f];
+      }
+      function milestonesUnchanged() {
+        return milestoneKept('firstOpenAt')
+          && milestoneKept('signupAt')
+          && milestoneKept('onboardingDoneAt')
+          && milestoneKept('firstTrackSavedAt')
+          && milestoneKept('firstTrackPublicAt')
+          && milestoneKept('firstDiscoverAt')
+          && milestoneKept('firstFavoriteAt')
+          && milestoneKept('proPurchaseAt')
+          && milestoneKept('acquisition');
+      }
+
+      allow read, delete: if false;
+      allow create: if isSignedIn() && isOwner(userId)
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && isOwner(userId)
+        && request.resource.data.uid == request.auth.uid
+        && milestonesUnchanged();
+    }
+
     // --- REGOLE NOTIFICHE ---
     // create stretto: senderId deve combaciare con l'utente autenticato
     // (evita spam con recipientId arbitrario da parte di terzi).
