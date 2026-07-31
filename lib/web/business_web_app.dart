@@ -9,6 +9,7 @@ import '../data/repositories/tracks_repository.dart';
 import '../l10n/generated/app_localizations.dart';
 import 'pages/web_business_dashboard_page.dart';
 import 'pages/web_business_public_page.dart';
+import 'pages/web_business_poster_page.dart';
 import 'pages/web_home_page.dart';
 import 'pages/web_login_page.dart';
 import 'pages/web_outreach_pdf_page.dart';
@@ -135,6 +136,18 @@ class BusinessWebApp extends StatelessWidget {
       return MaterialPageRoute<dynamic>(
         settings: settings,
         builder: (_) => WebBusinessPublicPage(slug: segments[1]),
+      );
+    }
+
+    // `/b/{slug}/locandina` — la cartolina da stampare per il banco.
+    // Pubblica come la landing: e' cio' che l'email di outreach offre al
+    // gestore prima di chiedergli di rivendicare la scheda.
+    if (segments.length == 3 &&
+        segments[0] == 'b' &&
+        segments[2] == 'locandina') {
+      return MaterialPageRoute<dynamic>(
+        settings: settings,
+        builder: (_) => WebBusinessPosterPage(slug: segments[1]),
       );
     }
 

@@ -48,18 +48,26 @@ class OutreachPdfGenerator {
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.symmetric(
             horizontal: 32, vertical: 32),
+        // Ordine: prima perche' scriviamo, poi cosa esiste gia', poi la
+        // richiesta. I numeri e la zona vengono dopo, come contorno.
+        //
+        // Prima del 2026-07-31 la richiesta era l'ultimo blocco e finiva a
+        // cavallo delle due pagine: il titolo "Cosa puoi fare adesso" chiudeva
+        // la prima, i tre passi aprivano la seconda. Chi apriva l'allegato e
+        // guardava solo la pagina 1 — cioe' quasi tutti — vedeva un riquadro
+        // vuoto che prometteva un'azione senza dirla.
         build: (ctx) => [
           _buildHeader(business),
           pw.SizedBox(height: 14),
           _buildIntro(business),
           pw.SizedBox(height: 12),
-          _buildFunnelStats(business),
-          pw.SizedBox(height: 12),
           _buildMap(business, nearby, null),
-          pw.SizedBox(height: 12),
-          _buildCompetitor(business, nearby),
           pw.SizedBox(height: 14),
           _buildFooter(business),
+          pw.SizedBox(height: 12),
+          _buildFunnelStats(business),
+          pw.SizedBox(height: 12),
+          _buildCompetitor(business, nearby),
         ],
       ),
     );
@@ -198,7 +206,12 @@ class OutreachPdfGenerator {
     final conversion = views > 0
         ? '${((completed / views) * 100).toStringAsFixed(1)}%'
         : '—';
-    final hasData = views + started + completed > 0;
+    // Soglia, non "maggiore di zero". Con 3 visualizzazioni e 0 rivendicazioni
+    // il riquadro stampava "0.0% di conversione": stavamo dimostrando al
+    // gestore che la sua pagina non la guarda nessuno, mentre gli chiedevamo
+    // di investirci tempo. Sotto la soglia vince il messaggio interlocutorio.
+    const minViewsToShow = 25;
+    final hasData = views >= minViewsToShow;
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -371,8 +384,12 @@ class OutreachPdfGenerator {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
+        // Non "concorrenza": per un gestore il rifugio a dieci chilometri
+        // sullo stesso sentiero non e' un concorrente, e' chi gli manda gli
+        // escursionisti il giorno dopo. Chiamarlo cosi' suona di chi non
+        // conosce il mestiere.
         pw.Text(
-          'Concorrenza zona (entro 10 km)',
+          'Altre attivita\' in zona (entro 10 km)',
           style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
         ),
         pw.SizedBox(height: 6),
@@ -393,8 +410,14 @@ class OutreachPdfGenerator {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
+                // Il conteggio dei rivendicati si dice solo quando c'e'
+                // qualcuno: "0 su 7" e' riprova sociale al contrario, dice
+                // che nessuno qui se n'e' interessato.
                 pw.Text(
-                  '$total schede TrailShare nella zona, $claimed già rivendicate.',
+                  claimed > 0
+                      ? '$total schede TrailShare nella zona, $claimed già rivendicate.'
+                      : '$total schede TrailShare nella zona, ognuna con la sua pagina '
+                          'e i sentieri che la raggiungono.',
                   style: pw.TextStyle(
                       fontSize: 11, fontWeight: pw.FontWeight.bold),
                 ),
@@ -436,18 +459,18 @@ class OutreachPdfGenerator {
                                 overflow: pw.TextOverflow.clip,
                               ),
                             ),
-                            pw.SizedBox(width: 6),
-                            pw.Text(
-                              n.tier == BusinessTier.unclaimed
-                                  ? 'non rivendicata'
-                                  : 'attiva',
-                              style: pw.TextStyle(
-                                fontSize: 8,
-                                color: n.tier == BusinessTier.unclaimed
-                                    ? _muted
-                                    : _success,
+                            // "attiva" si scrive, "non rivendicata" no:
+                            // ripetuto accanto a sette nomi diventa un elenco
+                            // di gente che non ha voluto, ed e' l'ultima cosa
+                            // che vuoi mostrare a chi stai invitando.
+                            if (n.tier != BusinessTier.unclaimed) ...[
+                              pw.SizedBox(width: 6),
+                              pw.Text(
+                                'attiva',
+                                style: pw.TextStyle(
+                                    fontSize: 8, color: _success),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       )),

@@ -5266,6 +5266,18 @@ function _buildOutreachEmailHtml(business, claimUrl) {
       <p>Il link sopra ti porta direttamente alla pagina dove confermi
       con un click di essere tu il gestore. Niente form lunghi.</p>
 
+      <p style="margin-top: 28px; padding: 14px 16px; background: #F7F4EC;
+                border-left: 3px solid #E07B4C; border-radius: 4px;">
+        <strong>Anche se non rivendichi nulla</strong>, qui trovi la locandina
+        del tuo rifugio da stampare e appoggiare al banco: chi la inquadra
+        col telefono trova la tua pagina, i sentieri che arrivano fin qui e i
+        percorsi che consigli.<br>
+        <a href="https://app.trailshare.app/b/${b.slug}/locandina"
+           style="color: #E07B4C; font-weight: 600;">
+          → Scarica la locandina di ${b.name}
+        </a>
+      </p>
+
       <p>Per qualunque domanda mi puoi rispondere qui o scrivere a
       <a href="mailto:info@trailshare.app">info@trailshare.app</a>.</p>
 
