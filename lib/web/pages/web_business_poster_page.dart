@@ -121,7 +121,20 @@ class _WebBusinessPosterPageState extends State<WebBusinessPosterPage> {
                 ],
               ),
             ),
-            Expanded(child: BusinessQrCardPage(business: business)),
+            // Larghezza massima: la card e' pensata per un telefono, e su
+            // desktop senza vincolo si allarga fino a spingere il QR sotto
+            // la piega — proprio la cosa per cui si e' arrivati qui.
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: BusinessQrCardPage(
+                    business: business,
+                    showAppBar: false,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

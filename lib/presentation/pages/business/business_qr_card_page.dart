@@ -22,9 +22,19 @@ import '../../../data/models/business.dart';
 /// share_plus: ideale per metterla in bacheca al rifugio, su volantini,
 /// sui social.
 class BusinessQrCardPage extends StatefulWidget {
+  /// Nasconde la barra in alto quando la pagina e' incorporata in un'altra
+  /// che ha gia' la sua intestazione — la locandina pubblica raggiunta
+  /// dall'email di outreach. Li' due titoli impilati e una freccia indietro
+  /// che non torna da nessuna parte sono solo rumore.
+  final bool showAppBar;
+
   final Business business;
 
-  const BusinessQrCardPage({super.key, required this.business});
+  const BusinessQrCardPage({
+    super.key,
+    required this.business,
+    this.showAppBar = true,
+  });
 
   @override
   State<BusinessQrCardPage> createState() => _BusinessQrCardPageState();
@@ -114,7 +124,9 @@ class _BusinessQrCardPageState extends State<BusinessQrCardPage> {
     final accent = _parsePrimaryColor(b.branding.primaryColor) ?? AppColors.primary;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: !widget.showAppBar
+          ? null
+          : AppBar(
         title: const Text('Vetrina QR'),
         actions: [
           IconButton(
