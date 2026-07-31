@@ -1,18 +1,8 @@
 # Note release 2.9.5+114 per gli store
 
 Due correzioni, entrambe emerse da Crashlytics nelle ore successive alla
-pubblicazione della 2.9.4.
-
-## 1. I font non si scaricano più
-
-Fino alla 2.9.4 la tipografia arrivava da `fonts.gstatic.com` alla prima
-apertura, tramite il pacchetto `google_fonts`. Su un'app da montagna è un
-difetto che si vede subito: nei report Crashlytics della 2.9.4, pubblicata
-poche ore prima, il fallimento è comparso il giorno stesso.
-
-Chi installa a casa e apre l'app in rifugio senza rete vedeva l'interfaccia
-con il font di sistema invece del nostro. Non era un crash — un non-fatal — ma
-è esattamente il caso d'uso che l'app pubblicizza.
+pubblicazione della 2.9.4. Nessuna delle due era stata trovata leggendo il
+codice: le ha trovate un utente vero.
 
 ## Play Console / App Store Connect — "Novità in questa versione" (IT)
 
@@ -30,31 +20,42 @@ The app's fonts now ship with the install instead of being downloaded on first l
 Fixed a map freeze that could happen when opening a track recorded without moving, or a tour stage with no route.
 ```
 
-## Cosa contiene, per chi rilegge fra sei mesi
+---
+
+## 1. I font non si scaricano più
+
+Fino alla 2.9.4 la tipografia arrivava da `fonts.gstatic.com` alla prima
+apertura, tramite il pacchetto `google_fonts`. Su un'app da montagna è un
+difetto che si vede subito: chi installa a casa e apre in rifugio senza rete
+vedeva l'interfaccia con il font di sistema. Non un crash — un non-fatal — ma
+è esattamente il caso d'uso che l'app pubblicizza.
+
+**Cosa contiene:**
 
 - Outfit impacchettato in `assets/fonts/` come **istanze statiche** a 400, 600
   e 700, estratte dal font variabile con `fonttools varLib.instancer`. Col solo
   variabile Flutter avrebbe simulato il grassetto invece di usare l'asse dei
   pesi, e su un font da display si nota.
 - `GoogleFonts.outfit(...)` sostituito da `TextStyle(fontFamily: 'Outfit')` in
-  `app_themes.dart` (con l'helper `_outfit`) e `stat_number.dart`.
-- **Dipendenza `google_fonts` rimossa.** Non serviva più a nessuno: il
-  generatore PDF usa `PdfGoogleFonts` di `printing`, che è un'altra cosa.
+  `app_themes.dart` (helper `_outfit`) e `stat_number.dart`.
+- **Dipendenza `google_fonts` rimossa.** Non serviva più: il generatore PDF usa
+  `PdfGoogleFonts` di `printing`, che è un'altra cosa.
 - Licenza SIL Open Font impacchettata e registrata in `LicenseRegistry`:
   compare in Impostazioni → Licenze open source.
 
-## L'effetto collaterale che conta
-
-Non è solo un fix estetico. Era **una connessione a Google che nessuna
-informativa dichiarava**: senza cache, ogni avvio mandava l'IP dell'utente al
-CDN dei font. Non era nell'informativa, non era fra i servizi di terze parti,
-non era nei due questionari privacy compilati lo stesso giorno.
-
+**L'effetto collaterale che conta.** Non era solo estetico: era una connessione
+a Google che nessuna informativa dichiarava. Senza cache, ogni avvio mandava
+l'IP dell'utente al CDN dei font — e non era nell'informativa, né fra i servizi
+di terze parti, né nei due questionari privacy compilati lo stesso giorno.
 Impacchettando i font il buco si chiude alla radice, e non c'è niente da
 aggiungere alle dichiarazioni.
 
 È il tipo di cosa che sfugge a un audit perché non la scrive nessuno nel
 codice: la porta dentro un pacchetto.
+
+**Verificato** su emulatore Android, installazione pulita, **modalità aereo
+attiva**: titoli in Outfit, zero errori di caricamento font nel log del
+processo. Le uniche eccezioni sono di Firebase Installations, attese senza rete.
 
 ## 2. La mappa non va più in crash su geometrie degeneri
 
@@ -72,20 +73,24 @@ punti identici li superano entrambi. Non è un caso di laboratorio — una
 registrazione avviata e chiusa senza muoversi, un import con un punto ripetuto,
 o una geometria di catalogo vuota lo producono.
 
-Perché è comparso ora: il fix sulle tappe dei tour della 2.9.4 ha fatto
-**disegnare mappe a tappe che prima mostravano "dati non disponibili"**. Non ha
-introdotto matematica sbagliata, ha attivato un percorso di codice che prima
-era inerte, e lì il difetto era già in agguato.
+**Perché è comparso ora.** Il fix sulle tappe dei tour della 2.9.4 ha fatto
+disegnare mappe a tappe che prima mostravano "dati non disponibili". Non ha
+introdotto matematica sbagliata: ha attivato un percorso di codice che prima
+era inerte, e lì il difetto aspettava già.
 
 Ora tutti gli otto punti dell'app che inquadrano una mappa passano da
 `safeBounds` (`lib/core/utils/map_bounds.dart`), che scarta le coordinate non
 finite o fuori dai limiti terrestri e **allarga** i riquadri degeneri invece di
 rifiutarli: per una traccia di un punto solo la cosa utile è vedere la mappa
-centrata lì, non ritrovarsi sull'inquadratura di default. Nove test coprono i
-casi che crashavano.
+centrata lì, non ritrovarsi sull'inquadratura di default.
 
-## Verifica
+**Verificato** da nove test in `test/core/utils/map_bounds_test.dart`, che
+coprono i due casi che crashavano più NaN, infiniti e coordinate fuori scala.
 
-Emulatore Android, installazione pulita, **modalità aereo attiva**: titoli in
-Outfit, zero errori di caricamento font nel log del processo. Le uniche
-eccezioni sono di Firebase Installations, attese senza rete.
+## Resta aperto
+
+`.instantiateImageCodecWithSize` → *Invalid image data*, non-fatal, **1 solo
+evento** su versioni 2.8.1–2.9.4. Un'immagine corrotta o troncata che il
+decoder rifiuta. Un evento in tre versioni non giustifica una caccia: se
+diventa ricorrente, il punto da guardare è il caricamento delle foto delle
+tracce e delle schede.
