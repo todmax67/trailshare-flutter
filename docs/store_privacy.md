@@ -131,9 +131,53 @@ manca.
   cancella geometria tracce, copie pubbliche con cheers e commenti, foto su
   Storage, token OAuth Strava/Polar revocati, pairing Garmin, l'intero
   documento utente e l'account Auth. Va messa a sì.
-- Nei passaggi successivi, per ogni tipo si sceglie raccolto/condiviso,
-  obbligatorio/facoltativo e finalità: le voci di analisi sono **facoltative**,
-  perché l'utente può rifiutare il consenso e opporsi.
+#### Il dettaglio per tipo di dato
+
+Dopo la selezione dei tipi, il modulo chiede per **ognuno**: raccolto/condiviso,
+trattato temporaneamente, obbligatorio o facoltativo, e le finalità. Compilato
+il 2026-07-31, da riusare tale e quale al prossimo aggiornamento.
+
+**Raccolti: sì ovunque. Condivisi: no ovunque. Trattati temporaneamente: no
+ovunque** — nessuno di questi dati resta solo in memoria, finiscono tutti su
+Firestore o Storage.
+
+Il "condivisi: no" regge perché ogni trasferimento ricade in un'esclusione
+prevista da Google: Firebase e Anthropic sono fornitori di servizi, i servizi
+di quota e mappe ricevono solo coordinate senza identificativi, e Strava,
+Polar, Suunto e Garmin sono trasferimenti **avviati dall'utente**, che collega
+l'account via OAuth e attiva lui il caricamento. Quest'ultima è la sola
+risposta da rivedere se un domani il caricamento diventasse automatico senza
+una connessione esplicita.
+
+| Tipo | Raccolta | Finalità |
+|---|---|---|
+| Posizione esatta | facoltativa | Funzionalità |
+| Nome | facoltativa | Funzionalità |
+| Indirizzo email | **richiesta** | Funzionalità |
+| ID utente | **richiesta** | Funzionalità + Analisi |
+| Altre informazioni | facoltativa | Funzionalità |
+| Informazioni sanitarie | facoltativa | Funzionalità |
+| Informazioni sull'attività fisica | facoltativa | Funzionalità |
+| Foto | facoltativa | Funzionalità |
+| File e documenti | facoltativa | Funzionalità |
+| Altri contenuti generati dagli utenti | facoltativa | Funzionalità |
+| Interazioni con l'app | facoltativa | **Analisi** |
+| Log arresti anomali | **richiesta** | Analisi |
+| Dati diagnostici | **richiesta** | Analisi |
+| ID dispositivo o altri ID | facoltativa | Funzionalità + Analisi (+ Comunicazioni dello sviluppatore) |
+
+Le tre risposte che non sono scontate:
+
+- **Crash e diagnostica sono "richiesti"**, non facoltativi: Crashlytics non ha
+  un interruttore utente, parte sempre in release. È l'unico punto in cui la
+  risposta onesta è anche la più restrittiva.
+- **Posizione facoltativa**: si può negare il permesso GPS e usare comunque
+  l'app per sfogliare i sentieri.
+- **ID dispositivo** merita anche *Comunicazioni dello sviluppatore*: il token
+  FCM serve a mandare le push, e c'è l'invio di aggiornamenti di prodotto col
+  suo interruttore in impostazioni.
+
+Nessuna finalità di pubblicità, marketing o personalizzazione, da nessuna parte.
 
 **Fuori dalla Sicurezza dei dati, ma da sapere:**
 
