@@ -1,7 +1,15 @@
 # Motore di crescita — Fase 1: l'analista
 
-**Proposta**, non ancora implementata. Scritta il 2026-07-31 dopo aver
+**Implementata il 2026-07-31**, non ancora deployata. Scritta dopo aver
 verificato che ogni fonte citata esista e risponda davvero.
+
+Codice nel repo `trailshare-ai-manager`:
+`functions/src/services/market/{appStore,brief}.ts` e
+`functions/src/scheduled/weeklyMarketBrief.ts`.
+
+Decisioni del founder: keyword e competitor come proposti, **Reddit escluso**
+(segnale troppo sottile in Italia per giustificare una sezione sempre vuota),
+consegna il **lunedì alle 7:00**.
 
 ## Il rischio da evitare, prima di tutto
 
@@ -42,11 +50,21 @@ cui nessuno agisce è lavoro sprecato: la Fase 2 li prende da lì.
 |---|---|---|
 | iTunes Search API | Risultati di ricerca ordinati per keyword, storefront IT | ✅ verificata |
 | iTunes Lookup API | Versione, data di rilascio, note, voti — nostri e dei competitor | ✅ verificata |
-| RSS recensioni Apple | Testo delle recensioni per app id | da verificare |
+| RSS recensioni Apple | Testo delle recensioni per app id | ✅ verificata |
 | `growth_daily` | Il nostro funnel per canale | ✅ esiste (dati dal rilascio 2.9.4) |
-| Reddit JSON | Menzioni nelle community | da verificare, segnale probabilmente sottile in IT |
+| ~~Reddit JSON~~ | ~~Menzioni nelle community~~ | escluso per decisione |
 
 Gratis, senza chiavi, senza scraping.
+
+Sulle recensioni una nota che cambia dove sta il valore: TrailShare ne ha
+**zero scritte** (un solo voto). Il segnale quindi è quasi tutto nelle
+recensioni dei **competitor**, ed è più ricco di quanto sembri. Nella prima
+raccolta reale, otto recensioni Komoot in sette giorni contenevano: due utenti
+diversi che chiedono di marcare i percorsi già fatti, lamentele sul
+comportamento offline, indicazioni sbagliate per il punto di partenza, e più
+di una reazione negativa all'acquisizione da parte di Bending Spoons con
+funzioni di pianificazione tolte agli abbonati. Sono aperture competitive, non
+statistiche.
 
 ### Il baseline, già misurato
 
@@ -122,18 +140,33 @@ al mese. Le API Apple sono gratuite. Firebase, rumore di fondo.
 Il costo vero sono i minuti che passi a leggere il brief. Se non lo leggi,
 va spento.
 
-## Le decisioni che chiedo
+## Il testo delle recensioni è dato, non istruzioni
 
-1. **La lista delle keyword.** Quelle qui sopra sono le mie, dedotte da
-   `docs/store_notes` e dalla strategia di maggio. Vanno riviste da te: sono
-   la cosa che il brief misura ogni settimana, e cambiarle spesso rende la
-   serie storica inconfrontabile.
-2. **I competitor da seguire.** Proporrei Komoot, Wikiloc, AllTrails,
-   Outdooractive, PeakVisor e Terra Map — i primi cinque escono davanti a noi
-   su `sentieri`, e PeakVisor presidia il riconoscimento cime.
-3. **Reddit sì o no.** In Italia l'outdoor su Reddit è sottile: il rischio è
-   un collettore che ogni settimana restituisce zero risultati e occupa
-   spazio nel brief. Si può aggiungere dopo.
-4. **Il giorno.** Lunedì 7:00 mette il brief prima della pianificazione della
-   settimana. Se preferisci il venerdì per decidere con calma nel weekend, si
-   sposta.
+Le recensioni finiscono dentro un prompt, e sono scritte da sconosciuti su app
+di terzi. Chiunque può pubblicarne una che contiene istruzioni rivolte a un
+modello.
+
+Due difese, entrambe nel codice: il blocco è delimitato da marcatori espliciti
+(`<<<DATI_NON_ISTRUZIONI>>>`), e il system prompt dice al modello di trattare
+quel testo come contenuto da leggere, mai da eseguire, segnalando semmai
+l'anomalia nel brief.
+
+## Stato della verifica
+
+Provato con chiamate vere il 2026-07-31: dieci keyword, sette app, otto
+recensioni, **zero errori**. Prompt risultante di 3.100 caratteri — compatto.
+
+**Non ancora verificata la stesura**: la chiamata a Claude richiede
+`ANTHROPIC_API_KEY`, che in locale non c'è. Il primo brief vero sarà anche il
+primo test di quel pezzo. Se fallisce, l'osservazione grezza è comunque già
+salvata e il lunedì successivo il confronto parte da lì.
+
+## Cosa serve per accenderlo
+
+- [ ] `firebase deploy --only functions:weeklyMarketBrief` nel repo del manager
+- [ ] Il secret `ANTHROPIC_API_KEY` è già in uso da `weeklyAutoPost`, ma i
+      secret si dichiarano per funzione: verificare che sia accessibile
+
+Il primo brief sarà povero per costruzione: non esiste un "prima". Il codice
+lo dice esplicitamente al modello, che deve limitarsi a fotografare la
+situazione di partenza invece di inventarsi movimenti.
