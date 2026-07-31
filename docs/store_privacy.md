@@ -37,6 +37,14 @@ inventario di riferimento; il delta operativo è nella sezione subito seguente.
    slegare il funnel dall'uid, che distruggerebbe l'analisi per coorti — cioè
    tutto il motivo per cui esiste. Si accetta il costo.
 
+**Una correzione preesistente, trovata verificando le altre.**
+
+`Diagnosi → Dati sui crash` e `Dati sulle prestazioni` erano dichiarati **non**
+collegati all'identità. Lo sono invece: `lib/main.dart` passa l'uid a Crashlytics
+a ogni cambio di stato dell'autenticazione (`setUserIdentifier`), ed è ciò che
+permette di ritrovare i crash di chi scrive al supporto. Vanno portati a
+collegato = Sì, monitoraggio = No.
+
 **Due da valutare, preesistenti e indipendenti da questa build.**
 
 3. `Acquisti → Cronologia acquisti` — non dichiarata. Sui vostri server stanno
@@ -62,8 +70,8 @@ Dieci tipologie, tutte con finalità e collegamento coerenti:
 | Salute · Fitness | Funzionalità app | sì |
 | Foto o video · Altri contenuti dell'utente | Funzionalità app | sì |
 | ID utente | Funzionalità app | sì |
-| Interazione con il prodotto | Analisi | no → **da cambiare in sì** |
-| Dati sui crash · Dati sulle prestazioni | Analisi | no |
+| Interazione con il prodotto | Analisi | no → **corretto a sì il 2026-07-31** |
+| Dati sui crash · Dati sulle prestazioni | Analisi | no → **da cambiare in sì** |
 
 URL informativa già impostato su `https://trailshare.app/privacy`. Il campo
 facoltativo "URL delle scelte sulla privacy dell'utente" è vuoto: ora che
@@ -149,8 +157,8 @@ tracking, finalità.
 | Identifiers → User ID | Sì | Sì | No | App Functionality, **Analytics** |
 | Identifiers → Device ID | Sì | **No** | No | Analytics — l'ID istanza di Firebase Analytics · ⚠️ **da aggiungere** |
 | Usage Data → Product Interaction | Sì | Sì | No | Analytics · ⚠️ **da correggere: oggi è dichiarato non collegato** |
-| Diagnostics → Crash Data | Sì | Sì | No | App Functionality (dichiarato come Analytics: accettabile, non lo cambierei) |
-| Diagnostics → Performance Data | Sì | Sì | No | App Functionality (idem) |
+| Diagnostics → Crash Data | Sì | Sì | No | Analytics · ⚠️ **collegato da correggere** — `main.dart` passa l'uid a Crashlytics |
+| Diagnostics → Performance Data | Sì | Sì | No | Analytics · ⚠️ **idem** |
 | Purchases → Purchase History | Sì | Sì | No | App Functionality — stato abbonamento Pro · ⚠️ **non dichiarata** |
 
 Le righe senza ⚠️ risultavano già dichiarate correttamente il 2026-07-31, con la
@@ -222,8 +230,11 @@ Sono le voci a cui rimandano entrambi i questionari e la policy.
       restano le due modifiche in cima
 - [x] Pubblicare `trailshare-website/privacy.html` aggiornata — deploy hosting
       fatto dal founder
-- [ ] **App Store Connect**: aggiungere `ID dispositivo`, correggere
-      `Interazione con il prodotto` a "collegato". Valutare `Cronologia acquisti`
+- [x] **App Store Connect**: `Interazione con il prodotto` portata a "collegato
+      all'identità" (2026-07-31)
+- [ ] **App Store Connect**: aggiungere `ID dispositivo` (Analisi, non
+      collegato); portare `Dati sui crash` e `Dati sulle prestazioni` a
+      "collegato". Valutare `Cronologia acquisti`
 - [ ] **Play Console**: verificare lo stato attuale, poi lo stesso delta
 - [ ] Redeploy delle rules Firestore: `growth_users` ora ammette la delete
       dell'utente su sé stesso, e senza quella l'opposizione non cancella nulla
