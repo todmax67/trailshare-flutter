@@ -2,7 +2,7 @@ name: trailshare_flutter
 description: "TrailShare - GPS Tracking per escursioni e trail running"
 publish_to: 'none'
 
-version: 2.9.4+113
+version: 2.9.5+114
 
 environment:
   sdk: ^3.10.4
@@ -115,8 +115,6 @@ dependencies:
   fit_sdk: ^0.3.0
   receive_sharing_intent: ^1.8.1
   health: ^13.3.1
-  google_fonts: ^8.0.2
-
   # 6.B — Paywall / Pro subscription
   in_app_purchase: ^3.3.0
 
@@ -136,6 +134,7 @@ dependencies:
   # Su iOS non esiste equivalente per il traffico organico: li' l'attribuzione
   # resta aggregata, via campaign link di App Store Connect.
   play_install_referrer: ^0.5.0
+
 dependency_overrides:
   # Fork locale minimale: su Android 14+ forza il dialog MediaProjection al
   # solo "schermo intero" (createConfigForDefaultDisplay) — il default
@@ -163,4 +162,33 @@ flutter:
     - assets/data/peaks_italy.json
     - assets/data/pois_italy_clean.json
     - assets/3d/
+    # La SIL Open Font License vuole che il testo accompagni ogni
+    # distribuzione del font: qui viene impacchettato, e main.dart lo
+    # registra perche' compaia in Impostazioni → Licenze open source.
+    - assets/fonts/OFL.txt
+
+  # Outfit impacchettato invece che scaricato a runtime.
+  #
+  # Fino alla 2.9.4 la tipografia arrivava dal pacchetto google_fonts, che la
+  # scarica da fonts.gstatic.com alla prima apertura. Su un'app da montagna
+  # significa che chi installa a casa e apre in rifugio non ha i font: nei
+  # report Crashlytics della 2.9.4 il fallimento e' comparso subito.
+  #
+  # Impacchettarli chiude anche una connessione a Google che nessuna
+  # informativa dichiarava: senza cache, ogni avvio mandava l'IP dell'utente
+  # al CDN dei font.
+  #
+  # Sono istanze STATICHE estratte dal font variabile con fonttools
+  # (varLib.instancer): col solo variabile Flutter simulerebbe il grassetto
+  # invece di usare l'asse dei pesi, e su un font da display si vede.
+  # Licenza SIL Open Font, il testo va distribuito col font: assets/fonts/OFL.txt
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Outfit-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Outfit-Bold.ttf
+          weight: 700
 

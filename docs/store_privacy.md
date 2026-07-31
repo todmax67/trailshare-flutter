@@ -359,3 +359,19 @@ Sono le voci a cui rimandano entrambi i questionari e la policy.
       (raccolto/condiviso, obbligatorio/**facoltativo** per le analisi, finalità)
 - [ ] Redeploy delle rules Firestore: `growth_users` ora ammette la delete
       dell'utente su sé stesso, e senza quella l'opposizione non cancella nulla
+
+## Un buco chiuso alla radice (2.9.5)
+
+Il pacchetto `google_fonts` scaricava la tipografia da `fonts.gstatic.com` alla
+prima apertura: senza cache, ogni avvio mandava l'IP dell'utente al CDN dei
+font di Google. Non era nell'informativa, non era fra i servizi di terze parti,
+non era in nessuno dei due questionari — compilati lo stesso giorno.
+
+L'abbiamo scoperto da un non-fatal Crashlytics della 2.9.4, non dall'audit.
+
+In 2.9.5 i font sono impacchettati e la dipendenza è rimossa, quindi non c'è
+niente da aggiungere alle dichiarazioni: la connessione non avviene più.
+
+**La lezione generalizza**: un audit fatto leggendo il codice dell'app non vede
+le connessioni che i pacchetti aprono per conto loro. Quando si aggiunge una
+dipendenza vale la pena chiedersi non solo cosa fa, ma **con chi parla**.

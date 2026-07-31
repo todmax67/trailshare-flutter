@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -133,6 +134,15 @@ void main() async {
   // clearPersistence al boot successivo per ripartire pulito (la
   // perdita è solo l'offline cache, niente dati utente).
   await _maybeRecoverFromCrash();
+
+  // Outfit e' impacchettato in assets/fonts/ e non piu' scaricato a runtime:
+  // la SIL Open Font License vuole che il testo della licenza accompagni ogni
+  // distribuzione, e registrarlo qui lo fa comparire in Impostazioni →
+  // Licenze open source insieme a quelle dei pacchetti.
+  LicenseRegistry.addLicense(() async* {
+    final ofl = await rootBundle.loadString('assets/fonts/OFL.txt');
+    yield LicenseEntryWithLineBreaks(const ['Outfit'], ofl);
+  });
 
   // Inizializza tema
   await ThemeService().initialize();

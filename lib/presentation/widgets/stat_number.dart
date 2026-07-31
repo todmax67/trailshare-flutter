@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import '../../core/constants/app_themes.dart';
 
 /// Widget riutilizzabile per mostrare un numero di statistica (km, m, h, #)
 /// con coerenza tipografica: **Outfit** + **tabular figures**.
@@ -92,7 +93,8 @@ class StatNumber extends StatelessWidget {
 
     final features = const [FontFeature.tabularFigures()];
 
-    final valueStyle = GoogleFonts.outfit(
+    final valueStyle = TextStyle(
+      fontFamily: AppThemes.fontFamily,
       fontSize: size,
       fontWeight: fontWeight,
       color: valueColor,
@@ -107,7 +109,8 @@ class StatNumber extends StatelessWidget {
 
     // Unità a 60% della size del valore, baseline allineato sulla linea di
     // riferimento (l'unità "appoggia" sul piano del numero).
-    final unitStyle = GoogleFonts.outfit(
+    final unitStyle = TextStyle(
+      fontFamily: AppThemes.fontFamily,
       fontSize: (size * 0.45).clamp(10.0, 22.0),
       fontWeight: FontWeight.w600,
       color: uColor,

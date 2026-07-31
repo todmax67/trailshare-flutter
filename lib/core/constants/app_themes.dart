@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Definizione dei temi dell'app
 class AppThemes {
@@ -8,6 +7,26 @@ class AppThemes {
   static const Color primaryLight = Color(0xFFF5A67E);    // Arancione chiaro
   static const Color primaryDark = Color(0xFFC4683F);     // Arancione scuro
 
+  /// Famiglia dichiarata in `pubspec.yaml`, impacchettata in `assets/fonts/`.
+  ///
+  /// Fino alla 2.9.4 arrivava dal pacchetto `google_fonts`, che la scaricava da
+  /// fonts.gstatic.com alla prima apertura: su un'app da montagna significava
+  /// restare senza tipografia proprio dove l'app serve. Vedi il commento sui
+  /// font in `pubspec.yaml` per il resto della storia.
+  static const String fontFamily = 'Outfit';
+
+  /// Applica Outfit a uno stile del tema base, conservandone corpo e colore.
+  static TextStyle? _outfit(
+    TextStyle? base,
+    FontWeight weight, [
+    double? tracking,
+  ]) =>
+      base?.copyWith(
+        fontFamily: fontFamily,
+        fontWeight: weight,
+        letterSpacing: tracking,
+      );
+
   /// TextTheme con Outfit per titoli, sistema per body.
   ///
   /// Gerarchia "moderna": titoli grassi con tracking negativo (le lettere si
@@ -15,40 +34,17 @@ class AppThemes {
   static TextTheme _buildTextTheme(TextTheme base) {
     return base.copyWith(
       // Display - titoli molto grandi: bold + tracking molto stretto
-      displayLarge: GoogleFonts.outfit(
-          textStyle: base.displayLarge,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -1.0),
-      displayMedium: GoogleFonts.outfit(
-          textStyle: base.displayMedium,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.5),
-      displaySmall: GoogleFonts.outfit(
-          textStyle: base.displaySmall,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.5),
+      displayLarge: _outfit(base.displayLarge, FontWeight.w700, -1.0),
+      displayMedium: _outfit(base.displayMedium, FontWeight.w700, -0.5),
+      displaySmall: _outfit(base.displaySmall, FontWeight.w700, -0.5),
       // Headline - titoli sezioni: bold + tracking stretto
-      headlineLarge: GoogleFonts.outfit(
-          textStyle: base.headlineLarge,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.5),
-      headlineMedium: GoogleFonts.outfit(
-          textStyle: base.headlineMedium,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.3),
-      headlineSmall: GoogleFonts.outfit(
-          textStyle: base.headlineSmall,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.3),
+      headlineLarge: _outfit(base.headlineLarge, FontWeight.w700, -0.5),
+      headlineMedium: _outfit(base.headlineMedium, FontWeight.w600, -0.3),
+      headlineSmall: _outfit(base.headlineSmall, FontWeight.w600, -0.3),
       // Title - AppBar, card titles, ecc.: semibold
-      titleLarge: GoogleFonts.outfit(
-          textStyle: base.titleLarge,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.2),
-      titleMedium: GoogleFonts.outfit(
-          textStyle: base.titleMedium, fontWeight: FontWeight.w600),
-      titleSmall: GoogleFonts.outfit(
-          textStyle: base.titleSmall, fontWeight: FontWeight.w600),
+      titleLarge: _outfit(base.titleLarge, FontWeight.w600, -0.2),
+      titleMedium: _outfit(base.titleMedium, FontWeight.w600),
+      titleSmall: _outfit(base.titleSmall, FontWeight.w600),
       // Body e Label - restano font di sistema per leggibilità
     );
   }
