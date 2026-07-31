@@ -132,6 +132,12 @@ l'etichetta**: su Android il `referrer` del Play Store, su iOS il token `ct`
 di campagna. Il mezzo si deduce dal prefisso dell'etichetta, così non va
 ripetuto su ogni cartoncino stampato — dove un refuso non si corregge più.
 
+**LIVE dal 2026-07-31**, verificato su iPhone reale: il QR di un rifugio porta
+alla sua pagina, e da lì il bottone di download apre lo store giusto con
+l'attribuzione. Fino a quel giorno il ramo iOS finiva su `id0000000000`, un
+segnaposto mai sostituito dopo la pubblicazione — quindi su una pagina
+inesistente.
+
 **I rifugi non hanno bisogno di un'etichetta a mano.** Ogni Spazio Pro genera
 già il suo QR da `BusinessQrCardPage` (ed è nell'Outreach Kit) verso
 `trailshare.app/b/<slug>`; da quella pagina il bottone di download porta a
