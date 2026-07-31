@@ -170,3 +170,30 @@ salvata e il lunedì successivo il confronto parte da lì.
 Il primo brief sarà povero per costruzione: non esiste un "prima". Il codice
 lo dice esplicitamente al modello, che deve limitarsi a fotografare la
 situazione di partenza invece di inventarsi movimenti.
+
+## Correzioni dopo il primo brief reale (2026-07-31)
+
+Il primo brief ha retto sui vincoli di progetto — nessuna affermazione
+inventata, stato zero dichiarato, Android segnalato come non osservato,
+recensioni attribuite al competitor giusto, controllo anti-iniezione riportato
+in trasparenza. Ha però fatto emergere due difetti del codice.
+
+**Il documento di oggi si ritrovava come "precedente".** La query
+`orderBy('date','desc').limit(1)` non escludeva la data corrente, e l'id del
+documento è la data: a una seconda esecuzione nello stesso giorno — un retry
+dello scheduler, un run forzato a mano — l'osservazione si confrontava con sé
+stessa. Diff vuoto per costruzione, finestra recensioni ridotta a "da
+mezzanotte", e il documento più ricco sovrascritto dal più povero. Si è visto
+subito: 8 recensioni raccolte in prova erano diventate 3. Risolto con
+`where('date','<',today)`.
+
+**Le note di rilascio venivano raccolte e buttate.** Finivano nel prompt solo
+al cambio di versione, quindi mai alla prima osservazione. Il brief ha
+scritto, correttamente, di non sapere cosa contenessero gli aggiornamenti dei
+competitor — mentre il testo era già in memoria. Ora le note dell'ultima
+versione entrano sempre.
+
+La seconda correzione vale più di quanto sembri: le note di Komoot v2026.30.4
+dicono *"Improved the stability of route planning"*, e nelle recensioni della
+stessa settimana ci sono utenti che si lamentano proprio della pianificazione.
+Il collegamento fra le due cose era invisibile al modello.
