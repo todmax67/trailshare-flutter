@@ -1,0 +1,8 @@
+{
+  "name": "trailshare-scripts",
+  "private": true,
+  "description": "Utility locali di manutenzione e crescita. Non viene deployato: le dipendenze servono solo alla macchina di chi lancia gli script.",
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

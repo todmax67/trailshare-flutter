@@ -1,0 +1,31 @@
+{
+  "_readme": "Registro delle etichette di acquisizione. Ogni voce diventa un link tracciabile https://trailshare.app/r/<label> e un QR pronto da stampare. Genera con: node scripts/make_qr.cjs. Convenzione e significato dei campi in docs/growth_engine.md.",
+  "base": "https://trailshare.app/r",
+  "links": [
+    {
+      "label": "qr_arlaud",
+      "note": "Rifugio Arlaud (Elisa) — card da banco",
+      "status": "da_stampare"
+    },
+    {
+      "label": "qr_mautino",
+      "note": "Capanna Mautino (Marina) — card da banco",
+      "status": "da_stampare"
+    },
+    {
+      "label": "qr_hochalm",
+      "note": "Rifugio Hochalm — card da banco",
+      "status": "da_stampare"
+    },
+    {
+      "label": "ig_bio",
+      "note": "Link in bio Instagram @trailshare",
+      "status": "da_pubblicare"
+    },
+    {
+      "label": "fb_bio",
+      "note": "Link nella pagina Facebook",
+      "status": "da_pubblicare"
+    }
+  ]
+}

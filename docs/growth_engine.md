@@ -118,31 +118,47 @@ rifugio questo significa che su Android sai *quale* utente arriva da lì, su iOS
 sai solo *quanti* download ha prodotto quella campagna. Non è aggirabile senza
 tecniche di fingerprinting che non useremo.
 
-### Convenzione dei link tracciabili
+### I link tracciabili
 
-Forma corta (preferita sui QR stampati: URL più corto = QR meno denso = più
-facile da leggere con poca luce, che nei rifugi capita spesso):
-
-```
-https://trailshare.app/?src=qr_arlaud&med=qr&cmp=estate2026
-```
-
-Forma lunga standard, equivalente:
+Un solo formato da ricordare, per QR, bio social e stampa:
 
 ```
-https://trailshare.app/?utm_source=qr_arlaud&utm_medium=qr&utm_campaign=estate2026
+https://trailshare.app/r/<etichetta>
 ```
 
-Per un QR che deve portare all'installazione su Android, il referrer va nel
-link del Play Store e va **urlencodato**:
+Dietro c'è `trailshare-website/pages/go.html` (rewrite `/r/**` in
+`firebase.json`), che manda allo store giusto **portandosi dietro
+l'etichetta**: su Android il `referrer` del Play Store, su iOS il token `ct`
+di campagna. Il mezzo si deduce dal prefisso dell'etichetta, così non va
+ripetuto su ogni cartoncino stampato — dove un refuso non si corregge più.
 
-```
-https://play.google.com/store/apps/details?id=com.trailshare.app&referrer=utm_source%3Dqr_arlaud%26utm_medium%3Dqr
+Il registro delle etichette vive in `scripts/growth_links.json`. I QR si
+generano da lì, in PNG per la stampa e SVG per gli ingrandimenti:
+
+```bash
+node scripts/make_qr.cjs
 ```
 
-Convenzione per `source`: `qr_<nome_rifugio>`, `ig_bio`, `ig_post_<data>`,
-`press_<testata>`, `cai_<sezione>`. Minuscolo, niente spazi — vengono
-normalizzati comunque, ma tenerli puliti rende i report leggibili.
+Escono in `adv/qr/`, con correzione errori a livello H: un cartoncino sul
+bancone di un rifugio si sporca, si piega e si consuma agli angoli, e con H
+resta leggibile anche con quasi un terzo della superficie rovinata.
+
+Convenzione per l'etichetta: `qr_<rifugio>`, `ig_bio`, `ig_post_<data>`,
+`press_<testata>`, `cai_<sezione>`. Solo minuscole, cifre, `_` e `-`: la
+pagina scarta tutto il resto, perché l'etichetta finisce dentro un URL verso
+gli store e arriva da un QR che chiunque può aver ristampato.
+
+**Due limiti da conoscere.** Il token `ct` per iOS è inerte finché non si
+valorizza `APPLE_PROVIDER_TOKEN` in `go.html`, che si trova in App Store
+Connect → App Analytics → Campagne: senza, Apple ignora il parametro e
+l'attribuzione iOS non esiste. E `/r/` non apre l'app a chi ce l'ha già —
+gli universal link coprono `/app`, `/track`, `/user`, `/sfide` e l'app non
+intercetta `/r`. È deliberato: chi scansiona il QR in rifugio, che è il caso
+per cui la pagina esiste, l'app non ce l'ha.
+
+Restano validi anche i parametri diretti su qualunque deep link gestito
+(`?src=` o `?utm_source=`), per i casi in cui si vuole mandare a una
+destinazione precisa dentro l'app invece che allo store.
 
 ## Schema dati
 

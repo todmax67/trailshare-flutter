@@ -70,3 +70,7 @@ social_lab/assets/**/*.ai
 
 # Coda di revisione foto rifugi (generata da scripts/business_photo_candidates.cjs)
 .photo_review/
+
+# Dipendenze degli script di manutenzione locali (scripts/make_qr.cjs e simili):
+# stanno sulla macchina di chi li lancia, non nel repo.
+scripts/node_modules/
