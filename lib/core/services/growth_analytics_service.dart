@@ -176,9 +176,25 @@ class GrowthAnalyticsService {
   static const String _kFirstOpenDone = 'growth_first_open_done';
   static const String _kLastSeenDay = 'growth_last_seen_day';
 
+  /// Consenso a Firebase Analytics. **Assente** = non ancora chiesto, che non
+  /// e' la stessa cosa di un rifiuto: l'utente va portato alla schermata di
+  /// consenso, e fino ad allora non si raccoglie niente.
+  static const String _kAnalyticsConsent = 'growth_analytics_consent';
+
+  /// Opposizione alla misura del funnel first-party. Separata dal consenso
+  /// Analytics perche' le due cose hanno basi giuridiche diverse: Analytics e'
+  /// terza parte con identificativo persistente e va consentito, il funnel sta
+  /// sul nostro backend a supporto del servizio e si esercita in opposizione.
+  static const String _kFunnelOptOut = 'growth_funnel_opt_out';
+
   FirebaseAnalytics? _analytics;
   bool _analyticsUnavailable = false;
   String? _appVersion;
+
+  /// Copia in memoria dell'opposizione al funnel: [_mergeDoc] e' sul percorso
+  /// di salvataggio tracce e non puo' permettersi una lettura asincrona da
+  /// SharedPreferences a ogni scrittura.
+  bool _funnelOptedOut = false;
 
   /// Ultimo giorno per cui `lastSeenAt` e' gia' stato aggiornato in questa
   /// sessione. Vedi [_touchLastSeen] per il perche' non basti SharedPreferences.
@@ -226,13 +242,23 @@ class GrowthAnalyticsService {
   /// l'avvio: se qualcosa va storto restiamo senza misura, non senza app.
   Future<void> initialize() async {
     try {
-      // In debug non raccogliere: i numeri di crescita si sporcherebbero con
-      // le decine di hot restart dello sviluppo, e la retention diventerebbe
-      // finzione. Stessa scelta fatta per Crashlytics.
-      await _ga?.setAnalyticsCollectionEnabled(!kDebugMode);
-      if (kDebugMode) return;
-
       final prefs = await SharedPreferences.getInstance();
+      _funnelOptedOut = prefs.getBool(_kFunnelOptOut) ?? false;
+
+      // Prima di ogni altra cosa: finche' l'utente non ha risposto alla
+      // schermata di consenso, Analytics resta spento. `false` e non `null`
+      // come default e' il punto — chi non ha ancora scelto non ha scelto di
+      // essere misurato.
+      await _applyAnalyticsConsent(
+        prefs.containsKey(_kAnalyticsConsent)
+            ? (prefs.getBool(_kAnalyticsConsent) ?? false)
+            : false,
+      );
+
+      // In debug non raccogliere nemmeno il funnel: i numeri si sporcherebbero
+      // con le decine di hot restart dello sviluppo e la retention
+      // diventerebbe finzione. Stessa scelta fatta per Crashlytics.
+      if (kDebugMode) return;
       if (!(prefs.getBool(_kFirstOpenDone) ?? false)) {
         await prefs.setBool(_kFirstOpenDone, true);
         await _logEvent(GrowthMilestone.firstOpen.eventName, {
@@ -297,6 +323,90 @@ class GrowthAnalyticsService {
       }));
     } catch (e) {
       debugPrint('[Growth] touchLastSeen: $e');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONSENSO
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Stato del consenso ad Analytics: `null` se non e' mai stato chiesto.
+  ///
+  /// La distinzione fra "non chiesto" e "rifiutato" e' l'unica cosa che dice
+  /// all'app se deve ancora mostrare la schermata di consenso. Collassarle in
+  /// un bool significherebbe o richiedere il consenso all'infinito a chi ha
+  /// gia' detto di no, o non chiederlo mai a chi non e' stato interpellato.
+  Future<bool?> analyticsConsent() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!prefs.containsKey(_kAnalyticsConsent)) return null;
+      return prefs.getBool(_kAnalyticsConsent) ?? false;
+    } catch (e) {
+      debugPrint('[Growth] lettura consenso: $e');
+      // In dubbio, "non chiesto": al massimo si richiede, mai si raccoglie
+      // senza risposta.
+      return null;
+    }
+  }
+
+  /// Registra la scelta dell'utente e la applica subito.
+  Future<void> setAnalyticsConsent(bool granted) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kAnalyticsConsent, granted);
+    } catch (e) {
+      debugPrint('[Growth] scrittura consenso: $e');
+    }
+    await _applyAnalyticsConsent(granted);
+  }
+
+  Future<void> _applyAnalyticsConsent(bool granted) async {
+    final enabled = granted && !kDebugMode;
+    try {
+      await _ga?.setAnalyticsCollectionEnabled(enabled);
+      if (!granted) {
+        // Non basta smettere di raccogliere: alla revoca va buttato anche
+        // l'identificativo di istanza gia' generato, altrimenti resta un
+        // pseudonimo persistente associato a dati raccolti prima.
+        await _ga?.resetAnalyticsData();
+      }
+    } catch (e) {
+      debugPrint('[Growth] applicazione consenso: $e');
+    }
+  }
+
+  /// True se l'utente si e' opposto alla misura del funnel first-party.
+  Future<bool> funnelOptedOut() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_kFunnelOptOut) ?? false;
+    } catch (_) {
+      return _funnelOptedOut;
+    }
+  }
+
+  /// Esercita (o revoca) l'opposizione alla misura del funnel.
+  ///
+  /// Opporsi non ferma solo le scritture future: cancella anche il documento
+  /// gia' esistente. Un'opposizione che lascia in piedi i dati raccolti non e'
+  /// un'opposizione, e la riga per utente non serve a nulla di cui l'app abbia
+  /// bisogno per funzionare.
+  Future<void> setFunnelOptOut(bool optedOut) async {
+    _funnelOptedOut = optedOut;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kFunnelOptOut, optedOut);
+    } catch (e) {
+      debugPrint('[Growth] scrittura opposizione funnel: $e');
+    }
+    if (!optedOut) return;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection(_collection).doc(uid).delete();
+    } catch (e) {
+      debugPrint('[Growth] cancellazione doc funnel fallita: $e');
     }
   }
 
@@ -512,6 +622,9 @@ class GrowthAnalyticsService {
   }
 
   Future<void> _mergeDoc(String uid, Map<String, dynamic> data) async {
+    // Unico punto da cui passano tutte le scritture del funnel: e' qui che
+    // l'opposizione dell'utente deve mordere, non sparsa nei call site.
+    if (_funnelOptedOut) return;
     try {
       await FirebaseFirestore.instance
           .collection(_collection)

@@ -15,6 +15,25 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
         tools:node="remove" />
 
+    <!-- ID PUBBLICITARIO: non lo vogliamo.
+         Firebase Analytics si porta dietro play-services-ads-identifier come
+         dipendenza transitiva e dichiara il permesso AD_ID nel proprio
+         manifest, quindi senza questa riga l'AAID finirebbe raccolto per
+         default — un identificativo persistente e condiviso fra app, in
+         un'app che non fa pubblicita'.
+         Conseguenze del toglierlo: niente prompt ATT su iOS, niente
+         "tracciamento" nel senso di Apple, e la dichiarazione Play resta
+         quella di un'app che non traccia. Vedi docs/store_privacy.md.
+         Il meta-data gemello che spegne la raccolta lato SDK sta dentro
+         <application>. -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
+    <!-- Variante Privacy Sandbox (Android 13+) dello stesso identificativo:
+         dichiararla mentre si sostiene di non raccogliere l'AAID sarebbe
+         incoerente, ed e' una delle cose che Play controlla. -->
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID"
+        tools:node="remove" />
+
 <!-- Permessi GPS -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -86,6 +105,15 @@
              moderni → buffer riesce a finire la serializzazione. È un
              workaround, fix sistemico = sub-collection geometry su
              published_tracks (in backlog Epic 5). -->
+
+        <!-- Spegne la raccolta dell'ID pubblicitario lato SDK Analytics.
+             Il permesso AD_ID e' gia' rimosso dal merge in cima al file:
+             questo lo dice anche all'SDK, che altrimenti proverebbe a
+             leggerlo e loggherebbe un errore a ogni avvio. -->
+        <meta-data
+            android:name="google_analytics_adid_collection_enabled"
+            android:value="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

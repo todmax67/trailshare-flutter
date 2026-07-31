@@ -3617,7 +3617,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyLastUpdated.
   ///
   /// In it, this message translates to:
-  /// **'Ultimo aggiornamento: Maggio 2026'**
+  /// **'Ultimo aggiornamento: Luglio 2026'**
   String get privacyLastUpdated;
 
   /// No description provided for @privacyIntroTitle.
@@ -3641,7 +3641,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyDataCollectedContent.
   ///
   /// In it, this message translates to:
-  /// **'• Dati di registrazione: email, nome utente, foto profilo (opzionale)\n• Dati di posizione: coordinate GPS durante la registrazione delle tracce\n• Dati delle attività: distanza, velocità, dislivello, durata, frequenza cardiaca dalla fascia BLE se collegata\n• Contenuti: foto, commenti e descrizioni che aggiungi alle tracce\n• Dati del dispositivo: modello, sistema operativo, log di errore\n• Contatti di emergenza: se configuri Lifeline, salviamo nome, telefono e/o email dei contatti scelti (max 3)\n• Posizione live: se attivi LiveTrack o Lifeline, la posizione viene pubblicata in tempo reale (~30 secondi)'**
+  /// **'• Dati di registrazione: email, nome utente, foto profilo (opzionale)\n• Dati di posizione: coordinate GPS durante la registrazione delle tracce\n• Dati delle attività: distanza, velocità, dislivello, durata, frequenza cardiaca dalla fascia BLE se collegata\n• Contenuti: foto, commenti e descrizioni che aggiungi alle tracce\n• Dati del dispositivo: modello, sistema operativo, log di errore\n• Dati di utilizzo: quali funzioni usi e quando hai completato i primi passi nell\'app; se hai dato il consenso, anche le schermate aperte (vedi \"Statistiche d\'uso e misura del servizio\")\n• Fonte di provenienza: da quale link o QR sei arrivato all\'app, quando l\'informazione è disponibile\n• Contatti di emergenza: se configuri Lifeline, salviamo nome, telefono e/o email dei contatti scelti (max 3)\n• Posizione live: se attivi LiveTrack o Lifeline, la posizione viene pubblicata in tempo reale (~30 secondi)'**
   String get privacyDataCollectedContent;
 
   /// No description provided for @privacyDataUsageTitle.
@@ -3677,7 +3677,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyThirdPartiesContent.
   ///
   /// In it, this message translates to:
-  /// **'Utilizziamo i seguenti servizi:\n\n• Firebase (Google): autenticazione, database, storage, Cloud Functions. Server in area UE\n• OpenStreetMap: tile mappe, dataset cime e POI bundlati nell\'app come asset statici. Licenza ODbL — © OpenStreetMap contributors\n• MapTiler: stili mappa premium per abbonati Pro\n• Open-Meteo: previsioni meteo (richiesta con coordinate del trail, nessun dato personale)\n• OpenRouteService: calcolo percorsi nel pianificatore (waypoints, no PII)\n• Apple App Store / Google Play: pagamenti per gli abbonamenti Pro\n• Anthropic (Claude AI): generazione del riassunto delle condizioni sentiero (Pro)\n\nQuesti servizi hanno proprie privacy policy che ti invitiamo a consultare.'**
+  /// **'Utilizziamo i seguenti servizi:\n\n• Firebase (Google): autenticazione, database, storage, Cloud Functions. Server in area UE\n• Firebase Analytics (Google): statistiche d\'uso anonime, attive solo se hai dato il consenso\n• Firebase Crashlytics (Google): segnalazione automatica degli errori dell\'app\n• Google Play (Google): su Android, la fonte da cui hai installato l\'app, se il link la conteneva\n• OpenStreetMap: tile mappe, dataset cime e POI bundlati nell\'app come asset statici. Licenza ODbL — © OpenStreetMap contributors\n• MapTiler: stili mappa premium per abbonati Pro\n• Open-Meteo: previsioni meteo (richiesta con coordinate del trail, nessun dato personale)\n• OpenRouteService: calcolo percorsi nel pianificatore (waypoints, no PII)\n• Apple App Store / Google Play: pagamenti per gli abbonamenti Pro\n• Anthropic (Claude AI): generazione del riassunto delle condizioni sentiero (Pro)\n\nQuesti servizi hanno proprie privacy policy che ti invitiamo a consultare.'**
   String get privacyThirdPartiesContent;
 
   /// No description provided for @privacyAiSummaryTitle.
@@ -9193,6 +9193,84 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Sincronizzazione completata.'**
   String get stravaSyncDone;
+
+  /// No description provided for @analyticsConsentTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Ci aiuti a capire cosa funziona?'**
+  String get analyticsConsentTitle;
+
+  /// No description provided for @analyticsConsentBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Per migliorare TrailShare serve sapere quali funzioni vengono usate davvero e dove le persone si bloccano. Sono statistiche d\'uso, raccolte tramite Firebase Analytics di Google.\n\nPuoi dire di no: l\'app funziona esattamente allo stesso modo.'**
+  String get analyticsConsentBody;
+
+  /// No description provided for @analyticsConsentIncluded.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa raccogliamo: quali schermate apri, quali funzioni usi, se porti a termine le azioni principali. Dati di utilizzo, in forma statistica.'**
+  String get analyticsConsentIncluded;
+
+  /// No description provided for @analyticsConsentExcluded.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa non raccogliamo: le tue tracce GPS, le foto, i testi che scrivi, i dati salute. Niente pubblicità, niente rivendita a terzi.'**
+  String get analyticsConsentExcluded;
+
+  /// No description provided for @analyticsConsentRevocable.
+  ///
+  /// In it, this message translates to:
+  /// **'Puoi cambiare idea quando vuoi da Impostazioni → Privacy.'**
+  String get analyticsConsentRevocable;
+
+  /// No description provided for @analyticsConsentAccept.
+  ///
+  /// In it, this message translates to:
+  /// **'Va bene, raccogli le statistiche'**
+  String get analyticsConsentAccept;
+
+  /// No description provided for @analyticsConsentDecline.
+  ///
+  /// In it, this message translates to:
+  /// **'No, non raccogliere niente'**
+  String get analyticsConsentDecline;
+
+  /// No description provided for @settingsUsageStatsTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Statistiche d\'uso'**
+  String get settingsUsageStatsTitle;
+
+  /// No description provided for @settingsUsageStatsSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Firebase Analytics: quali funzioni vengono usate. Puoi revocare il consenso quando vuoi.'**
+  String get settingsUsageStatsSubtitle;
+
+  /// No description provided for @settingsFunnelTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Misura del percorso utente'**
+  String get settingsFunnelTitle;
+
+  /// No description provided for @settingsFunnelSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Sui nostri server: le date dei tuoi primi passi nell\'app e da dove sei arrivato. Disattivandola cancelliamo i dati già raccolti su di te.'**
+  String get settingsFunnelSubtitle;
+
+  /// No description provided for @privacyAnalyticsTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Statistiche d\'uso e misura del servizio'**
+  String get privacyAnalyticsTitle;
+
+  /// No description provided for @privacyAnalyticsContent.
+  ///
+  /// In it, this message translates to:
+  /// **'Raccogliamo due tipi di dati statistici. Hanno basi giuridiche diverse e controlli separati, entrambi in Impostazioni → Privacy.\n\n1) STATISTICHE D\'USO (Firebase Analytics, Google) — solo col tuo consenso\nCosa: schermate aperte, funzioni utilizzate, completamento delle azioni principali, modello del dispositivo e versione dell\'app, più un identificativo di istanza generato da Google.\nBase giuridica: il tuo consenso, richiesto alla prima apertura e revocabile in ogni momento. Finché non rispondi non viene raccolto nulla. Alla revoca l\'identificativo di istanza viene azzerato.\n\n2) MISURA DEL PERCORSO UTENTE (nostri server Firebase) — legittimo interesse\nCosa: le date in cui hai completato alcuni passaggi (registrazione, onboarding, prima traccia salvata, primo sentiero nei preferiti, eventuale abbonamento), il giorno del tuo ultimo accesso e, quando disponibile, la fonte da cui sei arrivato all\'app (il QR di un rifugio, un link social, un articolo).\nPerché: capire quante persone riescono davvero a usare l\'app e da quali canali arrivano. È l\'unico modo di sapere se una modifica migliora o peggiora l\'esperienza.\nBase giuridica: legittimo interesse a migliorare il servizio. Puoi opporti in ogni momento: la raccolta si ferma e i dati già raccolti su di te vengono eliminati.\n\n3) SEGNALAZIONE DEGLI ERRORI (Firebase Crashlytics) — legittimo interesse\nQuando l\'app va in errore raccogliamo tipo di errore, stack tecnico, modello del dispositivo e versione del sistema operativo, associati al tuo identificativo utente per poterti rispondere se ci scrivi al supporto.\n\nCOSA NON ENTRA MAI IN NESSUNA DELLE TRE:\n• Tracce GPS, coordinate, foto\n• Testi che scrivi (commenti, descrizioni, segnalazioni)\n• Dati salute e frequenza cardiaca\n• Contatti di emergenza\n\nNon usiamo questi dati per pubblicità e non li vendiamo a nessuno.'**
+  String get privacyAnalyticsContent;
 }
 
 class _AppLocalizationsDelegate

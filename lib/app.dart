@@ -8,6 +8,8 @@ import 'core/constants/app_themes.dart';
 import 'core/services/theme_service.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'presentation/pages/onboarding/onboarding_page.dart';
+import 'presentation/pages/onboarding/analytics_consent_page.dart';
+import 'core/services/growth_analytics_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -128,6 +130,7 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _checkingOnboarding = true;
   bool _showOnboarding = false;
+  bool _showAnalyticsConsent = false;
 
   @override
   void initState() {
@@ -137,8 +140,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<void> _checkOnboarding() async {
     final completed = await OnboardingService.isCompleted();
+    // Il consenso si chiede a chiunque non abbia mai risposto, non solo ai
+    // nuovi: gli utenti che c'erano gia' prima della schermata non sono mai
+    // stati interpellati, e finche' non rispondono Analytics resta spento.
+    final consent = await GrowthAnalyticsService.instance.analyticsConsent();
+    if (!mounted) return;
     setState(() {
       _showOnboarding = !completed;
+      _showAnalyticsConsent = consent == null;
       _checkingOnboarding = false;
     });
   }
@@ -151,6 +160,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     if (_showOnboarding) {
       return OnboardingPage(onComplete: () => setState(() => _showOnboarding = false));
+    }
+
+    // Subito dopo l'onboarding e prima del login: il consenso ad Analytics
+    // riguarda il dispositivo, non l'account, quindi non ha senso aspettare
+    // che l'utente si registri per chiederlo.
+    if (_showAnalyticsConsent) {
+      return AnalyticsConsentPage(
+        onDecided: () => setState(() => _showAnalyticsConsent = false),
+      );
     }
 
     return StreamBuilder<User?>(

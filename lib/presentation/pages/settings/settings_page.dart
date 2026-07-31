@@ -14,6 +14,7 @@ import 'emergency_contacts_page.dart';
 import 'poi_voice_settings_page.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/theme_service.dart';
+import '../../../core/services/growth_analytics_service.dart';
 import 'privacy_policy_page.dart';
 import '../../../core/services/delete_account_service.dart';
 import 'offline_maps_page.dart';
@@ -59,6 +60,8 @@ class _SettingsPageState extends State<SettingsPage> {
   int _maxHR = 0;
   bool _isAdminUser = false;
   bool _newsUpdatesEnabled = true;
+  bool _analyticsConsent = false;
+  bool _funnelOptOut = false;
 
   @override
   void initState() {
@@ -67,6 +70,21 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadHealthSync();
     _loadAdminStatus();
     _loadNewsUpdatesPref();
+    _loadPrivacyPrefs();
+  }
+
+  Future<void> _loadPrivacyPrefs() async {
+    final growth = GrowthAnalyticsService.instance;
+    // `null` (mai risposto) non capita qui: la schermata di consenso e' un
+    // gate all'avvio. Se capitasse, "non ha acconsentito" e' la lettura
+    // giusta da mostrare.
+    final consent = await growth.analyticsConsent() ?? false;
+    final optOut = await growth.funnelOptedOut();
+    if (!mounted) return;
+    setState(() {
+      _analyticsConsent = consent;
+      _funnelOptOut = optOut;
+    });
   }
 
   Future<void> _loadNewsUpdatesPref() async {
@@ -381,6 +399,8 @@ class _SettingsPageState extends State<SettingsPage> {
           // Sezione Privacy
           _buildSectionHeader('Privacy'),
           _buildSocialFeaturingToggle(),
+          _buildAnalyticsConsentToggle(),
+          _buildFunnelToggle(),
           Divider(height: 32),
 
           // Sezione Legale
@@ -583,6 +603,41 @@ class _SettingsPageState extends State<SettingsPage> {
   /// senza consenso esplicito, le tracce non vengono usate per post
   /// promozionali anche se sono `isPublic=true` (la pubblicazione in
   /// community è una cosa, l'uso a fini marketing un'altra).
+  /// Revoca del consenso ad Analytics. Un consenso che non si puo' ritirare
+  /// non e' un consenso valido: questo interruttore e' parte della conformita',
+  /// non una comodita'.
+  Widget _buildAnalyticsConsentToggle() {
+    return SwitchListTile(
+      secondary: const Icon(Icons.insights_outlined, color: AppColors.primary),
+      title: Text(context.l10n.settingsUsageStatsTitle),
+      subtitle: Text(context.l10n.settingsUsageStatsSubtitle),
+      value: _analyticsConsent,
+      onChanged: (v) async {
+        setState(() => _analyticsConsent = v);
+        await GrowthAnalyticsService.instance.setAnalyticsConsent(v);
+      },
+    );
+  }
+
+  /// Opposizione alla misura del funnel first-party.
+  ///
+  /// L'interruttore mostra la misura come **attiva**, non l'opposizione come
+  /// attiva: spegnere per opporsi e' il verso che l'utente si aspetta. La
+  /// negazione vive solo nello storage.
+  Widget _buildFunnelToggle() {
+    return SwitchListTile(
+      secondary:
+          const Icon(Icons.timeline_outlined, color: AppColors.primary),
+      title: Text(context.l10n.settingsFunnelTitle),
+      subtitle: Text(context.l10n.settingsFunnelSubtitle),
+      value: !_funnelOptOut,
+      onChanged: (v) async {
+        setState(() => _funnelOptOut = !v);
+        await GrowthAnalyticsService.instance.setFunnelOptOut(!v);
+      },
+    );
+  }
+
   Widget _buildSocialFeaturingToggle() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const SizedBox.shrink();

@@ -694,7 +694,13 @@ service cloud.firestore {
           && milestoneKept('acquisition');
       }
 
-      allow read, delete: if false;
+      allow read: if false;
+      // La cancellazione e' come l'utente esercita l'opposizione alla misura
+      // (Impostazioni → Privacy). Indebolisce l'immutabilita' qui sopra —
+      // cancella e ricrea azzera le milestone — ma il diritto viene prima di
+      // un dato statistico, e chi vuole falsare le proprie coorti non ha
+      // nulla da guadagnarci.
+      allow delete: if isSignedIn() && isOwner(userId);
       allow create: if isSignedIn() && isOwner(userId)
         && request.resource.data.uid == request.auth.uid;
       allow update: if isSignedIn() && isOwner(userId)

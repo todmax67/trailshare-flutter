@@ -43,6 +43,29 @@ agganciano gli store.
 traccia salvata"), e la forma naturale per funnel e coorti è la riga-utente.
 Costo: al massimo una scrittura al giorno per utente attivo.
 
+## Consenso e basi giuridiche
+
+I due sink hanno regimi diversi, e questo è deliberato.
+
+**Firebase Analytics — consenso.** Terza parte, con un identificativo di
+istanza persistente. Spento fino a che l'utente non risponde alla schermata di
+consenso mostrata dopo l'onboarding (`analytics_consent` assente ≠ rifiutato:
+assente significa "da chiedere"). Revocabile da Impostazioni → Privacy; alla
+revoca si chiama anche `resetAnalyticsData()`, perché smettere di raccogliere
+senza buttare l'identificativo già generato non è una revoca.
+
+**`growth_users` — legittimo interesse.** Primo party, sul nostro backend,
+legato a un account che l'utente ha creato. Attivo per tutti, con opposizione
+da Impostazioni → Privacy che ferma la raccolta **e cancella il documento**.
+
+La conseguenza pratica che rende il tutto sostenibile: il motore di crescita
+legge `growth_users`, non Analytics. Se metà degli utenti rifiuta il consenso,
+`growth_daily` resta completo — si perdono le coorti esplorabili in console,
+non i numeri su cui si decide.
+
+Nessun ID pubblicitario: rimosso dal manifest e disattivato lato SDK. Vedi
+[store_privacy.md](store_privacy.md) per il perché e per le dichiarazioni.
+
 ## Il funnel
 
 | Milestone | Evento GA4 | Campo Firestore | Dove viene registrata |
@@ -194,6 +217,8 @@ arriva traffico nuovo — cioè proprio quando le cose vanno bene.
 2. **Niente misura in debug.** `initialize()` e `milestone()` escono subito
    quando `kDebugMode`: decine di hot restart al giorno renderebbero la
    retention finzione. Stessa scelta già fatta per Crashlytics.
+   Conseguenza da ricordare quando si prova la schermata di consenso in
+   locale: la scelta viene salvata, ma non produce comunque eventi.
 3. **iOS senza attribuzione per-utente** sul traffico organico (vedi sopra).
 4. **Scan completo** della collection a ogni esecuzione dell'aggregatore. Giusto
    ai volumi attuali; sopra i ~50.000 utenti va spezzato in aggregati
@@ -201,7 +226,11 @@ arriva traffico nuovo — cioè proprio quando le cose vanno bene.
 
 ## Cosa serve prima che produca dati
 
-- [ ] Deploy delle rules: `firebase deploy --only firestore:rules`
+- [ ] Deploy delle rules: `firebase deploy --only firestore:rules` — **da rifare**
+      dopo l'aggiunta della `delete` su `growth_users`, senza cui l'opposizione
+      dell'utente non cancella niente
+- [ ] Dichiarazioni privacy nei due store e policy pubblicata — vedi
+      [store_privacy.md](store_privacy.md)
 - [ ] Deploy della function: `firebase deploy --only functions:growthDaily`
       (nel repo `trailshare-ai-manager`)
 - [ ] Verificare che il secret `TRAILSHARE_PROD_SA_JSON` sia accessibile a

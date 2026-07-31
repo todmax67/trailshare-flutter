@@ -798,17 +798,17 @@
     }
   },
   "closeAction": "Close",
-  "privacyLastUpdated": "Last updated: May 2026",
+  "privacyLastUpdated": "Last updated: July 2026",
   "privacyIntroTitle": "Introduction",
   "privacyIntroContent": "TrailShare (\"we\", \"our\" or \"app\") respects your privacy. This policy describes what data we collect, how we use it and your rights. The full version is available at trailshare.app/privacy.",
   "privacyDataCollectedTitle": "Data we collect",
-  "privacyDataCollectedContent": "• Registration data: email, username, profile photo (optional)\n• Location data: GPS coordinates during track recording\n• Activity data: distance, speed, elevation gain, duration, BLE heart rate if connected\n• Content: photos, comments and descriptions you add to tracks\n• Device data: model, OS, error logs\n• Emergency contacts: if you set up Lifeline, we save name, phone and/or email of chosen contacts (max 3)\n• Live position: if you activate LiveTrack or Lifeline, position is published in real time (~30s)",
+  "privacyDataCollectedContent": "• Registration data: email, username, profile photo (optional)\n• Location data: GPS coordinates during track recording\n• Activity data: distance, speed, elevation gain, duration, BLE heart rate if connected\n• Content: photos, comments and descriptions you add to tracks\n• Device data: model, OS, error logs\n• Usage data: which features you use and when you completed your first steps in the app; if you consented, also the screens you open (see \"Usage statistics and service measurement\")\n• Referral source: which link or QR code brought you to the app, where that information is available\n• Emergency contacts: if you set up Lifeline, we save name, phone and/or email of chosen contacts (max 3)\n• Live position: if you activate LiveTrack or Lifeline, position is published in real time (~30s)",
   "privacyDataUsageTitle": "How we use your data",
   "privacyDataUsageContent": "• Provide GPS tracking and activity analysis\n• Show published tracks in the Explore section\n• Compute leaderboards, badges and stats\n• Send app-related notifications (followers, cheers, etc.)\n• Improve the app and fix bugs\n\nWe do not sell your data to third parties. We do not use your data for advertising.",
   "privacyDataSharingTitle": "Data sharing",
   "privacyDataSharingContent": "Your tracks are private by default. Only tracks you explicitly publish are visible in Explore and to other users. Your profile shows only the information you choose to make public.",
   "privacyThirdPartiesTitle": "Third-party services",
-  "privacyThirdPartiesContent": "We use the following services:\n\n• Firebase (Google): authentication, database, storage, Cloud Functions. Servers in EU region\n• OpenStreetMap: map tiles, peaks dataset and POIs bundled in the app as static assets. ODbL license — © OpenStreetMap contributors\n• MapTiler: premium map styles for Pro subscribers\n• Open-Meteo: weather forecasts (request with trail coordinates, no PII)\n• OpenRouteService: route planning (waypoints, no PII)\n• Apple App Store / Google Play: payments for Pro subscriptions\n• Anthropic (Claude AI): trail conditions summary generation (Pro)\n\nThese services have their own privacy policies you are encouraged to review.",
+  "privacyThirdPartiesContent": "We use the following services:\n\n• Firebase (Google): authentication, database, storage, Cloud Functions. Servers in EU region\n• Firebase Analytics (Google): anonymous usage statistics, active only if you consented\n• Firebase Crashlytics (Google): automatic app error reporting\n• Google Play (Google): on Android, the source you installed the app from, if the link carried it\n• OpenStreetMap: map tiles, peaks dataset and POIs bundled in the app as static assets. ODbL license — © OpenStreetMap contributors\n• MapTiler: premium map styles for Pro subscribers\n• Open-Meteo: weather forecasts (request with trail coordinates, no PII)\n• OpenRouteService: route planning (waypoints, no PII)\n• Apple App Store / Google Play: payments for Pro subscriptions\n• Anthropic (Claude AI): trail conditions summary generation (Pro)\n\nThese services have their own privacy policies you are encouraged to review.",
   "privacyAiSummaryTitle": "AI Trail Conditions Summary",
   "privacyAiSummaryContent": "For Pro subscribers, the app can generate a natural-language summary of community trail condition reports, produced by Anthropic's Claude model.\n\nWhat we send to the API:\n• Trail name (public, from OpenStreetMap)\n• Text of public community reports from the last 60 days (max 20)\n• Relative age of each report (e.g. \"3h ago\")\n\nWhat we DO NOT send:\n• Username, user ID or personal identifiers\n• GPS coordinates, tracks or location data\n• Photos, health data, emergency contacts\n\nSummaries are cached for 24h. Anthropic does not use data sent through the API to train its models. The feature is off by default.",
   "privacyProSubsTitle": "TrailShare Pro Subscriptions",
@@ -2465,5 +2465,21 @@
   "stravaSyncNow": "Sync now",
   "stravaSyncNowSubtitle": "Pull the last 10 Strava activities if the webhook is delayed",
   "stravaSyncing": "Strava sync in progress…",
-  "stravaSyncDone": "Sync complete."
+  "stravaSyncDone": "Sync complete.",
+
+  "analyticsConsentTitle": "Help us understand what works?",
+  "analyticsConsentBody": "To improve TrailShare we need to know which features actually get used and where people get stuck. These are usage statistics, collected through Google's Firebase Analytics.\n\nYou can say no: the app works exactly the same either way.",
+  "analyticsConsentIncluded": "What we collect: which screens you open, which features you use, whether you complete the main actions. Usage data, in statistical form.",
+  "analyticsConsentExcluded": "What we don't collect: your GPS tracks, photos, anything you write, health data. No advertising, no selling to third parties.",
+  "analyticsConsentRevocable": "You can change your mind any time in Settings → Privacy.",
+  "analyticsConsentAccept": "That's fine, collect the statistics",
+  "analyticsConsentDecline": "No, don't collect anything",
+
+  "settingsUsageStatsTitle": "Usage statistics",
+  "settingsUsageStatsSubtitle": "Firebase Analytics: which features get used. You can withdraw consent at any time.",
+  "settingsFunnelTitle": "User journey measurement",
+  "settingsFunnelSubtitle": "On our servers: the dates of your first steps in the app and where you came from. Turning it off deletes the data already collected about you.",
+
+  "privacyAnalyticsTitle": "Usage statistics and service measurement",
+  "privacyAnalyticsContent": "We collect two kinds of statistical data. They have different legal bases and separate controls, both in Settings → Privacy.\n\n1) USAGE STATISTICS (Firebase Analytics, Google) — only with your consent\nWhat: screens opened, features used, completion of the main actions, device model and app version, plus an instance identifier generated by Google.\nLegal basis: your consent, requested on first launch and withdrawable at any time. Nothing is collected until you answer. On withdrawal the instance identifier is reset.\n\n2) USER JOURNEY MEASUREMENT (our Firebase servers) — legitimate interest\nWhat: the dates on which you completed certain steps (sign-up, onboarding, first track saved, first trail added to favourites, subscription if any), the day of your last access and, where available, the source you came from (a mountain hut's QR code, a social link, an article).\nWhy: to understand how many people actually manage to use the app and which channels they arrive from. It is the only way to know whether a change improves or worsens the experience.\nLegal basis: legitimate interest in improving the service. You can object at any time: collection stops and the data already held about you is deleted.\n\n3) ERROR REPORTING (Firebase Crashlytics) — legitimate interest\nWhen the app fails we collect the error type, technical stack, device model and OS version, linked to your user identifier so we can help you if you contact support.\n\nWHAT NEVER ENTERS ANY OF THE THREE:\n• GPS tracks, coordinates, photos\n• Anything you write (comments, descriptions, reports)\n• Health data and heart rate\n• Emergency contacts\n\nWe do not use this data for advertising and we do not sell it to anyone."
 }

@@ -1887,7 +1887,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeAction => 'Close';
 
   @override
-  String get privacyLastUpdated => 'Last updated: May 2026';
+  String get privacyLastUpdated => 'Last updated: July 2026';
 
   @override
   String get privacyIntroTitle => 'Introduction';
@@ -1901,7 +1901,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacyDataCollectedContent =>
-      '• Registration data: email, username, profile photo (optional)\n• Location data: GPS coordinates during track recording\n• Activity data: distance, speed, elevation gain, duration, BLE heart rate if connected\n• Content: photos, comments and descriptions you add to tracks\n• Device data: model, OS, error logs\n• Emergency contacts: if you set up Lifeline, we save name, phone and/or email of chosen contacts (max 3)\n• Live position: if you activate LiveTrack or Lifeline, position is published in real time (~30s)';
+      '• Registration data: email, username, profile photo (optional)\n• Location data: GPS coordinates during track recording\n• Activity data: distance, speed, elevation gain, duration, BLE heart rate if connected\n• Content: photos, comments and descriptions you add to tracks\n• Device data: model, OS, error logs\n• Usage data: which features you use and when you completed your first steps in the app; if you consented, also the screens you open (see \"Usage statistics and service measurement\")\n• Referral source: which link or QR code brought you to the app, where that information is available\n• Emergency contacts: if you set up Lifeline, we save name, phone and/or email of chosen contacts (max 3)\n• Live position: if you activate LiveTrack or Lifeline, position is published in real time (~30s)';
 
   @override
   String get privacyDataUsageTitle => 'How we use your data';
@@ -1922,7 +1922,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacyThirdPartiesContent =>
-      'We use the following services:\n\n• Firebase (Google): authentication, database, storage, Cloud Functions. Servers in EU region\n• OpenStreetMap: map tiles, peaks dataset and POIs bundled in the app as static assets. ODbL license — © OpenStreetMap contributors\n• MapTiler: premium map styles for Pro subscribers\n• Open-Meteo: weather forecasts (request with trail coordinates, no PII)\n• OpenRouteService: route planning (waypoints, no PII)\n• Apple App Store / Google Play: payments for Pro subscriptions\n• Anthropic (Claude AI): trail conditions summary generation (Pro)\n\nThese services have their own privacy policies you are encouraged to review.';
+      'We use the following services:\n\n• Firebase (Google): authentication, database, storage, Cloud Functions. Servers in EU region\n• Firebase Analytics (Google): anonymous usage statistics, active only if you consented\n• Firebase Crashlytics (Google): automatic app error reporting\n• Google Play (Google): on Android, the source you installed the app from, if the link carried it\n• OpenStreetMap: map tiles, peaks dataset and POIs bundled in the app as static assets. ODbL license — © OpenStreetMap contributors\n• MapTiler: premium map styles for Pro subscribers\n• Open-Meteo: weather forecasts (request with trail coordinates, no PII)\n• OpenRouteService: route planning (waypoints, no PII)\n• Apple App Store / Google Play: payments for Pro subscriptions\n• Anthropic (Claude AI): trail conditions summary generation (Pro)\n\nThese services have their own privacy policies you are encouraged to review.';
 
   @override
   String get privacyAiSummaryTitle => 'AI Trail Conditions Summary';
@@ -5075,4 +5075,51 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get stravaSyncDone => 'Sync complete.';
+
+  @override
+  String get analyticsConsentTitle => 'Help us understand what works?';
+
+  @override
+  String get analyticsConsentBody =>
+      'To improve TrailShare we need to know which features actually get used and where people get stuck. These are usage statistics, collected through Google\'s Firebase Analytics.\n\nYou can say no: the app works exactly the same either way.';
+
+  @override
+  String get analyticsConsentIncluded =>
+      'What we collect: which screens you open, which features you use, whether you complete the main actions. Usage data, in statistical form.';
+
+  @override
+  String get analyticsConsentExcluded =>
+      'What we don\'t collect: your GPS tracks, photos, anything you write, health data. No advertising, no selling to third parties.';
+
+  @override
+  String get analyticsConsentRevocable =>
+      'You can change your mind any time in Settings → Privacy.';
+
+  @override
+  String get analyticsConsentAccept => 'That\'s fine, collect the statistics';
+
+  @override
+  String get analyticsConsentDecline => 'No, don\'t collect anything';
+
+  @override
+  String get settingsUsageStatsTitle => 'Usage statistics';
+
+  @override
+  String get settingsUsageStatsSubtitle =>
+      'Firebase Analytics: which features get used. You can withdraw consent at any time.';
+
+  @override
+  String get settingsFunnelTitle => 'User journey measurement';
+
+  @override
+  String get settingsFunnelSubtitle =>
+      'On our servers: the dates of your first steps in the app and where you came from. Turning it off deletes the data already collected about you.';
+
+  @override
+  String get privacyAnalyticsTitle =>
+      'Usage statistics and service measurement';
+
+  @override
+  String get privacyAnalyticsContent =>
+      'We collect two kinds of statistical data. They have different legal bases and separate controls, both in Settings → Privacy.\n\n1) USAGE STATISTICS (Firebase Analytics, Google) — only with your consent\nWhat: screens opened, features used, completion of the main actions, device model and app version, plus an instance identifier generated by Google.\nLegal basis: your consent, requested on first launch and withdrawable at any time. Nothing is collected until you answer. On withdrawal the instance identifier is reset.\n\n2) USER JOURNEY MEASUREMENT (our Firebase servers) — legitimate interest\nWhat: the dates on which you completed certain steps (sign-up, onboarding, first track saved, first trail added to favourites, subscription if any), the day of your last access and, where available, the source you came from (a mountain hut\'s QR code, a social link, an article).\nWhy: to understand how many people actually manage to use the app and which channels they arrive from. It is the only way to know whether a change improves or worsens the experience.\nLegal basis: legitimate interest in improving the service. You can object at any time: collection stops and the data already held about you is deleted.\n\n3) ERROR REPORTING (Firebase Crashlytics) — legitimate interest\nWhen the app fails we collect the error type, technical stack, device model and OS version, linked to your user identifier so we can help you if you contact support.\n\nWHAT NEVER ENTERS ANY OF THE THREE:\n• GPS tracks, coordinates, photos\n• Anything you write (comments, descriptions, reports)\n• Health data and heart rate\n• Emergency contacts\n\nWe do not use this data for advertising and we do not sell it to anyone.';
 }
