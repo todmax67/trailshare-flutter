@@ -22,8 +22,16 @@ inventario di riferimento; il delta operativo è nella sezione subito seguente.
 **Due modifiche necessarie**, entrambe conseguenza del motore di crescita.
 
 1. **Aggiungere `Identificativi → ID dispositivo`**
-   Finalità: Analisi. Collegato all'identità: **no**. Tracciamento: no.
-   È l'ID istanza di Firebase Analytics, che prima della 2.9.4 non esisteva.
+   Finalità: Analisi **e** Funzionalità dell'app. Collegato all'identità:
+   **sì**. Tracciamento: no.
+
+   La voce copre due identificativi diversi, ed è per questo che le finalità
+   sono due. L'ID istanza di Firebase Analytics è la novità della 2.9.4 e da
+   solo non sarebbe collegato — non lo uniamo mai all'uid. Ma nella stessa
+   categoria ricade il **token FCM delle notifiche push**, che
+   `push_notification_service.dart` scrive dentro `user_profiles/{uid}.fcmTokens`:
+   un identificativo di dispositivo dentro il documento dell'utente, quindi
+   collegato per costruzione. C'è da molto prima di questa build.
 
 2. **`Dati sull'utilizzo → Interazione con il prodotto`: da "non collegato" a
    "collegato all'identità"**
@@ -155,7 +163,7 @@ tracking, finalità.
 | User Content → Photos or Videos | Sì | Sì | No | App Functionality |
 | User Content → Other User Content | Sì | Sì | No | App Functionality — commenti, descrizioni, segnalazioni |
 | Identifiers → User ID | Sì | Sì | No | App Functionality, **Analytics** |
-| Identifiers → Device ID | Sì | **No** | No | Analytics — l'ID istanza di Firebase Analytics · ⚠️ **da aggiungere** |
+| Identifiers → Device ID | Sì | Sì | No | Analytics (ID istanza Firebase) + App Functionality (token FCM in `user_profiles/{uid}.fcmTokens`) |
 | Usage Data → Product Interaction | Sì | Sì | No | Analytics · ⚠️ **da correggere: oggi è dichiarato non collegato** |
 | Diagnostics → Crash Data | Sì | Sì | No | Analytics · ⚠️ **collegato da correggere** — `main.dart` passa l'uid a Crashlytics |
 | Diagnostics → Performance Data | Sì | Sì | No | Analytics · ⚠️ **idem** |
@@ -169,8 +177,11 @@ Note per la compilazione:
 - **Usage Data / Product Interaction collegato all'utente = Sì.** Il funnel
   `growth_users` è indicizzato per uid. È la risposta scomoda ma corretta:
   dichiararlo non collegato sarebbe falso.
-- **Device ID collegato = No.** L'ID istanza di Analytics non viene mai unito
-  all'uid dai nostri sistemi.
+- **Device ID collegato = Sì**, e la ragione non è Analytics. L'ID istanza di
+  Firebase non viene mai unito all'uid dai nostri sistemi, ma il token FCM sì:
+  vive dentro il profilo utente. Guardare solo l'SDK aggiunto di recente porta
+  alla risposta sbagliata — la domanda è su *tutti* gli identificativi di
+  dispositivo che l'app raccoglie.
 - Apple permette di dichiarare che una raccolta è **opzionale**: valorizzalo per
   Usage Data, visto che dipende dal consenso e dall'opposizione.
 
@@ -232,9 +243,10 @@ Sono le voci a cui rimandano entrambi i questionari e la policy.
       fatto dal founder
 - [x] **App Store Connect**: `Interazione con il prodotto` portata a "collegato
       all'identità" (2026-07-31)
-- [ ] **App Store Connect**: aggiungere `ID dispositivo` (Analisi, non
-      collegato); portare `Dati sui crash` e `Dati sulle prestazioni` a
-      "collegato". Valutare `Cronologia acquisti`
+- [x] **App Store Connect**: `ID dispositivo` aggiunto, `Dati sui crash` e
+      `Dati sulle prestazioni` portati a "collegato" (2026-07-31). Apple è a posto
+- [ ] **App Store Connect**: valutare `Cronologia acquisti`, `Contatti`, `Nome` —
+      preesistenti, non bloccanti per la 2.9.4
 - [ ] **Play Console**: verificare lo stato attuale, poi lo stesso delta
 - [ ] Redeploy delle rules Firestore: `growth_users` ora ammette la delete
       dell'utente su sé stesso, e senza quella l'opposizione non cancella nulla
