@@ -187,3 +187,32 @@ La seconda correzione vale più di quanto sembri: le note di Komoot v2026.30.4
 dicono *"Improved the stability of route planning"*, e nelle recensioni della
 stessa settimana ci sono utenti che si lamentano proprio della pianificazione.
 Il collegamento fra le due cose era invisibile al modello.
+
+## Rifinitura del prompt dopo il secondo brief (2026-07-31)
+
+Con le note di rilascio in mano, il secondo brief ha riportato che PeakVisor
+ha aggiunto una ricerca mappa con **filtri rapidi per rifugi e acqua
+potabile**, e che Wikiloc ha aggiunto la **condivisione con profilo
+altimetrico verso Instagram e WhatsApp Stories**.
+
+Sono i due fatti più rilevanti della settimana — un competitor entra nella
+nicchia dove abbiamo la posizione migliore (`rifugi`, 11ª), un altro si
+attrezza sul loop social che è il nostro motore di network effect dichiarato —
+e nessuno dei due è finito fra le cose da provare. Il brief riportava le
+sezioni in modo indipendente senza incrociarle.
+
+Il secondo difetto era un esperimento non testabile: "comunicare la difficoltà
+misurata sul campo" senza dire su quale canale, con "dovremmo vedere un
+aumento di signup" come verifica — mentre i signup sono a zero perché la build
+non è uscita, quindi qualunque movimento avrebbe avuto altre cause.
+
+Due aggiunte al system prompt:
+
+- **Incrociare le sezioni prima di scrivere gli esperimenti**, con tre esempi
+  espliciti di incrocio che conta. Un fatto incrociato va detto anche quando
+  non produce un esperimento.
+- **Un esperimento vale solo se nomina canale, metrica, e perché un movimento
+  sarebbe attribuibile a quello e non ad altro.** Se al terzo punto non si sa
+  rispondere, non è proponibile. E zero esperimenti è dichiarato legittimo e
+  frequente: il modello sa astenersi quando glielo si permette, e nel secondo
+  brief lo aveva già fatto correttamente su uno dei due punti.
