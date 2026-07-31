@@ -131,6 +131,7 @@ manca.
   cancella geometria tracce, copie pubbliche con cheers e commenti, foto su
   Storage, token OAuth Strava/Polar revocati, pairing Garmin, l'intero
   documento utente e l'account Auth. Va messa a sì.
+
 #### Il dettaglio per tipo di dato
 
 Dopo la selezione dei tipi, il modulo chiede per **ognuno**: raccolto/condiviso,
