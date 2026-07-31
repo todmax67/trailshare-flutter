@@ -132,7 +132,14 @@ l'etichetta**: su Android il `referrer` del Play Store, su iOS il token `ct`
 di campagna. Il mezzo si deduce dal prefisso dell'etichetta, così non va
 ripetuto su ogni cartoncino stampato — dove un refuso non si corregge più.
 
-Il registro delle etichette vive in `scripts/growth_links.json`. I QR si
+**I rifugi non hanno bisogno di un'etichetta a mano.** Ogni Spazio Pro genera
+già il suo QR da `BusinessQrCardPage` (ed è nell'Outreach Kit) verso
+`trailshare.app/b/<slug>`; da quella pagina il bottone di download porta a
+`/r/qr_<slug>`. L'etichetta nasce dallo slug, quindi ogni rifugio è misurato
+separatamente senza registri da tenere allineati.
+
+Il registro `scripts/growth_links.json` serve solo ai canali che un link
+proprio non ce l'hanno — bio social, stampa, partner. I QR si
 generano da lì, in PNG per la stampa e SVG per gli ingrandimenti:
 
 ```bash

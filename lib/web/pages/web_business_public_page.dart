@@ -1,7 +1,4 @@
-import 'dart:io' show Platform;
-
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -22,7 +19,7 @@ import '../../presentation/widgets/photo_credit_chip.dart';
 /// `BusinessRepository.getBusinessBySlug` per risolvere lo slug.
 ///
 /// CTA usa deep link `trailshare://b/{id}` (apre l'app se installata) e
-/// fallback alle pagine store (App Store / Play Store).
+/// fallback al link di download attribuito al rifugio (vedi [_downloadUrl]).
 class WebBusinessPublicPage extends StatefulWidget {
   final String slug;
   const WebBusinessPublicPage({super.key, required this.slug});
@@ -39,11 +36,21 @@ class _WebBusinessPublicPageState extends State<WebBusinessPublicPage> {
   // 7.D3 — Percorsi consigliati (preview lista + marker mappa)
   List<RecommendedTrack> _recommended = const [];
 
-  // Store URLs — placeholder fino a pubblicazione (vedi _kAppStoreId TODO).
-  static const _appStoreUrl =
-      'https://apps.apple.com/it/app/trailshare/id0000000000';
-  static const _playStoreUrl =
-      'https://play.google.com/store/apps/details?id=com.trailshare.app';
+  /// Link di download **attribuiti al rifugio**.
+  ///
+  /// Questa pagina è la destinazione del QR che ogni Spazio Pro genera dalla
+  /// sua card (`BusinessQrCardPage`) e che finisce nell'Outreach Kit: è il
+  /// punto esatto in cui il ground game diventa un'installazione. Mandare qui
+  /// a uno store anonimo significa non sapere mai quale rifugio funziona.
+  ///
+  /// L'etichetta è `qr_<slug>`: si genera da sé per ogni rifugio, senza
+  /// registri da tenere allineati a mano. Il prefisso `qr_` fa dedurre il
+  /// mezzo alla pagina `/r/` (vedi `docs/growth_engine.md`).
+  ///
+  /// Fino al 2026-07-31 l'id App Store qui era `id0000000000`, un segnaposto
+  /// rimasto da prima della pubblicazione: **ogni utente iPhone che arrivava
+  /// dal QR di un rifugio e toccava "App Store" finiva su un link morto**.
+  String get _downloadUrl => 'https://trailshare.app/r/qr_${widget.slug}';
 
   @override
   void initState() {
@@ -100,8 +107,7 @@ class _WebBusinessPublicPageState extends State<WebBusinessPublicPage> {
       );
       if (ok) return;
     } catch (_) {}
-    // Fallback: store. Sceglie iOS/Android in base alla piattaforma del
-    // browser (su web Platform.is* è false → mostriamo un picker).
+    // Fallback: store, con l'attribuzione al rifugio.
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -115,21 +121,16 @@ class _WebBusinessPublicPageState extends State<WebBusinessPublicPage> {
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
+            // Una voce sola: la pagina `/r/` riconosce il dispositivo e manda
+            // allo store giusto. Chiedere all'utente di scegliere il proprio
+            // sistema operativo era una domanda che sapevamo già rispondere.
             ListTile(
-              leading: const Icon(Icons.apple),
-              title: const Text('App Store (iOS)'),
+              leading: const Icon(Icons.download),
+              title: const Text('Vai allo store'),
+              subtitle: const Text('App Store o Google Play, secondo il tuo telefono'),
               onTap: () {
                 Navigator.pop(ctx);
-                launchUrl(Uri.parse(_appStoreUrl),
-                    mode: LaunchMode.externalApplication);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.android),
-              title: const Text('Google Play (Android)'),
-              onTap: () {
-                Navigator.pop(ctx);
-                launchUrl(Uri.parse(_playStoreUrl),
+                launchUrl(Uri.parse(_downloadUrl),
                     mode: LaunchMode.externalApplication);
               },
             ),
@@ -424,8 +425,7 @@ class _WebBusinessPublicPageState extends State<WebBusinessPublicPage> {
               ),
               OutlinedButton.icon(
                 onPressed: () => launchUrl(
-                  Uri.parse(
-                      kIsWeb || !Platform.isAndroid ? _appStoreUrl : _playStoreUrl),
+                  Uri.parse(_downloadUrl),
                   mode: LaunchMode.externalApplication,
                 ),
                 icon: const Icon(Icons.download),
