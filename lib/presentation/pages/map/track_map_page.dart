@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../core/utils/map_bounds.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/track_gradient_colors.dart';
 import '../../../data/models/osm_poi.dart';
@@ -231,7 +232,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
 
   LatLngBounds? get _bounds {
     if (_trackPoints.isEmpty) return null;
-    return LatLngBounds.fromPoints(_trackPoints);
+    return safeBounds(_trackPoints);
   }
 
   @override

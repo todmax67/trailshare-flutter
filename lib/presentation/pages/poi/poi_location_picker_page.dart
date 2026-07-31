@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../core/utils/map_bounds.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/map_styles.dart';
 import '../../../core/services/offline_tile_provider.dart';
@@ -69,7 +70,7 @@ class _PoiLocationPickerPageState extends State<PoiLocationPickerPage> {
   @override
   Widget build(BuildContext context) {
     final bounds = widget.polyline.length >= 2
-        ? LatLngBounds.fromPoints(widget.polyline)
+        ? safeBounds(widget.polyline)
         : null;
 
     return Scaffold(

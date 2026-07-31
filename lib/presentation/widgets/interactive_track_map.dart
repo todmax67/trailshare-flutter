@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../core/utils/map_bounds.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/map_styles.dart';
 import '../../core/services/map_style_prefs.dart';
@@ -440,10 +441,13 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
         .map((p) => LatLng(p.latitude, p.longitude))
         .toList();
     if (!_userContextActive) coords.add(_userPosition!);
-    if (coords.length < 2) return;
+    // `length < 2` non bastava: due punti identici passano il controllo e
+    // producono un riquadro di dimensione zero, cioe' zoom infinito.
+    final bounds = safeBounds(coords);
+    if (bounds == null) return;
     _mapController.fitCamera(
       CameraFit.bounds(
-        bounds: LatLngBounds.fromPoints(coords),
+        bounds: bounds,
         padding: const EdgeInsets.all(56),
       ),
     );

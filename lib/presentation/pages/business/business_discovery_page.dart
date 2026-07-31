@@ -7,6 +7,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../core/utils/map_bounds.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/geo_regions.dart';
@@ -545,13 +546,13 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
     // Italia o regione filtrata). In modo nearby, center sull'utente
     // a zoom 11.
     MapOptions options;
-    if (isNationwide && items.isNotEmpty) {
-      final points = items
-          .map((b) => LatLng(b.location.lat, b.location.lng))
-          .toList();
+    final nationwideBounds = isNationwide && items.isNotEmpty
+        ? safeBounds(items.map((b) => LatLng(b.location.lat, b.location.lng)))
+        : null;
+    if (nationwideBounds != null) {
       options = MapOptions(
         initialCameraFit: CameraFit.bounds(
-          bounds: LatLngBounds.fromPoints(points),
+          bounds: nationwideBounds,
           padding: const EdgeInsets.all(40),
         ),
       );

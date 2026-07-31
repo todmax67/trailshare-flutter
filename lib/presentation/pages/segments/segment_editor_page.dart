@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../core/utils/map_bounds.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/navigation_service.dart';
 import '../../../data/models/segment.dart';
@@ -197,7 +198,7 @@ class _SegmentEditorPageState extends State<SegmentEditorPage> {
   @override
   Widget build(BuildContext context) {
     final bounds = _trailLatLng.isNotEmpty
-        ? LatLngBounds.fromPoints(_trailLatLng)
+        ? safeBounds(_trailLatLng)
         : null;
 
     return Scaffold(

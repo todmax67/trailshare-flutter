@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../core/utils/map_bounds.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/segment.dart';
 import '../../../data/repositories/admin_repository.dart';
@@ -180,7 +181,7 @@ class _SegmentDetailPageState extends State<SegmentDetailPage> {
 
   Widget _buildMap(Segment seg) {
     final bounds = seg.polyline.isNotEmpty
-        ? LatLngBounds.fromPoints(seg.polyline)
+        ? safeBounds(seg.polyline)
         : null;
     return SizedBox(
       height: 180,

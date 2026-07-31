@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../core/utils/map_bounds.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/navigation_service.dart';
 import '../../../core/services/routing_service.dart';
@@ -218,7 +219,7 @@ class _NavigationPageState extends State<NavigationPage> {
   @override
   Widget build(BuildContext context) {
     final bounds = _polyline.isNotEmpty
-        ? LatLngBounds.fromPoints(_polyline)
+        ? safeBounds(_polyline)
         : null;
 
     return Scaffold(
