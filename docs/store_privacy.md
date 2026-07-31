@@ -63,9 +63,10 @@ collegato = Sì, monitoraggio = No.
    vengono digitati a mano: lettura prudente dichiararli, lettura letterale no.
    Decisione del founder.
 
-Anche `Informazioni di contatto → Nome` non è dichiarata, mentre l'email sì. Se
-il displayName arriva da Google/Apple Sign-In e viene salvato, andrebbe aggiunta;
-se in pratica salvate solo lo username, resta coperta da `ID utente`.
+5. `Informazioni di contatto → Nome` — non dichiarata, mentre l'email sì. Su
+   **Play il Nome è spuntato**: uno dei due store è sbagliato, e con ogni
+   probabilità è Apple, visto che il displayName arriva da Google/Apple
+   Sign-In e viene salvato. Da allineare.
 
 ### Cosa risultava già dichiarato (verificato il 2026-07-31)
 
@@ -88,9 +89,68 @@ ma serve una pagina web che spieghi come esercitare le scelte.
 
 ### Play Console
 
-**Non ancora verificata.** Se rispecchia lo stato di Apple sarà anch'essa quasi
-completa, e il delta sarà lo stesso: aggiungere *ID dispositivo o altri ID* e
-rivedere le voci di *Attività nell'app*. Da controllare prima di pubblicare.
+Verificata voce per voce il 2026-07-31. Era messa **meglio** di Apple: `ID
+dispositivo o altri ID` risultava già dichiarato, e anche `Nome`, che su Apple
+manca.
+
+**Modifica necessaria, causata dalla 2.9.4:**
+
+- `Attività nell'app → Interazioni con l'app` — era vuota, spuntata. È dove
+  ricadono schermate aperte, funzioni usate, visualizzazioni del paywall e le
+  tappe del funnel. Le altre tre della categoria restano vuote a ragione:
+  niente cronologia ricerche, niente lista app installate, e `Altre azioni`
+  sarebbe ridondante.
+
+**Correzione preesistente:**
+
+- `Salute e attività fisica → Informazioni sanitarie` — era vuota, con solo
+  "Informazioni sull'attività fisica" spuntata. L'app legge però
+  `HealthDataType.HEART_RATE` e dichiara `android.permission.health.READ_HEART_RATE`,
+  e la frequenza cardiaca arriva anche dalla fascia BLE. È un parametro vitale:
+  Health Connect stesso la mette sotto *Vitals*, non *Activity*. Non
+  dichiararla contraddiceva sia Apple sia la dichiarazione "App per la salute"
+  già compilata su Play.
+
+**Stato verificato delle altre categorie:**
+
+| Categoria | Stato | Nota |
+|---|---|---|
+| Posizione esatta | ✅ | |
+| Informazioni personali 4/9 | ✅ | Nome, Email, ID utente, Altre informazioni — quest'ultima copre i contatti d'emergenza di Lifeline |
+| Foto e video 1/2 | ✅ | foto sì, video no |
+| File e documenti 1/1 | ✅ | import GPX/TCX/FIT |
+| Informazioni e prestazioni 2/3 | ✅ | crash + diagnostica; "Altri dati sulle prestazioni" sarebbe Performance Monitoring, non usato |
+| ID dispositivo o altri ID 1/1 | ✅ | |
+| Finanziarie, Messaggi, Audio, Calendario, Navigazione web | ✅ | tutte a zero |
+| Contatti 0/1 | ⚠️ | stessa ambiguità di Apple, vedi sopra |
+
+**Altre due cose sul modulo Play:**
+
+- **Eliminazione dei dati: dichiarata "non supportata", ed è falso.**
+  `delete_account_service.dart` invoca la Cloud Function `deleteMyAccount`, che
+  cancella geometria tracce, copie pubbliche con cheers e commenti, foto su
+  Storage, token OAuth Strava/Polar revocati, pairing Garmin, l'intero
+  documento utente e l'account Auth. Va messa a sì.
+- Nei passaggi successivi, per ogni tipo si sceglie raccolto/condiviso,
+  obbligatorio/facoltativo e finalità: le voci di analisi sono **facoltative**,
+  perché l'utente può rifiutare il consenso e opporsi.
+
+**Fuori dalla Sicurezza dei dati, ma da sapere:**
+
+- `ID pubblicità` era già dichiarato come non utilizzato, dal 24 febbraio. Era
+  vero, e la rimozione del permesso AD_ID di oggi è ciò che lo mantiene tale:
+  aggiungere Firebase Analytics senza quella rimozione avrebbe reso falsa una
+  dichiarazione già pubblicata, e Play confronta proprio il permesso nel
+  manifest con questa risposta.
+- Avviso norme "Libreria Fatturazione 8.0.0 entro il 31 ago": **l'app è già
+  conforme**. `com.android.billingclient:billing 8.0.0` è nei metadati
+  dell'AAB, arriva dal plugin `in_app_purchase_android` il cui pin nel lock non
+  cambia dal 28 aprile. L'avviso guarda tutti gli artefatti *attivi*: se
+  persiste dopo il caricamento della 2.9.4, cercare vecchi rilasci ancora
+  attivi sui canali di test.
+- `READ_MEDIA_IMAGES` è dichiarato in Contenuti app ma nel manifest è rimosso
+  con `tools:node="remove"`. Dichiararlo in più non blocca nulla, si può
+  togliere.
 
 > Non è consulenza legale. Le categorie e le finalità sono dedotte dal
 > comportamento del codice; la valutazione delle basi giuridiche resta tua, se
@@ -245,8 +305,13 @@ Sono le voci a cui rimandano entrambi i questionari e la policy.
       all'identità" (2026-07-31)
 - [x] **App Store Connect**: `ID dispositivo` aggiunto, `Dati sui crash` e
       `Dati sulle prestazioni` portati a "collegato" (2026-07-31). Apple è a posto
-- [ ] **App Store Connect**: valutare `Cronologia acquisti`, `Contatti`, `Nome` —
-      preesistenti, non bloccanti per la 2.9.4
-- [ ] **Play Console**: verificare lo stato attuale, poi lo stesso delta
+- [ ] **App Store Connect**: aggiungere `Nome` (su Play c'è già). Valutare
+      `Cronologia acquisti` e `Contatti` — preesistenti, non bloccanti
+- [x] **Play Console**: verificata voce per voce (2026-07-31). Spuntate
+      `Interazioni con l'app` e `Informazioni sanitarie`
+- [ ] **Play Console**: portare l'eliminazione dei dati a "supportata" — oggi
+      dichiara il contrario di quello che il codice fa
+- [ ] **Play Console**: completare i passaggi dopo i tipi di dati
+      (raccolto/condiviso, obbligatorio/**facoltativo** per le analisi, finalità)
 - [ ] Redeploy delle rules Firestore: `growth_users` ora ammette la delete
       dell'utente su sé stesso, e senza quella l'opposizione non cancella nulla
