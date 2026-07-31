@@ -1,7 +1,8 @@
 # Motore di crescita — Fase 1: l'analista
 
-**Implementata il 2026-07-31**, non ancora deployata. Scritta dopo aver
-verificato che ogni fonte citata esista e risponda davvero.
+**LIVE dal 2026-07-31.** Deployata e verificata end-to-end lo stesso giorno:
+raccolta, stesura via Claude e consegna su Telegram funzionano in produzione.
+Scritta dopo aver verificato che ogni fonte citata esista e risponda davvero.
 
 Codice nel repo `trailshare-ai-manager`:
 `functions/src/services/market/{appStore,brief}.ts` e
@@ -101,7 +102,6 @@ Nel repo `trailshare-ai-manager`, accanto a `growthDaily`:
 ```
 functions/src/services/market/
   ├── appStore.ts      collettore: ranking, versioni, voti, recensioni
-  ├── community.ts     collettore: menzioni Reddit
   └── brief.ts         confronto con la settimana prima + stesura via Claude
 
 functions/src/scheduled/
@@ -153,23 +153,13 @@ l'anomalia nel brief.
 
 ## Stato della verifica
 
-Provato con chiamate vere il 2026-07-31: dieci keyword, sette app, otto
-recensioni, **zero errori**. Prompt risultante di 3.100 caratteri — compatto.
+Collettori provati in locale con chiamate vere: dieci keyword, sette app, otto
+recensioni, **zero errori**.
 
-**Non ancora verificata la stesura**: la chiamata a Claude richiede
-`ANTHROPIC_API_KEY`, che in locale non c'è. Il primo brief vero sarà anche il
-primo test di quel pezzo. Se fallisce, l'osservazione grezza è comunque già
-salvata e il lunedì successivo il confronto parte da lì.
-
-## Cosa serve per accenderlo
-
-- [ ] `firebase deploy --only functions:weeklyMarketBrief` nel repo del manager
-- [ ] Il secret `ANTHROPIC_API_KEY` è già in uso da `weeklyAutoPost`, ma i
-      secret si dichiarano per funzione: verificare che sia accessibile
-
-Il primo brief sarà povero per costruzione: non esiste un "prima". Il codice
-lo dice esplicitamente al modello, che deve limitarsi a fotografare la
-situazione di partenza invece di inventarsi movimenti.
+Catena completa verificata in produzione il 2026-07-31, forzando il job da
+Cloud Scheduler: il brief è arrivato su Telegram. Il secret
+`ANTHROPIC_API_KEY`, già in uso da `weeklyAutoPost`, è risultato accessibile
+anche a questa funzione.
 
 ## Correzioni dopo il primo brief reale (2026-07-31)
 
