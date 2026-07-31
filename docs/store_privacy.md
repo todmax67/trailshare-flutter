@@ -36,6 +36,27 @@ Conseguenze concrete:
 Se un domani si attivano Apple Search Ads o campagne Meta, questa parte va
 riaperta: cambia la risposta sul tracking e serve il prompt ATT.
 
+### Il caso iOS, che è diverso da Android
+
+Su Android il permesso è stato tolto e il manifest finale è pulito, verificato
+sia in debug sia sulla build di release che va sugli store.
+
+Su iOS il meccanismo è un altro. L'IPA 2.9.4+113 **contiene**
+`GoogleAppMeasurementIdentitySupport.framework`, cioè la variante di Firebase
+Analytics capace di leggere l'IDFA. Non è una svista: è il prodotto SPM che il
+plugin `firebase_analytics` dichiara, e sotto Flutter non è sostituibile con
+`FirebaseAnalyticsWithoutAdIdSupport` senza toccare un `Package.swift` che
+viene rigenerato a ogni build.
+
+Perché non è un problema: da iOS 14.5 l'IDFA è ottenibile **solo** dopo un
+consenso ATT concesso, e senza `NSUserTrackingUsageDescription` nell'Info.plist
+l'app non può nemmeno mostrare quel prompt. Verificato sull'IPA: la chiave non
+c'è. Il framework è presente ma non ha modo di restituire altro che zeri.
+
+Conseguenza pratica: "tracking = No" resta la risposta corretta. Ma se un
+giorno qualcuno aggiunge `NSUserTrackingUsageDescription` per fare Search Ads,
+la raccolta IDFA parte da sola, perché il framework è già dentro. Da ricordare.
+
 ## App Store Connect → App Privacy
 
 Per ogni tipo di dato: raccolto sì/no, collegato all'identità, usato per
