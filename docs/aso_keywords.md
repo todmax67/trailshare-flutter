@@ -153,6 +153,66 @@ Google indicizza **titolo (30), descrizione breve (80) e descrizione lunga
 vere: il keyword stuffing su Play è penalizzato, su Apple no perché il campo è
 nascosto. Da fare separatamente, non è un copia-incolla di questa riga.
 
+## Altro da ottimizzare, in ordine di valore
+
+### 1. La categoria: siamo gli unici senza Navigazione né Viaggi
+
+Misurato il 2026-08-01 sulle sette app tracciate:
+
+| App | Primaria | Secondaria | Recensioni |
+|---|---|---|---|
+| **TrailShare** | Salute e benessere | **Sport** | 1 |
+| komoot | Salute e benessere | Navigazione | 30.761 |
+| Wikiloc | Navigazione | Sport | 21.215 |
+| AllTrails | Salute e benessere | Viaggi | 1.913 |
+| Outdooractive | Viaggi | Navigazione | 2.900 |
+| PeakVisor | Sport | Navigazione | 15.504 |
+| Terra Map | Navigazione | Viaggi | 7.031 |
+
+**Sei su sei hanno Navigazione o Viaggi in uno dei due slot. Noi nessuno dei
+due.** Non è una convenzione estetica: le classifiche di categoria sono liste
+separate, e Salute e benessere in Italia è dove stanno tutte le app di fitness,
+dieta e meditazione. Navigazione è un bacino molto più piccolo, e chi lo sfoglia
+sta cercando mappe.
+
+Proposta: **secondaria da Sport a Navigazione**. La primaria può restare Salute
+e benessere, che è quella di komoot e AllTrails.
+
+### 2. Nessuna scheda in inglese, mentre l'app è tradotta per intero
+
+`lib/l10n/` ha 2.076 chiavi in italiano e **2.076 in inglese**: l'interfaccia è
+completa in entrambe. L'app risulta scaricabile da Stati Uniti, Francia,
+Germania, Austria e Svizzera — ma in tutti quei negozi la scheda è quella
+italiana.
+
+Il pubblico giusto però **non** è "escursionisti del mondo": il dataset POI è
+**per il 95% dentro i confini italiani** (1.087 punti su 21.556 stanno appena
+oltre). Vendere un catalogo italiano a un austriaco produce recensioni brutte, e
+con una recensione sola non ce lo possiamo permettere.
+
+Il pubblico giusto è chi cerca **le montagne italiane in inglese**: turisti che
+programmano le Dolomiti, stranieri che vivono qui. Scheda inglese sì, posizionata
+su quello.
+
+### 3. Promotional Text (App Store, 170 caratteri)
+
+È l'unico campo che si cambia **senza inviare una nuova versione**. Va sopra la
+descrizione. Da verificare se è vuoto — probabilmente sì. Serve per le cose
+stagionali: apertura dei rifugi, prima neve, ciaspole.
+
+### 4. Custom Product Page per il traffico dei QR
+
+Chi inquadra il QR di un rifugio arriva sulla scheda generica. Una pagina
+variante che apra con gli screenshot dei rifugi convertirebbe meglio, e Apple ne
+misura le installazioni separatamente — quindi si saprebbe se funziona invece di
+supporlo. Si aggancia ai link `/r/qr_<slug>` già in produzione.
+
+### 5. Gli screenshot
+
+La leva più forte sulla conversione, più delle parole chiave: le parole ti fanno
+trovare, gli screenshot decidono se ti installano. Non sono versionati nel repo,
+quindi non li ho visti.
+
 ## Da rifare
 
 Alla prossima release, e comunque quando il brief del lunedì segnala uno
