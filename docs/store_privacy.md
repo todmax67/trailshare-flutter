@@ -370,13 +370,10 @@ Sono le voci a cui rimandano entrambi i questionari e la policy.
       (2026-08-01, dal founder)
 - [x] **Play Console**: completati i passaggi dopo i tipi di dati
       (raccolto/condiviso, obbligatorio/**facoltativo** per le analisi, finalità)
-- [ ] **Rules Firestore da confermare deployate.** `growth_users` ammette la
-      delete dell'utente su sé stesso da `05752b7` (2026-07-31), ma il deploy
-      non risulta da qui e non è verificabile senza token. **Senza quelle
-      rules l'opposizione non cancella niente e la risposta appena data a Play
-      sulla cancellazione parziale è falsa.** Il comando è idempotente e il
-      file è committato e pulito:
-      `firebase deploy --only firestore:rules --project trailshare-5334b`
+- [x] **Rules Firestore deployate** (2026-08-01, dal founder). `growth_users`
+      ammette la delete dell'utente su sé stesso da `05752b7`: senza quelle
+      rules l'opposizione non cancellerebbe niente e la risposta data a Play
+      sulla cancellazione parziale sarebbe falsa.
 
 ## Un buco chiuso alla radice (2.9.5)
 
