@@ -296,6 +296,16 @@ Per ogni voce: raccolti / condivisi / obbligatori o facoltativi / finalità.
 Trasmissione cifrata: **Sì** ovunque (HTTPS, Firestore TLS). Richiesta di
 cancellazione dati: **Sì** — esiste già l'eliminazione account in-app.
 
+Play fa **due** domande sulla cancellazione, e sono diverse:
+
+1. *Eliminazione dell'account* → **Sì**, in-app da Impostazioni.
+2. *Eliminazione parziale senza chiudere l'account (facoltativa)* → **Sì**, con
+   URL `https://trailshare.app/delete-account`. Vale da quando esistono i due
+   interruttori in Impostazioni → Privacy: opporsi alla misura non ferma solo la
+   raccolta, **cancella il documento `growth_users` già scritto**. La pagina
+   documenta i passaggi dal 2026-08-01 — prima diceva solo come chiudere
+   l'account, e senza quella sezione l'unica risposta onesta sarebbe stata No.
+
 | Categoria → Tipo | Raccolti | Condivisi | Obbligatori | Finalità |
 |---|---|---|---|---|
 | Info personali → Nome | Sì | No | Facoltativo | Funzionalità app, Account |
@@ -332,6 +342,7 @@ Sono le voci a cui rimandano entrambi i questionari e la policy.
 | Revoca del consenso Analytics | Impostazioni → Privacy → Statistiche d'uso |
 | Opposizione alla misura del funnel | Impostazioni → Privacy → Misura del percorso utente (cancella anche i dati già raccolti) |
 | Cancellazione completa | Impostazioni → elimina account |
+| Cancellazione parziale, restando iscritti | I due interruttori qui sopra, più tracce/foto/POI eliminabili singolarmente — documentato su trailshare.app/delete-account |
 | Informativa | Impostazioni → Privacy Policy, e trailshare.app/privacy |
 
 ## Da rifare quando cambia qualcosa
