@@ -70,18 +70,54 @@ in testa, e non a caso è l'unico dove siamo già dodicesimi.
 2. **`cai` è Character AI.** Il Club Alpino Italiano non compare nemmeno:
    i primi tre sono chatbot. Da non usare mai.
 
-## Il campo proposto (96 caratteri)
+## I tre campi vanno progettati insieme
+
+Apple indicizza **nome, sottotitolo e keyword** come un unico spazio da 160
+caratteri, e **non conta due volte la stessa parola**. Una parola nel nome è
+sprecata nel campo keyword, e viceversa. Il primo nome, `TrailShare — Sentieri
+GPS`, rendeva ridondanti `sentieri` e `gps`; il primo sottotitolo,
+`Tracking GPS · Mappe · Rifugi`, ripeteva `rifugi` già presente nel nome nuovo.
+
+| Campo | Testo | Parole che porta |
+|---|---|---|
+| Nome (29/30) | `TrailShare: Sentieri e Rifugi` | trailshare, sentieri, **rifugi** |
+| Sottotitolo (30/30) | `Mappe offline · Bivacchi · GPS` | mappe, **offline**, **bivacchi**, gps |
+| Keyword (99/100) | vedi sotto | dodici termini di nicchia |
+
+Venti termini distinti, zero doppioni. Il sottotitolo è dove è cambiato di più:
+`Tracking` e `Rifugi` uscivano — il primo perché è inglese e nessuno lo cerca in
+italiano, il secondo perché il nome lo copre già — ed entravano `offline` e
+`bivacchi`, cioè il differenziatore vero e un termine con due sole app in
+classifica.
+
+## Il campo keyword (99 caratteri)
+
+```
+malghe,ciaspole,orobie,ferrate,alpinismo,alpini,montagna,trekking,wikiloc,komoot,appennino,dolomiti
+```
+
+`rifugi` e `bivacchi` sono usciti da qui perché ora stanno in nome e
+sottotitolo: i 16 caratteri liberati sono andati su `appennino` (22 app in
+classifica, e i primi tre sono app di sentieri) e `dolomiti`.
+
+Scartato `baite`: al plurale la classifica è inquinata dall'inglese *bait* —
+Brain Baits, Bait Car — e passa da 9 app a 104.
+
+<details>
+<summary>La versione precedente, prima che il nome cambiasse</summary>
 
 ```
 rifugi,bivacchi,malghe,ciaspole,orobie,ferrate,alpinismo,alpini,montagna,trekking,wikiloc,komoot
 ```
+</details>
 
 Il criterio: **spendere i caratteri dove il campo è vuoto**, non dove il volume
 è alto ma davanti ci sono komoot e Wikiloc con ventimila recensioni contro la
 nostra.
 
-- `rifugi` `bivacchi` `malghe` `ciaspole` — la nicchia misurata, con contenuto
-  vero dietro
+- `malghe` `ciaspole` — la nicchia misurata, con contenuto vero dietro (due e
+  quattro app in classifica); `rifugi` e `bivacchi` stanno ormai nel nome e nel
+  sottotitolo
 - `orobie` — cinque app in tutto, ed è dove il ground game coi QR sta partendo
 - `ferrate` — le 323 vie attrezzate del catalogo, messe in sicurezza a luglio
 - `alpinismo` — quaranta app, tutte piccole
@@ -91,8 +127,11 @@ nostra.
   novantesimi è comunque meglio di assenti
 - `wikiloc` `komoot` — vedi il rischio qui sotto
 
-Restano 4 caratteri liberi: non abbastanza per una parola, e meglio vuoti che
-riempiti a caso.
+- `appennino` `dolomiti` — i due sistemi montuosi principali, entrambi con
+  contenuto nel catalogo; su `appennino` competono ventidue app e le prime tre
+  sono di sentieri
+
+Resta 1 carattere libero.
 
 **Il rischio da sapere, non da nascondere.** I nomi dei concorrenti nei
 metadati sono contro le linee guida App Store (marchi di terzi). `wikiloc` è
