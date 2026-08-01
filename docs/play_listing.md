@@ -41,9 +41,9 @@ generalista dice: **rifugi**, **bivacchi**, **offline**.
 ```
 TrailShare è l'app per chi va in montagna: registra le escursioni con il GPS, trova rifugi e bivacchi sulla mappa e continua a funzionare dove il telefono non prende.
 
-QUANDO NON C'È CAMPO
+MAPPE OFFLINE, QUANDO NON C'È CAMPO
 
-Scarica in anticipo l'area che ti serve: la mappa resta disponibile mentre registri e mentre segui un sentiero, anche in modalità aereo.
+Scarica in anticipo l'area che ti serve e la mappa diventa offline: resta disponibile mentre registri e mentre segui un sentiero, anche in modalità aereo.
 
 Insieme all'app trovi già installati oltre 21.000 punti della montagna italiana: 3.100 rifugi, 1.600 bivacchi, 2.000 ricoveri, 4.800 sorgenti, 3.500 fontane, 3.200 punti panoramici e 1.100 colonnine di ricarica per e-bike. Sono nel telefono, non su un server: li vedi senza rete.
 
