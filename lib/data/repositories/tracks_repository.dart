@@ -193,6 +193,10 @@ class TracksRepository {
         unawaited(GrowthAnalyticsService.instance
             .milestone(GrowthMilestone.firstTrackPublic));
       }
+      // Oltre alla prima volta: il conteggio dice quanto l'app viene usata,
+      // che le milestone da sole non possono dire.
+      unawaited(GrowthAnalyticsService.instance
+          .recordTrackSaved(isPublic: track.isPublic));
 
       return SaveTrackResult(
         trackId: docRef.id,

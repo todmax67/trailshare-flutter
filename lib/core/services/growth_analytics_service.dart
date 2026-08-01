@@ -581,6 +581,30 @@ class GrowthAnalyticsService {
     }
   }
 
+  /// Conta ogni traccia salvata, non solo la prima.
+  ///
+  /// Le milestone rispondono a "è arrivato fin qui?", una volta per vita. Non
+  /// rispondono a "quanto la usa": un utente che ha salvato una traccia a
+  /// marzo e uno che ne registra due a settimana hanno lo stesso documento.
+  ///
+  /// `lastTrackSavedAt` è il segnale di vita che conta per un'app di
+  /// registrazione, più di `lastSeenAt`: aprire l'app per guardare una mappa
+  /// non è la stessa cosa che uscire a camminare.
+  ///
+  /// Le tracce private contano quanto le pubbliche. Chi registra per sé è un
+  /// utente attivo a tutti gli effetti — la condivisione è un'altra domanda,
+  /// e ha già il suo campo.
+  Future<void> recordTrackSaved({required bool isPublic}) async {
+    if (kDebugMode) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await _mergeDoc(uid, {
+      'tracksSaved': FieldValue.increment(1),
+      if (isPublic) 'tracksPublic': FieldValue.increment(1),
+      'lastTrackSavedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   /// L'utente ha scelto un metodo di registrazione (prima che vada a buon
   /// fine). La differenza tra questo e [GrowthMilestone.signup] misura quanto
   /// il login stesso perde per strada.
