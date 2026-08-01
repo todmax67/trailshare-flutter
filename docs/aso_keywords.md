@@ -84,11 +84,16 @@ GPS`, rendeva ridondanti `sentieri` e `gps`; il primo sottotitolo,
 | Sottotitolo (30/30) | `Mappe offline · Bivacchi · GPS` | mappe, **offline**, **bivacchi**, gps |
 | Keyword (99/100) | vedi sotto | dodici termini di nicchia |
 
-Venti termini distinti, zero doppioni. Il sottotitolo è dove è cambiato di più:
-`Tracking` e `Rifugi` uscivano — il primo perché è inglese e nessuno lo cerca in
-italiano, il secondo perché il nome lo copre già — ed entravano `offline` e
-`bivacchi`, cioè il differenziatore vero e un termine con due sole app in
-classifica.
+Venti termini distinti, zero doppioni. Il sottotitolo è dove è cambiato di più.
+
+`Rifugi` usciva perché il nome lo copre già. `Tracking` usciva per un motivo
+peggiore, che è saltato fuori misurandolo: in Italia `tracking` restituisce
+**17TRACK, AfterShip e Parcel**, cioè di nuovo il tracciamento pacchi, e
+`tracking gps` porta a Tractive — i localizzatori per cani e gatti. Non era
+una parola sprecata: era una parola che ci accostava al settore sbagliato.
+
+Al loro posto `offline` e `bivacchi`: il differenziatore vero, e un termine con
+due sole app in classifica.
 
 ## Il campo keyword (99 caratteri)
 
