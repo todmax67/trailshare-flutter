@@ -89,4 +89,23 @@ manca del tutto, e il rigiro di #1 e #2 con la montagna e i numeri veri.
 3. Lifeline **attiva**, non l'avviso che è spenta
 4. Mappe offline anche per Play
 
-Le prime tre si possono catturare dal simulatore.
+### Perché non si catturano dal simulatore
+
+Provato il 2026-08-01, non funziona. **L'app è interamente dietro il login**:
+`lib/app.dart:184` restituisce `LoginPage` finché `authStateChanges` non emette
+un utente. Discover, registrazione, Lifeline e mappe offline stanno tutte oltre
+quel muro, e le credenziali non le inserisco.
+
+Due ostacoli minori trovati per strada, che restano utili a sapersi:
+
+- `~/Library/Developer/CoreSimulator/Devices` è un **symlink a
+  `/Volumes/Lexar`**, e CoreSimulatorService non ha accesso ai volumi esterni:
+  `Operation not permitted`. Per questo `simctl` non elenca nessun dispositivo
+  benché sul disco ce ne siano 24. Si sblocca dando l'accesso ai volumi
+  rimovibili in Impostazioni di Sistema → Privacy e sicurezza.
+- Il disco interno è al 100%: creare un dispositivo lì è una via senza uscita.
+
+**La strada praticabile** è catturarli dal telefono del founder, dove account,
+tracce e Pro ci sono già. E una nota che semplifica: la registrazione "con
+numeri veri" non richiede una registrazione dal vivo — basta aprire una traccia
+salvata in montagna, che i numeri veri ce li ha già.
