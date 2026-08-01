@@ -7,7 +7,25 @@ confronto coi competitor.
 È la prima release costruita a partire da quello che l'app dice di sé, invece
 che da una lista di cose da fare.
 
-## Play Console / App Store Connect — "Novità in questa versione" (IT)
+## "Novità in questa versione"
+
+**Play Console taglia a 500 caratteri, App Store Connect a 4000.** Le versioni
+per Play dicono le stesse quattro cose, senza le code di frase che non ci
+stanno. Copiare il blocco giusto per il negozio giusto.
+
+### IT — Play Console (495)
+
+```
+I caratteri dell'app ora sono inclusi nell'installazione invece di essere scaricati alla prima apertura: se apri TrailShare senza rete — in rifugio, in quota, in aereo — l'interfaccia si vede come deve.
+
+Un rifugio con una scheda TrailShare non compare più due volte sulla mappa.
+
+Corretti tre blocchi: una traccia registrata senza spostarsi, una lista aggiornata mentre si esce dalla pagina, una foto danneggiata.
+
+Dopo qualche uscita ti chiediamo una volta se ti va di lasciare una recensione.
+```
+
+### IT — App Store Connect (553)
 
 ```
 I caratteri dell'app ora sono inclusi nell'installazione invece di essere scaricati alla prima apertura: se apri TrailShare senza rete — in rifugio, in quota, in aereo — l'interfaccia si vede come deve.
@@ -19,7 +37,19 @@ Corretti tre blocchi: aprendo una traccia registrata senza spostarsi, aggiornand
 Dopo qualche uscita ti chiediamo una volta se ti va di lasciare una recensione. Puoi ignorarla: non torna più per mesi.
 ```
 
-## EN
+### EN — Play Console (466)
+
+```
+The app's fonts now ship with the install instead of being downloaded on first launch: if you open TrailShare with no connection — in a hut, at altitude, on a plane — the interface looks the way it should.
+
+A mountain hut with a TrailShare listing no longer shows up twice on the map.
+
+Fixed three freezes: a track recorded without moving, a list refreshed while leaving the page, a damaged photo.
+
+After a few outings we'll ask once if you'd like to leave a review.
+```
+
+### EN — App Store Connect (557)
 
 ```
 The app's fonts now ship with the install instead of being downloaded on first launch: if you open TrailShare with no connection — in a mountain hut, at altitude, on a plane — the interface looks the way it should.
