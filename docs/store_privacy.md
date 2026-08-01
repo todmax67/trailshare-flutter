@@ -351,7 +351,7 @@ Sono le voci a cui rimandano entrambi i questionari e la policy.
 - Nuovi eventi che raccolgano campi non previsti qui
 - Aggiunta di SDK di terze parti
 
-## Cosa manca ancora prima di pubblicare la 2.9.4
+## Cosa manca ancora prima di pubblicare
 
 - [x] Riconciliare con App Store Connect — fatto il 2026-07-31: era già a posto,
       restano le due modifiche in cima
@@ -361,16 +361,22 @@ Sono le voci a cui rimandano entrambi i questionari e la policy.
       all'identità" (2026-07-31)
 - [x] **App Store Connect**: `ID dispositivo` aggiunto, `Dati sui crash` e
       `Dati sulle prestazioni` portati a "collegato" (2026-07-31). Apple è a posto
-- [ ] **App Store Connect**: aggiungere `Nome` (su Play c'è già). Valutare
+- [x] **App Store Connect**: aggiunto `Nome` (2026-08-01, dal founder). Valutare
       `Cronologia acquisti` e `Contatti` — preesistenti, non bloccanti
 - [x] **Play Console**: verificata voce per voce (2026-07-31). Spuntate
       `Interazioni con l'app` e `Informazioni sanitarie`
-- [ ] **Play Console**: portare l'eliminazione dei dati a "supportata" — oggi
-      dichiara il contrario di quello che il codice fa
-- [ ] **Play Console**: completare i passaggi dopo i tipi di dati
+- [x] **Play Console**: eliminazione dei dati portata a "supportata", più la
+      domanda facoltativa sulla cancellazione parziale con l'URL della pagina
+      (2026-08-01, dal founder)
+- [x] **Play Console**: completati i passaggi dopo i tipi di dati
       (raccolto/condiviso, obbligatorio/**facoltativo** per le analisi, finalità)
-- [ ] Redeploy delle rules Firestore: `growth_users` ora ammette la delete
-      dell'utente su sé stesso, e senza quella l'opposizione non cancella nulla
+- [ ] **Rules Firestore da confermare deployate.** `growth_users` ammette la
+      delete dell'utente su sé stesso da `05752b7` (2026-07-31), ma il deploy
+      non risulta da qui e non è verificabile senza token. **Senza quelle
+      rules l'opposizione non cancella niente e la risposta appena data a Play
+      sulla cancellazione parziale è falsa.** Il comando è idempotente e il
+      file è committato e pulito:
+      `firebase deploy --only firestore:rules --project trailshare-5334b`
 
 ## Un buco chiuso alla radice (2.9.5)
 
