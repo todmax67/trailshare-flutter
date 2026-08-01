@@ -24,6 +24,7 @@ import '../../widgets/osm_attribution.dart';
 import '../../widgets/osm_poi_detail_sheet.dart';
 import '../../widgets/poi_detail_sheet.dart';
 import '../../widgets/poi_marker_layer.dart';
+import '../../../core/utils/poi_business_dedup.dart';
 
 /// Pagina mappa a schermo intero per visualizzare una traccia
 /// Supporta sia Track (tracce private) che CommunityTrack (tracce community)
@@ -91,6 +92,23 @@ class _TrackMapPageState extends State<TrackMapPage> {
   // 🏔️ Spazi Pro lungo il percorso. Caricati una volta in initState,
   // mostrati come marker sulla mappa. Auto-nascosti se nessuno in zona.
   List<NearPolylineBusiness> _nearbyBusinesses = const [];
+
+  /// I POI OSM da disegnare davvero, tolti quelli che una scheda Spazio Pro
+  /// già rappresenta.
+  ///
+  /// Questa mappa è l'unico punto dell'app dove le due sorgenti convivono, ed
+  /// entrambe vengono da OpenStreetMap: il 45% delle schede ha un POI con lo
+  /// stesso nome alle stesse coordinate. Senza questo filtro il rifugio ha due
+  /// marker sovrapposti e due schede di dettaglio diverse — che è la
+  /// segnalazione "Duplicato" arrivata sul Rifugio Carrel.
+  List<OsmPoi> get _visibleOsmPois => dedupOsmPois(
+        _osmPois,
+        _nearbyBusinesses.map((b) => (
+              name: b.business.name,
+              lat: b.business.location.lat,
+              lng: b.business.location.lng,
+            )),
+      );
 
   Future<void> _loadOsmPois() async {
     if (!widget.loadOsmPois || _trackPoints.isEmpty) return;
@@ -472,9 +490,9 @@ class _TrackMapPageState extends State<TrackMapPage> {
 
               // POI OSM (rifugi, sorgenti, fontane, panorami…) — sotto i
               // POI community e gli start/end markers per non coprirli.
-              if (_osmPois.isNotEmpty)
+              if (_visibleOsmPois.isNotEmpty)
                 MarkerLayer(
-                  markers: _osmPois.map((poi) => Marker(
+                  markers: _visibleOsmPois.map((poi) => Marker(
                         point: LatLng(poi.latitude, poi.longitude),
                         width: 30,
                         height: 30,
