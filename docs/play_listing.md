@@ -26,6 +26,28 @@ Il resto era una scheda ferma a qualche versione fa:
   posizione in tempo reale
 - `L' avventura` con lo spazio dopo l'apostrofo
 
+## Titolo (29/30)
+
+```
+TrailShare: sentieri e rifugi
+```
+
+Era `TrailShare` e basta: **dieci caratteri su trenta**, nel campo che Play pesa
+più di ogni altro. Venti caratteri lasciati vuoti nel punto dove contano di più.
+
+Il formato `marchio: cosa fa` è quello di tutti i concorrenti — *AllTrails:
+trekking e bici*, *komoot – escursionismo e bici*, *Wikiloc - Percorsi nel
+Mondo*, *Mountain Maps: Trekking*. Non è un vezzo: è il campo dove Google
+capisce di cosa parla l'app.
+
+`rifugi` nel titolo è la scelta che conta. È la parola su cui l'app è
+dodicesima mentre su tutto il resto è fuori dai cento, ed è l'unica dove i
+primi posti sono app piccole invece di komoot.
+
+**Il nome sul telefono non cambia**: quello viene da `android:label` nel
+manifest e resta `TrailShare`. Il titolo dello store è un campo separato,
+nessuna modifica al codice.
+
 ## Descrizione breve (79/80)
 
 ```
@@ -112,9 +134,27 @@ Wikiloc su un telefono senza campo in Val Seriana.
 2. **L'app Garmin Connect IQ è pubblicata sullo store Garmin?** Risultava
    ancora da pubblicare: senza, chi legge "Garmin" non trova niente da
    installare.
-3. **Titolo (30 caratteri).** Oggi su App Store è `TrailShare — Sentieri GPS`.
-   Su Play conviene allinearlo, perché il titolo è la parte più pesata
-   dell'indicizzazione — ma andrebbe verificato cosa c'è adesso.
+3. **Il titolo su App Store.** Oggi è `TrailShare — Sentieri GPS` (25/30).
+   Portandolo a `TrailShare: sentieri e rifugi` si guadagna due volte: `rifugi`
+   entra nel campo più pesato, e siccome Apple indicizza il nome a parte si
+   liberano **7 caratteri** nel campo keyword, dove `rifugi` diventerebbe
+   ridondante. Si perde `gps`, che però non produce nessuna posizione. Da
+   decidere insieme al prossimo invio: su Apple il nome fa parte dei metadati
+   di versione, quindi si cambia con una submission.
+
+## La dichiarazione sugli asset AI
+
+Play la chiede a ogni salvataggio della scheda. Riguarda **le immagini** —
+icona, screenshot, immagine in evidenza, video — non i testi.
+
+Risposta per TrailShare: **"Label assets as created or edited using AI"**, e nel
+passaggio dopo si marca **solo l'icona**, fatta a suo tempo con Gemini. Gli
+screenshot sono catture dell'app vera e non vanno etichettati.
+
+"AI" qui significa AI **generativa**. Ritaglio, ridimensionamento, color
+grading, scritte sovrapposte e montaggio — quello che fa la pipeline in
+`adv/ig_edit/` con ffmpeg e PIL — sono editing, non generazione, e non
+richiedono l'etichetta.
 
 ## Verificato dove
 
