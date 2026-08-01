@@ -8,6 +8,7 @@ import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/utils/group_brand.dart';
 import '../../../data/repositories/groups_repository.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/broken_image_box.dart';
 
 class GroupChatTab extends StatefulWidget {
   final String groupId;
@@ -352,7 +353,10 @@ class _GroupChatTabState extends State<GroupChatTab> {
           ),
           body: Center(
             child: InteractiveViewer(
-              child: Image.network(url),
+              child: Image.network(
+                url,
+                errorBuilder: (_, __, ___) => const BrokenImageBox(),
+              ),
             ),
           ),
         ),

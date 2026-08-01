@@ -10,6 +10,7 @@ import '../../data/repositories/business_repository.dart';
 import '../../data/repositories/poi_repository.dart';
 import '../../core/extensions/theme_colors_extension.dart';
 import '../../core/extensions/l10n_extension.dart';
+import 'broken_image_box.dart';
 
 /// Apre il bottom sheet per creare/modificare un POI.
 ///
@@ -492,13 +493,19 @@ class _PoiEditorSheetState extends State<_PoiEditorSheet> {
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: Image.file(_photoFile!,
-                  height: 120, fit: BoxFit.cover),
+                  height: 120,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const SizedBox(height: 120, child: BrokenImageBox())),
             )
           else if (_existingPhotoUrl != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: Image.network(_existingPhotoUrl!,
-                  height: 120, fit: BoxFit.cover),
+                  height: 120,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const SizedBox(height: 120, child: BrokenImageBox())),
             )
           else
             Row(

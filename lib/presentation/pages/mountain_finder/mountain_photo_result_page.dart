@@ -11,6 +11,7 @@ import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/osm_poi_detail_sheet.dart';
+import '../../widgets/broken_image_box.dart';
 
 /// Pagina che mostra la **foto annotata** prodotta da Photo Mode con sopra
 /// tutte le cime identificate. L'utente può:
@@ -118,6 +119,10 @@ class _MountainPhotoResultPageState extends State<MountainPhotoResultPage> {
                 child: Image.memory(
                   widget.annotatedImage,
                   fit: BoxFit.contain,
+                  // Byte composti in memoria dall'AR: se la composizione
+                  // produce un'immagine malformata, senza questo l'eccezione
+                  // risale al framework invece di mostrare un ripiego.
+                  errorBuilder: (_, __, ___) => const BrokenImageBox(),
                 ),
               ),
             ),
