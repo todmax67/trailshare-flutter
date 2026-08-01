@@ -1,23 +1,34 @@
 # Note release 2.9.5+114 per gli store
 
-Due correzioni, entrambe emerse da Crashlytics nelle ore successive alla
-pubblicazione della 2.9.4. Nessuna delle due era stata trovata leggendo il
-codice: le ha trovate un utente vero.
+Sette interventi. **Nessuno scelto a tavolino**: sei arrivano da segnali reali —
+Crashlytics, una segnalazione utente, il primo resoconto di crescita — e uno dal
+confronto coi competitor.
+
+È la prima release costruita a partire da quello che l'app dice di sé, invece
+che da una lista di cose da fare.
 
 ## Play Console / App Store Connect — "Novità in questa versione" (IT)
 
 ```
-I caratteri dell'app ora sono inclusi nell'installazione invece di essere scaricati alla prima apertura. Se apri TrailShare senza rete — in rifugio, in quota, in aereo — l'interfaccia si vede come deve.
+I caratteri dell'app ora sono inclusi nell'installazione invece di essere scaricati alla prima apertura: se apri TrailShare senza rete — in rifugio, in quota, in aereo — l'interfaccia si vede come deve.
 
-Corretto un blocco della mappa che poteva capitare aprendo una traccia registrata senza spostarsi, o una tappa di tour senza tracciato.
+Un rifugio che ha una scheda TrailShare non compare più due volte sulla mappa.
+
+Corretti tre blocchi: aprendo una traccia registrata senza spostarsi, aggiornando una lista mentre si esce dalla pagina, e con una foto danneggiata.
+
+Dopo qualche uscita ti chiediamo una volta se ti va di lasciare una recensione. Puoi ignorarla: non torna più per mesi.
 ```
 
 ## EN
 
 ```
-The app's fonts now ship with the install instead of being downloaded on first launch. If you open TrailShare with no connection — in a mountain hut, at altitude, on a plane — the interface looks the way it should.
+The app's fonts now ship with the install instead of being downloaded on first launch: if you open TrailShare with no connection — in a mountain hut, at altitude, on a plane — the interface looks the way it should.
 
-Fixed a map freeze that could happen when opening a track recorded without moving, or a tour stage with no route.
+A mountain hut with a TrailShare listing no longer shows up twice on the map.
+
+Fixed three freezes: opening a track recorded without moving, refreshing a list while leaving the page, and loading a damaged photo.
+
+After a few outings we'll ask once whether you'd like to leave a review. Feel free to ignore it — it won't come back for months.
 ```
 
 ---
@@ -25,72 +36,86 @@ Fixed a map freeze that could happen when opening a track recorded without movin
 ## 1. I font non si scaricano più
 
 Fino alla 2.9.4 la tipografia arrivava da `fonts.gstatic.com` alla prima
-apertura, tramite il pacchetto `google_fonts`. Su un'app da montagna è un
-difetto che si vede subito: chi installa a casa e apre in rifugio senza rete
-vedeva l'interfaccia con il font di sistema. Non un crash — un non-fatal — ma
-è esattamente il caso d'uso che l'app pubblicizza.
+apertura, via `google_fonts`. Su un'app da montagna il difetto si vede subito:
+chi installa a casa e apre in rifugio senza rete vedeva il font di sistema.
 
-**Cosa contiene:**
+Outfit è ora in `assets/fonts/` come **istanze statiche** a 400, 600 e 700,
+estratte dal variabile con `fonttools varLib.instancer` — col solo variabile
+Flutter avrebbe simulato il grassetto invece di usare l'asse dei pesi.
+Dipendenza `google_fonts` rimossa, licenza SIL impacchettata e registrata in
+`LicenseRegistry`.
 
-- Outfit impacchettato in `assets/fonts/` come **istanze statiche** a 400, 600
-  e 700, estratte dal font variabile con `fonttools varLib.instancer`. Col solo
-  variabile Flutter avrebbe simulato il grassetto invece di usare l'asse dei
-  pesi, e su un font da display si nota.
-- `GoogleFonts.outfit(...)` sostituito da `TextStyle(fontFamily: 'Outfit')` in
-  `app_themes.dart` (helper `_outfit`) e `stat_number.dart`.
-- **Dipendenza `google_fonts` rimossa.** Non serviva più: il generatore PDF usa
-  `PdfGoogleFonts` di `printing`, che è un'altra cosa.
-- Licenza SIL Open Font impacchettata e registrata in `LicenseRegistry`:
-  compare in Impostazioni → Licenze open source.
+**L'effetto che conta più del fix**: era una connessione a Google che nessuna
+informativa dichiarava — senza cache, ogni avvio mandava l'IP dell'utente al CDN
+dei font. Impacchettando, il buco si chiude alla radice.
 
-**L'effetto collaterale che conta.** Non era solo estetico: era una connessione
-a Google che nessuna informativa dichiarava. Senza cache, ogni avvio mandava
-l'IP dell'utente al CDN dei font — e non era nell'informativa, né fra i servizi
-di terze parti, né nei due questionari privacy compilati lo stesso giorno.
-Impacchettando i font il buco si chiude alla radice, e non c'è niente da
-aggiungere alle dichiarazioni.
+## 2. Un rifugio, un marker
 
-È il tipo di cosa che sfugge a un audit perché non la scrive nessuno nel
-codice: la porta dentro un pacchetto.
+Da una segnalazione utente sul Rifugio Jean-Antoine Carrel, marcata
+"Duplicato". Non lo era fra schede: lo era **fra sorgenti**. Lo stesso rifugio
+esiste sia in `businesses` sia nel dataset OSM bundlato, perché entrambi
+derivano da OpenStreetMap.
 
-**Verificato** su emulatore Android, installazione pulita, **modalità aereo
-attiva**: titoli in Outfit, zero errori di caricamento font nel log del
-processo. Le uniche eccezioni sono di Firebase Installations, attese senza rete.
+Misurato: **2.949 schede su 6.496 (45,4%)** hanno un POI con nome identico a
+meno di 60 metri. Le due sorgenti convivono in un punto solo — la mappa traccia
+a schermo intero — e lì ora vince la scheda, che ha foto, orari e listino.
 
-## 2. La mappa non va più in crash su geometrie degeneri
+Confronto sul nome **esatto**: i 93 POI vicini con nome diverso sono cose
+diverse che stanno vicine, e nasconderli sarebbe l'errore più costoso.
 
-`_TileLayerState._clampToNativeZoom` → *Unsupported operation: Infinity or
-NaN*. Un arresto anomalo vero, 19 eventi da un singolo utente, più due
-non-fatal con la stessa causa.
+## 3. Niente zoom infinito sulle geometrie degeneri
 
-flutter_map calcola lo zoom che serve a far entrare il riquadro nello schermo.
-Se il riquadro ha **dimensione zero** — tutti i punti alla stessa coordinata, o
-un punto solo — quel calcolo tende a infinito e il primo `.round()` a valle
-solleva.
+`_TileLayerState._clampToNativeZoom` → *Unsupported operation: Infinity or NaN*.
+Con un riquadro di dimensione zero — tutti i punti alla stessa coordinata — il
+calcolo dello zoom tende a infinito. I controlli esistenti (`isNotEmpty`,
+`length >= 2`) non bastavano: dieci punti identici li superano entrambi.
 
-I controlli sparsi per l'app (`isNotEmpty`, `length >= 2`) non bastavano: dieci
-punti identici li superano entrambi. Non è un caso di laboratorio — una
-registrazione avviata e chiusa senza muoversi, un import con un punto ripetuto,
-o una geometria di catalogo vuota lo producono.
+Tutti gli otto punti che inquadrano una mappa passano da `safeBounds`, che
+**allarga** i riquadri degeneri invece di rifiutarli.
 
-**Perché è comparso ora.** Il fix sulle tappe dei tour della 2.9.4 ha fatto
-disegnare mappe a tappe che prima mostravano "dati non disponibili". Non ha
-introdotto matematica sbagliata: ha attivato un percorso di codice che prima
-era inerte, e lì il difetto aspettava già.
+## 4. Il pull-to-refresh non crasha a pagina chiusa
 
-Ora tutti gli otto punti dell'app che inquadrano una mappa passano da
-`safeBounds` (`lib/core/utils/map_bounds.dart`), che scarta le coordinate non
-finite o fuori dai limiti terrestri e **allarga** i riquadri degeneri invece di
-rifiutarli: per una traccia di un punto solo la cosa utile è vedere la mappa
-centrata lì, non ritrovarsi sull'inquadratura di default.
+Lo stack completo diceva tutto: `State.setState` → `_element!` null perché lo
+State era già smontato. Si tira per aggiornare, si esce, la callback arriva a
+widget morto. Guardati i 29 metodi raggiungibili da un `onRefresh` — non tutti
+gli 84 con quello schema: una `setState` chiamata da `initState` è al sicuro
+per costruzione.
 
-**Verificato** da nove test in `test/core/utils/map_bounds_test.dart`, che
-coprono i due casi che crashavano più NaN, infiniti e coordinate fuori scala.
+## 5. Le immagini corrotte mostrano un ripiego
 
-## Resta aperto
+`dart:ui .instantiateImageCodecWithSize` → *Invalid image data*. Cinque punti su
+ventidue erano scoperti; il più sospetto è l'`Image.memory` dell'AR, che compone
+byte in memoria.
 
-`.instantiateImageCodecWithSize` → *Invalid image data*, non-fatal, **1 solo
-evento** su versioni 2.8.1–2.9.4. Un'immagine corrotta o troncata che il
-decoder rifiuta. Un evento in tre versioni non giustifica una caccia: se
-diventa ricorrente, il punto da guardare è il caricamento delle foto delle
-tracce e delle schede.
+## 6. La recensione, chiesta quando ha senso
+
+TrailShare ha 1 recensione. Komoot 30.748, Wikiloc 21.202, PeakVisor 15.497. È
+il divario più largo coi competitor e l'unico che si chiude senza budget.
+
+Il prompt c'era ma solo in Impostazioni, dove nessuno va. Ora arriva dopo il
+dialog di fine registrazione — traccia salva, punti guadagnati — e mai prima
+della terza traccia, mai nei primi sette giorni, mai più di tre volte, e **mai
+se il salvataggio non è confermato dal server**.
+
+## 7. Quanto viene usata, non solo se è stata provata
+
+Il funnel registrava la prima volta di ogni cosa e poi taceva. Ora ogni
+salvataggio incrementa un contatore e aggiorna `lastTrackSavedAt`, che per
+un'app di registrazione è il segnale di vita vero: aprire l'app per guardare una
+mappa non è come uscire a camminare.
+
+Le tracce private contano quanto le pubbliche.
+
+## Prima di caricare
+
+- [ ] Play Console: eliminazione dati da "non supportata" a **supportata**
+      (`deleteMyAccount` cancella tutto), più i passaggi per tipo — vedi
+      [store_privacy.md](store_privacy.md)
+- [ ] App Store Connect: aggiungere `Informazioni di contatto → Nome`, che su
+      Play è già dichiarato
+
+## Verifica
+
+`flutter analyze` pulito. Test: 9 su `safeBounds`, 8 su `dedupOsmPois`. Font
+provati su emulatore con installazione pulita e **modalità aereo attiva**: zero
+errori di caricamento nel log del processo.
