@@ -98,6 +98,10 @@ class _DiscoveryCarouselState extends State<DiscoveryCarousel> {
     if ((_prompts?.length ?? 0) < 2) return;
     _autoRotate = Timer.periodic(const Duration(seconds: 6), (_) {
       if (!mounted || _userInteracted) return;
+      // `mounted` non basta: nei tab lazy lo State e' vivo prima che il
+      // PageView venga costruito, e animateToPage su un controller senza
+      // PageView attaccato esplode con "Bad state: No element".
+      if (!_pageController.hasClients) return;
       final total = _prompts?.length ?? 0;
       if (total < 2) return;
       final next = (_index + 1) % total;
