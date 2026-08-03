@@ -58,6 +58,26 @@ android {
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+
+        // Le build di test si firmano con la STESSA chiave della release.
+        //
+        // Android identifica un'app dalla coppia applicationId + firma: con
+        // due firme diverse una build non puo' sostituirne un'altra, va
+        // disinstallata prima — e la disinstallazione porta via i dati privati
+        // dell'app. Nel collaudo sul campo significa perdere ogni volta le
+        // mappe offline scaricate, i contatori del prompt recensione e il flag
+        // dell'esenzione batteria: esattamente le cose che si stanno provando.
+        //
+        // Con la stessa firma, ogni nuova build di test si installa come
+        // aggiornamento e i dati restano al loro posto.
+        //
+        // Il fallback alla chiave di debug serve a chi clona il repo senza
+        // key.properties: senza, `flutter run` non partirebbe affatto.
+        debug {
+            signingConfig = keystorePropertiesFile.exists()
+                ? signingConfigs.release
+                : signingConfigs.debug
+        }
     }
 }
 
