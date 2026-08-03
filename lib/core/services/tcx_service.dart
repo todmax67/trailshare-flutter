@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:math';
 import 'package:xml/xml.dart';
+import '../utils/moving_time.dart';
 import '../../data/models/track.dart';
 import '../utils/elevation_processor.dart';
 
@@ -231,26 +232,8 @@ class TcxService {
 
     // Tempo di movimento: esclude le pause (dt grande, spostamento minimo).
     // Stessa logica di GpxService._calculateStats.
-    Duration moving = Duration.zero;
-    if (dur > Duration.zero) {
-      const minSpeedMs = 0.5;
-      for (int i = 1; i < points.length; i++) {
-        final prev = points[i - 1];
-        final curr = points[i];
-        if (prev.timestamp.year <= 2000 || curr.timestamp.year <= 2000) {
-          continue;
-        }
-        final dt = curr.timestamp.difference(prev.timestamp);
-        if (dt <= Duration.zero) continue;
-        final d = _calculateDistance(
-          prev.latitude, prev.longitude,
-          curr.latitude, curr.longitude,
-        );
-        if (d / dt.inMilliseconds * 1000 >= minSpeedMs) {
-          moving += dt;
-        }
-      }
-    }
+    final Duration moving =
+        dur > Duration.zero ? computeMovingTime(points) : Duration.zero;
 
     return TrackStats(
       distance: distance,

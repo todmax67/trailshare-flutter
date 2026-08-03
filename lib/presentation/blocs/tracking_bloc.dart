@@ -6,6 +6,7 @@ import '../../core/services/live_track_service.dart';
 import '../../core/services/lifeline_service.dart';
 import '../../core/services/recording_status_service.dart';
 import '../../core/utils/elevation_processor.dart';
+import '../../core/utils/moving_time.dart';
 
 /// Stati possibili del tracking
 enum TrackingStatus {
@@ -85,6 +86,9 @@ class TrackingBloc extends ChangeNotifier {
   StreamSubscription<TrackPoint>? _locationSubscription;
   StreamSubscription<GpsGap>? _gapSubscription;
   Timer? _durationTimer;
+
+  /// Tempo in movimento accumulato tratto per tratto (vedi [movingDelta]).
+  Duration _movingAccum = Duration.zero;
   DateTime? _pauseStartTime;
 
   // Soglie per il filtro
@@ -134,6 +138,7 @@ class TrackingBloc extends ChangeNotifier {
       return;
     }
 
+    _movingAccum = Duration.zero;
     _state = TrackingState(
       status: TrackingStatus.recording,
       startTime: DateTime.now(),
@@ -239,6 +244,7 @@ class TrackingBloc extends ChangeNotifier {
     _pauseStartTime = null;
 
     if (_state.points.isEmpty) {
+      _movingAccum = Duration.zero;
       _state = const TrackingState();
       _elevationTracker = null;
       notifyListeners();
@@ -270,6 +276,7 @@ class TrackingBloc extends ChangeNotifier {
 
     // Reset stato e tracker
       _elevationTracker = null;
+      _movingAccum = Duration.zero;
       _state = const TrackingState();
       notifyListeners();
 
@@ -424,6 +431,11 @@ class TrackingBloc extends ChangeNotifier {
 
       // Aggiungi punto e ricalcola stats
       final newPoints = [..._state.points, point];
+      // Il tempo in movimento si accumula sull'ultimo tratto: ricalcolarlo
+      // sull'intera lista a ogni punto sarebbe quadratico sulla durata.
+      if (_state.points.isNotEmpty) {
+        _movingAccum += movingDelta(_state.points.last, point);
+      }
       final newStats = _calculateStats(newPoints, point);
 
     LiveTrackService().updatePosition(point.latitude, point.longitude);
@@ -483,7 +495,7 @@ class TrackingBloc extends ChangeNotifier {
       maxElevation: maxElevation.isFinite ? maxElevation : 0,
       minElevation: minElevation.isFinite ? minElevation : 0,
       duration: duration,
-      movingTime: duration, // Per ora uguale, poi miglioreremo
+      movingTime: _movingAccum,
       currentSpeed: currentPoint.speed ?? 0,
       avgSpeed: avgSpeed,
       maxSpeed: maxSpeed,
