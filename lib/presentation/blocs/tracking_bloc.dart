@@ -24,6 +24,15 @@ class TrackingState {
   final String? errorMessage;
   final ActivityType activityType;
 
+  /// Quante volte la registrazione ha smesso di ricevere punti, e per quanto
+  /// tempo in totale.
+  ///
+  /// Serve a non far scoprire i buchi a casa guardando la mappa: durante il
+  /// giro si può avvisare, e a fine giro si può dire con onestà che il
+  /// tracciato non è completo invece di presentarlo come se lo fosse.
+  final int gapCount;
+  final Duration lostTime;
+
   const TrackingState({
     this.status = TrackingStatus.idle,
     this.points = const [],
@@ -32,6 +41,8 @@ class TrackingState {
     this.pausedDuration = Duration.zero,
     this.errorMessage,
     this.activityType = ActivityType.trekking,
+    this.gapCount = 0,
+    this.lostTime = Duration.zero,
   });
 
   bool get isRecording => status == TrackingStatus.recording;
@@ -47,6 +58,8 @@ class TrackingState {
     Duration? pausedDuration,
     String? errorMessage,
     ActivityType? activityType,
+    int? gapCount,
+    Duration? lostTime,
   }) {
     return TrackingState(
       status: status ?? this.status,
@@ -56,6 +69,8 @@ class TrackingState {
       pausedDuration: pausedDuration ?? this.pausedDuration,
       errorMessage: errorMessage,
       activityType: activityType ?? this.activityType,
+      gapCount: gapCount ?? this.gapCount,
+      lostTime: lostTime ?? this.lostTime,
     );
   }
 }
@@ -68,6 +83,7 @@ class TrackingBloc extends ChangeNotifier {
   TrackingState get state => _state;
 
   StreamSubscription<TrackPoint>? _locationSubscription;
+  StreamSubscription<GpsGap>? _gapSubscription;
   Timer? _durationTimer;
   DateTime? _pauseStartTime;
 
@@ -132,11 +148,26 @@ class TrackingBloc extends ChangeNotifier {
 
       // Ascolta i nuovi punti GPS
       _locationSubscription = _locationService.positionStream.listen(_onNewPoint);
+      _gapSubscription = _locationService.gaps.listen(_onGap);
 
     // Timer per aggiornare la durata ogni secondo
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _updateDuration();
     });
+  }
+
+  /// La registrazione ha perso un pezzo. Non c'è niente da riparare — i punti
+  /// di quei minuti non esistono — ma tacerlo significa consegnare all'utente
+  /// una traccia incompleta presentata come completa.
+  void _onGap(GpsGap gap) {
+    _state = _state.copyWith(
+      gapCount: _state.gapCount + 1,
+      lostTime: _state.lostTime + gap.duration,
+      errorMessage: gap.cause == GpsGapCause.appFrozen
+          ? 'gps_gap_frozen'
+          : 'gps_gap_stalled',
+    );
+    notifyListeners();
   }
 
   /// Metti in pausa (manualmente, dall'utente).
@@ -153,6 +184,8 @@ class TrackingBloc extends ChangeNotifier {
     // aggiungeva un listener duplicato di _onNewPoint sul broadcast stream.
     await _locationSubscription?.cancel();
     _locationSubscription = null;
+    await _gapSubscription?.cancel();
+    _gapSubscription = null;
     _pauseStartTime = DateTime.now();
     _durationTimer?.cancel();
 
@@ -187,6 +220,7 @@ class TrackingBloc extends ChangeNotifier {
 
     // Riascolta punti GPS
     _locationSubscription = _locationService.positionStream.listen(_onNewPoint);
+    _gapSubscription = _locationService.gaps.listen(_onGap);
 
     // Riavvia timer durata
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -199,6 +233,8 @@ class TrackingBloc extends ChangeNotifier {
     if (_state.isIdle) return null;
     await _locationService.stopTrackingKeepService();
     _locationSubscription?.cancel();
+    _gapSubscription?.cancel();
+    _gapSubscription = null;
     _durationTimer?.cancel();
     _pauseStartTime = null;
 
@@ -485,6 +521,7 @@ class TrackingBloc extends ChangeNotifier {
   @override
   void dispose() {
     _locationSubscription?.cancel();
+    _gapSubscription?.cancel();
     _durationTimer?.cancel();
     _locationService.dispose();
     super.dispose();

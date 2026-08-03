@@ -2384,6 +2384,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
     switch (code) {
       case 'gps_access_error': return context.l10n.gpsAccessError;
       case 'gps_resume_error': return context.l10n.gpsResumeError;
+      case 'gps_gap_frozen': return context.l10n.gpsGapFrozen;
+      case 'gps_gap_stalled': return context.l10n.gpsGapStalled;
       case 'recording_already_active':
         return 'C\'è già una registrazione in corso: aprila dalla tab Registra';
       default: return code;

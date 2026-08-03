@@ -7256,6 +7256,18 @@ abstract class AppLocalizations {
   /// **'Impossibile riprendere il GPS.'**
   String get gpsResumeError;
 
+  /// No description provided for @gpsGapFrozen.
+  ///
+  /// In it, this message translates to:
+  /// **'Il sistema ha sospeso l\'app: un pezzo di tracciato è andato perso. Registrazione ripresa — per evitarlo, togli TrailShare dal risparmio energetico.'**
+  String get gpsGapFrozen;
+
+  /// No description provided for @gpsGapStalled.
+  ///
+  /// In it, this message translates to:
+  /// **'Il GPS ha smesso di inviare posizioni. Riagganciato: controlla che il tracciato sulla mappa non abbia buchi.'**
+  String get gpsGapStalled;
+
   /// No description provided for @locationDisclosureTitle.
   ///
   /// In it, this message translates to:

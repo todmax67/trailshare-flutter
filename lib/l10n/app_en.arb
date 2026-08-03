@@ -1941,6 +1941,8 @@
   "userFallback": "User",
   "gpsAccessError": "Unable to access GPS. Check permissions.",
   "gpsResumeError": "Unable to resume GPS.",
+  "gpsGapFrozen": "The system suspended the app: part of your track was lost. Recording resumed — to prevent this, exclude TrailShare from battery optimisation.",
+  "gpsGapStalled": "GPS stopped sending positions. Reconnected: check the track on the map for gaps.",
   "locationDisclosureTitle": "Location access",
   "locationDisclosureBody": "TrailShare uses your location to:\n\n• Record GPS tracks of your outdoor activities (hiking, running, cycling)\n• Show nearby trails and points of interest\n• Provide accurate statistics on distance, speed and route\n• Enable background tracking during recording to ensure route continuity even with the screen off\n\nYour location is not shared with third parties, unless you voluntarily publish a track to the community.",
   "locationDisclosureDecline": "Not now",

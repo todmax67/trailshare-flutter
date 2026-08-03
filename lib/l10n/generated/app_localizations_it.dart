@@ -3939,6 +3939,14 @@ class AppLocalizationsIt extends AppLocalizations {
   String get gpsResumeError => 'Impossibile riprendere il GPS.';
 
   @override
+  String get gpsGapFrozen =>
+      'Il sistema ha sospeso l\'app: un pezzo di tracciato è andato perso. Registrazione ripresa — per evitarlo, togli TrailShare dal risparmio energetico.';
+
+  @override
+  String get gpsGapStalled =>
+      'Il GPS ha smesso di inviare posizioni. Riagganciato: controlla che il tracciato sulla mappa non abbia buchi.';
+
+  @override
   String get locationDisclosureTitle => 'Accesso alla posizione';
 
   @override

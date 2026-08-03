@@ -3926,6 +3926,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gpsResumeError => 'Unable to resume GPS.';
 
   @override
+  String get gpsGapFrozen =>
+      'The system suspended the app: part of your track was lost. Recording resumed — to prevent this, exclude TrailShare from battery optimisation.';
+
+  @override
+  String get gpsGapStalled =>
+      'GPS stopped sending positions. Reconnected: check the track on the map for gaps.';
+
+  @override
   String get locationDisclosureTitle => 'Location access';
 
   @override
