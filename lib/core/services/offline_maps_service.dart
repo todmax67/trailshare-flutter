@@ -139,19 +139,60 @@ class OfflineMapsService {
         headers: {'User-Agent': 'TrailShare/1.0'},
       ).timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        // Salva il tile
-        final tilePath = '$_basePath/$z/$x/$y.png';
-        final file = File(tilePath);
-        await file.parent.create(recursive: true);
-        await file.writeAsBytes(response.bodyBytes);
-        return true;
+      if (response.statusCode != 200) return false;
+
+      // Un 200 non garantisce un'immagine: captive portal degli hotel, pagine
+      // di rate-limit e messaggi d'errore rispondono 200 con dell'HTML. Salvato
+      // con estensione .png, quell'HTML diventa un tile che il decoder
+      // rifiutera' per sempre — e a scoprirlo e' l'utente, in montagna.
+      if (!_looksLikeImage(response.bodyBytes)) {
+        debugPrint('[OfflineMaps] Tile $z/$x/$y non e\' un\'immagine: scartato');
+        return false;
       }
-      return false;
+
+      final tilePath = '$_basePath/$z/$x/$y.png';
+      final file = File(tilePath);
+      await file.parent.create(recursive: true);
+
+      // Scrittura atomica: prima su un file temporaneo, poi rename.
+      //
+      // `writeAsBytes` direttamente sul percorso finale lascia un file troncato
+      // se il processo muore a meta' — ed e' proprio quello che succede quando
+      // Android sospende l'app durante un'escursione. Il rename invece o
+      // avviene per intero o non avviene: in cache non puo' finire mezzo tile.
+      final tmp = File('$tilePath.part');
+      await tmp.writeAsBytes(response.bodyBytes, flush: true);
+      await tmp.rename(tilePath);
+      return true;
     } catch (e) {
       debugPrint('[OfflineMaps] Errore download tile $z/$x/$y: $e');
       return false;
     }
+  }
+
+  /// Riconosce un'immagine dai primi byte, senza decodificarla.
+  ///
+  /// Non serve a validare il contenuto — un PNG puo' essere valido e mostrare
+  /// il tile sbagliato — ma a fermare sulla soglia quello che immagine non e'
+  /// affatto: HTML di un captive portal, JSON di errore, risposte vuote.
+  ///
+  /// Accetta anche JPEG e WebP: l'estensione con cui li salviamo e' `.png` per
+  /// convenzione del percorso, ma i provider di tile non sono obbligati a
+  /// rispettarla e un tile valido non va buttato per il suo formato.
+  static bool _looksLikeImage(List<int> b) {
+    if (b.length < 12) return false;
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) {
+      return true;
+    }
+    // JPEG: FF D8 FF
+    if (b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) return true;
+    // WebP: "RIFF" .... "WEBP"
+    if (b[0] == 0x52 && b[1] == 0x49 && b[2] == 0x46 && b[3] == 0x46 &&
+        b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50) {
+      return true;
+    }
+    return false;
   }
 
   /// Calcola i tile necessari per un'area

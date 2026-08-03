@@ -70,15 +70,40 @@ class OfflineFallbackTileProvider extends TileProvider {
   File _cacheFile(TileCoordinates c) =>
       File('$_cachedBasePath/${c.z}/${c.x}/${c.y}.png');
 
+  /// Dimensione sotto la quale un file in cache non puo' essere un tile.
+  ///
+  /// Il PNG piu' piccolo possibile sta in una sessantina di byte; un tile di
+  /// mappa vero ne pesa migliaia. Quello che cade sotto questa soglia e' un
+  /// download interrotto a meta'.
+  static const int _minTileBytes = 100;
+
+  /// Il file in cache, ma solo se e' plausibile che sia un'immagine.
+  ///
+  /// Prima si serviva qualunque file esistesse. Un tile troncato — lasciato li'
+  /// da un download interrotto quando il sistema uccide l'app, cosa che in
+  /// montagna succede — arrivava al decoder, che lo rifiutava con *Invalid
+  /// image data*: un non-fatal in Crashlytics a ogni ridisegno della mappa, e
+  /// un buco grigio per l'utente.
+  ///
+  /// I tile ora si scrivono con rename atomico (vedi OfflineMapsService), quindi
+  /// troncati non se ne creano piu': questo controllo serve per quelli gia'
+  /// finiti sui dispositivi, che nessuno andra' a ripulire.
+  File? _usableCacheFile(TileCoordinates c) {
+    if (_cachedBasePath == null) return null;
+    final file = _cacheFile(c);
+    final stat = file.statSync();
+    if (stat.type == FileSystemEntityType.notFound) return null;
+    if (stat.size < _minTileBytes) return null;
+    return file;
+  }
+
   ImageProvider _resolve(TileCoordinates coordinates, TileLayer options) {
     // 1) Cache dello stile Standard (online o offline). I tile offline
     // appartengono allo stile Standard (vedi kOfflineStyleUrlTemplate).
     final isOfflineStyle = options.urlTemplate == kOfflineStyleUrlTemplate;
-    if (isOfflineStyle && _cachedBasePath != null) {
-      final file = _cacheFile(coordinates);
-      if (file.existsSync()) {
-        return FileImage(file);
-      }
+    if (isOfflineStyle) {
+      final file = _usableCacheFile(coordinates);
+      if (file != null) return FileImage(file);
     }
 
     // 2) SENZA SEGNALE: niente attese di rete (era 30s a tile → mappa
@@ -86,10 +111,8 @@ class OfflineFallbackTileProvider extends TileProvider {
     // altri stili — meglio una base OSM che il vuoto — altrimenti tile
     // trasparente istantaneo.
     if (NetworkStatus.instance.isOffline) {
-      if (_cachedBasePath != null) {
-        final file = _cacheFile(coordinates);
-        if (file.existsSync()) return FileImage(file);
-      }
+      final file = _usableCacheFile(coordinates);
+      if (file != null) return FileImage(file);
       return MemoryImage(_transparentTile);
     }
 
