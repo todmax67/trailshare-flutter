@@ -32,6 +32,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
@@ -287,7 +288,13 @@ class GrowthAnalyticsService {
       // Il listener scatta anche ai refresh del token: il tetto giornaliero
       // dentro `_touchLastSeen` rende le chiamate in piu' gratuite.
       FirebaseAuth.instance.authStateChanges().listen((user) {
-        if (user != null) unawaited(_touchLastSeen());
+        if (user == null) return;
+        unawaited(_touchLastSeen());
+        // Qui e non alla milestone `signup`: quella scatta solo per gli account
+        // nuovi (`isNew`), mentre chi reinstalla e rientra con un account che
+        // aveva gia' rifa' l'onboarding senza passare di li'. Il listener copre
+        // entrambi, incluso il ripristino silenzioso della sessione.
+        unawaited(_flushPreLoginMilestones());
       });
     } catch (e) {
       debugPrint('[Growth] initialize: $e');
@@ -554,7 +561,20 @@ class GrowthAnalyticsService {
       await prefs.setBool(key, true);
 
       await _logEvent(m.eventName, params);
-      if (uid == null) return;
+
+      // Senza uid non c'e' un documento a cui attaccare la milestone, ma il
+      // fatto e' avvenuto lo stesso: va messo da parte, non buttato.
+      //
+      // Prima qui c'era un `return` secco, due righe dopo aver marcato la
+      // milestone come "gia' fatta". L'effetto: l'onboarding, che [app.dart]
+      // mostra PRIMA del login, non arrivava mai su Firestore — e non poteva
+      // riprovarci, perche' il flag locale diceva di lasciar perdere.
+      // `onboardingDoneAt` risultava vuoto per tutti, sempre: quel gradino del
+      // funnel riportava 0 per costruzione, non perche' nessuno ci arrivasse.
+      if (uid == null) {
+        await _queuePreLoginMilestone(prefs, m, params);
+        return;
+      }
 
       final data = <String, dynamic>{
         m.field: FieldValue.serverTimestamp(),
@@ -578,6 +598,87 @@ class GrowthAnalyticsService {
       unawaited(_mergeDoc(uid, data));
     } catch (e) {
       debugPrint('[Growth] milestone ${m.name}: $e');
+    }
+  }
+
+  /// Chiave della coda delle milestone raggiunte da sloggati.
+  static const String _kPendingMilestones = 'growth_pending_milestones';
+
+  /// Mette da parte una milestone raggiunta prima del login, con **l'ora in
+  /// cui e' avvenuta davvero**.
+  ///
+  /// Conservare il momento originale non e' pignoleria: al login si potrebbe
+  /// scrivere `serverTimestamp()`, ma allora ogni onboarding risulterebbe
+  /// completato nello stesso istante della registrazione, e la distanza fra i
+  /// due gradini — cioe' quanto si perde fra l'uno e l'altro, l'unica cosa che
+  /// quel gradino misura — sarebbe sempre zero.
+  Future<void> _queuePreLoginMilestone(
+    SharedPreferences prefs,
+    GrowthMilestone m,
+    Map<String, dynamic>? params,
+  ) async {
+    final queue = prefs.getStringList(_kPendingMilestones) ?? <String>[];
+    queue.add(jsonEncode({
+      'name': m.name,
+      'at': DateTime.now().toUtc().toIso8601String(),
+      if (params != null) 'params': params,
+    }));
+    await prefs.setStringList(_kPendingMilestones, queue);
+  }
+
+  /// Scarica sulla scheda utente le milestone raggiunte prima del login.
+  ///
+  /// Una scrittura sola per tutta la coda, con i timestamp originali.
+  Future<void> _flushPreLoginMilestones() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final queue = prefs.getStringList(_kPendingMilestones);
+      if (queue == null || queue.isEmpty) return;
+
+      final data = <String, dynamic>{};
+      for (final entry in queue) {
+        Map<String, dynamic> map;
+        try {
+          map = jsonDecode(entry) as Map<String, dynamic>;
+        } catch (_) {
+          continue;
+        }
+
+        GrowthMilestone? m;
+        for (final v in GrowthMilestone.values) {
+          if (v.name == map['name']) {
+            m = v;
+            break;
+          }
+        }
+        // Enum rinominato fra due versioni: si scarta la voce invece di far
+        // fallire l'intera coda.
+        if (m == null) continue;
+
+        final at = DateTime.tryParse(map['at'] as String? ?? '');
+        if (at == null) continue;
+
+        data[m.field] = Timestamp.fromDate(at);
+        data['${m.field}Client'] = at.toIso8601String();
+        final p = map['params'];
+        if (p is Map) data['${m.name}Params'] = Map<String, dynamic>.from(p);
+
+        // Segna la milestone come fatta anche sotto l'uid: senza, un'eventuale
+        // ri-emissione la riscriverebbe con `serverTimestamp()`, sostituendo
+        // l'ora vera con quella del login.
+        await prefs.setBool('growth_ms_${uid}_${m.name}', true);
+      }
+
+      // La coda si svuota comunque. `_mergeDoc` inghiotte i propri errori, e
+      // tenerla in vita in attesa di una conferma che non arriva mai
+      // significherebbe riprovare a ogni avvio per sempre: e' telemetria, non
+      // deve diventare un problema dell'utente.
+      await prefs.remove(_kPendingMilestones);
+      if (data.isNotEmpty) unawaited(_mergeDoc(uid, data));
+    } catch (e) {
+      debugPrint('[Growth] flush milestone pre-login: $e');
     }
   }
 
