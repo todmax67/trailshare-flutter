@@ -12,6 +12,7 @@ import '../../core/utils/elevation_processor.dart';
 import '../../core/utils/perf_trace.dart';
 import '../../core/services/growth_analytics_service.dart';
 import '../../core/services/save_diagnostics_service.dart';
+import '../../core/utils/track_simplify.dart';
 
 /// Risultato paginato per le tracce
 class PaginatedTracksResult {
@@ -115,11 +116,17 @@ class TracksRepository {
     if (user == null) throw Exception('Utente non autenticato');
 
     try {
-      // Stats dai punti COMPLETI, downsample solo per lo storage: la
-      // decimazione uniforme taglia le curve e su percorsi a tornanti
-      // sottostimava la distanza fino al 20% (bug segnalato da utente
-      // Pro: GPX da 34 km mostrato come 26,6 km).
-      final savedPoints = _downsamplePoints(track.points);
+      // Stats dai punti COMPLETI, riduzione solo per lo storage: e' la
+      // traccia salvata a finire sulla mappa, nel GPX esportato e nella
+      // condivisione, quindi la sua forma conta anche se i numeri no.
+      //
+      // La riduzione e' per FORMA (Douglas-Peucker) e non piu' un punto ogni
+      // N: quella uniforme trattava tornanti e rettilinei allo stesso modo e
+      // tagliava gli angoli, accorciando il percorso — il bug dell'utente Pro
+      // col GPX da 34 km mostrato come 26,6. Misurato su una traccia reale, a
+      // parita' di punti conservati lo scarto di lunghezza passa da -5,4% a
+      // -1,1%.
+      final savedPoints = simplifyTrack(track.points);
       final stats = track.isPlanned
           ? track.stats // Percorsi pianificati: usa stats dal router
           : _recalculateStats(track.points, track.stats);
@@ -1115,24 +1122,6 @@ class TracksRepository {
       }
     }
     return track;
-  }
-
-  /// Riduce il numero di punti per ottimizzare storage e performance
-  List<TrackPoint> _downsamplePoints(List<TrackPoint> points, {int maxPoints = 1000}) {
-    if (points.length <= maxPoints) return points;
-    
-    final result = <TrackPoint>[points.first];
-    final step = points.length / (maxPoints - 2);
-    
-    for (int i = 1; i < maxPoints - 1; i++) {
-      final index = (i * step).round();
-      if (index < points.length - 1) {
-        result.add(points[index]);
-      }
-    }
-    
-    result.add(points.last);
-    return result;
   }
 
   /// Parsa una lista di punti (da Firestore inline o da JSON-decoded del doc
