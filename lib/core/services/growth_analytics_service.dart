@@ -295,6 +295,7 @@ class GrowthAnalyticsService {
         // aveva gia' rifa' l'onboarding senza passare di li'. Il listener copre
         // entrambi, incluso il ripristino silenzioso della sessione.
         unawaited(_flushPreLoginMilestones());
+        unawaited(_countWatchTracks());
       });
     } catch (e) {
       debugPrint('[Growth] initialize: $e');
@@ -603,6 +604,95 @@ class GrowthAnalyticsService {
 
   /// Chiave della coda delle milestone raggiunte da sloggati.
   static const String _kPendingMilestones = 'growth_pending_milestones';
+
+  /// Fin dove si sono gia' contate le tracce arrivate dall'orologio.
+  static const String _kWatchCursor = 'growth_watch_cursor';
+
+  /// Registra le tracce che l'orologio ha caricato scavalcando l'app.
+  ///
+  /// Una traccia registrata al polso non passa da `TracksRepository.saveTrack`:
+  /// la scrive la Cloud Function `syncGarminTrack`, che riceve i dati dal
+  /// dispositivo e crea il documento lato server. Tutta la strumentazione del
+  /// funnel vive invece nell'app, e quindi non se ne accorgeva mai: verificato
+  /// il 2026-08-05, un account con una traccia da 10,8 km caricata dall'orologio
+  /// non aveva ne' `firstTrackSavedAt` ne' `tracksSaved`. Chi registra solo col
+  /// Garmin non si attivava **mai**, per sempre.
+  ///
+  /// Il recupero sta qui e non nella Cloud Function per una ragione precisa:
+  /// l'opposizione dell'utente alla misura e' un flag locale, che il server non
+  /// puo' vedere. Una scrittura dal server avrebbe ricreato il documento che
+  /// l'opposizione aveva cancellato — spegnendo in silenzio un controllo
+  /// privacy. Passando da qui, la scrittura attraversa `_mergeDoc`, che
+  /// l'opposizione la conosce gia'.
+  ///
+  /// Il cursore parte da "adesso" alla prima esecuzione invece di recuperare lo
+  /// storico: le regole non permettono all'app di **leggere** `growth_users`
+  /// (`allow read: if false`), quindi non c'e' modo di sapere cosa sia gia'
+  /// stato contato. Ripartire dal passato significherebbe ricontare tutto a
+  /// ogni reinstallazione. Meglio perdere le tracce arrivate prima di questo
+  /// codice che gonfiare il contatore per sempre.
+  Future<void> _countWatchTracks() async {
+    if (kDebugMode || _funnelOptedOut) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_kWatchCursor);
+      final now = DateTime.now().toUtc();
+      if (saved == null) {
+        await prefs.setString(_kWatchCursor, now.toIso8601String());
+        return;
+      }
+      final cursor = DateTime.tryParse(saved);
+      if (cursor == null) {
+        await prefs.setString(_kWatchCursor, now.toIso8601String());
+        return;
+      }
+
+      // Filtro sul solo `createdAt`, e `source` scremato lato client: bastano
+      // due campi in `where` per pretendere un indice composito, e qui i
+      // documenti sono quelli dall'ultima apertura — una manciata.
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('tracks')
+          .where('createdAt', isGreaterThan: Timestamp.fromDate(cursor))
+          .orderBy('createdAt')
+          // Le tracce da orologio portano i punti dentro il documento, e un
+          // documento cosi' pesa. Il tetto tiene bassa la memoria di una query
+          // che gira a ogni accesso: ordinando dalla piu' vecchia e spostando
+          // il cursore su quanto si e' letto, l'eventuale eccedenza viene
+          // raccolta alla prossima apertura invece di essere persa.
+          .limit(20)
+          .get();
+
+      var newest = cursor;
+      var counted = 0;
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final created = (data['createdAt'] as Timestamp?)?.toDate().toUtc();
+        if (created != null && created.isAfter(newest)) newest = created;
+        if (data['source'] != 'garmin') continue;
+
+        // Si riusano i due metodi normali invece di scrivere a mano: sono gia'
+        // gli unici a sapere come si marca una milestone una volta sola e come
+        // si rispetta l'opposizione.
+        await milestone(
+          GrowthMilestone.firstTrackSaved,
+          params: {'source': 'garmin'},
+        );
+        await recordTrackSaved(isPublic: data['isPublic'] == true);
+        counted++;
+      }
+
+      await prefs.setString(_kWatchCursor, newest.toIso8601String());
+      if (counted > 0) {
+        debugPrint('[Growth] tracce da orologio recuperate: $counted');
+      }
+    } catch (e) {
+      debugPrint('[Growth] recupero tracce da orologio: $e');
+    }
+  }
 
   /// Mette da parte una milestone raggiunta prima del login, con **l'ora in
   /// cui e' avvenuta davvero**.
