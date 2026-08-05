@@ -27,6 +27,7 @@ import '../../widgets/paywall_sheet.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
 import 'peak_map_page.dart';
+import '../../../core/utils/camera_teardown.dart';
 
 /// **Mountain Finder AR** — punta il telefono e riconosci le cime.
 ///
@@ -45,6 +46,11 @@ class MountainFinderPage extends StatefulWidget {
 
 class _MountainFinderPageState extends State<MountainFinderPage> {
   CameraController? _camera;
+
+  /// L'inizializzazione in volo, conservata perche' la chiusura possa
+  /// aspettarla: chiudere una fotocamera a meta' inizializzazione era il
+  /// crash. Vedi [closeCameraSafely].
+  Future<void>? _cameraInit;
   bool _initializing = true;
   String? _error;
 
@@ -147,7 +153,13 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     _positionSub?.cancel();
     _compassSub?.cancel();
     _accelSub?.cancel();
-    _camera?.dispose();
+    // Staccata dal campo e chiusa fuori: `dispose()` e' sincrono per
+    // contratto, e chiudere la fotocamera mentre si sta ancora inizializzando
+    // faceva esplodere CameraX. Vedi [closeCameraSafely].
+    final camera = _camera;
+    final cameraInit = _cameraInit;
+    _camera = null;
+    unawaited(closeCameraSafely(camera, cameraInit));
     super.dispose();
   }
 
@@ -198,7 +210,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
-      await _camera!.initialize();
+      // Il Future viene conservato: se si esce dalla pagina adesso, la
+      // chiusura deve poterlo aspettare invece di interrompere a meta'.
+      _cameraInit = _camera!.initialize();
+      await _cameraInit;
 
       // Zoom range: tipicamente 1x → 8/10x sui dispositivi moderni.
       try {

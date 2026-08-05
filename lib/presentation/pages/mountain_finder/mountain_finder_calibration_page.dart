@@ -13,6 +13,7 @@ import '../../../core/services/mountain_finder_settings.dart';
 import '../../../core/services/peaks_dataset_service.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
+import '../../../core/utils/camera_teardown.dart';
 
 /// Pagina di calibrazione del FOV (Field Of View) della camera per
 /// allineare i pin AR alla scena reale.
@@ -42,6 +43,7 @@ class MountainFinderCalibrationPage extends StatefulWidget {
 class _MountainFinderCalibrationPageState
     extends State<MountainFinderCalibrationPage> {
   CameraController? _camera;
+  Future<void>? _cameraInit;
   bool _initializing = true;
   String? _error;
 
@@ -91,7 +93,10 @@ class _MountainFinderCalibrationPageState
     _positionSub?.cancel();
     _compassSub?.cancel();
     _accelSub?.cancel();
-    _camera?.dispose();
+    final camera = _camera;
+    final cameraInit = _cameraInit;
+    _camera = null;
+    unawaited(closeCameraSafely(camera, cameraInit));
     super.dispose();
   }
 
@@ -121,7 +126,10 @@ class _MountainFinderCalibrationPageState
         ResolutionPreset.high,
         enableAudio: false,
       );
-      await _camera!.initialize();
+      // Conservato perche' la chiusura possa aspettarlo: vedi
+      // [closeCameraSafely].
+      _cameraInit = _camera!.initialize();
+      await _cameraInit;
 
       try {
         _minZoom = await _camera!.getMinZoomLevel();
