@@ -60,7 +60,7 @@ class LocationService {
   // processo. L'utente se n'è accorto da solo un chilometro più avanti.
   //
   // La rilevazione non può basarsi solo sull'attesa di punti: con
-  // `distanceFilter` a 5 m, da fermi non ne arrivano per minuti ed è del tutto
+  // `distanceFilter` in metri, da fermi non ne arrivano per minuti ed è del tutto
   // normale. Ma se il processo viene sospeso **anche i timer non scattano**:
   // un tick periodico che si risveglia e trova 37 minuti di orologio invece di
   // 10 secondi è la prova del congelamento, e non dà falsi allarmi durante una
@@ -99,6 +99,30 @@ class LocationService {
   bool _batterySaverMode = false;
   bool get isBatterySaverMode => _batterySaverMode;
 
+  /// Ogni quanti metri il sistema consegna una posizione.
+  ///
+  /// Era 5. Misurato sul campo (2026-08-05): l'accuratezza tipica dei fix e'
+  /// **3 metri** — mediana 3,0, novantesimo percentile 3,1. Con un punto ogni
+  /// 5 metri, lo spostamento reale fra due campioni era dello stesso ordine
+  /// dell'errore su ciascuno: in quel regime ogni grandezza derivata punto per
+  /// punto e' dominata dal rumore. La distanza si gonfiava (16,70 km contro i
+  /// 15,09 dell'orologio sullo stesso giro) perche' il rumore aggiunge sempre
+  /// lunghezza e mai la toglie, e la velocita' istantanea diventava casuale,
+  /// mandando in fumo il calcolo del tempo in movimento.
+  ///
+  /// A 10 metri il segnale vale il triplo dell'errore invece del doppio scarso.
+  /// Si perde dettaglio nelle curve strette, ma quel dettaglio veniva gia'
+  /// scartato dalla semplificazione prima di essere salvato.
+  ///
+  /// Colpisce quasi solo il passo lento, che e' dove il problema era peggiore:
+  /// camminando sono ~7 secondi fra un punto e l'altro, correndo ~3, in
+  /// bicicletta poco piu' di uno.
+  ///
+  /// Il battery saver resta a 15: li' cambiano anche accuratezza e intervallo,
+  /// quindi la modalita' resta distinta anche con i due valori piu' vicini.
+  static const int _distanceFilterMetres = 10;
+  static const int _distanceFilterSaverMetres = 15;
+
   /// Configurazione location settings per tracking preciso
   /// iOS richiede AppleSettings con allowBackgroundLocationUpdates
   /// per continuare il tracking con schermo bloccato
@@ -108,7 +132,9 @@ class LocationService {
         accuracy: _batterySaverMode
             ? LocationAccuracy.medium
             : LocationAccuracy.bestForNavigation,
-        distanceFilter: _batterySaverMode ? 15 : 5,
+        distanceFilter: _batterySaverMode
+            ? _distanceFilterSaverMetres
+            : _distanceFilterMetres,
         activityType: ActivityType.fitness, // Geolocator ActivityType
         allowBackgroundLocationUpdates: true,
         showBackgroundLocationIndicator: true,
@@ -119,7 +145,9 @@ class LocationService {
         accuracy: _batterySaverMode
             ? LocationAccuracy.medium
             : LocationAccuracy.bestForNavigation,
-        distanceFilter: _batterySaverMode ? 15 : 5,
+        distanceFilter: _batterySaverMode
+            ? _distanceFilterSaverMetres
+            : _distanceFilterMetres,
         forceLocationManager: false,
         intervalDuration: Duration(seconds: _batterySaverMode ? 10 : 2),
         foregroundNotificationConfig: ForegroundNotificationConfig(
@@ -427,7 +455,7 @@ class LocationService {
 
     // 2) I timer scattano regolarmente ma i punti non arrivano più: qui l'app
     //    è viva e riagganciare ha davvero effetto. La soglia è larga perché
-    //    con distanceFilter a 5 m stare fermi a lungo è legittimo.
+    //    col distanceFilter in metri, stare fermi a lungo è legittimo.
     final last = _lastPointAt;
     if (last != null && now.difference(last) > _staleAfter) {
       _reportGap(GpsGapCause.streamStalled, now.difference(last), now);

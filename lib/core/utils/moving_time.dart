@@ -13,7 +13,8 @@ import '../../data/models/track.dart';
 /// parametri** ai punti decimati della stessa traccia — uno ogni ~13 secondi
 /// invece che ogni pochi — il risultato era 2h57, cioe' quello giusto.
 ///
-/// Fra due punti distanti 5 metri (il `distanceFilter` della registrazione) un
+/// Fra due punti distanti pochi metri (il `distanceFilter` della registrazione,
+/// 5 m all'epoca della misura, oggi 10) un
 /// errore GPS di 3 metri e' piu' grande del segnale: a volte accorcia il
 /// tratto, la velocita' istantanea crolla sotto soglia, e un pezzo di
 /// camminata vera viene archiviato come sosta. Ripetuto su migliaia di
@@ -44,7 +45,8 @@ const Duration _judgeWindow = Duration(seconds: 15);
 /// Oltre questo intervallo fra due punti non c'e' piu' una misura di movimento:
 /// c'e' un buco.
 ///
-/// Con `distanceFilter` a 5 m due punti consecutivi distano secondi quando ci
+/// Col `distanceFilter` della registrazione due punti consecutivi distano
+/// secondi quando ci
 /// si muove. Se distano minuti, o si era fermi — e allora la soglia di
 /// velocita' li scarta gia' — oppure la registrazione si era interrotta, e quel
 /// tempo non e' stato misurato affatto.
