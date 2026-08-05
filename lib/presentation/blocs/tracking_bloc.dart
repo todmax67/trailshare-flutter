@@ -87,8 +87,10 @@ class TrackingBloc extends ChangeNotifier {
   StreamSubscription<GpsGap>? _gapSubscription;
   Timer? _durationTimer;
 
-  /// Tempo in movimento accumulato tratto per tratto (vedi [movingDelta]).
-  Duration _movingAccum = Duration.zero;
+  /// Tempo in movimento, accumulato su finestre mentre i punti arrivano.
+  /// Vedi [MovingTimeAccumulator] per il perche' non si giudichi il singolo
+  /// campione.
+  final MovingTimeAccumulator _moving = MovingTimeAccumulator();
   DateTime? _pauseStartTime;
 
   // Soglie per il filtro
@@ -138,7 +140,7 @@ class TrackingBloc extends ChangeNotifier {
       return;
     }
 
-    _movingAccum = Duration.zero;
+    _moving.reset();
     _state = TrackingState(
       status: TrackingStatus.recording,
       startTime: DateTime.now(),
@@ -244,7 +246,7 @@ class TrackingBloc extends ChangeNotifier {
     _pauseStartTime = null;
 
     if (_state.points.isEmpty) {
-      _movingAccum = Duration.zero;
+      _moving.reset();
       _state = const TrackingState();
       _elevationTracker = null;
       notifyListeners();
@@ -253,10 +255,14 @@ class TrackingBloc extends ChangeNotifier {
 
       // Finalizza tracker elevazione (registra ultimo segmento pendente)
       _elevationTracker?.finalize();
+      // Stessa ragione: l'ultima finestra di movimento e' ancora aperta, e su
+      // una registrazione breve puo' essere tutto il tempo in movimento.
+      _moving.finish();
 
       // Aggiorna stats con i valori finali del tracker
       _state = _state.copyWith(
       stats: _state.stats.copyWith(
+      movingTime: _moving.value,
       elevationGain: _elevationTracker?.elevationGain ?? _state.stats.elevationGain,
       elevationLoss: _elevationTracker?.elevationLoss ?? _state.stats.elevationLoss,
       maxElevation: _elevationTracker?.maxElevation ?? _state.stats.maxElevation,
@@ -276,7 +282,7 @@ class TrackingBloc extends ChangeNotifier {
 
     // Reset stato e tracker
       _elevationTracker = null;
-      _movingAccum = Duration.zero;
+      _moving.reset();
       _state = const TrackingState();
       notifyListeners();
 
@@ -434,7 +440,7 @@ class TrackingBloc extends ChangeNotifier {
       // Il tempo in movimento si accumula sull'ultimo tratto: ricalcolarlo
       // sull'intera lista a ogni punto sarebbe quadratico sulla durata.
       if (_state.points.isNotEmpty) {
-        _movingAccum += movingDelta(_state.points.last, point);
+        _moving.add(_state.points.last, point);
       }
       final newStats = _calculateStats(newPoints, point);
 
@@ -495,7 +501,7 @@ class TrackingBloc extends ChangeNotifier {
       maxElevation: maxElevation.isFinite ? maxElevation : 0,
       minElevation: minElevation.isFinite ? minElevation : 0,
       duration: duration,
-      movingTime: _movingAccum,
+      movingTime: _moving.value,
       currentSpeed: currentPoint.speed ?? 0,
       avgSpeed: avgSpeed,
       maxSpeed: maxSpeed,
