@@ -571,19 +571,39 @@
       playing = true;
       lastFrameTs = 0;
 
-      if (!window._warmedUp) {
-        window._warmedUp = true;
-        var started = false;
-        var startAnim = function() {
-          if (started) return; started = true;
-          lastFrameTs = 0;
-          anim = requestAnimationFrame(frame);
-        };
-        map.once('idle', startAnim);
-        setTimeout(startAnim, 900);
+      // Aspetta che il terreno sia caricato PRIMA di far partire il volo.
+      //
+      // Il rilievo che si vede — e la quota che `queryTerrainElevation`
+      // restituisce — dipendono dalle tile DEM effettivamente caricate. A zoom
+      // basso quelle tile sono grossolane: le cime risultano appiattite e la
+      // quota letta e' piu' bassa del vero. `tsReset()` fa un `fitBounds` che
+      // inquadra tutta la traccia, quindi lascia proprio tile grossolane; poi
+      // il volo salta a zoom 13.2, dove quelle fini devono ancora arrivare.
+      //
+      // L'attesa c'era gia', ma dietro `_warmedUp`: scattava **una volta sola
+      // per sessione**. Chi guarda l'anteprima e poi preme registra la trovava
+      // gia' consumata, e il video partiva con montagne piatte e quote basse —
+      // tanto che spostare la mappa prima di registrare cambiava il risultato.
+      // Segnalato dal fondatore il 2026-08-07.
+      //
+      // Se le tile ci sono gia' si parte subito: cosi' riprendere dopo una
+      // pausa resta immediato.
+      if (map.areTilesLoaded && map.areTilesLoaded()) {
+        anim = requestAnimationFrame(frame);
         return;
       }
-      anim = requestAnimationFrame(frame);
+      var started = false;
+      var startAnim = function() {
+        if (started) return; started = true;
+        lastFrameTs = 0;
+        anim = requestAnimationFrame(frame);
+      };
+      // `idle` di solito arriva molto prima; il timeout e' solo un tetto perche'
+      // il volo parta comunque, anche se le tile non arrivassero mai. Alzato da
+      // 900 ms: su rete lenta i DEM ci mettono di piu', e un attimo di attesa
+      // costa meno di un video con la montagna sbagliata.
+      map.once('idle', startAnim);
+      setTimeout(startAnim, 2500);
     };
     window.tsPause = function() {
       playing = false;
