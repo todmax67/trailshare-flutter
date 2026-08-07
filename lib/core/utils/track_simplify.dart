@@ -31,11 +31,21 @@ import '../../data/models/track.dart';
 
 /// Scostamento sotto il quale un punto e' considerato superfluo.
 ///
-/// Quattro metri stanno appena sopra l'accuratezza tipica di un fix buono
-/// (~3 m): sotto questa soglia cio' che si butta e' indistinguibile dal
-/// rumore. Alzarla accorcerebbe le curve, che e' esattamente il difetto da cui
-/// si sta scappando.
-const double _defaultToleranceMetres = 4.0;
+/// Due metri, non quattro. Il primo valore stava appena sopra l'accuratezza di
+/// un fix buono (~3 m) col ragionamento che sotto quella soglia si butta solo
+/// rumore — ma sul campo, alle Scale del Miller (2026-08-06, tornanti quasi
+/// verticali uno dietro l'altro), la traccia disegnata restava piu' povera del
+/// dovuto.
+///
+/// Abbassarla non tocca i numeri: distanza, dislivello e tempo si calcolano sui
+/// punti completi, prima di arrivare qui. Cambia solo cosa si vede, si esporta
+/// e si condivide — e li' piu' fedelta' e' sempre meglio, finche' il documento
+/// ci sta.
+///
+/// Misurato sulla traccia del 2026-08-05: a 4 m restavano 326 punti con uno
+/// scarto di lunghezza dell'1,1%; a 2 m ne restano 508 con lo 0,3%. Il costo e'
+/// una sessantina di KB in piu' su un budget da 1 MiB.
+const double _defaultToleranceMetres = 2.0;
 
 /// Tetto di sicurezza sui punti conservati.
 ///
