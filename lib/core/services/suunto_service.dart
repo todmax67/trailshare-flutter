@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'growth_analytics_service.dart';
 
 /// Integrazione Suunto Cloud API: l'utente collega il suo account Suunto
 /// e gli allenamenti (GPS + battito, via FIT) arrivano in TrailShare
@@ -60,6 +62,10 @@ class SuuntoService {
   /// Apre il browser per autorizzare TrailShare sull'account Suunto.
   Future<bool> connect() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    // Registra il TENTATIVO: da qui in poi l'autorizzazione avviene fuori
+    // dall'app e un rifiuto del fornitore non tornerebbe indietro in nessuna
+    // forma. Vedi GrowthAnalyticsService.integrationConnectStarted.
+    unawaited(GrowthAnalyticsService.instance.integrationConnectStarted('suunto'));
     if (uid == null) {
       debugPrint('[Suunto] connect: utente non loggato');
       return false;

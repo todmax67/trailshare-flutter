@@ -802,6 +802,34 @@ class GrowthAnalyticsService {
   Future<void> signupStarted(String method) =>
       _logEvent('signup_started', {'method': method});
 
+  /// L'utente ha toccato "Collega" su un orologio, prima di sapere come
+  /// andra' a finire.
+  ///
+  /// Serve perche' `connect()` di questi servizi restituisce true appena il
+  /// browser si apre: l'autorizzazione avviene fuori dall'app, e se il
+  /// fornitore la rifiuta l'utente torna indietro senza che accada niente —
+  /// nessun messaggio, nessuna traccia. Il successo lo sappiamo gia' (e' la
+  /// Cloud Function a scrivere il token), il tentativo no.
+  ///
+  /// Senza questo numero, "nessuno ci ha provato" e "tutti quelli che ci hanno
+  /// provato hanno fallito" sono lo stesso dato. Il 2026-08-07, con
+  /// l'abbonamento di produzione Suunto ancora in attesa di approvazione,
+  /// c'era un solo account collegato — il fondatore — e non c'era modo di dire
+  /// quale delle due cose stesse succedendo.
+  ///
+  /// Il contatore va su Firestore e non solo su Analytics perche' e' li' che
+  /// si puo' incrociare con chi il token ce l'ha davvero.
+  Future<void> integrationConnectStarted(String provider) async {
+    await _logEvent('integration_connect_started', {'provider': provider});
+    if (kDebugMode) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    unawaited(_mergeDoc(uid, {
+      '${provider}ConnectStarts': FieldValue.increment(1),
+      '${provider}ConnectLastAt': FieldValue.serverTimestamp(),
+    }));
+  }
+
   /// Paywall mostrato. Non e' una milestone: va contato ogni volta, perche' la
   /// domanda utile e' "quante visualizzazioni servono per una conversione".
   Future<void> paywallViewed(String trigger) async {

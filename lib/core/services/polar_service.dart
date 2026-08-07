@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'growth_analytics_service.dart';
 
 /// Integrazione Polar AccessLink: l'utente collega il suo account Polar Flow
 /// e gli allenamenti (GPS + battito) arrivano in TrailShare automaticamente
@@ -61,6 +63,10 @@ class PolarService {
   /// Apre il browser per autorizzare TrailShare su Polar Flow.
   Future<bool> connect() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    // Registra il TENTATIVO: da qui in poi l'autorizzazione avviene fuori
+    // dall'app e un rifiuto del fornitore non tornerebbe indietro in nessuna
+    // forma. Vedi GrowthAnalyticsService.integrationConnectStarted.
+    unawaited(GrowthAnalyticsService.instance.integrationConnectStarted('polar'));
     if (uid == null) {
       debugPrint('[Polar] connect: utente non loggato');
       return false;
