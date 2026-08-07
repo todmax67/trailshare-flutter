@@ -1908,6 +1908,65 @@ exports.backfillOwnerUsername = onRequest({ region: "europe-west3", secrets: [AD
 // SYNC TRACCE DA GARMIN WATCH
 // ===================================================================
 
+/**
+ * Tempo in movimento di una traccia da orologio, in secondi.
+ *
+ * Prima qui ci finiva la durata totale, perche' senza i tempi dei punti non
+ * c'era niente da calcolare: quel "in movimento" era un numero inventato con
+ * l'aria di essere una misura. Col formato v2 i tempi arrivano davvero.
+ *
+ * Stessa logica dell'app (`core/utils/moving_time.dart`): si giudica la
+ * velocita' su una finestra e non sul singolo campione, perche' su intervalli
+ * troppo corti l'errore GPS e' piu' grande dello spostamento e la decisione
+ * diventa casuale.
+ *
+ * Una differenza voluta: qui la soglia oltre cui un intervallo e' considerato
+ * un buco e' molto piu' larga (300 s contro 90). Sul telefono un intervallo
+ * lungo significa registrazione interrotta; sull'orologio significa solo che
+ * il buffer si e' dimezzato, e i punti radi sono per progetto — l'attivita' e'
+ * stata registrata per intero.
+ *
+ * Ritorna null se i punti non portano tempi credibili: meglio dire "non lo so"
+ * al chiamante che restituire uno zero indistinguibile da una misura.
+ */
+function garminMovingTimeSeconds(points) {
+    if (!Array.isArray(points) || points.length < 2) return null;
+    const MIN_SPEED_MS = 0.5;
+    const WINDOW_S = 15;
+    const MAX_GAP_S = 300;
+
+    let settled = 0;
+    let windowTime = 0;
+    let windowMetres = 0;
+    let usable = 0;
+
+    const closeWindow = () => {
+        if (windowTime > 0 && windowMetres / windowTime >= MIN_SPEED_MS) {
+            settled += windowTime;
+        }
+        windowTime = 0;
+        windowMetres = 0;
+    };
+
+    for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1], b = points[i];
+        const ta = Date.parse(a.time), tb = Date.parse(b.time);
+        if (!Number.isFinite(ta) || !Number.isFinite(tb)) continue;
+        const dt = (tb - ta) / 1000;
+        if (dt <= 0) continue;
+        usable++;
+        if (dt > MAX_GAP_S) { closeWindow(); continue; }
+        windowTime += dt;
+        windowMetres += haversineDistance(a.lat, a.lng, b.lat, b.lng);
+        if (windowTime >= WINDOW_S) closeWindow();
+    }
+    closeWindow();
+
+    // Meno di metà degli intervalli utilizzabili: i tempi non sono affidabili.
+    if (usable < (points.length - 1) / 2) return null;
+    return Math.round(settled);
+}
+
 function haversineDistance(lat1, lon1, lat2, lon2) {
     const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -2000,14 +2059,71 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
         let minElevation = Infinity;
         let lastLat = null, lastLon = null, lastEle = null;
 
-        const startTime = new Date(Date.now() - durationMs);
+        // Il formato dei punti ha due versioni.
+        //
+        // v1: un dizionario per punto, {la, lo, al, hr}, SENZA tempi. Il server
+        //     li ricostruiva distribuendoli a intervalli uguali lungo la
+        //     durata: passo costante al secondo, soste cancellate, tempo in
+        //     movimento non calcolabile e ora di partenza pari a "quando hai
+        //     sincronizzato meno la durata".
+        // v2: array compatti [dla, dlo, al, hr, dt], con latitudine,
+        //     longitudine e tempo espressi in differenza dal punto precedente
+        //     (il primo porta i valori assoluti). Meno della meta' dei byte, e
+        //     i tempi veri.
+        //
+        // Entrambe restano accettate e non e' un ripiego temporaneo: gli
+        // orologi gia' installati mandano il vecchio finche' l'utente non
+        // aggiorna l'app, e nello Storage del dispositivo possono esserci
+        // tracce in coda salvate prima del cambiamento.
+        const pointsVersion = Number(data.pv) || (Array.isArray(points[0]) ? 2 : 1);
 
-        const decodedPoints = points.map((p, i) => {
-            const lat = (p.la || 0) / 100000;
-            const lon = (p.lo || 0) / 100000;
-            const ele = p.al || 0;
-            const hr = p.hr || 0;
-            const timestamp = new Date(startTime.getTime() + (i * durationMs / Math.max(points.length - 1, 1)));
+        const plain = [];
+        if (pointsVersion >= 2) {
+            let accLa = 0, accLo = 0, accT = 0;
+            for (let i = 0; i < points.length; i++) {
+                const p = points[i];
+                if (!Array.isArray(p)) continue;
+                const dLa = p[0] | 0, dLo = p[1] | 0, dT = p[4] | 0;
+                if (i === 0) { accLa = dLa; accLo = dLo; accT = dT; }
+                else { accLa += dLa; accLo += dLo; accT += dT; }
+                plain.push({
+                    lat: accLa / 100000,
+                    lon: accLo / 100000,
+                    ele: p[2] || 0,
+                    hr: p[3] || 0,
+                    timeMs: accT > 0 ? accT * 1000 : null,
+                });
+            }
+        } else {
+            for (const p of points) {
+                plain.push({
+                    lat: (p.la || 0) / 100000,
+                    lon: (p.lo || 0) / 100000,
+                    ele: p.al || 0,
+                    hr: p.hr || 0,
+                    timeMs: null,
+                });
+            }
+        }
+
+        // Col formato nuovo il primo punto DICE quando si e' partiti. Col
+        // vecchio resta l'unica stima possibile, che sposta l'intero giro se si
+        // sincronizza a distanza di ore.
+        const firstRealMs = plain.length > 0 ? plain[0].timeMs : null;
+        const startTime = new Date(
+            firstRealMs !== null ? firstRealMs : Date.now() - durationMs,
+        );
+
+        const decodedPoints = plain.map((pt, i) => {
+            const lat = pt.lat;
+            const lon = pt.lon;
+            const ele = pt.ele;
+            const hr = pt.hr;
+            const timestamp = new Date(
+                pt.timeMs !== null
+                    ? pt.timeMs
+                    : startTime.getTime() + (i * durationMs / Math.max(plain.length - 1, 1)),
+            );
 
             // HR — chiave = millisecondi epoch (come legge l'app:
             // DateTime.fromMillisecondsSinceEpoch(int.parse(key))).
@@ -2063,7 +2179,9 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
         const distanceKm = totalDistance / 1000;
         const avgSpeed = durationSecs > 0 ? (distanceKm / (durationSecs / 3600)) : 0;
 
-        logger.info(`[GarminSync] Stats: ${totalDistance.toFixed(0)}m, D+${elevationGain.toFixed(0)}m, ${durationSecs}s, HR: ${Object.keys(heartRateData).length} campioni`);
+        const movingSecs = garminMovingTimeSeconds(decodedPoints);
+
+        logger.info(`[GarminSync] Stats: ${totalDistance.toFixed(0)}m, D+${elevationGain.toFixed(0)}m, ${durationSecs}s, HR: ${Object.keys(heartRateData).length} campioni, formato punti v${pointsVersion}, in movimento ${movingSecs !== null ? movingSecs + 's' : 'non calcolabile'}`);
 
         const trackData = {
             name: name,
@@ -2089,7 +2207,11 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
             elevationGain: elevationGain,
             elevationLoss: elevationLoss,
             duration: Math.round(durationSecs),
-            movingTime: Math.round(durationSecs),
+            // Col formato v2 e' una misura vera; col vecchio, che non porta i
+            // tempi, resta la durata totale — non perche' sia giusto, ma
+            // perche' non c'e' niente da cui ricavarla. Sparisce da solo
+            // quando tutti gli orologi hanno l'app aggiornata.
+            movingTime: movingSecs !== null ? movingSecs : Math.round(durationSecs),
             stats: {
                 distance: totalDistance,
                 elevationGain: elevationGain,
@@ -2097,7 +2219,7 @@ exports.syncGarminTrack = onRequest(async (req, res) => {
                 maxElevation: maxElevation,
                 minElevation: minElevation,
                 duration: durationMs,
-                movingTime: durationMs,
+                movingTime: movingSecs !== null ? movingSecs * 1000 : durationMs,
                 currentSpeed: 0,
                 avgSpeed: avgSpeed,
                 maxSpeed: 0,
