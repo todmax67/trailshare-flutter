@@ -145,9 +145,41 @@
     var BEARING_TAU = 0.55;
     // Padding in alto per portare il cursore verso il centro-basso
     // dello schermo (framing "guarda avanti").
+    //
+    // Non e' piu' una frazione fissa dell'altezza: si corregge da sola.
+    // Motivo — con il terreno attivo `jumpTo({center})` centra la coordinata
+    // AL SUOLO, ma il cursore e' disegnato appoggiato al rilievo, quindi piu'
+    // in alto nel fotogramma. Lo scarto cresce con la quota (e l'esagerazione
+    // 1,3x lo amplifica): oltre i 1000 m di dislivello il cursore usciva dallo
+    // schermo. Segnalato dal fondatore il 2026-08-07.
+    //
+    // Stimare lo scivolamento con una formula avrebbe voluto dire tarare una
+    // costante a occhio, e dipenderebbe comunque da zoom, pitch e latitudine.
+    // Meglio misurarlo: `map.project()` con il terreno attivo restituisce la
+    // posizione REALE sullo schermo (vedi `locationPoint(lngLat, terrain)`
+    // nella libreria), quindi si guarda dov'e' finito il cursore e si sposta
+    // il padding di conseguenza. Un anello di retroazione che si assesta in
+    // un paio di fotogrammi e resta valido a qualunque quota.
+    var CURSOR_Y_FRAC = 0.62;   // dove vogliamo il cursore, 0 = alto, 1 = basso
+    var PAD_GAIN = 0.5;         // quanta parte dell'errore correggere per frame
+    var padTop = null;          // px; null = ancora da inizializzare
+
+    function basePadTop() { return (window.innerHeight || 700) * 0.38; }
+
     function camPadding() {
-      var h = window.innerHeight || 700;
-      return { top: Math.round(h * 0.38), bottom: 0, left: 0, right: 0 };
+      if (padTop === null) padTop = basePadTop();
+      return { top: Math.round(padTop), bottom: 0, left: 0, right: 0 };
+    }
+
+    // Misura dove e' finito il cursore e aggiorna il padding per il frame dopo.
+    function correctFraming(pos) {
+      try {
+        var h = window.innerHeight || 700;
+        var sp = map.project({ lng: pos[0], lat: pos[1] });
+        if (!sp || isNaN(sp.y)) return;
+        var err = sp.y - h * CURSOR_Y_FRAC;   // <0 = cursore troppo in alto
+        padTop = Math.max(0, Math.min(h * 0.85, padTop - err * PAD_GAIN));
+      } catch (e) { /* proiezione non disponibile: si resta com'era */ }
     }
     function ele(c) { return (c.length > 2 && !isNaN(c[2])) ? c[2] : 0; }
     // Posizione interpolata DENTRO il segmento si a frazione t (0..1).
@@ -450,6 +482,9 @@
     function flyOverAt(pos, brg) {
       map.jumpTo({ center: pos, bearing: brg, pitch: CAM_PITCH,
                    zoom: CAM_ZOOM, padding: camPadding() });
+      // Misura dopo aver mosso la camera: la proiezione tiene conto sia del
+      // padding appena applicato sia della quota del terreno sotto il cursore.
+      correctFraming(pos);
     }
 
     // Passaggio al segmento successivo. Decide in base al "gap" tra la
@@ -613,6 +648,10 @@
     window.tsReset = function() {
       window.tsPause();
       transitioning = false;
+      // Riparte dall'inquadratura di base: senza questo un volo eredita la
+      // correzione accumulata da quello prima, che era tarata su un'altra
+      // quota.
+      padTop = null;
       segIdx = 0; segT = 0; activePoi = null;
       if (segs.length) {
         setCursor(segs[0].coords[0]);
