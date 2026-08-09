@@ -122,8 +122,14 @@ primi secondi di montagne appiattite. Entrambi corretti.
 
 ## Dopo la pubblicazione
 
-- Caricare i **dSYM iOS** su Crashlytics: non c'è ancora lo script che lo faccia
-  da solo, e senza quelli i crash iOS restano illeggibili.
+- ~~Caricare i **dSYM iOS** su Crashlytics~~ — fatto il 2026-08-09 per la
+  2.10.0+122 (UUID `153C9223-…-C092B30945C7`), **e automatizzato**: da ora una
+  build phase del target Runner li carica a fine compilazione, quindi dalla
+  prossima release il passaggio non esiste più.
+
+  Il percorso di `upload-symbols` non è quello delle guide: qui Crashlytics
+  arriva da Swift Package Manager, non da CocoaPods, e sta sotto
+  `build/ios/SourcePackages/checkouts/`.
 - L'app da polso su Connect IQ va aggiornata **prima o insieme**, altrimenti le
   tracce continuano ad arrivare nel formato vecchio (che resta accettato, ma
   senza i tempi veri).
