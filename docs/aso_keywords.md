@@ -196,9 +196,41 @@ su quello.
 
 ### 3. Promotional Text (App Store, 170 caratteri)
 
-È l'unico campo che si cambia **senza inviare una nuova versione**. Va sopra la
-descrizione. Da verificare se è vuoto — probabilmente sì. Serve per le cose
-stagionali: apertura dei rifugi, prima neve, ciaspole.
+È l'unico campo che si cambia **senza inviare una nuova versione** né passare da
+una revisione. Va sopra la descrizione. **Non è indicizzato**: nome, sottotitolo
+e keyword fanno la ricerca, questo lavora solo sulla conversione di chi è già
+arrivato sulla scheda.
+
+Testo in uso dal 2026-08-09 (138/170):
+
+```
+Agosto è il mese dei rifugi aperti. Trovali sulla mappa, scarica il sentiero prima di partire e seguilo anche dove il telefono non prende.
+```
+
+Segue la stagione, che è il senso del campo. Chi arriva da `rifugi` — dodicesimo
+posto, l'unico termine senza komoot e Wikiloc davanti — in agosto sta pianificando
+una gita adesso, non fra sei mesi.
+
+**Da cambiare a calendario**, perché un testo stagionale scaduto è peggio di uno
+generico:
+
+| Quando | Aggancio | Keyword che rinforza |
+|---|---|---|
+| fine settembre | chiusura rifugi, foliage, giornate corte | `sentieri`, `appennino` |
+| prima neve | ciaspole — quattro app in classifica | `ciaspole` |
+| aprile-maggio | riapertura, fondovalle, vie attrezzate | `ferrate` |
+
+Evitare di legarlo a una versione (*"da questa versione..."*): il campo resta
+finché non lo si tocca, e le novità di release hanno già il loro spazio.
+
+Varianti scritte e misurate, se serve cambiare registro:
+
+- differenziatore offline (144) — `Lassù la rete non c'è, la mappa sì: si scarica
+  prima e resta sul telefono. Sentieri, rifugi e bivacchi delle Alpi, dal
+  telefono o dall'orologio.`
+- per la scheda inglese, quando esisterà (142) — `Italian mountains, mapped
+  offline. Download the trail before you go and follow it where there is no
+  signal — huts, bivouacs and 21,000 points.`
 
 ### 4. Custom Product Page per il traffico dei QR
 
