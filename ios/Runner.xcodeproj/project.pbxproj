@@ -211,6 +211,7 @@
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				7ADE3AD2596B97D21A45A05F /* [CP] Embed Pods Frameworks */,
 				9351E66E728DE42988398B28 /* [CP] Copy Pods Resources */,
+				C7A5DEB0FE110C0DE5150001 /* Upload dSYM a Crashlytics */,
 			);
 			buildRules = (
 			);
@@ -286,6 +287,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		C7A5DEB0FE110C0DE5150001 /* Upload dSYM a Crashlytics */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Upload dSYM a Crashlytics";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Carica i simboli di debug su Crashlytics a fine build.\n#\n# Senza, i crash iOS arrivano come indirizzi esadecimali invece che nomi di\n# funzione e numeri di riga. Fino alla 2.10.0+122 si caricavano a mano.\n#\n# In Debug DEBUG_INFORMATION_FORMAT e' \"dwarf\": i dSYM non vengono generati,\n# quindi si esce subito e il ciclo di sviluppo non rallenta.\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  exit 0\nfi\n\n# ATTENZIONE al percorso: su questo progetto Crashlytics NON arriva da\n# CocoaPods ma da Swift Package Manager (Podfile.lock non lo nomina), e\n# Flutter tiene i checkout in build/ios/SourcePackages. Il percorso\n# ${PODS_ROOT}/FirebaseCrashlytics che si legge in quasi tutte le guide qui\n# non esiste. Si provano i candidati in ordine, poi si cerca.\nUPLOADER=\"\"\nfor CANDIDATE in \\\n  \"${PODS_ROOT}/FirebaseCrashlytics/upload-symbols\" \\\n  \"${SRCROOT}/../build/ios/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols\" \\\n  \"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols\" \\\n  \"${BUILD_DIR%/Build/*}/SourcePackages/artifacts/firebase-ios-sdk/FirebaseCrashlytics/upload-symbols\" ; do\n  if [ -x \"$CANDIDATE\" ]; then UPLOADER=\"$CANDIDATE\"; break; fi\ndone\n\n# Ultima risorsa: se l'SDK cambia ancora disposizione, lo si cerca.\nif [ -z \"$UPLOADER\" ] && [ -d \"${SRCROOT}/../build/ios/SourcePackages\" ]; then\n  UPLOADER=$(find \"${SRCROOT}/../build/ios/SourcePackages\" -name upload-symbols -type f -perm +111 2>/dev/null | head -1)\nfi\n\nif [ -z \"$UPLOADER\" ]; then\n  echo \"warning: upload-symbols non trovato. I dSYM di questa build NON sono su Crashlytics: i crash arriveranno illeggibili.\"\n  exit 0\nfi\n\n# Si passa la CARTELLA, non il singolo ${DWARF_DSYM_FILE_NAME}: accanto a\n# Runner.app.dSYM ci sono App.framework.dSYM (tutto il codice Dart compilato)\n# e Flutter.framework.dSYM.\n\"$UPLOADER\" -gsp \"${PROJECT_DIR}/Runner/GoogleService-Info.plist\" -p ios \"${DWARF_DSYM_FOLDER_PATH}\" \\\n  || echo \"warning: upload dSYM a Crashlytics fallito. La build resta valida, si ricarica a mano.\"\n";
+		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
