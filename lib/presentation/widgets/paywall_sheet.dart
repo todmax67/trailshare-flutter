@@ -489,37 +489,56 @@ class _PaywallSheetState extends State<PaywallSheet> {
   // ─── Features list ──────────────────────────────────────────────────────
 
   Widget _buildFeatures(BuildContext context) {
+    // Elencare TUTTE le funzioni che il gate Pro sblocca davvero. Fino alla
+    // 2.10.1 qui ce n'erano due su cinque: il filtro di visibilita' delle cime,
+    // il riassunto delle condizioni e le zone cardio erano dietro al paywall
+    // ma non comparivano da nessuna parte, quindi si chiedeva di pagare per
+    // una frazione di quello che si sarebbe ricevuto.
+    //
+    // Le stringhe passano da l10n: prima erano scritte in italiano nel codice
+    // e chi usa l'app in inglese le leggeva cosi' com'erano.
+    final l = context.l10n;
     final features = <_Feature>[
+      // Primo perche' e' il piu' distintivo: e' cio' che PeakFinder vende a se'
+      // stante. Free non ne e' escluso, ha un raggio piu' corto — i numeri
+      // citati sono quelli reali di ViewshedTier.free/pro.
+      _Feature(
+        icon: Icons.visibility_outlined,
+        color: const Color(0xFF00897B),
+        title: l.paywallFeatureViewshedTitle,
+        subtitle: l.paywallFeatureViewshedBody,
+      ),
       _Feature(
         icon: Icons.camera_alt_outlined,
         color: const Color(0xFF1976D2),
-        title: 'AR Photo Mode',
-        subtitle:
-            'Foto panoramiche annotate con i nomi delle cime visibili. '
-            'Illimitate e pronte da condividere.',
+        title: l.paywallFeatureArPhotoTitle,
+        subtitle: l.paywallFeatureArPhotoBody,
       ),
       _Feature(
         icon: Icons.layers_outlined,
         color: const Color(0xFF2E7D32),
-        title: 'Mappe topografiche premium',
-        subtitle:
-            'Topo dettagliata, satellite con etichette e mappa invernale per scialpinismo.',
+        title: l.paywallFeatureTopoTitle,
+        subtitle: l.paywallFeatureTopoBody,
       ),
       _Feature(
-        icon: Icons.auto_awesome,
+        icon: Icons.forum_outlined,
         color: const Color(0xFF7C4DFF),
-        title: context.l10n.paywallAllFutureProFeatures,
-        subtitle:
-            'Le nuove feature Pro che aggiungeremo sono sempre incluse '
-            'nel tuo abbonamento, senza costi aggiuntivi.',
+        title: l.paywallFeatureConditionsTitle,
+        subtitle: l.paywallFeatureConditionsBody,
       ),
+      _Feature(
+        icon: Icons.monitor_heart_outlined,
+        color: const Color(0xFFEF6C00),
+        title: l.paywallFeatureHrZonesTitle,
+        subtitle: l.paywallFeatureHrZonesBody,
+      ),
+      // Chiude sul perche' l'app esiste: la promessa sulle funzioni future e'
+      // finita qui dentro, non merita una riga sua fra cinque funzioni vere.
       _Feature(
         icon: Icons.favorite_outline,
         color: AppColors.danger,
-        title: 'Niente vendita di dati',
-        subtitle:
-            'Il tuo abbonamento è l\'unica cosa che fa andare avanti l\'app — '
-            'niente ads, niente data brokers. Sostieni lo sviluppo indipendente.',
+        title: l.paywallFeatureNoDataSaleTitle,
+        subtitle: l.paywallFeatureNoDataSaleBody,
       ),
     ];
 

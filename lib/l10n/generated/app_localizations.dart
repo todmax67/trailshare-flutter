@@ -8906,6 +8906,78 @@ abstract class AppLocalizations {
   /// **'Tutte le funzioni Pro future'**
   String get paywallAllFutureProFeatures;
 
+  /// No description provided for @paywallFeatureViewshedTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Quali cime vedi davvero'**
+  String get paywallFeatureViewshedTitle;
+
+  /// No description provided for @paywallFeatureViewshedBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Fino a 100 km di raggio e mille vette, invece di 20 km e dieci: calcolate sul rilievo reale, non sulla distanza.'**
+  String get paywallFeatureViewshedBody;
+
+  /// No description provided for @paywallFeatureArPhotoTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Foto con i nomi delle cime'**
+  String get paywallFeatureArPhotoTitle;
+
+  /// No description provided for @paywallFeatureArPhotoBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Panoramiche annotate con le vette visibili, illimitate e pronte da condividere.'**
+  String get paywallFeatureArPhotoBody;
+
+  /// No description provided for @paywallFeatureTopoTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Mappe topografiche premium'**
+  String get paywallFeatureTopoTitle;
+
+  /// No description provided for @paywallFeatureTopoBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Topografica dettagliata, satellite con etichette e mappa invernale per lo scialpinismo.'**
+  String get paywallFeatureTopoBody;
+
+  /// No description provided for @paywallFeatureConditionsTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Condizioni del sentiero, riassunte'**
+  String get paywallFeatureConditionsTitle;
+
+  /// No description provided for @paywallFeatureConditionsBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa hanno trovato gli ultimi che ci sono passati, riassunto dalle segnalazioni della community.'**
+  String get paywallFeatureConditionsBody;
+
+  /// No description provided for @paywallFeatureHrZonesTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Zone cardio e allenamento'**
+  String get paywallFeatureHrZonesTitle;
+
+  /// No description provided for @paywallFeatureHrZonesBody.
+  ///
+  /// In it, this message translates to:
+  /// **'In quale zona passi il tempo davvero, e quale sessione ha senso fare la prossima volta.'**
+  String get paywallFeatureHrZonesBody;
+
+  /// No description provided for @paywallFeatureNoDataSaleTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna vendita di dati'**
+  String get paywallFeatureNoDataSaleTitle;
+
+  /// No description provided for @paywallFeatureNoDataSaleBody.
+  ///
+  /// In it, this message translates to:
+  /// **'A tenere in piedi l\'app è l\'abbonamento, non la pubblicità: niente ads, niente data broker. E le funzioni Pro future sono sempre incluse.'**
+  String get paywallFeatureNoDataSaleBody;
+
   /// No description provided for @andThe.
   ///
   /// In it, this message translates to:

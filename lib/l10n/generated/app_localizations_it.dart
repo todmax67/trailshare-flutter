@@ -4946,6 +4946,49 @@ class AppLocalizationsIt extends AppLocalizations {
   String get paywallAllFutureProFeatures => 'Tutte le funzioni Pro future';
 
   @override
+  String get paywallFeatureViewshedTitle => 'Quali cime vedi davvero';
+
+  @override
+  String get paywallFeatureViewshedBody =>
+      'Fino a 100 km di raggio e mille vette, invece di 20 km e dieci: calcolate sul rilievo reale, non sulla distanza.';
+
+  @override
+  String get paywallFeatureArPhotoTitle => 'Foto con i nomi delle cime';
+
+  @override
+  String get paywallFeatureArPhotoBody =>
+      'Panoramiche annotate con le vette visibili, illimitate e pronte da condividere.';
+
+  @override
+  String get paywallFeatureTopoTitle => 'Mappe topografiche premium';
+
+  @override
+  String get paywallFeatureTopoBody =>
+      'Topografica dettagliata, satellite con etichette e mappa invernale per lo scialpinismo.';
+
+  @override
+  String get paywallFeatureConditionsTitle =>
+      'Condizioni del sentiero, riassunte';
+
+  @override
+  String get paywallFeatureConditionsBody =>
+      'Cosa hanno trovato gli ultimi che ci sono passati, riassunto dalle segnalazioni della community.';
+
+  @override
+  String get paywallFeatureHrZonesTitle => 'Zone cardio e allenamento';
+
+  @override
+  String get paywallFeatureHrZonesBody =>
+      'In quale zona passi il tempo davvero, e quale sessione ha senso fare la prossima volta.';
+
+  @override
+  String get paywallFeatureNoDataSaleTitle => 'Nessuna vendita di dati';
+
+  @override
+  String get paywallFeatureNoDataSaleBody =>
+      'A tenere in piedi l\'app è l\'abbonamento, non la pubblicità: niente ads, niente data broker. E le funzioni Pro future sono sempre incluse.';
+
+  @override
   String get andThe => ' e la ';
 
   @override

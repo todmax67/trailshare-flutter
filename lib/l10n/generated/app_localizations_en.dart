@@ -4925,6 +4925,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String get paywallAllFutureProFeatures => 'All future Pro features';
 
   @override
+  String get paywallFeatureViewshedTitle => 'Which peaks you can actually see';
+
+  @override
+  String get paywallFeatureViewshedBody =>
+      'Up to 100 km and a thousand summits instead of 20 km and ten — worked out from the real terrain, not from distance.';
+
+  @override
+  String get paywallFeatureArPhotoTitle => 'Photos with peak names';
+
+  @override
+  String get paywallFeatureArPhotoBody =>
+      'Panoramas labelled with the visible summits, unlimited and ready to share.';
+
+  @override
+  String get paywallFeatureTopoTitle => 'Premium topographic maps';
+
+  @override
+  String get paywallFeatureTopoBody =>
+      'Detailed topo, labelled satellite and a winter map for ski touring.';
+
+  @override
+  String get paywallFeatureConditionsTitle => 'Trail conditions, summarised';
+
+  @override
+  String get paywallFeatureConditionsBody =>
+      'What the last people through actually found, summarised from the community\'s reports.';
+
+  @override
+  String get paywallFeatureHrZonesTitle => 'Heart-rate zones and training';
+
+  @override
+  String get paywallFeatureHrZonesBody =>
+      'Which zone you really spend your time in, and which session makes sense next.';
+
+  @override
+  String get paywallFeatureNoDataSaleTitle => 'No data selling';
+
+  @override
+  String get paywallFeatureNoDataSaleBody =>
+      'What keeps the app running is your subscription, not advertising: no ads, no data brokers. Future Pro features are always included.';
+
+  @override
   String get andThe => ' and the ';
 
   @override
