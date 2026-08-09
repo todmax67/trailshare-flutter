@@ -141,11 +141,51 @@ class AcquisitionSource {
     final q = uri.queryParameters;
     final source = q['utm_source'] ?? q['src'];
     if (source == null || source.trim().isEmpty) return null;
+
+    final cleaned = _clean(source);
+    final medium = _cleanOrNull(q['utm_medium'] ?? q['med']);
+    final campaign = _cleanOrNull(q['utm_campaign'] ?? q['cmp']);
+
+    // Un segnaposto non e' un canale.
+    if (_isNonValue(cleaned)) return null;
+
+    // Play inietta `utm_source=google-play&utm_medium=organic` quando non c'e'
+    // campagna. Il commento che lo diceva esisteva gia' in
+    // `_captureInstallReferrer`, ma stava nel ramo "attribuzione inutile" —
+    // che non veniva mai preso, perche' `google-play` e' un utm_source non
+    // vuoto e passava il controllo. Risultato: il traffico organico dallo
+    // Store compariva come un canale a se', il piu' grande della tabella.
+    //
+    // Si scarta solo in assenza di campagna: un link vero con
+    // `utm_campaign` resta attribuito, qualunque sia la sorgente.
+    if (cleaned == 'google-play' && campaign == null) return null;
+
     return AcquisitionSource(
-      source: _clean(source),
-      medium: _cleanOrNull(q['utm_medium'] ?? q['med']),
-      campaign: _cleanOrNull(q['utm_campaign'] ?? q['cmp']),
+      source: cleaned,
+      medium: medium,
+      campaign: campaign,
     );
+  }
+
+  /// Valori con cui gli store dicono "nessuna attribuzione".
+  ///
+  /// Google li manda in forme diverse — `not set`, `(not set)`, `none` — e
+  /// [_clean] li trasforma in stringhe diverse fra loro: `not_set` e
+  /// `_not_set_` sono finiti nel report come **due canali distinti**, che poi
+  /// erano lo stesso non-canale. Si toglie la punteggiatura ai bordi prima di
+  /// confrontare, cosi' ogni variante collassa sulla stessa parola.
+  static bool _isNonValue(String cleaned) {
+    final s = cleaned.replaceAll(RegExp(r'^[_-]+|[_-]+$'), '');
+    return s.isEmpty ||
+        const {
+          'not_set',
+          'notset',
+          'none',
+          'null',
+          'undefined',
+          'unknown',
+          'direct',
+        }.contains(s);
   }
 
   /// Analytics rifiuta valori sopra i 100 caratteri e i nomi con spazi si
