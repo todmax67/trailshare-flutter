@@ -94,10 +94,17 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
+    <!-- fullBackupContent / dataExtractionRules: escludono le tile offline dal
+         backup su Drive. Senza, sfondano la quota di 25 MB per app e fanno
+         fallire il backup dell'INTERA app, compresa la persistenza della
+         registrazione in corso che vive nella stessa cartella. I due file
+         valgono per versioni diverse di Android e vanno tenuti allineati. -->
     <application
         android:label="TrailShare"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:largeHeap="true"><!-- 2.4.6 — OOM ricorrente su platform channel
              Firestore (serializza doc tracks con GPS points embedded in
              ByteArrayOutputStream, esplode a 19MB+). largeHeap raddoppia

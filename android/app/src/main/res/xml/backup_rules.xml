@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Regole del backup automatico su Drive, per Android 11 e precedenti
+  (android:fullBackupContent). Da Android 12 vale data_extraction_rules.xml,
+  che deve restare coerente con questo file.
+
+  Il motivo per cui esiste: il backup automatico ha una quota di 25 MB per
+  app, e superandola fallisce per l'INTERA app, non solo per i file di
+  troppo. Le tile delle mappe offline stanno in app_flutter/offline_tiles
+  (path_provider mappa getApplicationDocumentsDirectory() su app_flutter,
+  non su files/) e sfondano quella quota al primo download di una regione.
+
+  Il risultato era che centinaia di MB di tile — riscaricabili in qualunque
+  momento con due tap — impedivano il backup di pochi KB che invece non lo
+  sono: la persistenza della registrazione in corso, scritta nella stessa
+  cartella da recording_persistence_service.dart.
+-->
+<full-backup-content>
+    <exclude domain="root" path="app_flutter/offline_tiles" />
+</full-backup-content>

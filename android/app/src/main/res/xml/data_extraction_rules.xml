@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 e successivi (android:dataExtractionRules). Separa due casi che
+  prima erano lo stesso, e qui vanno trattati in modo diverso.
+
+  cloud-backup — backup automatico su Drive, quota 25 MB per app: superata,
+  fallisce tutto il backup dell'app. Le tile offline la sfondano da sole al
+  primo download, quindi si escludono. Sono riscaricabili con due tap; la
+  registrazione in corso salvata nella stessa cartella non lo e'.
+
+  device-transfer — passaggio diretto a un telefono nuovo, senza quota. Qui
+  le tile si TENGONO apposta: chi cambia telefono si ritrova le mappe gia'
+  scaricate invece di doversi rifare tutte le regioni, che e' esattamente il
+  fastidio che questa modifica nasce per evitare. Il trasferimento e' un
+  gesto esplicito dell'utente, con barra di avanzamento e di solito via cavo:
+  qualche centinaio di MB in piu' e' un prezzo accettabile.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="app_flutter/offline_tiles" />
+    </cloud-backup>
+    <!-- Nessun <exclude> qui: il trasferimento fra dispositivi porta con se'
+         anche le mappe offline. -->
+    <device-transfer />
+</data-extraction-rules>
