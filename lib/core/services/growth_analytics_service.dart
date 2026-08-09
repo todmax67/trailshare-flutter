@@ -197,6 +197,9 @@ class GrowthAnalyticsService {
   /// SharedPreferences a ogni scrittura.
   bool _funnelOptedOut = false;
 
+  /// Guardia di rientro per [_countWatchTracks]: vedi il commento la' dentro.
+  bool _countingWatchTracks = false;
+
   /// Ultimo giorno per cui `lastSeenAt` e' gia' stato aggiornato in questa
   /// sessione. Vedi [_touchLastSeen] per il perche' non basti SharedPreferences.
   String? _lastSeenDayInMemory;
@@ -635,6 +638,20 @@ class GrowthAnalyticsService {
     if (kDebugMode || _funnelOptedOut) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+
+    // Guardia SINCRONA, prima di qualunque await. `authStateChanges` emette
+    // piu' volte a distanza di millisecondi (login, poi refresh del token):
+    // due esecuzioni concorrenti leggerebbero lo stesso cursore — che viene
+    // riscritto solo a fine ciclo — e conterebbero due volte le stesse
+    // tracce.
+    //
+    // E' la stessa trappola gia' documentata in [_touchLastSeen] poche righe
+    // piu' su, dove era stata osservata sul campo. Qui non risulta ancora
+    // essere successa: e' prevenzione, messa perche' il codice ha la stessa
+    // forma — legge una preferenza, lavora, la riscrive alla fine — e quella
+    // forma in questo file ha gia' morso una volta.
+    if (_countingWatchTracks) return;
+    _countingWatchTracks = true;
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(_kWatchCursor);
@@ -691,6 +708,8 @@ class GrowthAnalyticsService {
       }
     } catch (e) {
       debugPrint('[Growth] recupero tracce da orologio: $e');
+    } finally {
+      _countingWatchTracks = false;
     }
   }
 
