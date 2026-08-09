@@ -1277,6 +1277,34 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.10.0',
+        title: 'I numeri delle tue tracce dicono la verità 📐',
+        bullets: [
+          '**"In movimento" ora è una misura vera, e sarà più basso di prima.** Fino alla 2.9.5 quel campo riportava la durata totale: soste comprese. Ora conta solo il tempo in cui ti stavi davvero muovendo — su un\'escursione con pause può essere ore in meno, e non è un errore: è il numero che prima non c\'era',
+          'Le tracce seguono i tornanti invece di tagliarli. La riduzione dei punti ora tiene quelli dove il sentiero curva e scarta quelli sui rettilinei: la traccia che vedi, esporti e condividi è molto più fedele, e la distanza più vicina al vero',
+          'Se il telefono sospende la registrazione, ora te lo dice. Prima capitava in silenzio e te ne accorgevi a casa, guardando un buco nella mappa',
+          'Orologi Garmin: tracce quattro volte più dettagliate, con gli orari veri dell\'attività e il tempo in movimento calcolato davvero. Richiede l\'aggiornamento anche dell\'app sull\'orologio, dallo store Connect IQ',
+          'Il mountain finder non chiude più l\'app se esci dall\'inquadratura delle cime mentre si sta ancora accendendo',
+          'Nel volo 3D il segnaposto resta in quadro anche sulle salite lunghe, e il rilievo è già caricato dal primo fotogramma invece di appiattirsi all\'inizio',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.9.5',
+        title: 'Sette interventi, nessuno scelto a tavolino 🔍',
+        bullets: [
+          'Sei arrivano da segnali reali — i rapporti di crash, una segnalazione di un utente Pro, il primo resoconto di crescita — e uno dal confronto coi concorrenti. È la prima versione costruita a partire da quello che l\'app dice di sé',
+          'Fra questi: le statistiche delle tracce importate non venivano più calcolate su una versione semplificata del percorso, che sui tornanti accorciava la distanza fino al 20%',
+        ],
+      ),
+      _ReleaseEntry(
+        version: '2.9.4',
+        title: 'Tappe complete e una domanda sul consenso 🧭',
+        bullets: [
+          'Le tappe dei tour arrivano complete, e le durate lunghe tornano leggibili',
+          'Al primo avvio l\'app ora chiede se può raccogliere statistiche d\'uso. Finché non rispondi non viene raccolto niente: chi non ha ancora scelto non ha scelto di essere misurato',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.9.3',
         title: 'I giri dell\'orologio nella scheda \u23f1\ufe0f',
         bullets: [
