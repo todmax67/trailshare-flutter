@@ -272,6 +272,9 @@ class _WebTrackPhotosEditorState extends State<WebTrackPhotosEditor> {
   }
 
   void _snack(String msg, {bool error = false}) {
+    // Chiamato dopo await: a widget smontato `context` fa `_element!` e lancia
+    // "Null check operator used on a null value". Vedi live_track_button.dart.
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),

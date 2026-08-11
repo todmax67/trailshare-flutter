@@ -89,23 +89,26 @@ class _LiveTrackButtonState extends State<LiveTrackButton>
       if (shouldStop == true) {
         await _service.stop();
         _showSnackBar('LiveTrack terminato');
-        widget.onStatusChanged?.call();
+        if (mounted) widget.onStatusChanged?.call();
       }
     } else {
       // Avvia LiveTrack
       final success = await _service.startAndShare(
         userName: user.displayName ?? user.email ?? 'Escursionista',
       );
-      
+
       if (success) {
         final sessionId = _service.getSessionId();
         _showSnackBar('LiveTrack attivo! ID: $sessionId (copiato) 🎉', isSuccess: true);
-        widget.onStatusChanged?.call();
+        if (mounted) widget.onStatusChanged?.call();
       } else {
         _showSnackBar('Errore avvio LiveTrack', isError: true);
       }
     }
 
+    // L'operazione e' andata a buon fine comunque: se il widget non c'e' piu',
+    // non c'e' nessuno stato da riportare a riposo.
+    if (!mounted) return;
     setState(() => _isLoading = false);
   }
 
@@ -138,6 +141,17 @@ class _LiveTrackButtonState extends State<LiveTrackButton>
   }
 
   void _showSnackBar(String message, {bool isError = false, bool isSuccess = false}) {
+    // Il guard sta qui e non nei chiamanti perche' tutti e quattro arrivano
+    // dopo un await: `State.context` fa `return _element!`, e a widget smontato
+    // quel `!` e' l'eccezione "Null check operator used on a null value" che
+    // Crashlytics riporta sulla 2.10.0.
+    //
+    // Come ci si arriva: l'utente tocca il pulsante, si apre il foglio di
+    // condivisione, lui torna indietro, il widget viene smontato — e solo
+    // allora l'await ritorna. Se non c'e' piu' nessuno a guardare, non c'e'
+    // nemmeno un messaggio da mostrare.
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
