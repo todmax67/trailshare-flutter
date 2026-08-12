@@ -262,6 +262,20 @@ class TerrainProfiles {
   /// dove non sappiamo cosa ci sia.
   final List<List<double>> byBand;
 
+  /// Pendenza del terreno nel punto che definisce il profilo, in metri per
+  /// metro: `slopeE` verso est, `slopeN` verso nord.
+  ///
+  /// Si conserva la **pendenza** e non un valore di luce già calcolato perché il
+  /// sole si muove e il terreno no: così spostare il cursore dell'ora
+  /// ri-illumina il paesaggio all'istante, senza rifare la marcia dei raggi. Ed
+  /// è la ragione per cui la funzione serve a qualcosa — non «che bel rilievo»
+  /// ma *quale versante avrà luce alle sette*.
+  ///
+  /// Zero dove la pendenza non è nota: significa piatto, cioè nessuna
+  /// ombreggiatura, che è il modo onesto di dire «non lo so».
+  final List<List<double>> slopeE;
+  final List<List<double>> slopeN;
+
   /// Fin dove arriva la nostra conoscenza lungo ogni azimut, in metri.
   ///
   /// Oltre questa distanza il DEM non ha risposto, quindi lì non si disegna
@@ -270,12 +284,49 @@ class TerrainProfiles {
   /// dove ho guardato».
   final List<double> knownUpToM;
 
-  const TerrainProfiles({required this.byBand, required this.knownUpToM});
+  const TerrainProfiles({
+    required this.byBand,
+    required this.knownUpToM,
+    this.slopeE = const [],
+    this.slopeN = const [],
+  });
 
   static const TerrainProfiles empty =
       TerrainProfiles(byBand: [], knownUpToM: []);
 
   bool get isEmpty => byBand.isEmpty;
+
+  bool get hasSlopes => slopeE.isNotEmpty;
+}
+
+/// Quanto è illuminato un pezzo di terreno, da 0 (in ombra) a 1 (in pieno sole).
+///
+/// Legge di Lambert pura: conta solo l'angolo fra la normale del terreno e la
+/// direzione della luce. Niente ombre portate — una cresta non proietta ombra
+/// sulla valle dietro — perché quelle richiederebbero una seconda marcia di
+/// raggi *verso il sole* per ogni punto, e non è quello che serve per rispondere
+/// alla domanda «questo versante prende luce a quest'ora».
+double lambertShade({
+  required double slopeE,
+  required double slopeN,
+  required double sunAzimuthDeg,
+  required double sunElevationDeg,
+}) {
+  // Normale di un campo di quote: (-dz/de, -dz/dn, 1), normalizzata.
+  final len = math.sqrt(slopeE * slopeE + slopeN * slopeN + 1);
+  final nE = -slopeE / len;
+  final nN = -slopeN / len;
+  final nU = 1 / len;
+
+  final az = sunAzimuthDeg * math.pi / 180;
+  final el = sunElevationDeg * math.pi / 180;
+  final ce = math.cos(el);
+  final sE = math.sin(az) * ce;
+  final sN = math.cos(az) * ce;
+  final sU = math.sin(el);
+
+  final dot = nE * sE + nN * sN + nU * sU;
+  return dot < 0 ? 0 : dot;
 }
 
 class ViewshedResult {
@@ -459,6 +510,17 @@ ViewshedResult computeViewshed(ViewshedRequest req) {
   final byBand = [
     for (var b = 0; b < bands; b++) List<double>.filled(steps, double.nan),
   ];
+  // Distanza del punto che definisce ogni profilo: non è un'uscita, serve solo
+  // a tornarci sopra a misurare la pendenza quando il raggio è finito.
+  final bandDist = [
+    for (var b = 0; b < bands; b++) List<double>.filled(steps, double.nan),
+  ];
+  final slopeE = [
+    for (var b = 0; b < bands; b++) List<double>.filled(steps, 0.0),
+  ];
+  final slopeN = [
+    for (var b = 0; b < bands; b++) List<double>.filled(steps, 0.0),
+  ];
   final knownUpTo = List<double>.filled(steps, double.infinity);
 
   for (int aIdx = 0; aIdx < steps; aIdx++) {
@@ -485,7 +547,10 @@ ViewshedResult computeViewshed(ViewshedRequest req) {
           // ciò che sta più in basso è nascosto da qualcosa di più vicino.
           maxAngle = angle;
           final b = TerrainProfiles.bandFor(d);
-          if (!(angle <= byBand[b][aIdx])) byBand[b][aIdx] = angle;
+          if (!(angle <= byBand[b][aIdx])) {
+            byBand[b][aIdx] = angle;
+            bandDist[b][aIdx] = d;
+          }
         }
       }
       d += dem.stepAt(d);
@@ -501,15 +566,63 @@ ViewshedResult computeViewshed(ViewshedRequest req) {
     if (firstUnknown.isFinite) {
       for (var b = 0; b < bands; b++) {
         final inizioFascia = b == 0 ? 0.0 : TerrainProfiles.bandLimitsM[b - 1];
-        if (inizioFascia >= firstUnknown) byBand[b][aIdx] = double.nan;
+        if (inizioFascia >= firstUnknown) {
+          byBand[b][aIdx] = double.nan;
+          bandDist[b][aIdx] = double.nan;
+        }
       }
+    }
+
+    // Pendenza nei punti che definiscono i profili. Si fa qui, alla fine del
+    // raggio, e non durante la marcia: dentro il ciclo il massimo corrente
+    // cambia in continuazione — su terreno pianeggiante *ogni* campione è un
+    // nuovo massimo — e misurare la pendenza a ogni cambio moltiplicherebbe per
+    // cinque le letture del DEM. Alla fine i punti da misurare sono al massimo
+    // cinque per raggio.
+    for (var b = 0; b < bands; b++) {
+      final d = bandDist[b][aIdx];
+      if (d.isNaN) continue;
+      final pt = _destinationPoint(req.observerLat, req.observerLng, azDeg, d);
+      final (e, n) = _slopeAt(dem, pt[0], pt[1], math.max(30.0, dem.stepAt(d)));
+      slopeE[b][aIdx] = e;
+      slopeN[b][aIdx] = n;
     }
   }
 
   return (
     skyline: skyline,
-    profiles: TerrainProfiles(byBand: byBand, knownUpToM: knownUpTo),
+    profiles: TerrainProfiles(
+      byBand: byBand,
+      knownUpToM: knownUpTo,
+      slopeE: slopeE,
+      slopeN: slopeN,
+    ),
   );
+}
+
+/// Pendenza del terreno in un punto, con differenze centrate su [hMeters].
+///
+/// Restituisce `(0, 0)` — cioè piatto — appena una delle quattro letture manca:
+/// una pendenza calcolata su un buco sarebbe un rilievo inventato, e in un
+/// disegno ombreggiato si vedrebbe come una parete che non esiste.
+(double, double) _slopeAt(
+  LayeredDem dem,
+  double lat,
+  double lng,
+  double hMeters,
+) {
+  final dLat = hMeters / 111320.0;
+  final cosLat = math.cos(lat * math.pi / 180).abs();
+  if (cosLat < 1e-6) return (0, 0);
+  final dLng = hMeters / (111320.0 * cosLat);
+
+  final zE = dem.elevationAt(lat, lng + dLng);
+  final zW = dem.elevationAt(lat, lng - dLng);
+  final zN = dem.elevationAt(lat + dLat, lng);
+  final zS = dem.elevationAt(lat - dLat, lng);
+  if (zE.isNaN || zW.isNaN || zN.isNaN || zS.isNaN) return (0, 0);
+
+  return ((zE - zW) / (2 * hMeters), (zN - zS) / (2 * hMeters));
 }
 
 /// Altezza del terreno a un azimut qualsiasi, interpolata fra i campioni dello

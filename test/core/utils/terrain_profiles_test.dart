@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -59,6 +60,7 @@ ViewshedResult _run(DemGrid coarse, {double radiusKm = 40}) =>
 const int _nord = 0;
 
 void main() {
+  _ombreggiatura();
   group('le fasce e lo skyline raccontano la stessa cosa', () {
     test('il massimo fra le fasce È lo skyline, azimut per azimut', () {
       // Se questo si rompe, il paesaggio disegnato e la riga usata per il
@@ -244,6 +246,132 @@ void main() {
       }
       expect(r.profiles.byBand.length, TerrainProfiles.bandCount);
       expect(r.profiles.knownUpToM.length, r.skylineAngles.length);
+    });
+  });
+}
+
+/// L'ombreggiatura è la parte che vende la funzione a chi fotografa: non «che
+/// bel rilievo» ma *quale versante avrà luce alle sette*. Perché quella
+/// risposta sia vera, la geometria deve essere giusta nel verso giusto — un
+/// segno invertito produce un paesaggio dall'aria perfettamente plausibile con
+/// il sole dalla parte sbagliata.
+void _ombreggiatura() {
+  group('lambertShade', () {
+    test('terreno piatto: pieno sole allo zenit, niente all\'orizzonte', () {
+      expect(
+        lambertShade(
+            slopeE: 0, slopeN: 0, sunAzimuthDeg: 180, sunElevationDeg: 90),
+        closeTo(1, 1e-9),
+      );
+      expect(
+        lambertShade(
+            slopeE: 0, slopeN: 0, sunAzimuthDeg: 180, sunElevationDeg: 0),
+        closeTo(0, 1e-9),
+      );
+    });
+
+    test('un versante a est prende il sole del mattino, non quello della sera',
+        () {
+      // Pendenza che scende verso est => la normale punta a est.
+      const versanteEst = -1.0; // dz/de negativo = si scende andando a est
+      final mattino = lambertShade(
+          slopeE: versanteEst,
+          slopeN: 0,
+          sunAzimuthDeg: 90, // sole a est
+          sunElevationDeg: 20);
+      final sera = lambertShade(
+          slopeE: versanteEst,
+          slopeN: 0,
+          sunAzimuthDeg: 270, // sole a ovest
+          sunElevationDeg: 20);
+      expect(mattino, greaterThan(0.5));
+      expect(sera, 0, reason: 'alle spalle del sole non arriva niente');
+    });
+
+    test('un versante a sud è più illuminato di uno a nord, da noi', () {
+      const sole = (az: 180.0, el: 40.0); // mezzogiorno alle nostre latitudini
+      final sud = lambertShade(
+          slopeE: 0,
+          slopeN: 1.0, // salendo verso nord => guarda a sud
+          sunAzimuthDeg: sole.az,
+          sunElevationDeg: sole.el);
+      final nord = lambertShade(
+          slopeE: 0,
+          slopeN: -1.0,
+          sunAzimuthDeg: sole.az,
+          sunElevationDeg: sole.el);
+      expect(sud, greaterThan(nord));
+      expect(nord, 0, reason: 'il versante nord a mezzogiorno resta in ombra');
+    });
+
+    test('non esce mai dall\'intervallo 0-1', () {
+      for (final se in [-3.0, -0.4, 0.0, 0.4, 3.0]) {
+        for (final sn in [-3.0, -0.4, 0.0, 0.4, 3.0]) {
+          for (final az in [0.0, 77.0, 180.0, 300.0]) {
+            for (final el in [-10.0, 0.0, 15.0, 89.0]) {
+              final v = lambertShade(
+                  slopeE: se,
+                  slopeN: sn,
+                  sunAzimuthDeg: az,
+                  sunElevationDeg: el);
+              expect(v, inInclusiveRange(0, 1));
+            }
+          }
+        }
+      }
+    });
+
+    test('pendenza ignota = piatto = nessuna ombra inventata', () {
+      // Il calcolo delle pendenze restituisce (0,0) dove il DEM ha buchi:
+      // significa "non lo so", e deve produrre lo stesso valore ovunque, non
+      // una parete che non esiste.
+      final a = lambertShade(
+          slopeE: 0, slopeN: 0, sunAzimuthDeg: 45, sunElevationDeg: 30);
+      final b = lambertShade(
+          slopeE: 0, slopeN: 0, sunAzimuthDeg: 200, sunElevationDeg: 30);
+      expect(a, closeTo(b, 1e-12));
+    });
+  });
+
+  group('le pendenze arrivano fino al disegno', () {
+    test('su terreno inclinato le pendenze non sono tutte zero', () {
+      final dem = _grid(
+        rows: 500,
+        cols: 360,
+        terrain: (lat, lng) {
+          // Un cono attorno all'osservatore: ogni direzione ha una pendenza.
+          final dn = (lat - _obsLat) * _mPerDegLat;
+          final de = (lng - _obsLng) * _mPerDegLat * 0.707;
+          final r = math.sqrt(dn * dn + de * de);
+          return 2500 - r * 0.15;
+        },
+      );
+      final p = _run(dem, radiusKm: 12).profiles;
+      expect(p.hasSlopes, isTrue);
+
+      var conPendenza = 0;
+      for (var b = 0; b < p.byBand.length; b++) {
+        for (var a = 0; a < p.byBand[b].length; a++) {
+          if (p.byBand[b][a].isNaN) continue;
+          if (p.slopeE[b][a].abs() > 1e-6 || p.slopeN[b][a].abs() > 1e-6) {
+            conPendenza++;
+          }
+        }
+      }
+      expect(conPendenza, greaterThan(100),
+          reason: 'su un cono la pendenza c\'è quasi ovunque, invece '
+              '$conPendenza punti');
+    });
+
+    test('su terreno perfettamente piatto le pendenze sono zero', () {
+      final dem = _grid(rows: 300, cols: 220, terrain: (_, _) => 800);
+      final p = _run(dem, radiusKm: 10).profiles;
+      for (var b = 0; b < p.byBand.length; b++) {
+        for (var a = 0; a < p.byBand[b].length; a++) {
+          expect(p.slopeE[b][a].abs(), lessThan(1e-6));
+          expect(p.slopeN[b][a].abs(), lessThan(1e-6));
+        }
+      }
     });
   });
 }

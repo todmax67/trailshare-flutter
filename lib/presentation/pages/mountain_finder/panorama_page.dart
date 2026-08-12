@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' show Vertices, VertexMode;
 
 import 'package:flutter/material.dart';
 
@@ -9,7 +11,7 @@ import '../../../core/services/pro_gate_service.dart';
 import '../../../core/services/terrain_tile_service.dart';
 import '../../../core/services/viewshed_service.dart';
 import '../../../core/utils/viewshed_compute.dart'
-    show skylineElevationAt, occluderIndex, TerrainProfiles;
+    show skylineElevationAt, occluderIndex, TerrainProfiles, lambertShade;
 import '../../../core/utils/sun_moon.dart';
 import '../../../data/models/mountain_peak.dart';
 import '../../../data/models/visible_peak.dart';
@@ -189,6 +191,20 @@ class _PanoramaPageState extends State<PanoramaPage> {
     return i == null ? null : _peaks[i];
   }
 
+  /// La luce che ombreggia il terreno all'istante scelto.
+  ///
+  /// Il sole vero quando è alto abbastanza da illuminare qualcosa. Sotto
+  /// l'orizzonte non c'è nessuna luce da rappresentare, e lasciare il paesaggio
+  /// piatto lo renderebbe illeggibile: si passa allora alla convenzione delle
+  /// carte topografiche, luce da nordovest a 45°, che è un espediente di
+  /// disegno dichiarato e non una previsione.
+  SkyPosition get _light {
+    final sole = sunPosition(_when.toUtc(), widget.observerLat,
+        widget.observerLng);
+    if (sole.elevationDeg > 1) return sole;
+    return const SkyPosition(azimuthDeg: 315, elevationDeg: 45);
+  }
+
   /// La fascia verticale mostrata. Col cielo acceso deve arrivare fin dove
   /// sale il sole, altrimenti a mezzogiorno d'estate l'arco uscirebbe dal
   /// riquadro e si vedrebbe una linea piatta finta.
@@ -284,6 +300,8 @@ class _PanoramaPageState extends State<PanoramaPage> {
                       textColor: context.textPrimary,
                       mutedColor: context.textMuted,
                       topDeg: _topDeg,
+                      lightAzimuthDeg: _light.azimuthDeg,
+                      lightElevationDeg: _light.elevationDeg,
                       sunTrack: _showSky ? _sunTrack : const [],
                       moonTrack: _showSky ? _moonTrack : const [],
                       sunNow: _showSky
@@ -480,6 +498,17 @@ class _PanoramaPainter extends CustomPainter {
   /// sole da far stare dentro.
   final double topDeg;
 
+  /// Da dove arriva la luce che ombreggia il terreno.
+  ///
+  /// Quando il sole è sopra l'orizzonte è **il sole vero all'ora scelta**, ed è
+  /// lì che sta il valore della funzione: spostando il cursore si vede quale
+  /// versante avrà luce alle sette e quale sarà ancora in ombra. Di notte non
+  /// c'è niente da illuminare, quindi si ripiega sulla convenzione delle carte
+  /// — luce da nordovest a 45° — che serve solo a far leggere la forma e non
+  /// afferma niente sul mondo.
+  final double lightAzimuthDeg;
+  final double lightElevationDeg;
+
   _PanoramaPainter({
     required this.skyline,
     required this.profiles,
@@ -488,6 +517,8 @@ class _PanoramaPainter extends CustomPainter {
     required this.textColor,
     required this.mutedColor,
     required this.topDeg,
+    required this.lightAzimuthDeg,
+    required this.lightElevationDeg,
     this.sunTrack = const [],
     this.moonTrack = const [],
     this.sunNow,
@@ -575,6 +606,12 @@ class _PanoramaPainter extends CustomPainter {
         // aggiunge densità dove le creste si accavallano, come la foschia vera.
         0.92 - 0.34 * t,
         1.5 - 0.9 * t,
+        // L'ombreggiatura si attenua con la distanza, come il contrasto vero:
+        // a cinquanta chilometri la foschia mangia il rilievo, e disegnarlo
+        // inciso come in primo piano farebbe sembrare vicino ciò che è lontano.
+        slopeE: profiles.hasSlopes ? profiles.slopeE[b] : null,
+        slopeN: profiles.hasSlopes ? profiles.slopeN[b] : null,
+        shadeStrength: 1.0 - 0.55 * t,
       );
     }
   }
@@ -586,12 +623,22 @@ class _PanoramaPainter extends CustomPainter {
     List<double> profile,
     Color color,
     double fillAlpha,
-    double strokeWidth,
-  ) {
+    double strokeWidth, {
+    List<double>? slopeE,
+    List<double>? slopeN,
+    double shadeStrength = 1.0,
+  }) {
     final w = size.width;
     final h = size.height;
     final steps = profile.length;
     if (steps < 2) return;
+
+    if (slopeE != null && slopeN != null) {
+      _paintShadedFill(
+        canvas, size, profile, color, fillAlpha, slopeE, slopeN, shadeStrength);
+      _paintRidgeStroke(canvas, size, profile, color, strokeWidth);
+      return;
+    }
 
     final fill = Path();
     final ridge = Path();
@@ -635,6 +682,134 @@ class _PanoramaPainter extends CustomPainter {
         ..strokeWidth = strokeWidth
         ..strokeJoin = StrokeJoin.round
         ..color = color,
+    );
+  }
+
+  /// Riempimento **ombreggiato** di una fascia, una colonna per azimut.
+  ///
+  /// Ogni colonna prende la luce del versante che la sormonta: è
+  /// un'approssimazione, ma non una licenza. Il pezzo di fascia che si vede
+  /// davvero è solo la striscia fra la sua cresta e quella della fascia più
+  /// vicina che la copre — cioè proprio il fianco che porta a quella cresta.
+  ///
+  /// Si usa `drawVertices` invece di un rettangolo per colonna perché è una sola
+  /// chiamata per fascia invece di settecentoventi, e il colore per vertice
+  /// arriva alla GPU senza ripassare dalla CPU a ogni spostamento del cursore
+  /// dell'ora.
+  void _paintShadedFill(
+    Canvas canvas,
+    Size size,
+    List<double> profile,
+    Color base,
+    double fillAlpha,
+    List<double> slopeE,
+    List<double> slopeN,
+    double shadeStrength,
+  ) {
+    final w = size.width;
+    final h = size.height;
+    final steps = profile.length;
+
+    // Un tratto continuo alla volta: dove il profilo si interrompe si chiude la
+    // striscia e se ne apre un'altra, altrimenti il triangleStrip cucirebbe i
+    // due bordi del buco disegnando terreno che non c'è.
+    var i = 0;
+    while (i < steps) {
+      if (profile[i].isNaN) {
+        i++;
+        continue;
+      }
+      var j = i;
+      while (j < steps && !profile[j].isNaN) {
+        j++;
+      }
+      final n = j - i;
+      if (n >= 2) {
+        final pos = Float32List(n * 4);
+        final col = Int32List(n * 2);
+        for (var k = 0; k < n; k++) {
+          final idx = i + k;
+          final x = _xFor(idx * 360 / steps, w);
+          final y = _yFor(profile[idx].clamp(_bottomDeg, topDeg), h);
+          pos[k * 4] = x;
+          pos[k * 4 + 1] = y;
+          pos[k * 4 + 2] = x;
+          pos[k * 4 + 3] = h;
+
+          final s = lambertShade(
+            slopeE: slopeE[idx],
+            slopeN: slopeN[idx],
+            sunAzimuthDeg: lightAzimuthDeg,
+            sunElevationDeg: lightElevationDeg,
+          );
+          final v = _shaded(base, s, shadeStrength)
+              .withValues(alpha: fillAlpha)
+              .toARGB32();
+          col[k * 2] = v;
+          col[k * 2 + 1] = v;
+        }
+        canvas.drawVertices(
+          Vertices.raw(VertexMode.triangleStrip, pos, colors: col),
+          BlendMode.srcOver,
+          Paint(),
+        );
+      }
+      i = j;
+    }
+  }
+
+  /// Solo la linea di cresta, senza il contorno del riempimento: quello
+  /// correrebbe anche lungo il fondo e i lati, disegnando una cornice che non è
+  /// terreno.
+  void _paintRidgeStroke(
+    Canvas canvas,
+    Size size,
+    List<double> profile,
+    Color color,
+    double strokeWidth,
+  ) {
+    final w = size.width;
+    final h = size.height;
+    final steps = profile.length;
+    final ridge = Path();
+    var started = false;
+    for (var i = 0; i < steps; i++) {
+      final elev = profile[i];
+      if (elev.isNaN) {
+        started = false;
+        continue;
+      }
+      final x = _xFor(i * 360 / steps, w);
+      final y = _yFor(elev.clamp(_bottomDeg, topDeg), h);
+      if (started) {
+        ridge.lineTo(x, y);
+      } else {
+        ridge.moveTo(x, y);
+        started = true;
+      }
+    }
+    canvas.drawPath(
+      ridge,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeJoin = StrokeJoin.round
+        ..color = color,
+    );
+  }
+
+  /// Il colore di base scurito dalla luce.
+  ///
+  /// Non si scende mai al nero: il rilievo deve far leggere la forma, non
+  /// cancellare la montagna in ombra — che in un panorama da consultare resta
+  /// un'informazione, non un effetto.
+  Color _shaded(Color base, double lambert, double strength) {
+    final k = 1 - strength * 0.45 * (1 - lambert);
+    return Color.from(
+      alpha: base.a,
+      red: base.r * k,
+      green: base.g * k,
+      blue: base.b * k,
     );
   }
 
@@ -825,6 +1000,8 @@ class _PanoramaPainter extends CustomPainter {
       old.skyline != skyline ||
       old.peaks != peaks ||
       old.topDeg != topDeg ||
+      old.lightAzimuthDeg != lightAzimuthDeg ||
+      old.lightElevationDeg != lightElevationDeg ||
       old.sunTrack != sunTrack ||
       old.moonTrack != moonTrack ||
       old.sunNow?.azimuthDeg != sunNow?.azimuthDeg ||
