@@ -26,6 +26,7 @@ import '../../../data/repositories/osm_pois_repository.dart';
 import '../../../data/repositories/saved_peaks_repository.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/paywall_sheet.dart';
+import '../../widgets/peak_context_section.dart';
 import '../../widgets/skyline_overlay.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
@@ -2377,6 +2378,9 @@ class _PeakDetailSheetState extends State<_PeakDetailSheet> {
                 ],
               ),
             ),
+            // Cosa c'è attorno alla vetta: rifugi con le loro aperture e
+            // sentieri che ci passano. È la parte che i concorrenti non hanno.
+            PeakContextSection(peak: p),
             const SizedBox(height: 16),
             // Salva cima + Apri mappa (riga di 2 pulsanti)
             Row(
