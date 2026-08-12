@@ -957,6 +957,46 @@ girarsi, leggere i nomi **senza tenere il telefono alzato**, e ritrovare una cim
 quando la luce è finita. Ed è la risposta accessibile che le etichette disegnate
 non possono più dare — qui i nomi sono testo vero.
 
+### «Dov'è il Monte Rosa da qui»
+
+La domanda che il mirino non può porre, perché per riconoscere una cima bisogna
+già averla davanti. Qui si fa il contrario: si dice il nome e l'app dice da che
+parte girarsi.
+
+**Con 37.209 cime il difficile non è trovare, è ordinare.** Cercando «monte» le
+corrispondenze sono migliaia, e un elenco in ordine di file è inutile quanto
+nessun elenco. Due chiavi, in quest'ordine:
+
+1. **quanto bene il nome corrisponde** — esatto, poi inizio nome, poi inizio di
+   parola, poi sottostringa;
+2. **solo dopo, la distanza** da chi cerca.
+
+L'ordine fra le due conta, e non è simmetrico. Chi scrive «Monte Rosa» sa cosa
+vuole: l'esatto a duecento chilometri deve battere il somigliante dietro casa. Ma
+fra venticinque *Monte Nero* omonimi si intende quello che si ha davanti, e lì
+decide la distanza.
+
+L'**inizio di parola** non è un dettaglio da completezza: è il caso più comune di
+tutti, perché il nome proprio della montagna sta quasi sempre dopo il suo tipo —
+cercando «coca» si vuole trovare *Pizzo di Coca*.
+
+Gli accenti si tolgono prima di confrontare. Il catalogo è italiano, tedesco,
+francese e ladino insieme (*Tête de Chabrière*, *Piz de las Cavigliadas*,
+*Durcheckkopf*): senza piegatura la ricerca funzionerebbe solo per chi sa
+comporre gli accenti sulla tastiera. E l'apostrofo che produce un telefono **non
+è** quello che sta nel dataset — sono due caratteri Unicode diversi, e nessuno se
+lo aspetta finché non cerca *Cima d'Asta* e non trova niente.
+
+**La guida.** Una barra dice «47° a destra · 92 km»: il numero da solo non serve,
+il segno è metà dell'informazione. Quando la cima entra in quadro il messaggio
+cambia del tutto — a quel punto la domanda non è più dove sia — e sulla montagna
+compare un anello **aperto**, non un cerchio pieno: il bersaglio va indicato, non
+coperto, visto che la montagna sotto è quello che si è venuti a vedere.
+
+Nessun pulsante nuovo in una barra già piena: la ricerca si apre dal **chip della
+bussola**. Quel chip dice dove stai puntando; toccarlo chiede il contrario. La
+diagnostica admin è passata al tocco lungo.
+
 ### Terreno per fasce di distanza
 
 Il panorama era una macchia piatta perché di ogni direzione tenevamo un solo
