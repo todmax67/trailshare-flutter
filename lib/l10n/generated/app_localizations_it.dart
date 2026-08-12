@@ -718,6 +718,26 @@ class AppLocalizationsIt extends AppLocalizations {
   String get storageUsed => 'Spazio utilizzato';
 
   @override
+  String get includeTerrain => 'Includi il terreno per il Peak Finder';
+
+  @override
+  String includeTerrainHint(int tiles, String mb) {
+    return '$tiles tessere, circa $mb MB — serve a capire quali cime sono nascoste dietro un crinale, anche senza rete';
+  }
+
+  @override
+  String get downloadingTerrain => 'Scarico il terreno…';
+
+  @override
+  String get terrainStorage => 'Terreno Peak Finder';
+
+  @override
+  String get clearTerrainCache => 'Elimina il terreno scaricato';
+
+  @override
+  String get terrainCleared => 'Terreno eliminato';
+
+  @override
   String get units => 'Unità di misura';
 
   @override

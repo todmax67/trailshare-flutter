@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
+import '../utils/dem_tile_codec.dart';
 import '../utils/viewshed_compute.dart';
 
 /// Fetch e decode di tile DEM da AWS Open Terrain Tiles.
@@ -60,6 +60,139 @@ class TerrainTileService {
 
   /// True se la cache su disco è pronta.
   bool get diskCacheReady => _diskInitialized && _diskBox != null;
+
+  /// Scarica in anticipo tutto il terreno di una zona e lo tiene su disco.
+  ///
+  /// È il pezzo che mancava perché la funzione servisse a qualcosa dove la si
+  /// usa: in quota il campo non c'è, e finora il Peak Finder degradava proprio
+  /// lì. La cache opportunistica aiuta solo chi è già passato in quel posto
+  /// **con la rete**.
+  ///
+  /// Scarica entrambe le risoluzioni che il viewshed usa — quella larga per il
+  /// raggio pieno e quella fitta per il campo vicino — perché scaricarne una
+  /// sola lascerebbe la funzione a metà senza che l'utente lo sappia.
+  ///
+  /// Restituisce quanti tile sono stati scaricati; `null` se interrotto.
+  Future<TerrainPrefetchResult> prefetchArea({
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    List<int> zooms = const [10, 12],
+    void Function(int done, int total)? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    // Un download chiesto esplicitamente deve persistere, qualunque sia il
+    // tier: la cache automatica è un'ottimizzazione, questa è una promessa.
+    await enableDiskCache();
+
+    final wanted = <List<int>>[];
+    for (final z in zooms) {
+      wanted.addAll(_tilesInBbox(
+        minLat: minLat, maxLat: maxLat,
+        minLng: minLng, maxLng: maxLng,
+        zoom: z,
+      ));
+    }
+    if (wanted.isEmpty) {
+      return const TerrainPrefetchResult(requested: 0, downloaded: 0, failed: 0);
+    }
+
+    var done = 0;
+    var failed = 0;
+    var downloaded = 0;
+    onProgress?.call(0, wanted.length);
+
+    const batchSize = 6;
+    for (var i = 0; i < wanted.length; i += batchSize) {
+      if (isCancelled?.call() ?? false) {
+        return TerrainPrefetchResult(
+          requested: wanted.length,
+          downloaded: downloaded,
+          failed: failed,
+          cancelled: true,
+        );
+      }
+      final batch = wanted.skip(i).take(batchSize).map((t) async {
+        // Già su disco: non si rifà la rete. Il senso del prefetch è riempire
+        // i buchi, non ripagare quello che c'è.
+        final key = '${t[0]}/${t[1]}/${t[2]}';
+        if (_diskBox?.containsKey(key) ?? false) return true;
+        final tile = await _fetchTile(t[0], t[1], t[2]);
+        return tile != null;
+      });
+      final results = await Future.wait(batch);
+      for (final ok in results) {
+        done++;
+        if (ok) {
+          downloaded++;
+        } else {
+          failed++;
+        }
+      }
+      onProgress?.call(done, wanted.length);
+      // Respiro fra i lotti, come fa il download delle mappe: saturare la rete
+      // rende l'app inutilizzabile mentre scarica.
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+    }
+
+    debugPrint('[Terrain] prefetch: $downloaded/${wanted.length} tile '
+        '($failed falliti)');
+    return TerrainPrefetchResult(
+      requested: wanted.length,
+      downloaded: downloaded,
+      failed: failed,
+    );
+  }
+
+  /// Quanti tile servono per una zona, per stimare tempo e spazio prima di
+  /// cominciare.
+  int estimateTileCount({
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    List<int> zooms = const [10, 12],
+  }) {
+    var n = 0;
+    for (final z in zooms) {
+      n += _tilesInBbox(
+        minLat: minLat, maxLat: maxLat,
+        minLng: minLng, maxLng: maxLng,
+        zoom: z,
+      ).length;
+    }
+    return n;
+  }
+
+  /// Byte medi per tile nel formato compatto, misurati su terreno montano.
+  /// Serve solo a stimare: la pianura comprime molto di più.
+  static const int averageTileBytes = 44 * 1024;
+
+  /// Spazio occupato dal terreno su disco, in byte, e numero di tile.
+  ///
+  /// Non esisteva alcun modo di saperlo né di liberarlo: la box cresceva senza
+  /// limite e senza che comparisse da nessuna parte. Su uno spazio che l'utente
+  /// non vede non può decidere.
+  Future<({int bytes, int tiles})> diskCacheUsage() async {
+    await enableDiskCache();
+    final box = _diskBox;
+    if (box == null) return (bytes: 0, tiles: 0);
+    var total = 0;
+    for (final key in box.keys) {
+      total += box.get(key)?.lengthInBytes ?? 0;
+    }
+    return (bytes: total, tiles: box.length);
+  }
+
+  /// Cancella tutto il terreno memorizzato.
+  Future<void> clearDiskCache() async {
+    await enableDiskCache();
+    await _diskBox?.clear();
+    _memCache.clear();
+    _memCacheOrder.clear();
+    debugPrint('[Terrain] cache su disco svuotata');
+  }
 
   /// Costruisce un [DemGrid] coprente la bbox richiesta scaricando i tile
   /// terrarium necessari e mosaicandoli in una griglia unica.
@@ -248,43 +381,44 @@ class TerrainTileService {
     return tile;
   }
 
-  /// Encoding compatto su disco: 16 bytes header (w,h,minLat,maxLat,minLng,maxLng)
-  /// + Float32List elevations (raw little-endian).
-  Uint8List _tileToBytes(_DemTile t) {
-    final out = BytesBuilder();
-    final header = ByteData(16 + 4 * 4);
-    header.setUint32(0, t.width, Endian.little);
-    header.setUint32(4, t.height, Endian.little);
-    header.setFloat32(8, t.minLat, Endian.little);
-    header.setFloat32(12, t.maxLat, Endian.little);
-    header.setFloat32(16, t.minLng, Endian.little);
-    header.setFloat32(20, t.maxLng, Endian.little);
-    out.add(header.buffer.asUint8List());
-    out.add(t.elevations.buffer.asUint8List());
-    return out.toBytes();
-  }
+  /// Serializzazione su disco nel formato compatto: differenze fra campioni
+  /// adiacenti, varint, compresse. Un tile di montagna passa da 256 KB a ~43,
+  /// il che è la differenza fra un pacchetto alpino da 115 MB e uno da 19.
+  Uint8List _tileToBytes(_DemTile t) => encodeDemTile(DemTileData(
+        width: t.width,
+        height: t.height,
+        minLat: t.minLat,
+        maxLat: t.maxLat,
+        minLng: t.minLng,
+        maxLng: t.maxLng,
+        elevations: t.elevations,
+      ));
 
   _DemTile? _bytesToTile(Uint8List bytes, int z, int x, int y) {
     try {
-      final bd = ByteData.sublistView(bytes, 0, 32);
-      final w = bd.getUint32(0, Endian.little);
-      final h = bd.getUint32(4, Endian.little);
-      final minLat = bd.getFloat32(8, Endian.little);
-      final maxLat = bd.getFloat32(12, Endian.little);
-      final minLng = bd.getFloat32(16, Endian.little);
-      final maxLng = bd.getFloat32(20, Endian.little);
-      // Copia in nuovo Float32List per evitare problemi di allineamento
-      // (la Uint8List restituita da Hive non garantisce alignment a 4 byte).
-      final ele = Float32List(w * h);
-      final eleBytes = ByteData.sublistView(bytes, 32, 32 + w * h * 4);
-      for (int i = 0; i < w * h; i++) {
-        ele[i] = eleBytes.getFloat32(i * 4, Endian.little);
+      // Formato compatto.
+      final compact = decodeDemTile(bytes);
+      if (compact != null) {
+        return _DemTile(
+          z: z, x: x, y: y,
+          width: compact.width, height: compact.height,
+          minLat: compact.minLat, maxLat: compact.maxLat,
+          minLng: compact.minLng, maxLng: compact.maxLng,
+          elevations: compact.elevations,
+        );
       }
+
+      // Formato precedente: i telefoni hanno già una cache popolata, e
+      // costringerli a riscaricare tutto per un cambio di formato sarebbe
+      // gratuito solo per noi. Alla prima riscrittura il tile passa al nuovo.
+      final legacy = decodeLegacyDemTile(bytes);
+      if (legacy == null) return null;
       return _DemTile(
         z: z, x: x, y: y,
-        width: w, height: h,
-        minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
-        elevations: ele,
+        width: legacy.width, height: legacy.height,
+        minLat: legacy.minLat, maxLat: legacy.maxLat,
+        minLng: legacy.minLng, maxLng: legacy.maxLng,
+        elevations: legacy.elevations,
       );
     } catch (e) {
       debugPrint('[Terrain] decode disk bytes failed: $e');
@@ -521,6 +655,25 @@ class TerrainTileService {
   final ct = colTo.clamp(0, cols - 1);
   if (rf > rt || cf > ct) return null;
   return (rowFrom: rf, rowTo: rt, colFrom: cf, colTo: ct);
+}
+
+/// Esito di uno scarico anticipato del terreno.
+class TerrainPrefetchResult {
+  final int requested;
+  final int downloaded;
+  final int failed;
+  final bool cancelled;
+
+  const TerrainPrefetchResult({
+    required this.requested,
+    required this.downloaded,
+    required this.failed,
+    this.cancelled = false,
+  });
+
+  /// True se la zona è coperta abbastanza da poterci contare offline. Qualche
+  /// tile mancante ai bordi non compromette il risultato; molti sì.
+  bool get isUsable => requested > 0 && failed * 10 < requested;
 }
 
 /// Risultato decode in isolate. Solo tipi primitivi (Float32List + int)

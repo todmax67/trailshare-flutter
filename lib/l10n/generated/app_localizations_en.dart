@@ -718,6 +718,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storageUsed => 'Storage used';
 
   @override
+  String get includeTerrain => 'Include terrain for Peak Finder';
+
+  @override
+  String includeTerrainHint(int tiles, String mb) {
+    return '$tiles tiles, about $mb MB — tells which peaks are hidden behind a ridge, even without a connection';
+  }
+
+  @override
+  String get downloadingTerrain => 'Downloading terrain…';
+
+  @override
+  String get terrainStorage => 'Peak Finder terrain';
+
+  @override
+  String get clearTerrainCache => 'Delete downloaded terrain';
+
+  @override
+  String get terrainCleared => 'Terrain deleted';
+
+  @override
   String get units => 'Units';
 
   @override

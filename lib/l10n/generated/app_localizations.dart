@@ -1478,6 +1478,42 @@ abstract class AppLocalizations {
   /// **'Spazio utilizzato'**
   String get storageUsed;
 
+  /// No description provided for @includeTerrain.
+  ///
+  /// In it, this message translates to:
+  /// **'Includi il terreno per il Peak Finder'**
+  String get includeTerrain;
+
+  /// No description provided for @includeTerrainHint.
+  ///
+  /// In it, this message translates to:
+  /// **'{tiles} tessere, circa {mb} MB — serve a capire quali cime sono nascoste dietro un crinale, anche senza rete'**
+  String includeTerrainHint(int tiles, String mb);
+
+  /// No description provided for @downloadingTerrain.
+  ///
+  /// In it, this message translates to:
+  /// **'Scarico il terreno…'**
+  String get downloadingTerrain;
+
+  /// No description provided for @terrainStorage.
+  ///
+  /// In it, this message translates to:
+  /// **'Terreno Peak Finder'**
+  String get terrainStorage;
+
+  /// No description provided for @clearTerrainCache.
+  ///
+  /// In it, this message translates to:
+  /// **'Elimina il terreno scaricato'**
+  String get clearTerrainCache;
+
+  /// No description provided for @terrainCleared.
+  ///
+  /// In it, this message translates to:
+  /// **'Terreno eliminato'**
+  String get terrainCleared;
+
   /// No description provided for @units.
   ///
   /// In it, this message translates to:
