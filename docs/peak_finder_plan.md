@@ -513,6 +513,67 @@ Sono tutte a un parametro di distanza dalla correzione, se qualcosa non torna:
 
 ---
 
+## 7-bis. Stato al 2026-08-12 — Fasi 0, 1, 2 e 3 fatte e verificate sul campo
+
+Sei commit su `claude/compassionate-turing-9734eb`. Ogni riga è stata provata su
+un Motorola edge 60 pro in release, nelle Orobie.
+
+| Anello della catena | Prima | Ora |
+|---|---|---|
+| Direzione | canale bussola sbagliato (bordo alto, non obiettivo) | assetto fuso dall'OS |
+| Nord | magnetico su Android, geografico su iOS | geografico ovunque, declinazione 4,06° |
+| Roll | assente dal modello | misurato e compensato |
+| Quota osservatore | GPS (±20-50 m) | DEM |
+| **Terreno** | **letto specchiato nord-sud** | corretto, con test che bloccano la convenzione |
+| Occlusioni | skyline a settori di 1-2° (1,7 km di lato a 100 km) | linea di vista verso ogni cima |
+| Margine | 0,5° = 436 m di stacco a 50 km | 0,05° |
+| Campionamento | 250 m su celle da 110 | mezza cella (Nyquist), DEM a due risoluzioni |
+| Candidate | 200 più vicine | 1200 per imponenza apparente |
+| **Campo visivo** | **60° supposti** | **39,4° misurati dall'obiettivo** |
+| Riferimento visivo | nessuno | profilo dell'orizzonte disegnato |
+| Correzione utente | solo FOV (una scala, per un errore di offset) | trascinamento, con scadenza |
+| **Offline** | **non funzionava** | **verificato in modalità aereo** |
+
+### Misure sul campo
+
+- **Cime visibili**: 23 (DEM specchiato) → 8 (DEM corretto) → 14 (margine e
+  campionamento corretti). Le 14 corrispondono a quelle reali, verificate a vista.
+- **Errore di puntamento residuo**: 1,7° all'aperto, 11° dentro casa accanto a un
+  telaio metallico. È ambientale, non di codice, e si annulla col trascinamento.
+- **Campo visivo**: 39,4°×72,8° misurati contro 60°×80° supposti. L'orizzontale
+  era sovrastimato del 52%, ed era la causa del residuo ai bordi. Nota: il valore
+  corretto stava **fuori** dall'intervallo dello slider di calibrazione (minimo
+  40°), quindi nessuna regolazione manuale avrebbe mai potuto raggiungerlo.
+- **Tempi**: viewshed 1250 ms online a cache calda, **331 ms in modalità aereo**.
+- **Terreno su disco**: da 256 KB a 43 KB per tessera (6× in montagna). Una zona
+  alpina passa da ~115 MB a ~19 MB.
+
+### Cosa ha trovato la revisione avversariale
+
+Due tornate, ~128 agenti, 19 difetti confermati dopo doppia verifica. I due che
+da soli giustificano il metodo:
+
+1. **Il DEM veniva riletto specchiato nord-sud** (mosaico e lettura con
+   convenzioni opposte per le righe). Il viewshed guardava a nord e trovava il
+   terreno di sud: il filtro rispondeva a una domanda diversa da quella posta.
+   Invisibile perché l'osservatore sta al centro della bbox, cioè sull'asse dello
+   specchio, dove la quota torna giusta.
+2. **Il profilo dell'orizzonte non veniva mai invalidato**: restava disegnato
+   quello di un'altra valle. Non è un difetto estetico — l'utente lo vede non
+   combaciare, trascina per allinearlo e salva un offset falso che sposta anche
+   le etichette. Lo strumento che deve dimostrare la correttezza sarebbe
+   diventato la causa dell'errore.
+
+### Rimandato, con motivo
+
+- **Pre-cache lungo un percorso scaricato** (era 3.2): il download per-traccia
+  **non esiste** nel progetto. Non è un aggancio, è una funzione a sé.
+- **Layout in landscape**: la barra dei comandi e la card "N cime riconosciute"
+  coprono le etichette. Visto in campo, è un problema di composizione e non di
+  geometria.
+
+---
+
 ## 8. Domande aperte (decisione del founder)
 
 1. **Packaging.** Oggi il viewshed è attivo per tutti con limiti Free e l'unica cosa davvero
