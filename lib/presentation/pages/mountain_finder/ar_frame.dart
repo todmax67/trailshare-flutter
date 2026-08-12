@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart' show Size;
 
 import '../../../core/utils/camera_orientation.dart';
 import '../../../core/utils/mountain_projection.dart';
+import '../../../data/models/mountain_peak.dart';
 
 /// Lo stato che cambia a ogni campione dei sensori, separato dall'albero dei
 /// widget.
@@ -45,6 +46,18 @@ class ArFrame extends ChangeNotifier {
 
   /// La cima più centrata, quella che l'utente sta inquadrando.
   String? centeredId;
+
+  /// La cima cercata per nome, se ce n'è una. È il bersaglio verso cui girarsi.
+  MountainPeak? target;
+
+  /// Di quanto e da che parte girarsi per averla davanti. Positivo = a destra.
+  double targetTurnDeg = 0;
+
+  double targetDistanceM = 0;
+
+  /// Dove cade sullo schermo, se è già nell'inquadratura. `null` = va cercata
+  /// girandosi, ed è il caso per cui esiste la funzione.
+  ProjectedPeak? targetProjected;
 
   /// Da chiamare dopo aver aggiornato i campi. Un solo punto di notifica, così
   /// non si finisce a notificare tre volte per fotogramma.

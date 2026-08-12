@@ -51,6 +51,47 @@ class ArPeaksPainter extends CustomPainter {
     _paintStems(canvas);
     _paintDots(canvas, projected, centeredId);
     _paintLabels(canvas, centeredId);
+    _paintTarget(canvas);
+  }
+
+  /// La cima cercata, quando è già nell'inquadratura.
+  ///
+  /// Un anello aperto e non un cerchio pieno: il bersaglio va indicato, non
+  /// coperto — la montagna sotto è quello che si è venuti a vedere.
+  void _paintTarget(Canvas canvas) {
+    final t = frame.targetProjected;
+    if (t == null) return;
+    final c = Offset(t.screenX, t.screenY);
+
+    canvas.drawCircle(
+      c,
+      20,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..color = const Color(0x66000000),
+    );
+    canvas.drawCircle(
+      c,
+      20,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = AppColors.primary,
+    );
+    // Quattro tacche a croce: dicono "questo qui" meglio di un anello liscio,
+    // che in mezzo alle etichette si confonderebbe con un punto grosso.
+    for (final a in [0, 90, 180, 270]) {
+      final r = a * math.pi / 180;
+      final d = Offset(math.cos(r), math.sin(r));
+      canvas.drawLine(
+        c + d * 20,
+        c + d * 29,
+        Paint()
+          ..strokeWidth = 3
+          ..color = AppColors.primary,
+      );
+    }
   }
 
   void _paintStems(Canvas canvas) {

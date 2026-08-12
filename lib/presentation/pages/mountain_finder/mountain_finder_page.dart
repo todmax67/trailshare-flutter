@@ -16,6 +16,7 @@ import '../../../core/services/peaks_dataset_service.dart';
 import '../../../core/services/pro_gate_service.dart';
 import '../../../core/services/terrain_tile_service.dart';
 import '../../../core/services/viewshed_service.dart';
+import '../../../core/utils/peak_search.dart' show relativeTurnDeg;
 import '../../../core/utils/viewshed_compute.dart' show TerrainProfiles;
 import '../../../core/utils/camera_fov.dart';
 import '../../../core/utils/camera_orientation.dart';
@@ -34,6 +35,7 @@ import '../../widgets/skyline_overlay.dart';
 import '../../widgets/sun_path_overlay.dart';
 import 'ar_frame.dart';
 import 'ar_peaks_painter.dart';
+import 'peak_search_sheet.dart';
 import 'visible_peaks_sheet.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
@@ -98,6 +100,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// `Listenable` che i painter ascoltano direttamente, cosi' l'albero dei
   /// widget resta fermo mentre si muove solo il disegno.
   final ArFrame _arFrame = ArFrame();
+
+  /// La cima cercata per nome, verso cui l'app sta guidando. `null` = nessuna
+  /// ricerca attiva.
+  MountainPeak? _targetPeak;
 
   /// Testi delle etichette gia' composti. Vive nella pagina e non nel painter,
   /// perche' il painter viene ricreato a ogni `build` e la cache deve
@@ -531,7 +537,40 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
     final centeredId = projected.isEmpty ? null : projected.first.peak.id;
 
+    // Il bersaglio della ricerca: dove sta, e di quanto girarsi per averlo
+    // davanti. Si ricalcola qui perche' dipende dall'orientamento come tutto il
+    // resto — ed e' l'unica parte della scena che ha senso anche quando la cima
+    // e' fuori dall'inquadratura.
+    final target = _targetPeak;
+    ProjectedPeak? targetProjected;
+    var targetTurn = 0.0;
+    var targetDist = 0.0;
+    if (target != null && pos != null && basis != null) {
+      targetDist = haversineMeters(
+          pos.latitude, pos.longitude, target.latitude, target.longitude);
+      targetTurn = relativeTurnDeg(
+        basis.azimuthDeg,
+        initialBearingDeg(
+            pos.latitude, pos.longitude, target.latitude, target.longitude),
+      );
+      targetProjected = MountainProjection.project(
+        peak: target,
+        observerLat: pos.latitude,
+        observerLng: pos.longitude,
+        observerElevationMeters: _observerEyeElevationM,
+        basis: basis,
+        viewport: viewport,
+        horizontalFovDeg: hFov,
+        verticalFovDeg: vFov,
+        zoom: _zoomLevel,
+      );
+    }
+
     _arFrame
+      ..target = target
+      ..targetProjected = targetProjected
+      ..targetTurnDeg = targetTurn
+      ..targetDistanceM = targetDist
       ..basis = basis
       ..horizontalFovDeg = hFov
       ..verticalFovDeg = vFov
@@ -1462,6 +1501,19 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
               ),
             ),
 
+            // Guida verso la cima cercata. E' chrome e non scena: ha del testo
+            // e un pulsante per chiuderla, quindi resta un widget invece di
+            // finire nel painter.
+            Positioned(
+              left: 12,
+              right: 12,
+              top: 62,
+              child: AnimatedBuilder(
+                animation: _arFrame,
+                builder: (context, _) => _buildTargetBanner(),
+              ),
+            ),
+
             // Reticolo centrale (mirino). In un RepaintBoundary perche' non si
             // muove mai: senza, verrebbe ridipinto insieme a tutto il resto
             // venticinque volte al secondo.
@@ -1599,7 +1651,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             // gli admin: la barra è già piena, e un pulsante in più andrebbe
             // in overflow sui telefoni stretti.
             child: GestureDetector(
-              onTap: _isAdmin
+              // Il chip dice dove stai puntando: toccarlo chiede il contrario,
+              // cioe' dove sta una cima che non hai davanti. Non serve un
+              // pulsante in piu' in una barra gia' piena.
+              onTap: _openPeakSearch,
+              onLongPress: _isAdmin
                   ? () => setState(() => _showDiagnostics = !_showDiagnostics)
                   : null,
               behavior: HitTestBehavior.opaque,
@@ -1829,6 +1885,107 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     return AnimatedBuilder(
       animation: _arFrame,
       builder: (context, _) => _buildInfoCardBody(),
+    );
+  }
+
+  /// Cerca una cima per nome e la imposta come bersaglio.
+  Future<void> _openPeakSearch() async {
+    final scelta = await showModalBottomSheet<MountainPeak>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      builder: (ctx) => PeakSearchSheet(
+        observerLat: _userPosition?.latitude,
+        observerLng: _userPosition?.longitude,
+      ),
+    );
+    if (scelta == null || !mounted) return;
+    setState(() => _targetPeak = scelta);
+    _recomputeArFrame();
+  }
+
+  void _clearTarget() {
+    setState(() => _targetPeak = null);
+    _recomputeArFrame();
+  }
+
+  /// La barra che dice da che parte girarsi per avere davanti la cima cercata.
+  ///
+  /// Il numero da solo non serve: «47°» non dice niente, «47° a destra» sì. E
+  /// quando la cima è già in quadro il messaggio cambia del tutto, perché a
+  /// quel punto la domanda non è più dove sia.
+  Widget _buildTargetBanner() {
+    final t = _arFrame.target;
+    if (t == null) return const SizedBox.shrink();
+
+    final inQuadro = _arFrame.targetProjected != null;
+    final turn = _arFrame.targetTurnDeg;
+    final km = _arFrame.targetDistanceM / 1000;
+    final distanza =
+        km < 10 ? '${km.toStringAsFixed(1)} km' : '${km.round()} km';
+
+    final indicazione = inQuadro
+        ? 'ce l\'hai davanti · $distanza'
+        : '${turn.abs().round()}° a ${turn >= 0 ? "destra" : "sinistra"} · '
+            '$distanza';
+
+    return Material(
+      color: (inQuadro ? AppColors.success : AppColors.primary)
+          .withValues(alpha: 0.92),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+        child: Row(
+          children: [
+            Icon(
+              inQuadro
+                  ? Icons.center_focus_strong
+                  : (turn >= 0 ? Icons.turn_right : Icons.turn_left),
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    t.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    indicazione,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 20),
+              onPressed: _clearTarget,
+              tooltip: context.l10n.cancel,
+            ),
+          ],
+        ),
+      ),
     );
   }
 

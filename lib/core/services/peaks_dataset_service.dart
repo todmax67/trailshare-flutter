@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../../data/models/mountain_peak.dart';
+import '../utils/peak_search.dart';
 
 /// Servizio singleton che carica e tiene in memoria il dataset offline
 /// di tutte le cime italiane (`assets/data/peaks_italy.json`, ~37k voci,
@@ -67,6 +68,28 @@ class PeaksDatasetService {
     } finally {
       _loading = false;
     }
+  }
+
+  /// Cerca cime per nome in tutto il catalogo.
+  ///
+  /// Non filtra per distanza: chi cerca il Monte Rosa lo vuole trovare anche se
+  /// è a duecento chilometri. La distanza serve a **ordinare**, ed è la seconda
+  /// chiave dopo la qualità della corrispondenza — vedi [searchPeaksByName].
+  List<PeakSearchHit> searchByName(
+    String query, {
+    double? observerLat,
+    double? observerLng,
+    int limit = 40,
+  }) {
+    final all = _peaks;
+    if (all == null || all.isEmpty) return const [];
+    return searchPeaksByName(
+      all,
+      query,
+      observerLat: observerLat,
+      observerLng: observerLng,
+      limit: limit,
+    );
   }
 
   /// Ritorna le cime entro un raggio (km) dalla posizione data.
