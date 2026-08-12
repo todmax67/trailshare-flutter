@@ -139,4 +139,172 @@ void main() {
           reason: 'cima oltre orizzonte → elevation angle negativo');
     });
   });
+
+  group('convenzione delle righe della griglia', () {
+    // I DemGrid scritti a mano nei test non passano mai dal mosaico, quindi
+    // non possono accorgersi se chi riempie la griglia e chi la legge usano
+    // convenzioni opposte per le righe. È successo: il mosaico scriveva riga
+    // 0 = nord ed elevationAt leggeva riga 0 = sud, e il DEM veniva riletto
+    // specchiato attorno alla latitudine centrale. Questi test bloccano la
+    // convenzione a monte, dove entrambe le parti la leggono.
+
+    DemGrid grid(List<double> ele, {int rows = 5, int cols = 5}) => DemGrid(
+          minLat: 45.0, maxLat: 46.0,
+          minLng: 9.0, maxLng: 10.0,
+          rows: rows, cols: cols,
+          elevations: ele,
+        );
+
+    test('riga 0 = bordo sud, ultima riga = bordo nord', () {
+      final g = grid(List<double>.filled(25, 0));
+      expect(g.latForRow(0), closeTo(45.0, 1e-9));
+      expect(g.latForRow(4), closeTo(46.0, 1e-9));
+      expect(g.lngForCol(0), closeTo(9.0, 1e-9));
+      expect(g.lngForCol(4), closeTo(10.0, 1e-9));
+    });
+
+    test('scrivere con latForRow e rileggere con elevationAt dà lo stesso valore',
+        () {
+      const rows = 7, cols = 5;
+      final ele = List<double>.filled(rows * cols, 0);
+      final g = grid(ele, rows: rows, cols: cols);
+      // Ogni cella marcata con un valore univoco.
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          ele[r * cols + c] = r * 100.0 + c;
+        }
+      }
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          expect(
+            g.elevationAt(g.latForRow(r), g.lngForCol(c)),
+            closeTo(r * 100.0 + c, 1e-6),
+            reason: 'cella ($r,$c) riletta da un\'altra posizione',
+          );
+        }
+      }
+    });
+
+    test('un terreno che sale verso nord si rilegge in salita verso nord', () {
+      // È il controllo che smaschera lo specchio: con la convenzione sbagliata
+      // a nord si leggerebbero le quote del sud.
+      const rows = 101, cols = 3;
+      final ele = List<double>.filled(rows * cols, 0);
+      final g = grid(ele, rows: rows, cols: cols);
+      for (var r = 0; r < rows; r++) {
+        final quota = 1000 * (g.latForRow(r) - 45.0);
+        for (var c = 0; c < cols; c++) {
+          ele[r * cols + c] = quota;
+        }
+      }
+      expect(g.elevationAt(45.05, 9.5), closeTo(50, 12));
+      expect(g.elevationAt(45.95, 9.5), closeTo(950, 12));
+      expect(g.elevationAt(45.50, 9.5), closeTo(500, 12));
+    });
+  });
+
+  group('celle DEM senza dato (NaN)', () {
+    /// Muro continuo con dentro qualche cella "non so", come succede quando un
+    /// tile non si scarica. Prima quelle celle valevano 0 m sul livello del
+    /// mare e il muro diventava una finestra: si vedeva *attraverso* la
+    /// montagna.
+    /// Righe 30-35 ≈ lat 44,81-44,86: il muro sta **fra** l'osservatore
+    /// (44,75) e la cima (44,95), non sopra l'osservatore.
+    DemGrid wallWithHoles({required bool holesAreNaN}) {
+      const rows = 50, cols = 50;
+      final ele = List<double>.filled(rows * cols, 0.0);
+      for (int c = 10; c < 40; c++) {
+        for (int r = 30; r < 36; r++) {
+          ele[r * cols + c] = 2000;
+        }
+      }
+      // Buco nel muro proprio sulla linea di vista verso la cima.
+      for (int r = 30; r < 36; r++) {
+        for (int c = 23; c < 28; c++) {
+          ele[r * cols + c] = holesAreNaN ? double.nan : 0.0;
+        }
+      }
+      return DemGrid(
+        minLat: 44.5, maxLat: 45.0,
+        minLng: 8.5, maxLng: 9.0,
+        rows: rows, cols: cols,
+        elevations: ele,
+      );
+    }
+
+    ViewshedResult run(DemGrid dem) => computeViewshed(ViewshedRequest(
+          observerLat: 44.75,
+          observerLng: 8.75,
+          dem: dem,
+          maxRadiusKm: 40,
+          rayStepMeters: 100,
+          azimuthSteps: 360,
+          candidatePeaks: const [
+            {'id': 'behind', 'lat': 44.95, 'lng': 8.75, 'ele': 1500.0},
+          ],
+        ));
+
+    test('elevationAt propaga il NaN invece di inventare una quota', () {
+      final dem = wallWithHoles(holesAreNaN: true);
+      // Centro del buco: riga 32 di 50, colonna 25.
+      final lat = 44.5 + 32 / 49 * 0.5;
+      final lng = 8.5 + 25 / 49 * 0.5;
+      expect(dem.elevationAt(lat, lng).isNaN, isTrue);
+    });
+
+    test('la cima oltre il buco è mostrata ma dichiarata incerta', () {
+      // Non possiamo dimostrare che sia nascosta — il terreno lì non lo
+      // conosciamo — quindi la mostriamo. Ma non è una certezza, e chi legge
+      // deve poterlo sapere.
+      final pr = run(wallWithHoles(holesAreNaN: true)).peaks.first;
+      expect(pr.visible, isTrue);
+      expect(pr.uncertain, isTrue);
+    });
+
+    test('con i buchi a quota 0 la stessa cima passava per certa', () {
+      // È il bug di prima: un tile mancante diventava mare, e la cima dietro
+      // risultava visibile *senza alcun dubbio dichiarato*.
+      final pr = run(wallWithHoles(holesAreNaN: false)).peaks.first;
+      expect(pr.visible, isTrue);
+      expect(pr.uncertain, isFalse);
+    });
+
+    test('un muro integro occlude, e senza incertezze', () {
+      const rows = 50, cols = 50;
+      final ele = List<double>.filled(rows * cols, 0.0);
+      for (int c = 10; c < 40; c++) {
+        for (int r = 30; r < 36; r++) {
+          ele[r * cols + c] = 2000;
+        }
+      }
+      final pr = run(DemGrid(
+        minLat: 44.5, maxLat: 45.0,
+        minLng: 8.5, maxLng: 9.0,
+        rows: rows, cols: cols,
+        elevations: ele,
+      )).peaks.first;
+      expect(pr.visible, isFalse);
+      expect(pr.uncertain, isFalse);
+    });
+
+    test('il terreno ignoto oltre la cima non la rende incerta', () {
+      // Buco messo più lontano della cima: non può occluderla, quindi non
+      // deve inquinare il giudizio.
+      const rows = 50, cols = 50;
+      final ele = List<double>.filled(rows * cols, 0.0);
+      for (int r = 46; r < 50; r++) {
+        for (int c = 20; c < 30; c++) {
+          ele[r * cols + c] = double.nan;
+        }
+      }
+      final pr = run(DemGrid(
+        minLat: 44.5, maxLat: 45.0,
+        minLng: 8.5, maxLng: 9.0,
+        rows: rows, cols: cols,
+        elevations: ele,
+      )).peaks.first;
+      expect(pr.visible, isTrue);
+      expect(pr.uncertain, isFalse);
+    });
+  });
 }

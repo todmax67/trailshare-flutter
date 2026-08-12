@@ -20,12 +20,18 @@ class VisiblePeak {
   /// `elevationAngleDeg > skylineAngleDeg + margin`.
   final double skylineAngleDeg;
 
+  /// True quando fra noi e la cima c'è terreno che il DEM non copre: la
+  /// mostriamo comunque (non possiamo dimostrare che sia nascosta) ma non è
+  /// una certezza, ed è giusto che l'interfaccia lo dica.
+  final bool uncertain;
+
   const VisiblePeak({
     required this.peak,
     required this.azimuthDeg,
     required this.distanceMeters,
     required this.elevationAngleDeg,
     required this.skylineAngleDeg,
+    this.uncertain = false,
   });
 
   /// Quanto la cima sporge dall'orizzonte locale. Positivo = visibile pulita,

@@ -88,6 +88,22 @@ class DemGrid {
     required this.elevations,
   });
 
+  /// Latitudine del centro della riga [row]. **Riga 0 = bordo SUD** della bbox.
+  ///
+  /// Questa è *la* convenzione della griglia, quella che segue [elevationAt], e
+  /// chi riempie `elevations` deve usare la stessa. Non è pedanteria: le due
+  /// metà erano scritte con convenzioni opposte e il DEM veniva riletto
+  /// **specchiato nord-sud**, quindi il viewshed guardava verso nord e trovava
+  /// il terreno che sta a sud. L'errore era invisibile esattamente nel punto in
+  /// cui si tende a controllare — l'osservatore sta al centro della bbox, cioè
+  /// sull'asse dello specchio, dove la quota risulta giusta.
+  double latForRow(int row) =>
+      rows <= 1 ? minLat : minLat + row * (maxLat - minLat) / (rows - 1);
+
+  /// Longitudine del centro della colonna [col]. Colonna 0 = bordo ovest.
+  double lngForCol(int col) =>
+      cols <= 1 ? minLng : minLng + col * (maxLng - minLng) / (cols - 1);
+
   /// Lookup bilineare (lat,lng) → quota in metri. Restituisce
   /// [double.nan] se fuori bbox (così il viewshed sa distinguere "out of
   /// grid" da "sea level = 0").
@@ -117,11 +133,20 @@ class ViewshedResult {
   /// Skyline in gradi per ogni step di azimut. Lunghezza = `azimuthSteps`.
   final List<double> skylineAngles;
 
+  /// Per ogni azimut, la distanza (m) del **primo** campione di terreno
+  /// sconosciuto lungo il raggio, o infinito se il DEM copre tutto.
+  ///
+  /// Serve a non confondere "non c'è niente che la occluda" con "non so cosa
+  /// ci sia in mezzo": un tile mancante è un pezzo di montagna che non
+  /// vediamo, non una pianura.
+  final List<double> unknownFromMeters;
+
   /// Risultati per ogni cima candidata, stessi indici input.
   final List<PeakResult> peaks;
 
   const ViewshedResult({
     required this.skylineAngles,
+    required this.unknownFromMeters,
     required this.peaks,
   });
 }
@@ -134,6 +159,11 @@ class PeakResult {
   final double skylineAngleDeg;
   final bool visible;
 
+  /// True quando la dichiariamo visibile ma il terreno fra noi e lei è in
+  /// parte sconosciuto: potrebbe esserci un crinale che non abbiamo scaricato.
+  /// Chi mostra la cima dovrebbe dirlo, invece di far credere a una certezza.
+  final bool uncertain;
+
   const PeakResult({
     required this.id,
     required this.azimuthDeg,
@@ -141,6 +171,7 @@ class PeakResult {
     required this.elevationAngleDeg,
     required this.skylineAngleDeg,
     required this.visible,
+    this.uncertain = false,
   });
 }
 
@@ -153,24 +184,33 @@ ViewshedResult computeViewshed(ViewshedRequest req) {
 
   // 2. Skyline: per ogni azimut, ray-march fino a maxRadius.
   final skyline = List<double>.filled(req.azimuthSteps, -90.0);
+  final unknownFrom = List<double>.filled(req.azimuthSteps, double.infinity);
   final maxRangeM = req.maxRadiusKm * 1000.0;
 
   for (int aIdx = 0; aIdx < req.azimuthSteps; aIdx++) {
     final azDeg = aIdx * 360.0 / req.azimuthSteps;
     double maxAngle = -90.0;
+    double firstUnknown = double.infinity;
 
     for (double d = req.rayStepMeters.toDouble();
         d <= maxRangeM;
         d += req.rayStepMeters) {
       final pt = _destinationPoint(req.observerLat, req.observerLng, azDeg, d);
       final ele = req.dem.elevationAt(pt[0], pt[1]);
-      if (ele.isNaN) continue; // fuori grid
+      if (ele.isNaN) {
+        // Terreno sconosciuto (fuori griglia o tile non scaricato). Lo saltiamo
+        // — non possiamo inventarci una quota — ma ce ne ricordiamo: da qui in
+        // poi lo skyline su questo raggio è una stima per difetto.
+        if (d < firstUnknown) firstUnknown = d;
+        continue;
+      }
       final apparentEle = ele - _earthDropMeters(d);
       final dy = apparentEle - eyeElev;
       final angle = math.atan2(dy, d) * 180 / math.pi;
       if (angle > maxAngle) maxAngle = angle;
     }
     skyline[aIdx] = maxAngle;
+    unknownFrom[aIdx] = firstUnknown;
   }
 
   // 3. Per ogni cima candidata: distanza, azimut, angolo elev, confronto.
@@ -189,6 +229,7 @@ ViewshedResult computeViewshed(ViewshedRequest req) {
 
     final azIdx = (az / (360.0 / req.azimuthSteps)).round() % req.azimuthSteps;
     final skyAngle = skyline[azIdx];
+    final visible = angle > skyAngle + req.visibilityMarginDeg;
 
     peaks.add(PeakResult(
       id: id,
@@ -196,11 +237,19 @@ ViewshedResult computeViewshed(ViewshedRequest req) {
       distanceMeters: dist,
       elevationAngleDeg: angle,
       skylineAngleDeg: skyAngle,
-      visible: angle > skyAngle + req.visibilityMarginDeg,
+      visible: visible,
+      // Se il terreno lungo il raggio è ignoto *prima* della cima, il fatto che
+      // nulla la occluda non dimostra nulla. Se invece è già occlusa dal
+      // terreno che conosciamo, il buco più in là non cambia la conclusione.
+      uncertain: visible && unknownFrom[azIdx] < dist,
     ));
   }
 
-  return ViewshedResult(skylineAngles: skyline, peaks: peaks);
+  return ViewshedResult(
+    skylineAngles: skyline,
+    unknownFromMeters: unknownFrom,
+    peaks: peaks,
+  );
 }
 
 /// Drop apparente dovuto a curvatura terrestre + rifrazione atmosferica.

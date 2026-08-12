@@ -108,10 +108,55 @@ class TerrainTileService {
     }
 
     if (fetched.isEmpty) return null;
+    if (fetched.length < tiles.length) {
+      debugPrint('[Terrain] ⚠️ ${tiles.length - fetched.length} tile su '
+          '${tiles.length} non scaricati: quelle zone restano NaN');
+    }
 
-    // Mosaico: trova bbox totale dei tile, crea griglia destinazione
-    // sufficientemente densa, riempi pixel-by-pixel con lookup nearest tile.
-    return _mosaic(fetched);
+    // Mosaico sulla bbox **richiesta**, non su quella dei soli tile riusciti:
+    // altrimenti un tile mancante al bordo restringe in silenzio la griglia,
+    // e nel caso peggiore la griglia non contiene nemmeno l'osservatore.
+    return _mosaic(
+      fetched,
+      minLat: minLat,
+      maxLat: maxLat,
+      minLng: minLng,
+      maxLng: maxLng,
+      zoom: zoom,
+    );
+  }
+
+  /// Quota del terreno in un punto, dal DEM. Scarica (e cacha) il solo tile
+  /// che contiene il punto, quindi dopo il primo accesso è immediata.
+  ///
+  /// Serve per la quota dell'**osservatore**: quella del GPS sbaglia di 20-50 m
+  /// su Android, che a 3 km di distanza vale un grado di errore verticale — i
+  /// pin scivolano sopra o sotto le cime. Il DEM è molto più stabile, ed è la
+  /// stessa quota che usa il viewshed: così le due metà del sistema concordano
+  /// su dove si trova l'utente.
+  ///
+  /// Zoom 12 (~30 m/pixel in Italia) perché qui conta la precisione locale, non
+  /// l'estensione: è un tile solo.
+  Future<double?> groundElevationAt(
+    double lat,
+    double lng, {
+    int zoom = 12,
+  }) async {
+    final n = math.pow(2, zoom).toInt();
+    final x = ((lng + 180) / 360 * n).floor().clamp(0, n - 1);
+    final y = _latToTileY(lat, zoom).clamp(0, n - 1);
+    final tile = await _fetchTile(zoom, x, y);
+    if (tile == null) return null;
+    final fy = (tile.maxLat - lat) /
+        (tile.maxLat - tile.minLat) *
+        (tile.height - 1);
+    final fx = (lng - tile.minLng) /
+        (tile.maxLng - tile.minLng) *
+        (tile.width - 1);
+    final ry = fy.round().clamp(0, tile.height - 1);
+    final rx = fx.round().clamp(0, tile.width - 1);
+    final ele = tile.elevations[ry * tile.width + rx];
+    return ele.isFinite ? ele.toDouble() : null;
   }
 
   Future<_DemTile?> _fetchTile(int z, int x, int y) async {
@@ -247,35 +292,50 @@ class TerrainTileService {
     _memCacheOrder.add(key);
   }
 
-  /// Combina più tile in una griglia DemGrid unica con risoluzione uniforme.
-  /// La risoluzione output combacia con quella dei tile (256 px per tile).
-  DemGrid _mosaic(List<_DemTile> tiles) {
-    double minLat = double.infinity;
-    double maxLat = -double.infinity;
-    double minLng = double.infinity;
-    double maxLng = -double.infinity;
-    for (final t in tiles) {
-      if (t.minLat < minLat) minLat = t.minLat;
-      if (t.maxLat > maxLat) maxLat = t.maxLat;
-      if (t.minLng < minLng) minLng = t.minLng;
-      if (t.maxLng > maxLng) maxLng = t.maxLng;
-    }
-    // Pixel size: usa lo stesso dei tile (tutti hanno stesso zoom).
-    final z = tiles.first.z;
-    final tileCount = math.pow(2, z).toInt();
+  /// Combina più tile in una griglia DemGrid unica con risoluzione uniforme,
+  /// sulla bbox **richiesta**.
+  ///
+  /// Le celle che nessun tile copre restano **NaN**, non 0. Prima erano zeri
+  /// (la `Float32List` nasce azzerata) e il viewshed li leggeva come quota
+  /// valida sul livello del mare: un tile mancante diventava un buco da cui si
+  /// vedeva *attraverso* la montagna. NaN significa "non lo so", e chi legge
+  /// salta il campione invece di credere a una pianura che non esiste.
+  DemGrid _mosaic(
+    List<_DemTile> tiles, {
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    required int zoom,
+  }) {
+    // Pixel size: lo stesso dei tile (tutti allo stesso zoom).
+    final tileCount = math.pow(2, zoom).toInt();
     final lngRangePerTile = 360.0 / tileCount;
     final px = lngRangePerTile / tiles.first.width;
-    final cols = ((maxLng - minLng) / px).round();
-    final rows = ((maxLat - minLat) / px).round(); // approssimato (latitudine)
-    final out = Float32List(rows * cols);
+    final cols = math.max(2, ((maxLng - minLng) / px).round());
+    final rows = math.max(2, ((maxLat - minLat) / px).round());
+
+    // La griglia si costruisce PRIMA e si riempie attraverso i suoi stessi
+    // `latForRow`/`lngForCol`. Non è un vezzo: scrivendo la formula a mano qui
+    // dentro, questa funzione e `DemGrid.elevationAt` avevano finito per usare
+    // convenzioni opposte per le righe, e il DEM veniva letto specchiato
+    // nord-sud. Passando dai metodi della griglia le due cose non possono più
+    // divergere.
+    final out = List<double>.filled(rows * cols, double.nan);
+    final grid = DemGrid(
+      minLat: minLat, maxLat: maxLat,
+      minLng: minLng, maxLng: maxLng,
+      rows: rows, cols: cols,
+      elevations: out,
+    );
 
     // Per ogni cella destinazione, trova il tile contenente e fai sampling.
     for (int r = 0; r < rows; r++) {
-      final lat = maxLat - (r + 0.5) * (maxLat - minLat) / rows;
+      final lat = grid.latForRow(r);
       for (int c = 0; c < cols; c++) {
-        final lng = minLng + (c + 0.5) * (maxLng - minLng) / cols;
+        final lng = grid.lngForCol(c);
         final tile = _findTile(tiles, lat, lng);
-        if (tile == null) continue;
+        if (tile == null) continue; // resta NaN
         final fy = (tile.maxLat - lat) / (tile.maxLat - tile.minLat) * (tile.height - 1);
         final fx = (lng - tile.minLng) / (tile.maxLng - tile.minLng) * (tile.width - 1);
         final ry = fy.round().clamp(0, tile.height - 1);
@@ -284,12 +344,7 @@ class TerrainTileService {
       }
     }
 
-    return DemGrid(
-      minLat: minLat, maxLat: maxLat,
-      minLng: minLng, maxLng: maxLng,
-      rows: rows, cols: cols,
-      elevations: out.toList(growable: false),
-    );
+    return grid;
   }
 
   _DemTile? _findTile(List<_DemTile> tiles, double lat, double lng) {

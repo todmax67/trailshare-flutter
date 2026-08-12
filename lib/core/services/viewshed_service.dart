@@ -77,10 +77,33 @@ class ViewshedService {
     );
     if (dem == null) {
       debugPrint('[Viewshed] DEM nullo, abort');
-      return const ViewshedRunResult(visible: [], elapsedMs: 0, demRows: 0, demCols: 0);
+      return ViewshedRunResult(
+        visible: const [],
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        demRows: 0,
+        demCols: 0,
+        status: ViewshedStatus.demUnavailable,
+      );
     }
     debugPrint('[Viewshed] DEM pronto: ${dem.rows}×${dem.cols} '
         '(${(stopwatch.elapsedMilliseconds)}ms)');
+
+    // Quota del terreno sotto l'osservatore. Se qui il DEM non sa rispondere
+    // (tile mancante proprio dove siamo) ogni angolo calcolato diventa NaN e il
+    // risultato sarebbe "nessuna cima visibile" — indistinguibile da "sei in
+    // una conca". Meglio dichiararlo: chi chiama mostra lo stato invece di far
+    // sparire le cime in silenzio.
+    final observerGroundM = dem.elevationAt(observerLat, observerLng);
+    if (!observerGroundM.isFinite) {
+      debugPrint('[Viewshed] DEM senza copertura sulla posizione utente');
+      return ViewshedRunResult(
+        visible: const [],
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        demRows: dem.rows,
+        demCols: dem.cols,
+        status: ViewshedStatus.observerOutsideDem,
+      );
+    }
 
     // 2. Filtra candidati a quelli nel bbox (ottimizzazione: viewshed conosce
     //    solo cime dentro maxRadius).
@@ -96,6 +119,8 @@ class ViewshedService {
         elapsedMs: stopwatch.elapsedMilliseconds,
         demRows: dem.rows,
         demCols: dem.cols,
+        observerGroundElevationM: observerGroundM,
+        status: ViewshedStatus.noPeaksInRange,
       );
     }
 
@@ -132,6 +157,7 @@ class ViewshedService {
         distanceMeters: pr.distanceMeters,
         elevationAngleDeg: pr.elevationAngleDeg,
         skylineAngleDeg: pr.skylineAngleDeg,
+        uncertain: pr.uncertain,
       ));
     }
     visible.sort((a, b) => a.azimuthDeg.compareTo(b.azimuthDeg));
@@ -148,6 +174,8 @@ class ViewshedService {
       elapsedMs: stopwatch.elapsedMilliseconds,
       demRows: dem.rows,
       demCols: dem.cols,
+      observerGroundElevationM: observerGroundM,
+      status: ViewshedStatus.ok,
     );
 
     if (tier.persistentCache) {
@@ -210,18 +238,56 @@ class ViewshedTier {
   );
 }
 
+/// Esito di un calcolo viewshed. Serve a distinguere "non vedi nessuna cima"
+/// da "non ho potuto calcolarlo": prima erano la stessa cosa, e la funzione
+/// degradava in silenzio a "mostra tutte le cime" senza dirlo a nessuno.
+enum ViewshedStatus {
+  /// Calcolo completato.
+  ok,
+
+  /// Nessun tile DEM disponibile: tipicamente si è offline.
+  demUnavailable,
+
+  /// Il DEM non copre la posizione dell'utente (tile mancante proprio lì).
+  observerOutsideDem,
+
+  /// Nessuna cima candidata dentro il raggio.
+  noPeaksInRange,
+}
+
 class ViewshedRunResult {
   final List<VisiblePeak> visible;
   final int elapsedMs;
   final int demRows;
   final int demCols;
 
+  /// Quota del terreno sotto l'osservatore secondo il DEM, in metri.
+  /// `null` quando non è stato possibile calcolarla.
+  final double? observerGroundElevationM;
+
+  final ViewshedStatus status;
+
   const ViewshedRunResult({
     required this.visible,
     required this.elapsedMs,
     required this.demRows,
     required this.demCols,
+    this.observerGroundElevationM,
+    this.status = ViewshedStatus.ok,
   });
+
+  /// True se il filtro ha davvero girato: solo allora ha senso fidarsi
+  /// dell'elenco delle cime visibili.
+  bool get isReliable => status == ViewshedStatus.ok;
+
+  /// Quante delle cime mostrate lo sono senza certezza, perché il DEM non
+  /// copre tutto il terreno che sta in mezzo.
+  int get uncertainCount => visible.where((v) => v.uncertain).length;
+
+  /// True quando la copertura del terreno è così lacunosa che l'elenco va
+  /// preso con le pinze: più di un quarto delle cime è incerto.
+  bool get hasPatchyTerrain =>
+      visible.isNotEmpty && uncertainCount * 4 > visible.length;
 }
 
 class _CachedViewshed {
