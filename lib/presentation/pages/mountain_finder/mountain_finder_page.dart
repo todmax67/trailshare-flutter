@@ -349,7 +349,29 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         if (mounted && fov != null) setState(() => _sensorFov = fov);
       }));
 
-      // GPS — prima posizione + stream.
+      // **Il mirino si apre qui**, appena la fotocamera è pronta: non si aspetta
+      // il GPS.
+      //
+      // Prima lo si mostrava in fondo, dopo il primo fix. Con la rete il fix
+      // arriva in un paio di secondi e non si notava; senza rete il telefono
+      // non può scaricare i dati di assistenza satellitare e ci mette decine di
+      // secondi — cioè proprio in montagna, dove la funzione serve, l'utente
+      // guardava uno spinner davanti a una fotocamera che era già accesa.
+      // Le etichette compaiono quando arriva la posizione: è un'attesa che ha
+      // senso, perché senza posizione non c'è niente da etichettare.
+      if (!mounted) return;
+      setState(() => _initializing = false);
+
+      // Anche l'orientamento parte subito: non dipende dal GPS, e lasciarlo
+      // dietro l'attesa della posizione teneva la bussola a "—°" e il mirino
+      // immobile per tutto il tempo.
+      _attitudeSub = DeviceAttitudeService().stream.listen((attitude) {
+        if (!mounted || _arLocked) return;
+        setState(() => _attitude = attitude);
+      });
+
+      // GPS — prima posizione + stream. Da qui in poi si lavora in sottofondo,
+      // con il mirino già visibile.
       try {
         _userPosition = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
@@ -357,7 +379,9 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             timeLimit: Duration(seconds: 10),
           ),
         );
+        if (mounted) setState(() {});
       } catch (_) {}
+      if (!mounted) return;
       _positionSub = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
@@ -381,17 +405,6 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         await _refreshCandidatePeaksIfNeeded(_userPosition!);
         unawaited(_recomputeViewshedIfNeeded(_userPosition!));
       }
-
-      // Orientamento: una sola sorgente, fusa dal sistema operativo, che sa
-      // dove punta l'obiettivo posteriore e conosce anche il roll. Lo
-      // smoothing adattivo vive dentro il servizio.
-      _attitudeSub = DeviceAttitudeService().stream.listen((attitude) {
-        if (!mounted || _arLocked) return;
-        setState(() => _attitude = attitude);
-      });
-
-      if (!mounted) return;
-      setState(() => _initializing = false);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -406,7 +419,36 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// sullo stesso bearing. Il "dot" resta sempre alla posizione reale
   /// della cima, una sottile linea connette label e dot quando sono
   /// distanziati.
-  List<Widget> _buildPinLayer(List<ProjectedPeak> projected) {
+  /// Rettangoli dello schermo occupati dai comandi, in cui le etichette non
+  /// devono finire.
+  ///
+  /// Senza questo l'interfaccia si disegna sopra il contenuto: in landscape la
+  /// barra dei comandi e la card coprivano i nomi delle cime, cioè esattamente
+  /// la cosa per cui si apre la schermata. Le zone entrano nello stesso
+  /// algoritmo anti-collisione che le etichette usano fra loro, invece di
+  /// essere un caso a parte.
+  List<Rect> _reservedRegions(Size viewport) {
+    final w = viewport.width;
+    final h = viewport.height;
+    final isPortrait = h >= w;
+    return [
+      // Barra dei comandi in alto.
+      Rect.fromLTRB(0, 0, w, 62),
+      if (isPortrait) ...[
+        // Card informativa + pulsante di scatto, entrambi in basso.
+        Rect.fromLTRB(0, h - 200, w, h),
+      ] else ...[
+        // Card in basso a sinistra, scatto sulla destra a metà altezza.
+        Rect.fromLTRB(0, h - 110, 285, h),
+        Rect.fromLTRB(w - 100, h / 2 - 50, w, h / 2 + 50),
+      ],
+      // Indicazione della modalità allineamento, quando è attiva.
+      if (_alignMode)
+        Rect.fromLTRB(w / 2 - 180, h - 250, w / 2 + 180, h - 150),
+    ];
+  }
+
+  List<Widget> _buildPinLayer(List<ProjectedPeak> projected, Size viewport) {
     if (projected.isEmpty) return const [];
 
     // La cima più centrata è la prima della lista (projectAll ordina per
@@ -417,7 +459,8 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     // Etichette decluttered: solo le cime più importanti (quota maggiore)
     // ricevono un nome; le altre restano solo come dot. Evita il muro di
     // testo quando molte cime cadono nello stesso settore.
-    final labelLayouts = _layoutLabels(projected, centeredId);
+    final labelLayouts =
+        _layoutLabels(projected, centeredId, _reservedRegions(viewport));
 
     return [
       // Steli connettori dot → ancoraggio etichetta (sotto tutto, no tap).
@@ -486,7 +529,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// trova, **niente etichetta** (resta il dot) → nei cluster fitti
   /// sopravvivono i nomi delle vette più alte.
   List<_PinLayout> _layoutLabels(
-      List<ProjectedPeak> peaks, String centeredId) {
+      List<ProjectedPeak> peaks, String centeredId, List<Rect> reserved) {
     const baseStem = 22.0; // stelo minimo (px sopra il dot)
     const stemStep = 30.0; // allungamento stelo per cercare una banda libera
     const maxExtraLevels = 3; // tentativi di stelo più lungo prima di scartare
@@ -513,40 +556,64 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     for (final p in ranked) {
       final centered = p.peak.id == centeredId;
       final len = _estLabelLength(p, centered);
-      double stem = baseStem;
       bool ok = false;
+      final diag = len * s;
 
-      for (var lvl = 0; lvl <= maxExtraLevels; lvl++) {
-        final ax = p.screenX;
-        final ay = p.screenY - stem;
-        final pu = (ax - ay) * s; // coord lungo il testo
-        final pn = (ax + ay) * s; // coord perpendicolare
+      // Si prova prima sopra il punto, come sempre; se lassù non c'è posto —
+      // tipicamente in landscape, dove lo schermo è basso e la barra dei
+      // comandi occupa la fascia alta — si prova **sotto**, invece di
+      // rinunciare al nome. Il testo resta inclinato allo stesso modo: cambia
+      // solo da che parte del punto è agganciato.
+      for (final below in [false, true]) {
+        if (ok) break;
+        double stem = baseStem;
+        for (var lvl = 0; lvl <= maxExtraLevels; lvl++) {
+          final ax = p.screenX;
+          final ay = below ? p.screenY + stem + diag : p.screenY - stem;
+          final pu = (ax - ay) * s; // coord lungo il testo
+          final pn = (ax + ay) * s; // coord perpendicolare
 
-        bool collides = false;
-        for (final r in placed) {
-          if ((pn - r.$3).abs() < labelThickness &&
-              pu < r.$2 + gap &&
-              r.$1 < pu + len + gap) {
-            collides = true;
+          bool collides = false;
+          // Ingombro dell'etichetta ruotata, in coordinate schermo: parte
+          // dall'ancoraggio e sale verso destra a 45°.
+          final labelBox = Rect.fromLTRB(
+            ax,
+            ay - diag - labelThickness,
+            ax + diag,
+            ay + 4,
+          );
+          for (final region in reserved) {
+            if (region.overlaps(labelBox)) {
+              collides = true;
+              break;
+            }
+          }
+          for (final r in placed) {
+            if (collides) break;
+            if ((pn - r.$3).abs() < labelThickness &&
+                pu < r.$2 + gap &&
+                r.$1 < pu + len + gap) {
+              collides = true;
+              break;
+            }
+          }
+
+          if (!collides) {
+            placed.add((pu, pu + len, pn));
+            result.add(_PinLayout(
+              peak: p,
+              dotX: p.screenX,
+              dotY: p.screenY,
+              labelX: p.screenX,
+              labelY: ay,
+            ));
+            ok = true;
             break;
           }
+          stem += stemStep;
         }
-
-        if (!collides) {
-          placed.add((pu, pu + len, pn));
-          result.add(_PinLayout(
-            peak: p,
-            dotX: p.screenX,
-            dotY: p.screenY,
-            labelX: p.screenX,
-            labelY: ay,
-          ));
-          ok = true;
-          break;
-        }
-        stem += stemStep;
       }
-      // !ok → cluster troppo fitto: nessuna etichetta, resta il dot.
+      // !ok → nessuna posizione libera né sopra né sotto: resta il dot.
       if (!ok) continue;
     }
 
@@ -1028,13 +1095,16 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       ];
     }
 
-    // Landscape: layout sulla colonna destra. La preview ha tutta
-    // l'altezza disponibile. Right column larga ~200px.
+    // Landscape: la card va in basso a SINISTRA, non in alto a destra.
+    // In orizzontale le cime stanno all'altezza dell'orizzonte, cioè a metà
+    // schermo, e le etichette salgono verso destra: l'angolo in alto a destra
+    // è esattamente dove finiscono i nomi delle cime più lontane. In basso a
+    // sinistra non c'è quasi mai nulla da coprire.
     return [
       Positioned(
-        right: 12,
-        top: 70, // sotto al top HUD
-        width: 200,
+        left: 12,
+        bottom: 12,
+        width: 260,
         child: _buildInfoCard(),
       ),
       Positioned(
@@ -1314,7 +1384,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             // Pin AR: layout anti-collisione + linee connettrici + label
             // animate. Le label si impilano verticalmente quando le cime
             // sono allineate sullo stesso bearing per evitare overlap.
-            ..._buildPinLayer(projected),
+            ..._buildPinLayer(projected, viewport),
 
             // Modalità allineamento: istruzione + offset applicato. I numeri
             // sono in gradi apposta — sono la misura dell'errore residuo dei
