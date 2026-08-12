@@ -8306,6 +8306,18 @@ abstract class AppLocalizations {
   /// **'Distanza massima'**
   String get mfDistanceFilterTitle;
 
+  /// No description provided for @mfViewOptionsTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Vista'**
+  String get mfViewOptionsTitle;
+
+  /// No description provided for @mfViewOptionsHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa mostrare, e fin dove guardare'**
+  String get mfViewOptionsHelp;
+
   /// No description provided for @mfDistanceFilterHelp.
   ///
   /// In it, this message translates to:
@@ -9349,6 +9361,18 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Sole e luna'**
   String get mfSunPathTitle;
+
+  /// No description provided for @mfPanoramaFromMyPosition.
+  ///
+  /// In it, this message translates to:
+  /// **'Panorama da dove sono'**
+  String get mfPanoramaFromMyPosition;
+
+  /// No description provided for @mfPanoramaFromMyPositionHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Il giro d\'orizzonte disegnato dal terreno, senza puntare la fotocamera'**
+  String get mfPanoramaFromMyPositionHelp;
 
   /// No description provided for @mfSunPathHelp.
   ///

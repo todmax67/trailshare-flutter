@@ -1658,21 +1658,25 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             ),
           ),
           const SizedBox(width: 4),
-          // Calibrazione FOV
+          // Sole e luna. Sta nella barra e non dentro un foglio perche' e' un
+          // livello che si accende guardando il cielo, con una mano sola: la
+          // taratura del campo visivo, che stava qui prima, si fa una volta
+          // sola e si e' spostata nel foglio delle opzioni.
           Material(
-            color: Colors.black.withValues(alpha: 0.5),
+            color: _showSunPath
+                ? AppColors.warning
+                : Colors.black.withValues(alpha: 0.5),
             shape: const CircleBorder(),
             child: IconButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MountainFinderCalibrationPage(),
-                  ),
-                );
+                setState(() {});
+                MountainFinderSettings().setShowSunPath(!_showSunPath);
               },
-              icon: const Icon(Icons.tune, color: Colors.white),
-              tooltip: context.l10n.mfCalibrationTitle,
+              icon: Icon(
+                _showSunPath ? Icons.wb_sunny : Icons.wb_sunny_outlined,
+                color: Colors.white,
+              ),
+              tooltip: context.l10n.mfSunPathTitle,
             ),
           ),
         ],
@@ -1693,7 +1697,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       // al sheet di estendersi oltre il 50% dell'altezza in landscape
       // (dove altrimenti sforerebbe).
       isScrollControlled: true,
-      builder: (ctx) => const _DistanceFilterSheet(),
+      builder: (ctx) => _DistanceFilterSheet(
+        observerLat: _userPosition?.latitude,
+        observerLng: _userPosition?.longitude,
+      ),
     );
   }
 
@@ -2648,7 +2655,13 @@ class _ZoomChip extends StatelessWidget {
 /// Pensata per ridurre il numero di pin nel viewfinder quando si è in
 /// zone dense (es. Alpi) o aumentarlo per orizzonti lontani (es. mare).
 class _DistanceFilterSheet extends StatefulWidget {
-  const _DistanceFilterSheet();
+  /// Da dove si guarda, per poter aprire il panorama da qui. `null` finche' il
+  /// GPS non ha risposto: in quel caso la voce non compare, invece di comparire
+  /// e non funzionare.
+  final double? observerLat;
+  final double? observerLng;
+
+  const _DistanceFilterSheet({this.observerLat, this.observerLng});
 
   @override
   State<_DistanceFilterSheet> createState() => _DistanceFilterSheetState();
@@ -2697,7 +2710,7 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    Icons.straighten,
+                    Icons.layers_outlined,
                     color: AppColors.primary,
                     size: 22,
                   ),
@@ -2708,7 +2721,7 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        context.l10n.mfDistanceFilterTitle,
+                        context.l10n.mfViewOptionsTitle,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
@@ -2717,7 +2730,7 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        context.l10n.mfDistanceFilterHelp,
+                        context.l10n.mfViewOptionsHelp,
                         style: TextStyle(
                           fontSize: 12,
                           color: context.textSecondary,
@@ -2729,6 +2742,16 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
               ],
             ),
             const SizedBox(height: 18),
+            Text(
+              context.l10n.mfDistanceFilterTitle.toUpperCase(),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+                color: context.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 6),
             // Valore corrente
             Center(
               child: RichText(
@@ -2848,6 +2871,66 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
                 style: TextStyle(fontSize: 12, color: context.textSecondary),
               ),
               activeThumbColor: AppColors.primary,
+            ),
+            const Divider(height: 24),
+            // Il panorama dalla PROPRIA posizione. Finora si poteva aprire solo
+            // dalla scheda di una cima, cioè si poteva chiedere «cosa si vede da
+            // lassù» ma non «cosa ho intorno adesso» — che è la domanda più
+            // ovvia delle due, e l'unica che risponde anche con la fotocamera in
+            // tasca o di notte.
+            if (widget.observerLat != null && widget.observerLng != null)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.panorama_horizontal_outlined,
+                    color: AppColors.primary),
+                title: Text(
+                  context.l10n.mfPanoramaFromMyPosition,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: context.textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  context.l10n.mfPanoramaFromMyPositionHelp,
+                  style: TextStyle(fontSize: 12, color: context.textSecondary),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PanoramaPage(
+                        observerLat: widget.observerLat!,
+                        observerLng: widget.observerLng!,
+                        viewpointName: context.l10n.mfPanoramaFromMyPosition,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            // La taratura del campo visivo: si fa una volta sola, quindi ha
+            // lasciato il posto in barra al sole e vive qui.
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.tune, color: context.textSecondary),
+              title: Text(
+                context.l10n.mfCalibrationTitle,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: context.textPrimary,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MountainFinderCalibrationPage(),
+                  ),
+                );
+              },
             ),
           ],
         ),

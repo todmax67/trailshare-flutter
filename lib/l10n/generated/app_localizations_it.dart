@@ -4596,6 +4596,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mfDistanceFilterTitle => 'Distanza massima';
 
   @override
+  String get mfViewOptionsTitle => 'Vista';
+
+  @override
+  String get mfViewOptionsHelp => 'Cosa mostrare, e fin dove guardare';
+
+  @override
   String get mfDistanceFilterHelp =>
       'Limita le cime mostrate a questa distanza dalla tua posizione.';
 
@@ -5193,6 +5199,13 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get mfSunPathTitle => 'Sole e luna';
+
+  @override
+  String get mfPanoramaFromMyPosition => 'Panorama da dove sono';
+
+  @override
+  String get mfPanoramaFromMyPositionHelp =>
+      'Il giro d\'orizzonte disegnato dal terreno, senza puntare la fotocamera';
 
   @override
   String get mfSunPathHelp =>

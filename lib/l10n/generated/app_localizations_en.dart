@@ -4578,6 +4578,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mfDistanceFilterTitle => 'Max distance';
 
   @override
+  String get mfViewOptionsTitle => 'View';
+
+  @override
+  String get mfViewOptionsHelp => 'What to show, and how far to look';
+
+  @override
   String get mfDistanceFilterHelp =>
       'Limit shown peaks to this distance from your location.';
 
@@ -5165,6 +5171,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mfSunPathTitle => 'Sun and moon';
+
+  @override
+  String get mfPanoramaFromMyPosition => 'Panorama from where I am';
+
+  @override
+  String get mfPanoramaFromMyPositionHelp =>
+      'The 360° outline drawn from the terrain, without pointing the camera';
 
   @override
   String get mfSunPathHelp =>
