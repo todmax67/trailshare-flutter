@@ -885,6 +885,36 @@ davvero per leggere la profondità di una catena. Sopra la fotocamera restano
 **linee**, perché una superficie piena coprirebbe l'immagine — l'unica cosa che
 l'AR ha da mostrare.
 
+### Ombreggiatura con il sole vero
+
+Il valore non è estetico. Spostando il cursore dell'ora si vede **quale versante
+avrà luce alle sette e quale sarà ancora in ombra**: è la domanda di chi
+fotografa, e prima si poteva solo immaginarla.
+
+Si conserva la **pendenza** del terreno, non un valore di luce già calcolato: il
+sole si muove e il terreno no, quindi il cursore ri-illumina il paesaggio
+all'istante senza rifare la marcia dei raggi.
+
+Le pendenze si misurano **alla fine** di ogni raggio, sui cinque punti che
+definiscono i profili, non durante la marcia. Dentro il ciclo il massimo corrente
+cambia in continuazione — su terreno pianeggiante *ogni* campione è un nuovo
+massimo — e misurare lì moltiplicherebbe per cinque le letture del DEM.
+
+Dove anche una sola delle quattro letture manca, la pendenza resta zero: piatto,
+cioè il modo onesto di dire «non lo so», invece di una parete inventata su un
+buco.
+
+Legge di Lambert pura, **senza ombre portate**: quelle richiederebbero una
+seconda marcia di raggi *verso* il sole per ogni punto, e non servono a
+rispondere alla domanda posta. Di notte non c'è luce da rappresentare e un
+paesaggio piatto sarebbe illeggibile: si ripiega sulla convenzione delle carte,
+luce da nordovest a 45°, dichiarata nel codice come espediente di disegno.
+
+Disegnato con `drawVertices`, una chiamata per fascia invece di 720 rettangoli.
+La semantica del blend con i colori per vertice è stata **verificata
+rasterizzando e rileggendo i pixel**, non dedotta: senza shader sul `Paint`
+vincono i colori dei vertici, in ogni `BlendMode`.
+
 ### L'onestà sui buchi, nel verso giusto
 
 Il difetto che l'indagine credeva di aver risolto: la regola delle cime non si
