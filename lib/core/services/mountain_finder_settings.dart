@@ -27,6 +27,7 @@ class MountainFinderSettings extends ChangeNotifier {
   static const _kAlignPitch = 'mf_align_pitch_deg';
   static const _kAlignLat = 'mf_align_lat';
   static const _kAlignLng = 'mf_align_lng';
+  static const _kSkyline = 'mf_show_skyline';
 
   /// Distanza oltre la quale una correzione manuale va buttata.
   ///
@@ -61,6 +62,7 @@ class MountainFinderSettings extends ChangeNotifier {
   double _alignPitchDeg = 0;
   double? _alignLat;
   double? _alignLng;
+  bool _showSkyline = true;
   bool _loaded = false;
 
   double get horizontalFovDeg => _hFovDeg;
@@ -82,6 +84,12 @@ class MountainFinderSettings extends ChangeNotifier {
   double? get alignLat => _alignLat;
   double? get alignLng => _alignLng;
 
+  /// Se disegnare il profilo dell'orizzonte calcolato dal terreno sopra la
+  /// camera. Acceso di default: è il riferimento che rende evidente se il
+  /// puntamento è giusto, e senza l'utente se ne accorge solo sulle cime che
+  /// già riconosce.
+  bool get showSkyline => _showSkyline;
+
   bool get isLoaded => _loaded;
 
   /// Carica i valori salvati. Idempotente.
@@ -98,6 +106,7 @@ class MountainFinderSettings extends ChangeNotifier {
       _alignPitchDeg = prefs.getDouble(_kAlignPitch) ?? 0;
       _alignLat = prefs.getDouble(_kAlignLat);
       _alignLng = prefs.getDouble(_kAlignLng);
+      _showSkyline = prefs.getBool(_kSkyline) ?? true;
       _loaded = true;
       notifyListeners();
     } catch (e) {
@@ -161,6 +170,18 @@ class MountainFinderSettings extends ChangeNotifier {
       await prefs.remove(_kAlignLng);
     } catch (e) {
       debugPrint('[MFSettings] reset align error: $e');
+    }
+  }
+
+  Future<void> setShowSkyline(bool value) async {
+    if (_showSkyline == value) return;
+    _showSkyline = value;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kSkyline, value);
+    } catch (e) {
+      debugPrint('[MFSettings] save skyline error: $e');
     }
   }
 

@@ -42,6 +42,7 @@ class ViewshedService {
     required List<MountainPeak> candidates,
     required ViewshedTier tier,
     double? radiusKm,
+    bool computeSkyline = true,
   }) async {
     final stopwatch = Stopwatch()..start();
 
@@ -50,22 +51,30 @@ class ViewshedService {
       await _tiles.enableDiskCache();
     }
 
+    final effectiveRadiusKm = math.min(
+      radiusKm ?? tier.maxRadiusKm.toDouble(),
+      tier.maxRadiusKm.toDouble(),
+    );
+
     // Cache check (skip per free → no persistenza intra-sessione).
+    //
+    // La chiave comprende **raggio e skyline**, non solo la posizione: il
+    // risultato dipende da entrambi, e con la chiave incompleta spostare lo
+    // slider della distanza non produceva alcun effetto finché l'utente non
+    // camminava per mezzo chilometro — lo slider sembrava rotto.
     if (tier.persistentCache && _cached != null) {
       final dist = _haversineMeters(
         observerLat, observerLng,
         _cached!.observerLat, _cached!.observerLng,
       );
-      if (dist < _skylineInvalidationMeters && _cached!.tier.label == tier.label) {
+      if (dist < _skylineInvalidationMeters &&
+          _cached!.tier.label == tier.label &&
+          (_cached!.radiusKm - effectiveRadiusKm).abs() < 0.5 &&
+          _cached!.withSkyline == computeSkyline) {
         debugPrint('[Viewshed] cache HIT (moved ${dist.round()}m < $_skylineInvalidationMeters)');
         return _cached!.result;
       }
     }
-
-    final effectiveRadiusKm = math.min(
-      radiusKm ?? tier.maxRadiusKm.toDouble(),
-      tier.maxRadiusKm.toDouble(),
-    );
 
     debugPrint(
         '[Viewshed] start lat=$observerLat lng=$observerLng '
@@ -136,6 +145,11 @@ class ViewshedService {
       observerLng: observerLng,
       dem: dem,
       visibilityToleranceDeg: tier.visibilityToleranceDeg,
+      // Il profilo dell'orizzonte si calcola solo se qualcuno lo disegna:
+      // sono 720 raggi in più, che raddoppiano il tempo del calcolo. Costa
+      // poco solo perché riusa il DEM già scaricato, non perché sia gratis.
+      computeSkyline: computeSkyline,
+      skylineRadiusM: effectiveRadiusKm * 1000,
       candidatePeaks: inRange
           .map((p) => {
                 'id': p.id,
@@ -183,6 +197,7 @@ class ViewshedService {
       demCols: dem.coarse.cols,
       observerGroundElevationM: observerGroundM,
       status: ViewshedStatus.ok,
+      skylineAngles: result.skylineAngles,
     );
 
     if (tier.persistentCache) {
@@ -190,6 +205,8 @@ class ViewshedService {
         observerLat: observerLat,
         observerLng: observerLng,
         tier: tier,
+        radiusKm: effectiveRadiusKm,
+        withSkyline: computeSkyline,
         result: out,
       );
     }
@@ -286,6 +303,11 @@ class ViewshedRunResult {
 
   final ViewshedStatus status;
 
+  /// Profilo dell'orizzonte: angolo di elevazione massimo del terreno per ogni
+  /// direzione, dall'azimut 0 (nord) in senso orario. Vuoto se non calcolato,
+  /// NaN dove il DEM non sa rispondere.
+  final List<double> skylineAngles;
+
   const ViewshedRunResult({
     required this.visible,
     required this.elapsedMs,
@@ -293,6 +315,7 @@ class ViewshedRunResult {
     required this.demCols,
     this.observerGroundElevationM,
     this.status = ViewshedStatus.ok,
+    this.skylineAngles = const [],
   });
 
   /// True se il filtro ha davvero girato: solo allora ha senso fidarsi
@@ -313,12 +336,22 @@ class _CachedViewshed {
   final double observerLat;
   final double observerLng;
   final ViewshedTier tier;
+
+  /// Raggio con cui è stato calcolato: fa parte della chiave, perché il
+  /// risultato cambia se cambia.
+  final double radiusKm;
+
+  /// Se il risultato in cache contiene anche il profilo dell'orizzonte.
+  final bool withSkyline;
+
   final ViewshedRunResult result;
 
   _CachedViewshed({
     required this.observerLat,
     required this.observerLng,
     required this.tier,
+    required this.radiusKm,
+    required this.withSkyline,
     required this.result,
   });
 }

@@ -5162,6 +5162,13 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mfAlignExpired => 'Ti sei spostato: allineamento manuale azzerato';
 
   @override
+  String get mfSkylineTitle => 'Profilo dell\'orizzonte';
+
+  @override
+  String get mfSkylineHelp =>
+      'Disegna il profilo del terreno sopra la camera: se combacia con le montagne, il puntamento è giusto';
+
+  @override
   String get mfViewshedPartialTerrain =>
       'Dati del terreno incompleti: alcune cime potrebbero essere nascoste';
 

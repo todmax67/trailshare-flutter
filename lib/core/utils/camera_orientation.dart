@@ -287,6 +287,10 @@ class ScreenProjection {
 /// metà in gradi).
 ///
 /// Restituisce `null` se il bersaglio è dietro la fotocamera o fuori dal cono.
+/// [clipToCone] a false restituisce la posizione anche fuori dal viewport.
+/// Serve a disegnare una polilinea continua — il profilo dell'orizzonte —
+/// senza spezzarla ai bordi: i punti esterni fanno uscire la linea dallo
+/// schermo invece di troncarla a mezz'aria.
 ScreenProjection? projectDirection({
   required List<double> enu,
   required CameraBasis basis,
@@ -295,6 +299,7 @@ ScreenProjection? projectDirection({
   required double horizontalFovDeg,
   required double verticalFovDeg,
   double zoom = 1.0,
+  bool clipToCone = true,
 }) {
   final e = enu[0], n = enu[1], u = enu[2];
 
@@ -314,7 +319,10 @@ ScreenProjection? projectDirection({
   const edgeEpsilon = 1e-9;
   final ndcX = (x / z) / halfTanH;
   final ndcY = (y / z) / halfTanV;
-  if (ndcX.abs() > 1 + edgeEpsilon || ndcY.abs() > 1 + edgeEpsilon) return null;
+  if (clipToCone &&
+      (ndcX.abs() > 1 + edgeEpsilon || ndcY.abs() > 1 + edgeEpsilon)) {
+    return null;
+  }
 
   return ScreenProjection(
     x: viewportWidth / 2 * (1 + ndcX),

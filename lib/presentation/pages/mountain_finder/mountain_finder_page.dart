@@ -25,6 +25,7 @@ import '../../../data/repositories/osm_pois_repository.dart';
 import '../../../data/repositories/saved_peaks_repository.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/paywall_sheet.dart';
+import '../../widgets/skyline_overlay.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
 import 'peak_map_page.dart';
@@ -159,6 +160,36 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   bool _viewshedHasResult = false;
   /// Non riprovare prima di questo istante, dopo un calcolo fallito.
   DateTime? _viewshedRetryAfter;
+
+  /// Profilo dell'orizzonte calcolato dal DEM: angolo di elevazione massimo del
+  /// terreno per ogni direzione. Disegnato sopra la camera come riferimento.
+  List<double> _skylineAngles = const [];
+
+  /// Posizione in cui il profilo è stato calcolato. Il profilo **non si disegna
+  /// senza questa**: un orizzonte è valido solo da dove è stato preso, e uno
+  /// vecchio non è un difetto estetico — l'utente lo vede non combaciare, entra
+  /// in allineamento manuale e trascina fino a farlo coincidere, salvando un
+  /// offset falso che sposta anche tutte le etichette. Lo strumento che deve
+  /// dimostrare la correttezza diventerebbe la causa dell'errore.
+  Position? _skylinePosition;
+
+  /// Mostra il profilo dell'orizzonte (preferenza persistita).
+  bool get _showSkyline => MountainFinderSettings().showSkyline;
+
+  /// True se il profilo disegnato è stato calcolato abbastanza vicino a dove
+  /// siamo adesso. La verifica sta qui, in un solo punto, invece che nei vari
+  /// rami che potrebbero dimenticarsi di azzerarlo: così un profilo stantio non
+  /// è "un caso che non abbiamo gestito", è impossibile da disegnare.
+  bool get _skylineIsCurrent {
+    if (_skylineAngles.isEmpty) return false;
+    final from = _skylinePosition;
+    final now = _userPosition;
+    if (from == null || now == null) return false;
+    return Geolocator.distanceBetween(
+          from.latitude, from.longitude, now.latitude, now.longitude,
+        ) <
+        _viewshedRefreshMeters;
+  }
   /// Tier risolto una volta sola: il controllo admin è una chiamata Firestore
   /// e adesso il viewshed gira ogni 500 m invece che ogni 5 km.
   ViewshedTier? _resolvedTier;
@@ -227,8 +258,25 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// un re-fetch delle candidate, mentre il FOV no).
   double _lastSeenDistanceKm = MountainFinderSettings.defaultDistanceKm;
 
+  /// Preferenza skyline all'ultimo giro, per accorgersi di quando viene accesa.
+  bool _lastSeenShowSkyline = true;
+
   void _onSettingsChanged() {
     if (!mounted) return;
+    final settings = MountainFinderSettings();
+
+    // Accendere il profilo dell'orizzonte richiede un calcolo che non c'è:
+    // ora lo skyline si produce solo se qualcuno lo disegna, quindi senza
+    // questo l'interruttore sembrerebbe non fare nulla finché non ci si
+    // sposta di mezzo chilometro.
+    if (settings.showSkyline != _lastSeenShowSkyline) {
+      _lastSeenShowSkyline = settings.showSkyline;
+      final pos = _userPosition;
+      if (settings.showSkyline && pos != null) {
+        unawaited(_recomputeViewshedIfNeeded(pos, force: true));
+      }
+    }
+
     final newDist = MountainFinderSettings().maxDistanceKmValue;
     if ((newDist - _lastSeenDistanceKm).abs() > 0.5) {
       _lastSeenDistanceKm = newDist;
@@ -532,7 +580,13 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     if (!ds.isLoaded) {
       await ds.ensureLoaded();
     }
-    final radius = await _effectiveRadiusKm();
+    // Raggio **dell'utente**, non del tier: qui si decide cosa l'utente vede
+    // quando il filtro è spento, e il tier non c'entra. Legarlo al tier è stata
+    // una regressione dello sprint precedente — un utente free con lo slider a
+    // 100 km e il filtro spento perdeva tutto oltre i 20, senza spiegazione e
+    // con lo slider che continuava a dire 100. Il tier limita il viewshed
+    // (dove costa davvero), non l'elenco delle cime.
+    final radius = MountainFinderSettings().maxDistanceKmValue;
     final candidates = ds.findWithinRadius(
       pos.latitude,
       pos.longitude,
@@ -681,7 +735,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// [_viewshedRefreshMeters], o se [force].
   Future<void> _recomputeViewshedIfNeeded(Position pos,
       {bool force = false}) async {
-    if (!_viewshedOnly) return;
+    // Il calcolo serve a due consumatori indipendenti: il filtro "solo cime
+    // visibili" e il profilo dell'orizzonte. Legarlo solo al primo significava
+    // che a filtro spento il profilo non si aggiornava mai più.
+    if (!_viewshedOnly && !MountainFinderSettings().showSkyline) return;
     if (!force && _lastViewshedPosition != null) {
       final moved = Geolocator.distanceBetween(
         _lastViewshedPosition!.latitude, _lastViewshedPosition!.longitude,
@@ -715,6 +772,9 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         candidates: _candidatePeaks,
         tier: tier,
         radiusKm: await _effectiveRadiusKm(),
+        // Se l'utente ha spento il profilo dell'orizzonte non lo calcoliamo:
+        // sono 720 raggi in piu' che raddoppiano il tempo del calcolo.
+        computeSkyline: MountainFinderSettings().showSkyline,
       );
       if (!mounted) return;
       setState(() {
@@ -722,6 +782,15 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         _viewshedStatus = result.status;
         _viewshedPatchyTerrain = result.hasPatchyTerrain;
         _viewshedVisibleCount = result.visible.length;
+        // Aggiornato o buttato, mai conservato "per non perderlo": un profilo
+        // senza la sua posizione è peggio di nessun profilo.
+        if (result.skylineAngles.isNotEmpty && result.isReliable) {
+          _skylineAngles = result.skylineAngles;
+          _skylinePosition = pos;
+        } else {
+          _skylineAngles = const [];
+          _skylinePosition = null;
+        }
         _viewshedUncertainCount = result.uncertainCount;
         _viewshedElapsedMs = result.elapsedMs;
         _viewshedHasResult = result.isReliable;
@@ -1169,6 +1238,20 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                 child: _buildCameraPreviewBox(viewport),
               ),
             ),
+
+            // Profilo dell'orizzonte dal DEM: sotto le etichette, sopra la
+            // preview. E' il riferimento che permette di vedere a colpo d'occhio
+            // se il puntamento combacia con le montagne vere.
+            if (basis != null && _showSkyline && _skylineIsCurrent)
+              Positioned.fill(
+                child: SkylineOverlay(
+                  skylineAngles: _skylineAngles,
+                  basis: basis,
+                  horizontalFovDeg: effectiveHFov,
+                  verticalFovDeg: effectiveVFov,
+                  zoom: _zoomLevel,
+                ),
+              ),
 
             // Reticolo centrale (mirino).
             const Center(
@@ -2543,6 +2626,31 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
               ],
             ),
             const SizedBox(height: 8),
+            const Divider(height: 24),
+            // Profilo dell'orizzonte: sta qui e non nella barra in alto perche'
+            // e' una preferenza che si imposta una volta, non un comando che si
+            // usa di continuo — e la barra e' gia' piena.
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: MountainFinderSettings().showSkyline,
+              onChanged: (v) {
+                setState(() {});
+                MountainFinderSettings().setShowSkyline(v);
+              },
+              title: Text(
+                context.l10n.mfSkylineTitle,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: context.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                context.l10n.mfSkylineHelp,
+                style: TextStyle(fontSize: 12, color: context.textSecondary),
+              ),
+              activeThumbColor: AppColors.primary,
+            ),
           ],
         ),
       ),

@@ -65,10 +65,19 @@ class ViewshedRequest {
   /// Terreno, eventualmente a due risoluzioni.
   final LayeredDem dem;
 
-  /// Skyline a 360°: serve al disegno dell'orizzonte, non alla visibilità.
+  /// Skyline a 360°: **non** serve più alla visibilità, serve a disegnare il
+  /// profilo dell'orizzonte sopra l'immagine della camera — il riferimento che
+  /// permette all'utente di vedere con i propri occhi se il puntamento combacia.
   /// Di default non si calcola, per non pagarlo quando non lo si usa.
   final bool computeSkyline;
+
+  /// Numero di direzioni campionate per lo skyline. 720 = mezzo grado, che a
+  /// 20 km sono 175 m di risoluzione laterale: abbastanza per non arrotondare
+  /// le vette, senza il costo di un campionamento più fitto.
   final int azimuthSteps;
+
+  /// Fin dove spingere i raggi dello skyline, in metri.
+  final double skylineRadiusM;
 
   const ViewshedRequest({
     required this.observerLat,
@@ -79,7 +88,8 @@ class ViewshedRequest {
     this.visibilityToleranceDeg = 0.05,
     this.peakClearanceM = 250,
     this.computeSkyline = false,
-    this.azimuthSteps = 360,
+    this.azimuthSteps = 720,
+    this.skylineRadiusM = 60000,
   });
 }
 
@@ -193,9 +203,18 @@ class LayeredDem {
   /// avendo il primo campione a 250 m rendeva invisibile qualunque dosso più
   /// vicino di così.
   double stepAt(double d) {
+    // Mezza cella, non una e mezza: campionare più larghi della griglia
+    // significa scavalcare le creste sottili senza vederle. Misurato su
+    // terreno reale delle Alpi, con passo a 1,2 celle il risultato conteneva
+    // l'11% di cime dichiarate visibili che a campionamento fine risultano
+    // nascoste — tutte a lunga distanza e con margini risicati, cioè proprio
+    // quelle che il filtro dovrebbe distinguere. Costa più campioni, ma il
+    // calcolo è la parte economica: il tempo se ne va nello scaricare i tile.
+    const nyquist = 0.5;
     final f = fine;
-    final near = f != null ? math.max(20.0, f.cellSizeMeters * 0.8) : 40.0;
-    final far = math.max(60.0, coarse.cellSizeMeters * 1.2);
+    final near =
+        f != null ? math.max(12.0, f.cellSizeMeters * nyquist) : 40.0;
+    final far = math.max(30.0, coarse.cellSizeMeters * nyquist);
     if (f != null && d <= 2000) return near;
     // Crescita graduale, per non avere un salto netto al bordo della griglia fitta.
     final t = ((d - 2000) / 8000).clamp(0.0, 1.0);
@@ -360,19 +379,12 @@ ViewshedResult computeViewshed(ViewshedRequest req) {
 /// la linea dell'orizzonte sopra la camera.
 List<double> _computeSkyline(ViewshedRequest req, double eyeElev) {
   final dem = req.dem;
-  final skyline = List<double>.filled(req.azimuthSteps, -90.0);
-  // Raggio massimo: la diagonale della griglia larga basta e avanza.
-  final maxRangeM = _haversineMeters(
-        dem.coarse.minLat,
-        dem.coarse.minLng,
-        dem.coarse.maxLat,
-        dem.coarse.maxLng,
-      ) /
-      2;
+  final skyline = List<double>.filled(req.azimuthSteps, double.nan);
+  final maxRangeM = req.skylineRadiusM;
 
   for (int aIdx = 0; aIdx < req.azimuthSteps; aIdx++) {
     final azDeg = aIdx * 360.0 / req.azimuthSteps;
-    double maxAngle = -90.0;
+    double maxAngle = double.nan;
     double d = dem.stepAt(0);
     while (d <= maxRangeM) {
       final pt = _destinationPoint(req.observerLat, req.observerLng, azDeg, d);
@@ -380,7 +392,10 @@ List<double> _computeSkyline(ViewshedRequest req, double eyeElev) {
       if (!ele.isNaN) {
         final apparent = ele - _earthDropMeters(d);
         final angle = math.atan2(apparent - eyeElev, d) * 180 / math.pi;
-        if (angle > maxAngle) maxAngle = angle;
+        // NaN in un confronto è sempre falso, quindi la prima quota valida
+        // vince comunque: non serve un sentinella tipo -90, che invece
+        // finirebbe disegnata come una riga piatta sotto i piedi.
+        if (!(angle <= maxAngle)) maxAngle = angle;
       }
       d += dem.stepAt(d);
     }

@@ -5134,6 +5134,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mfAlignExpired => 'You have moved: manual alignment reset';
 
   @override
+  String get mfSkylineTitle => 'Horizon outline';
+
+  @override
+  String get mfSkylineHelp =>
+      'Draws the terrain outline over the camera: if it matches the mountains, the aim is right';
+
+  @override
   String get mfViewshedPartialTerrain =>
       'Incomplete terrain data: some peaks may be hidden';
 

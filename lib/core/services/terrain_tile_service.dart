@@ -384,33 +384,52 @@ class TerrainTileService {
       elevations: out,
     );
 
-    // Per ogni cella destinazione, trova il tile contenente e fai sampling.
-    for (int r = 0; r < rows; r++) {
-      final lat = grid.latForRow(r);
-      for (int c = 0; c < cols; c++) {
-        final lng = grid.lngForCol(c);
-        final tile = _findTile(tiles, lat, lng);
-        if (tile == null) continue; // resta NaN
-        final fy = (tile.maxLat - lat) / (tile.maxLat - tile.minLat) * (tile.height - 1);
-        final fx = (lng - tile.minLng) / (tile.maxLng - tile.minLng) * (tile.width - 1);
+    // Si scorre **per tile**, non per cella di destinazione.
+    //
+    // Il verso opposto sembrava più naturale ("per ogni cella, trova il tile")
+    // ma cercava il tile con una scansione lineare: su due milioni di celle e
+    // qualche decina di tile sono decine di milioni di confronti, tutti sul
+    // thread principale, cioè scatti nella preview della fotocamera proprio
+    // mentre l'utente sta inquadrando. Qui invece ogni tile calcola una volta
+    // sola l'intervallo di righe e colonne che gli compete e ci scrive dentro:
+    // il costo torna lineare nel numero di celle.
+    for (final tile in tiles) {
+      // Righe/colonne della destinazione che cadono dentro questo tile.
+      final range = destinationRangeFor(
+        gridMinLat: minLat, gridMaxLat: maxLat,
+        gridMinLng: minLng, gridMaxLng: maxLng,
+        rows: rows, cols: cols,
+        tileMinLat: tile.minLat, tileMaxLat: tile.maxLat,
+        tileMinLng: tile.minLng, tileMaxLng: tile.maxLng,
+      );
+      if (range == null) continue;
+      final rowFrom = range.rowFrom;
+      final rowTo = range.rowTo;
+      final colFrom = range.colFrom;
+      final colTo = range.colTo;
+
+      final tLatSpan = tile.maxLat - tile.minLat;
+      final tLngSpan = tile.maxLng - tile.minLng;
+      if (tLatSpan <= 0 || tLngSpan <= 0) continue;
+
+      for (int r = rowFrom; r <= rowTo; r++) {
+        final lat = grid.latForRow(r);
+        final fy = (tile.maxLat - lat) / tLatSpan * (tile.height - 1);
         final ry = fy.round().clamp(0, tile.height - 1);
-        final rx = fx.round().clamp(0, tile.width - 1);
-        out[r * cols + c] = tile.elevations[ry * tile.width + rx];
+        final rowBase = ry * tile.width;
+        final outBase = r * cols;
+        for (int c = colFrom; c <= colTo; c++) {
+          final lng = grid.lngForCol(c);
+          final fx = (lng - tile.minLng) / tLngSpan * (tile.width - 1);
+          final rx = fx.round().clamp(0, tile.width - 1);
+          out[outBase + c] = tile.elevations[rowBase + rx];
+        }
       }
     }
 
     return grid;
   }
 
-  _DemTile? _findTile(List<_DemTile> tiles, double lat, double lng) {
-    for (final t in tiles) {
-      if (lat >= t.minLat && lat <= t.maxLat &&
-          lng >= t.minLng && lng <= t.maxLng) {
-        return t;
-      }
-    }
-    return null;
-  }
 
   // ── XYZ tile math ────────────────────────────────────────────────────
 
@@ -457,6 +476,51 @@ class TerrainTileService {
   }
 
   double _sinh(double x) => (math.exp(x) - math.exp(-x)) / 2;
+}
+
+/// Intervallo di righe e colonne della griglia destinazione coperte da una
+/// bbox (tipicamente quella di un tile). `null` se non si intersecano.
+///
+/// Vive fuori dal mosaico e senza stato apposta: è la parte che sbagliando
+/// scrive quote nel posto sbagliato, ed è già successo — la versione
+/// precedente del mosaico riempiva le righe al contrario e il DEM veniva
+/// riletto specchiato nord-sud. Qui si può testare con numeri.
+///
+/// Convenzione: riga 0 = bordo sud, colonna 0 = bordo ovest, come [DemGrid].
+({int rowFrom, int rowTo, int colFrom, int colTo})? destinationRangeFor({
+  required double gridMinLat,
+  required double gridMaxLat,
+  required double gridMinLng,
+  required double gridMaxLng,
+  required int rows,
+  required int cols,
+  required double tileMinLat,
+  required double tileMaxLat,
+  required double tileMinLng,
+  required double tileMaxLng,
+}) {
+  final latSpan = gridMaxLat - gridMinLat;
+  final lngSpan = gridMaxLng - gridMinLng;
+  if (latSpan <= 0 || lngSpan <= 0 || rows < 2 || cols < 2) return null;
+
+  final rowFrom = ((tileMinLat - gridMinLat) / latSpan * (rows - 1)).ceil();
+  final rowTo = ((tileMaxLat - gridMinLat) / latSpan * (rows - 1)).floor();
+  final colFrom = ((tileMinLng - gridMinLng) / lngSpan * (cols - 1)).ceil();
+  final colTo = ((tileMaxLng - gridMinLng) / lngSpan * (cols - 1)).floor();
+
+  // Il tile non interseca la destinazione: va scartato **prima** di limitare
+  // gli indici. Limitandoli soltanto, un tile tutto a nord finirebbe
+  // schiacciato sull'ultima riga e ci scriverebbe dentro quote prese da
+  // tutt'altro posto.
+  if (rowFrom > rows - 1 || rowTo < 0 || colFrom > cols - 1 || colTo < 0) {
+    return null;
+  }
+  final rf = rowFrom.clamp(0, rows - 1);
+  final rt = rowTo.clamp(0, rows - 1);
+  final cf = colFrom.clamp(0, cols - 1);
+  final ct = colTo.clamp(0, cols - 1);
+  if (rf > rt || cf > ct) return null;
+  return (rowFrom: rf, rowTo: rt, colFrom: cf, colTo: ct);
 }
 
 /// Risultato decode in isolate. Solo tipi primitivi (Float32List + int)

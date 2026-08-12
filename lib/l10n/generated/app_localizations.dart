@@ -9290,6 +9290,18 @@ abstract class AppLocalizations {
   /// **'Ti sei spostato: allineamento manuale azzerato'**
   String get mfAlignExpired;
 
+  /// No description provided for @mfSkylineTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Profilo dell\'orizzonte'**
+  String get mfSkylineTitle;
+
+  /// No description provided for @mfSkylineHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Disegna il profilo del terreno sopra la camera: se combacia con le montagne, il puntamento è giusto'**
+  String get mfSkylineHelp;
+
   /// No description provided for @mfViewshedPartialTerrain.
   ///
   /// In it, this message translates to:

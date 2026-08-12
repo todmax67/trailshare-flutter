@@ -2482,6 +2482,8 @@
   "mfAlignHint": "Drag until the names sit on the right peaks",
   "mfAlignReset": "Alignment reset",
   "mfAlignExpired": "You have moved: manual alignment reset",
+  "mfSkylineTitle": "Horizon outline",
+  "mfSkylineHelp": "Draws the terrain outline over the camera: if it matches the mountains, the aim is right",
   "mfViewshedPartialTerrain": "Incomplete terrain data: some peaks may be hidden",
   "mfViewshedNothingVisible": "No peak is visible from here: they are all behind a ridge",
   "locationTimeout": "Cannot get position (GPS timeout). Try again outdoors.",
