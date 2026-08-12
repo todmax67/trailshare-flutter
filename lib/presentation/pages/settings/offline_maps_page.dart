@@ -4,8 +4,10 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/services/offline_maps_service.dart';
+import '../../../core/services/terrain_tile_service.dart';
 import '../../../core/services/offline_tile_provider.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../widgets/app_snackbar.dart';
 
 /// Pagina gestione mappe offline
 class OfflineMapsPage extends StatefulWidget {
@@ -20,6 +22,11 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
   
   List<OfflineRegion> _regions = [];
   int _storageUsed = 0;
+  /// Spazio del terreno per il Peak Finder. Sta in una box separata dalle
+  /// mappe e finora non compariva da nessuna parte: cresceva senza che
+  /// l'utente potesse né saperlo né liberarlo.
+  int _terrainBytes = 0;
+  int _terrainTiles = 0;
   bool _isLoading = true;
 
   @override
@@ -33,11 +40,14 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
     
     final regions = await _service.getDownloadedRegions();
     final storage = await _service.getStorageUsed();
+    final terrain = await TerrainTileService().diskCacheUsage();
     
     if (mounted) {
       setState(() {
         _regions = regions;
         _storageUsed = storage;
+        _terrainBytes = terrain.bytes;
+        _terrainTiles = terrain.tiles;
         _isLoading = false;
       });
     }
@@ -76,6 +86,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
       children: [
         // Storage info
         _buildStorageCard(),
+        _buildTerrainCard(),
         
         // Lista regioni
         Expanded(
@@ -139,6 +150,57 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
     );
   }
 
+  /// Riga dedicata al terreno del Peak Finder: è un dato diverso dalle mappe,
+  /// vive in un'altra memoria e va liberato separatamente.
+  Widget _buildTerrainCard() {
+    if (_terrainTiles == 0) return const SizedBox.shrink();
+    final mb = _terrainBytes / (1024 * 1024);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.themedSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.themedBorder),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.terrain, color: context.textSecondary),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.l10n.terrainStorage,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: context.textPrimary,
+                  ),
+                ),
+                Text(
+                  '${mb.toStringAsFixed(1)} MB · $_terrainTiles',
+                  style: TextStyle(fontSize: 12, color: context.textMuted),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: _clearTerrain,
+            child: Text(context.l10n.delete),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _clearTerrain() async {
+    await TerrainTileService().clearDiskCache();
+    if (!mounted) return;
+    AppSnackBar.success(context, context.l10n.terrainCleared);
+    _loadData();
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
@@ -196,6 +258,9 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
     int minZoom = 10;
     int maxZoom = 16; // default più alto: dettaglio sentiero (era 15)
     String nameValue = '';
+    // Acceso di default: chi scarica un'area la sta preparando per andarci, ed
+    // è esattamente lì che il Peak Finder senza terreno smette di funzionare.
+    bool includeTerrain = true;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -210,7 +275,16 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
           });
           
           final tileCount = _service.estimateTileCount(bounds, minZoom, maxZoom);
-          final sizeMB = _service.estimateDownloadSize(tileCount);
+          var sizeMB = _service.estimateDownloadSize(tileCount);
+          final terrainTiles = TerrainTileService().estimateTileCount(
+            minLat: bounds.minLat,
+            maxLat: bounds.maxLat,
+            minLng: bounds.minLon,
+            maxLng: bounds.maxLon,
+          );
+          final terrainMB =
+              terrainTiles * TerrainTileService.averageTileBytes / (1024 * 1024);
+          if (includeTerrain) sizeMB += terrainMB;
 
           return AlertDialog(
             title: Text(context.l10n.downloadArea),
@@ -261,6 +335,24 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                     ],
                   ),
+                  const Divider(),
+                  // Il terreno e' un dato diverso dalle mappe: serve al Peak
+                  // Finder per sapere quali cime sono nascoste dietro un
+                  // crinale, e senza non funziona proprio dove serve.
+                  CheckboxListTile(
+                    value: includeTerrain,
+                    onChanged: (v) =>
+                        setDialogState(() => includeTerrain = v ?? true),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    dense: true,
+                    title: Text(context.l10n.includeTerrain),
+                    subtitle: Text(
+                      context.l10n.includeTerrainHint(
+                          terrainTiles, terrainMB.toStringAsFixed(0)),
+                      style: TextStyle(fontSize: 11, color: context.textMuted),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -291,6 +383,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
         bounds,
         minZoom,
         maxZoom,
+        includeTerrain: includeTerrain,
       );
     }
   }
@@ -299,8 +392,9 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
     String name,
     MapBounds bounds,
     int minZoom,
-    int maxZoom,
-  ) async {
+    int maxZoom, {
+    bool includeTerrain = false,
+  }) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -310,6 +404,7 @@ class _OfflineMapsPageState extends State<OfflineMapsPage> {
         bounds: bounds,
         minZoom: minZoom,
         maxZoom: maxZoom,
+        includeTerrain: includeTerrain,
       ),
     );
   }
@@ -542,6 +637,7 @@ class _DownloadProgressDialog extends StatefulWidget {
   final MapBounds bounds;
   final int minZoom;
   final int maxZoom;
+  final bool includeTerrain;
 
   const _DownloadProgressDialog({
     required this.service,
@@ -549,6 +645,7 @@ class _DownloadProgressDialog extends StatefulWidget {
     required this.bounds,
     required this.minZoom,
     required this.maxZoom,
+    this.includeTerrain = false,
   });
 
   @override
@@ -561,6 +658,10 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
   int _total = 0;
   bool _completed = false;
   String? _error;
+  /// Fase corrente: le mappe e il terreno sono due scarichi distinti, e
+  /// mostrarli come uno solo lascerebbe l'utente davanti a una barra che
+  /// riparte da zero senza spiegazione.
+  bool _terrainPhase = false;
 
   @override
   void initState() {
@@ -585,6 +686,34 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
           }
         },
       );
+
+      // Seconda fase: il terreno per il Peak Finder. Va dopo le mappe perche'
+      // e' l'aggiunta, non il piatto principale — e se fallisce, le mappe
+      // scaricate restano valide.
+      if (widget.includeTerrain && mounted) {
+        setState(() {
+          _terrainPhase = true;
+          _progress = 0;
+          _downloaded = 0;
+          _total = 0;
+        });
+        await TerrainTileService().prefetchArea(
+          minLat: widget.bounds.minLat,
+          maxLat: widget.bounds.maxLat,
+          minLng: widget.bounds.minLon,
+          maxLng: widget.bounds.maxLon,
+          onProgress: (done, total) {
+            if (mounted) {
+              setState(() {
+                _downloaded = done;
+                _total = total;
+                _progress = total > 0 ? done / total : 0;
+              });
+            }
+          },
+          isCancelled: () => !mounted,
+        );
+      }
 
       if (mounted) {
         setState(() => _completed = true);
@@ -621,6 +750,11 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
           else ...[
             LinearProgressIndicator(value: _progress),
             const SizedBox(height: 16),
+            if (_terrainPhase)
+              Text(
+                context.l10n.downloadingTerrain,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             Text(context.l10n.tileProgress(_downloaded, _total)),
             Text('${(_progress * 100).toStringAsFixed(0)}%'),
           ],

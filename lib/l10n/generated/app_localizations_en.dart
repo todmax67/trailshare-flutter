@@ -718,6 +718,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storageUsed => 'Storage used';
 
   @override
+  String get includeTerrain => 'Include terrain for Peak Finder';
+
+  @override
+  String includeTerrainHint(int tiles, String mb) {
+    return '$tiles tiles, about $mb MB — tells which peaks are hidden behind a ridge, even without a connection';
+  }
+
+  @override
+  String get downloadingTerrain => 'Downloading terrain…';
+
+  @override
+  String get terrainStorage => 'Peak Finder terrain';
+
+  @override
+  String get clearTerrainCache => 'Delete downloaded terrain';
+
+  @override
+  String get terrainCleared => 'Terrain deleted';
+
+  @override
   String get units => 'Units';
 
   @override
@@ -4558,6 +4578,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mfDistanceFilterTitle => 'Max distance';
 
   @override
+  String get mfViewOptionsTitle => 'View';
+
+  @override
+  String get mfViewOptionsHelp => 'What to show, and how far to look';
+
+  @override
   String get mfDistanceFilterHelp =>
       'Limit shown peaks to this distance from your location.';
 
@@ -5108,6 +5134,62 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mfViewshedOffTooltip =>
       'Visibility filter OFF — show only non-occluded peaks';
+
+  @override
+  String get mfViewshedNoTerrain =>
+      'Offline I can\'t tell which peaks are hidden: showing them all';
+
+  @override
+  String get mfViewshedNoTerrainHere =>
+      'Incomplete terrain data here: showing all peaks';
+
+  @override
+  String get mfCompassUnreliable =>
+      'Compass needs calibrating: move the phone in a figure of eight';
+
+  @override
+  String get mfAlignTooltip => 'Align the labels — long press to reset';
+
+  @override
+  String get mfAlignHint => 'Drag until the names sit on the right peaks';
+
+  @override
+  String get mfAlignReset => 'Alignment reset';
+
+  @override
+  String get mfAlignExpired => 'You have moved: manual alignment reset';
+
+  @override
+  String get mfSkylineTitle => 'Horizon outline';
+
+  @override
+  String get mfPanoramaFromHere => 'What you can see from this summit';
+
+  @override
+  String get mfSkylineHelp =>
+      'Draws the terrain outline over the camera: if it matches the mountains, the aim is right';
+
+  @override
+  String get mfSunPathTitle => 'Sun and moon';
+
+  @override
+  String get mfPanoramaFromMyPosition => 'Panorama from where I am';
+
+  @override
+  String get mfPanoramaFromMyPositionHelp =>
+      'The 360° outline drawn from the terrain, without pointing the camera';
+
+  @override
+  String get mfSunPathHelp =>
+      'Draws the path of the sun and moon with the hours: shows when the sun will clear a ridge, and lets you check the aim against the real sun';
+
+  @override
+  String get mfViewshedPartialTerrain =>
+      'Incomplete terrain data: some peaks may be hidden';
+
+  @override
+  String get mfViewshedNothingVisible =>
+      'No peak is visible from here: they are all behind a ridge';
 
   @override
   String get locationTimeout =>

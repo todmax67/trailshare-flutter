@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../../data/models/mountain_peak.dart';
+import '../utils/peak_search.dart';
 
 /// Servizio singleton che carica e tiene in memoria il dataset offline
 /// di tutte le cime italiane (`assets/data/peaks_italy.json`, ~37k voci,
@@ -69,14 +70,53 @@ class PeaksDatasetService {
     }
   }
 
+  /// Cerca cime per nome in tutto il catalogo.
+  ///
+  /// Non filtra per distanza: chi cerca il Monte Rosa lo vuole trovare anche se
+  /// è a duecento chilometri. La distanza serve a **ordinare**, ed è la seconda
+  /// chiave dopo la qualità della corrispondenza — vedi [searchPeaksByName].
+  List<PeakSearchHit> searchByName(
+    String query, {
+    double? observerLat,
+    double? observerLng,
+    int limit = 40,
+  }) {
+    final all = _peaks;
+    if (all == null || all.isEmpty) return const [];
+    return searchPeaksByName(
+      all,
+      query,
+      observerLat: observerLat,
+      observerLng: observerLng,
+      limit: limit,
+    );
+  }
+
   /// Ritorna le cime entro un raggio (km) dalla posizione data.
   /// Pre-filtra con bounding box approssimata, poi calcola distanze
   /// precise solo sulle candidate.
+  ///
+  /// Quando le cime nel raggio superano [maxResults] si tengono le più
+  /// **imponenti nella scena**, non le più vicine.
+  ///
+  /// Tenere le più vicine sembra ragionevole ed è invece l'opposto di ciò che
+  /// serve: in un raggio di 60 km sulle Alpi ci sono migliaia di cime, e le 200
+  /// più vicine sono tutte cimette dietro casa, mentre spariscono le montagne
+  /// che uno vuole riconoscere guardando l'orizzonte. Misurato sul campo: con il
+  /// vecchio criterio il raggio di 100 km del tier Pro non serviva a nulla,
+  /// perché nessuna cima oltre i 60 km entrava mai nell'insieme.
+  ///
+  /// Il criterio è l'angolo di elevazione apparente — quanto la cima si alza nel
+  /// cielo vista da qui — che è esattamente ciò che la rende notevole: premia sia
+  /// il monte vicino sia il gigante lontano e scarta la collinetta.
+  /// [observerElevationM] serve a calcolarlo; senza, si assume il livello del
+  /// mare e il criterio degrada in "alta e vicina prima".
   List<MountainPeak> findWithinRadius(
     double lat,
     double lng, {
     required double radiusKm,
-    int maxResults = 200,
+    int maxResults = 1200,
+    double observerElevationM = 0,
   }) {
     final all = _peaks;
     if (all == null || all.isEmpty) return const [];
@@ -106,14 +146,21 @@ class PeaksDatasetService {
       }
     }
 
-    results.sort((a, b) => a.distance.compareTo(b.distance));
+    // Sotto la soglia si restituisce tutto, ordinato per distanza: è l'ordine
+    // che si aspetta chi legge la lista.
     if (results.length <= maxResults) {
+      results.sort((a, b) => a.distance.compareTo(b.distance));
       return results.map((r) => r.peak).toList(growable: false);
     }
-    return results
-        .take(maxResults)
-        .map((r) => r.peak)
-        .toList(growable: false);
+
+    // Sopra la soglia il taglio si fa per imponenza apparente, poi si
+    // riordina per distanza.
+    results.sort((a, b) =>
+        b.apparentElevationAngle(observerElevationM)
+            .compareTo(a.apparentElevationAngle(observerElevationM)));
+    final kept = results.take(maxResults).toList()
+      ..sort((a, b) => a.distance.compareTo(b.distance));
+    return kept.map((r) => r.peak).toList(growable: false);
   }
 
   /// Distanza Haversine in metri.
@@ -136,4 +183,16 @@ class _ScoredPeak {
   final MountainPeak peak;
   final double distance;
   const _ScoredPeak(this.peak, this.distance);
+
+  /// Angolo sotto cui la cima si alza sull'orizzonte dell'osservatore, in
+  /// gradi. Include l'abbassamento per curvatura terrestre, altrimenti a 100 km
+  /// una cima risulterebbe 683 m più alta di come appare davvero.
+  double apparentElevationAngle(double observerElevationM) {
+    if (distance < 1) return 90;
+    const earthRadiusM = 6371000.0;
+    const refractionK = 0.13;
+    final drop = (1 - refractionK) * distance * distance / (2 * earthRadiusM);
+    final dh = (peak.elevation ?? 0) - drop - observerElevationM;
+    return math.atan2(dh, distance) * 180 / math.pi;
+  }
 }

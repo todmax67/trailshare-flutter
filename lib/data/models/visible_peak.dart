@@ -16,21 +16,32 @@ class VisiblePeak {
   /// teorico, può essere negativo se la cima è "sotto" la testa dell'utente).
   final double elevationAngleDeg;
 
-  /// Angolo dello skyline a quell'azimut (gradi). La cima è visibile sse
-  /// `elevationAngleDeg > skylineAngleDeg + margin`.
-  final double skylineAngleDeg;
+  /// Di quanti **gradi** la cima sta sopra l'ostacolo peggiore lungo il
+  /// tragitto verso di lei.
+  ///
+  /// Sostituisce il vecchio confronto con lo skyline: quello diceva di quanto la
+  /// cima sporgeva rispetto al profilo di un raggio *vicino* al suo azimut, che
+  /// a 100 km poteva passare 1,7 km di lato. Questo misura il vero tragitto
+  /// verso quella cima. Vicino a zero = "spunta appena dietro la cresta".
+  final double clearanceDeg;
+
+  /// True quando fra noi e la cima c'è terreno che il DEM non copre: la
+  /// mostriamo comunque (non possiamo dimostrare che sia nascosta) ma non è
+  /// una certezza, ed è giusto che l'interfaccia lo dica.
+  final bool uncertain;
 
   const VisiblePeak({
     required this.peak,
     required this.azimuthDeg,
     required this.distanceMeters,
     required this.elevationAngleDeg,
-    required this.skylineAngleDeg,
+    required this.clearanceDeg,
+    this.uncertain = false,
   });
 
-  /// Quanto la cima sporge dall'orizzonte locale. Positivo = visibile pulita,
-  /// vicino a 0 = "appena sopra il crinale", negativo = occlusa.
-  double get prominenceOverSkylineDeg => elevationAngleDeg - skylineAngleDeg;
+  /// True quando la cima spunta di poco: utile per distinguere "la vedi bene"
+  /// da "ne vedi la punta" senza mostrare numeri all'utente.
+  bool get isMarginal => clearanceDeg < 0.25;
 
   /// Label compatta per UI: "Monte Bianco · 12 km · NE".
   String label({bool includeDistance = true, bool includeBearing = true}) {

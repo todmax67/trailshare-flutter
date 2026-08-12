@@ -1478,6 +1478,42 @@ abstract class AppLocalizations {
   /// **'Spazio utilizzato'**
   String get storageUsed;
 
+  /// No description provided for @includeTerrain.
+  ///
+  /// In it, this message translates to:
+  /// **'Includi il terreno per il Peak Finder'**
+  String get includeTerrain;
+
+  /// No description provided for @includeTerrainHint.
+  ///
+  /// In it, this message translates to:
+  /// **'{tiles} tessere, circa {mb} MB — serve a capire quali cime sono nascoste dietro un crinale, anche senza rete'**
+  String includeTerrainHint(int tiles, String mb);
+
+  /// No description provided for @downloadingTerrain.
+  ///
+  /// In it, this message translates to:
+  /// **'Scarico il terreno…'**
+  String get downloadingTerrain;
+
+  /// No description provided for @terrainStorage.
+  ///
+  /// In it, this message translates to:
+  /// **'Terreno Peak Finder'**
+  String get terrainStorage;
+
+  /// No description provided for @clearTerrainCache.
+  ///
+  /// In it, this message translates to:
+  /// **'Elimina il terreno scaricato'**
+  String get clearTerrainCache;
+
+  /// No description provided for @terrainCleared.
+  ///
+  /// In it, this message translates to:
+  /// **'Terreno eliminato'**
+  String get terrainCleared;
+
   /// No description provided for @units.
   ///
   /// In it, this message translates to:
@@ -8270,6 +8306,18 @@ abstract class AppLocalizations {
   /// **'Distanza massima'**
   String get mfDistanceFilterTitle;
 
+  /// No description provided for @mfViewOptionsTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Vista'**
+  String get mfViewOptionsTitle;
+
+  /// No description provided for @mfViewOptionsHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa mostrare, e fin dove guardare'**
+  String get mfViewOptionsHelp;
+
   /// No description provided for @mfDistanceFilterHelp.
   ///
   /// In it, this message translates to:
@@ -9247,6 +9295,102 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Filtro visibilità OFF — mostra solo cime non occluse'**
   String get mfViewshedOffTooltip;
+
+  /// No description provided for @mfViewshedNoTerrain.
+  ///
+  /// In it, this message translates to:
+  /// **'Senza rete non so quali cime sono nascoste: le mostro tutte'**
+  String get mfViewshedNoTerrain;
+
+  /// No description provided for @mfViewshedNoTerrainHere.
+  ///
+  /// In it, this message translates to:
+  /// **'Dati del terreno incompleti qui: mostro tutte le cime'**
+  String get mfViewshedNoTerrainHere;
+
+  /// No description provided for @mfCompassUnreliable.
+  ///
+  /// In it, this message translates to:
+  /// **'Bussola da calibrare: muovi il telefono a forma di otto'**
+  String get mfCompassUnreliable;
+
+  /// No description provided for @mfAlignTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Allinea le etichette — tocca a lungo per azzerare'**
+  String get mfAlignTooltip;
+
+  /// No description provided for @mfAlignHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Trascina finché i nomi non cadono sulle cime giuste'**
+  String get mfAlignHint;
+
+  /// No description provided for @mfAlignReset.
+  ///
+  /// In it, this message translates to:
+  /// **'Allineamento azzerato'**
+  String get mfAlignReset;
+
+  /// No description provided for @mfAlignExpired.
+  ///
+  /// In it, this message translates to:
+  /// **'Ti sei spostato: allineamento manuale azzerato'**
+  String get mfAlignExpired;
+
+  /// No description provided for @mfSkylineTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Profilo dell\'orizzonte'**
+  String get mfSkylineTitle;
+
+  /// No description provided for @mfPanoramaFromHere.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa si vede da questa vetta'**
+  String get mfPanoramaFromHere;
+
+  /// No description provided for @mfSkylineHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Disegna il profilo del terreno sopra la camera: se combacia con le montagne, il puntamento è giusto'**
+  String get mfSkylineHelp;
+
+  /// No description provided for @mfSunPathTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Sole e luna'**
+  String get mfSunPathTitle;
+
+  /// No description provided for @mfPanoramaFromMyPosition.
+  ///
+  /// In it, this message translates to:
+  /// **'Panorama da dove sono'**
+  String get mfPanoramaFromMyPosition;
+
+  /// No description provided for @mfPanoramaFromMyPositionHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Il giro d\'orizzonte disegnato dal terreno, senza puntare la fotocamera'**
+  String get mfPanoramaFromMyPositionHelp;
+
+  /// No description provided for @mfSunPathHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Disegna il cammino di sole e luna con le ore: dice quando il sole scavalcherà una cresta, e permette di verificare il puntamento sul sole vero'**
+  String get mfSunPathHelp;
+
+  /// No description provided for @mfViewshedPartialTerrain.
+  ///
+  /// In it, this message translates to:
+  /// **'Dati del terreno incompleti: alcune cime potrebbero essere nascoste'**
+  String get mfViewshedPartialTerrain;
+
+  /// No description provided for @mfViewshedNothingVisible.
+  ///
+  /// In it, this message translates to:
+  /// **'Da qui non si vede nessuna cima: sono tutte dietro un crinale'**
+  String get mfViewshedNothingVisible;
 
   /// No description provided for @locationTimeout.
   ///

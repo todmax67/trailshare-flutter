@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
+import '../utils/dem_tile_codec.dart';
+import 'network_status.dart';
 import '../utils/viewshed_compute.dart';
 
 /// Fetch e decode di tile DEM da AWS Open Terrain Tiles.
@@ -61,6 +62,143 @@ class TerrainTileService {
   /// True se la cache su disco è pronta.
   bool get diskCacheReady => _diskInitialized && _diskBox != null;
 
+  /// Scarica in anticipo tutto il terreno di una zona e lo tiene su disco.
+  ///
+  /// È il pezzo che mancava perché la funzione servisse a qualcosa dove la si
+  /// usa: in quota il campo non c'è, e finora il Peak Finder degradava proprio
+  /// lì. La cache opportunistica aiuta solo chi è già passato in quel posto
+  /// **con la rete**.
+  ///
+  /// Scarica entrambe le risoluzioni che il viewshed usa — quella larga per il
+  /// raggio pieno e quella fitta per il campo vicino — perché scaricarne una
+  /// sola lascerebbe la funzione a metà senza che l'utente lo sappia.
+  ///
+  /// Restituisce quanti tile sono stati scaricati; `null` se interrotto.
+  Future<TerrainPrefetchResult> prefetchArea({
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    List<int> zooms = const [10, 12],
+    void Function(int done, int total)? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    // Un download chiesto esplicitamente deve persistere, qualunque sia il
+    // tier: la cache automatica è un'ottimizzazione, questa è una promessa.
+    await enableDiskCache();
+
+    final wanted = <List<int>>[];
+    for (final z in zooms) {
+      wanted.addAll(_tilesInBbox(
+        minLat: minLat, maxLat: maxLat,
+        minLng: minLng, maxLng: maxLng,
+        zoom: z,
+      ));
+    }
+    if (wanted.isEmpty) {
+      return const TerrainPrefetchResult(requested: 0, downloaded: 0, failed: 0);
+    }
+
+    var done = 0;
+    var failed = 0;
+    var downloaded = 0;
+    var alreadyHad = 0;
+    onProgress?.call(0, wanted.length);
+
+    const batchSize = 6;
+    for (var i = 0; i < wanted.length; i += batchSize) {
+      if (isCancelled?.call() ?? false) {
+        return TerrainPrefetchResult(
+          requested: wanted.length,
+          downloaded: downloaded,
+          failed: failed,
+          cancelled: true,
+        );
+      }
+      final batch = wanted.skip(i).take(batchSize).map((t) async {
+        // Già su disco: non si rifà la rete. Il senso del prefetch è riempire
+        // i buchi, non ripagare quello che c'è.
+        final key = '${t[0]}/${t[1]}/${t[2]}';
+        if (_diskBox?.containsKey(key) ?? false) return _TileOutcome.cached;
+        final tile = await _fetchTile(t[0], t[1], t[2]);
+        return tile != null ? _TileOutcome.fetched : _TileOutcome.failed;
+      });
+      final results = await Future.wait(batch);
+      for (final outcome in results) {
+        done++;
+        switch (outcome) {
+          case _TileOutcome.cached:
+            alreadyHad++;
+          case _TileOutcome.fetched:
+            downloaded++;
+          case _TileOutcome.failed:
+            failed++;
+        }
+      }
+      onProgress?.call(done, wanted.length);
+      // Respiro fra i lotti, come fa il download delle mappe: saturare la rete
+      // rende l'app inutilizzabile mentre scarica.
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+    }
+
+    debugPrint('[Terrain] prefetch: ${wanted.length} tessere richieste — '
+        '$downloaded scaricate, $alreadyHad già presenti, $failed fallite');
+    return TerrainPrefetchResult(
+      requested: wanted.length,
+      downloaded: downloaded,
+      failed: failed,
+    );
+  }
+
+  /// Quanti tile servono per una zona, per stimare tempo e spazio prima di
+  /// cominciare.
+  int estimateTileCount({
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    List<int> zooms = const [10, 12],
+  }) {
+    var n = 0;
+    for (final z in zooms) {
+      n += _tilesInBbox(
+        minLat: minLat, maxLat: maxLat,
+        minLng: minLng, maxLng: maxLng,
+        zoom: z,
+      ).length;
+    }
+    return n;
+  }
+
+  /// Byte medi per tile nel formato compatto, misurati su terreno montano.
+  /// Serve solo a stimare: la pianura comprime molto di più.
+  static const int averageTileBytes = 44 * 1024;
+
+  /// Spazio occupato dal terreno su disco, in byte, e numero di tile.
+  ///
+  /// Non esisteva alcun modo di saperlo né di liberarlo: la box cresceva senza
+  /// limite e senza che comparisse da nessuna parte. Su uno spazio che l'utente
+  /// non vede non può decidere.
+  Future<({int bytes, int tiles})> diskCacheUsage() async {
+    await enableDiskCache();
+    final box = _diskBox;
+    if (box == null) return (bytes: 0, tiles: 0);
+    var total = 0;
+    for (final key in box.keys) {
+      total += box.get(key)?.lengthInBytes ?? 0;
+    }
+    return (bytes: total, tiles: box.length);
+  }
+
+  /// Cancella tutto il terreno memorizzato.
+  Future<void> clearDiskCache() async {
+    await enableDiskCache();
+    await _diskBox?.clear();
+    _memCache.clear();
+    _memCacheOrder.clear();
+    debugPrint('[Terrain] cache su disco svuotata');
+  }
+
   /// Costruisce un [DemGrid] coprente la bbox richiesta scaricando i tile
   /// terrarium necessari e mosaicandoli in una griglia unica.
   ///
@@ -108,10 +246,105 @@ class TerrainTileService {
     }
 
     if (fetched.isEmpty) return null;
+    if (fetched.length < tiles.length) {
+      debugPrint('[Terrain] ⚠️ ${tiles.length - fetched.length} tile su '
+          '${tiles.length} non scaricati: quelle zone restano NaN');
+    }
 
-    // Mosaico: trova bbox totale dei tile, crea griglia destinazione
-    // sufficientemente densa, riempi pixel-by-pixel con lookup nearest tile.
-    return _mosaic(fetched);
+    // Mosaico sulla bbox **richiesta**, non su quella dei soli tile riusciti:
+    // altrimenti un tile mancante al bordo restringe in silenzio la griglia,
+    // e nel caso peggiore la griglia non contiene nemmeno l'osservatore.
+    return _mosaic(
+      fetched,
+      minLat: minLat,
+      maxLat: maxLat,
+      minLng: minLng,
+      maxLng: maxLng,
+      zoom: zoom,
+    );
+  }
+
+  /// Costruisce il terreno a due risoluzioni per il viewshed: una griglia
+  /// fitta attorno all'osservatore e una larga che copre tutto il raggio.
+  ///
+  /// Le occlusioni si decidono soprattutto vicino — un dosso a 200 m nasconde
+  /// mezzo orizzonte — ma su una griglia a 110 m/cella quel dosso è tre pixel e
+  /// sparisce nella media. Lontano invece la risoluzione conta poco, perché a
+  /// 50 km un dettaglio di 100 m sottende un decimo di grado.
+  ///
+  /// Se la griglia fitta non arriva (rete lenta, cap tile) si prosegue con la
+  /// sola griglia larga: peggio di prima non si sta mai.
+  Future<LayeredDem?> buildLayeredDem({
+    required double observerLat,
+    required double observerLng,
+    required double radiusKm,
+    int coarseZoom = 10,
+    int fineZoom = 12,
+    double fineRadiusKm = 10,
+  }) async {
+    Future<DemGrid?> build(double km, int zoom) {
+      final latDelta = km / 111.0;
+      final lngDelta = km / (111.0 * math.cos(observerLat * math.pi / 180));
+      return buildDemGrid(
+        minLat: observerLat - latDelta,
+        maxLat: observerLat + latDelta,
+        minLng: observerLng - lngDelta,
+        maxLng: observerLng + lngDelta,
+        zoom: zoom,
+      );
+    }
+
+    // Le due griglie si costruiscono **in parallelo**: sono indipendenti, e
+    // metterle in fila raddoppiava l'attesa prima che comparisse una sola cima.
+    // Non ha senso chiedere la griglia fitta più grande del raggio totale.
+    final fineKm = math.min(fineRadiusKm, radiusKm);
+    final built = await Future.wait([
+      build(radiusKm, coarseZoom),
+      build(fineKm, fineZoom),
+    ]);
+    final coarse = built[0];
+    // La griglia larga è indispensabile: senza, non c'è viewshed. Quella fitta
+    // è un miglioramento, e se manca si prosegue lo stesso.
+    if (coarse == null) return null;
+    final fine = built[1];
+
+    debugPrint('[Terrain] DEM a strati: '
+        'fine=${fine == null ? "assente" : "${fine.rows}×${fine.cols} ~${fine.cellSizeMeters.round()}m"}'
+        ' coarse=${coarse.rows}×${coarse.cols} ~${coarse.cellSizeMeters.round()}m');
+    return LayeredDem(coarse: coarse, fine: fine);
+  }
+
+  /// Quota del terreno in un punto, dal DEM. Scarica (e cacha) il solo tile
+  /// che contiene il punto, quindi dopo il primo accesso è immediata.
+  ///
+  /// Serve per la quota dell'**osservatore**: quella del GPS sbaglia di 20-50 m
+  /// su Android, che a 3 km di distanza vale un grado di errore verticale — i
+  /// pin scivolano sopra o sotto le cime. Il DEM è molto più stabile, ed è la
+  /// stessa quota che usa il viewshed: così le due metà del sistema concordano
+  /// su dove si trova l'utente.
+  ///
+  /// Zoom 12 (~30 m/pixel in Italia) perché qui conta la precisione locale, non
+  /// l'estensione: è un tile solo.
+  Future<double?> groundElevationAt(
+    double lat,
+    double lng, {
+    int zoom = 12,
+  }) async {
+    final n = math.pow(2, zoom).toInt();
+    final x = ((lng + 180) / 360 * n).floor().clamp(0, n - 1);
+    final y = _latToTileY(lat, zoom).clamp(0, n - 1);
+    final tile = await _fetchTile(zoom, x, y);
+    if (tile == null) return null;
+    final fy = (tile.maxLat - lat) /
+        (tile.maxLat - tile.minLat) *
+        (tile.height - 1);
+    final fx = (lng - tile.minLng) /
+        (tile.maxLng - tile.minLng) *
+        (tile.width - 1);
+    final ry = fy.round().clamp(0, tile.height - 1);
+    final rx = fx.round().clamp(0, tile.width - 1);
+    final ele = tile.elevations[ry * tile.width + rx];
+    return ele.isFinite ? ele.toDouble() : null;
   }
 
   Future<_DemTile?> _fetchTile(int z, int x, int y) async {
@@ -153,43 +386,44 @@ class TerrainTileService {
     return tile;
   }
 
-  /// Encoding compatto su disco: 16 bytes header (w,h,minLat,maxLat,minLng,maxLng)
-  /// + Float32List elevations (raw little-endian).
-  Uint8List _tileToBytes(_DemTile t) {
-    final out = BytesBuilder();
-    final header = ByteData(16 + 4 * 4);
-    header.setUint32(0, t.width, Endian.little);
-    header.setUint32(4, t.height, Endian.little);
-    header.setFloat32(8, t.minLat, Endian.little);
-    header.setFloat32(12, t.maxLat, Endian.little);
-    header.setFloat32(16, t.minLng, Endian.little);
-    header.setFloat32(20, t.maxLng, Endian.little);
-    out.add(header.buffer.asUint8List());
-    out.add(t.elevations.buffer.asUint8List());
-    return out.toBytes();
-  }
+  /// Serializzazione su disco nel formato compatto: differenze fra campioni
+  /// adiacenti, varint, compresse. Un tile di montagna passa da 256 KB a ~43,
+  /// il che è la differenza fra un pacchetto alpino da 115 MB e uno da 19.
+  Uint8List _tileToBytes(_DemTile t) => encodeDemTile(DemTileData(
+        width: t.width,
+        height: t.height,
+        minLat: t.minLat,
+        maxLat: t.maxLat,
+        minLng: t.minLng,
+        maxLng: t.maxLng,
+        elevations: t.elevations,
+      ));
 
   _DemTile? _bytesToTile(Uint8List bytes, int z, int x, int y) {
     try {
-      final bd = ByteData.sublistView(bytes, 0, 32);
-      final w = bd.getUint32(0, Endian.little);
-      final h = bd.getUint32(4, Endian.little);
-      final minLat = bd.getFloat32(8, Endian.little);
-      final maxLat = bd.getFloat32(12, Endian.little);
-      final minLng = bd.getFloat32(16, Endian.little);
-      final maxLng = bd.getFloat32(20, Endian.little);
-      // Copia in nuovo Float32List per evitare problemi di allineamento
-      // (la Uint8List restituita da Hive non garantisce alignment a 4 byte).
-      final ele = Float32List(w * h);
-      final eleBytes = ByteData.sublistView(bytes, 32, 32 + w * h * 4);
-      for (int i = 0; i < w * h; i++) {
-        ele[i] = eleBytes.getFloat32(i * 4, Endian.little);
+      // Formato compatto.
+      final compact = decodeDemTile(bytes);
+      if (compact != null) {
+        return _DemTile(
+          z: z, x: x, y: y,
+          width: compact.width, height: compact.height,
+          minLat: compact.minLat, maxLat: compact.maxLat,
+          minLng: compact.minLng, maxLng: compact.maxLng,
+          elevations: compact.elevations,
+        );
       }
+
+      // Formato precedente: i telefoni hanno già una cache popolata, e
+      // costringerli a riscaricare tutto per un cambio di formato sarebbe
+      // gratuito solo per noi. Alla prima riscrittura il tile passa al nuovo.
+      final legacy = decodeLegacyDemTile(bytes);
+      if (legacy == null) return null;
       return _DemTile(
         z: z, x: x, y: y,
-        width: w, height: h,
-        minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
-        elevations: ele,
+        width: legacy.width, height: legacy.height,
+        minLat: legacy.minLat, maxLat: legacy.maxLat,
+        minLng: legacy.minLng, maxLng: legacy.maxLng,
+        elevations: legacy.elevations,
       );
     } catch (e) {
       debugPrint('[Terrain] decode disk bytes failed: $e');
@@ -198,6 +432,14 @@ class TerrainTileService {
   }
 
   Future<_DemTile?> _doFetch(int z, int x, int y) async {
+    // Senza rete non si tenta nemmeno. Ogni tentativo costa 12 secondi di
+    // timeout, e a lotti da otto un raggio pieno con la cache incompleta
+    // significa oltre un minuto di attesa prima che compaia una sola cima —
+    // cioe' proprio la situazione per cui il terreno si scarica in anticipo.
+    // Meglio dire subito "questo pezzo non ce l'ho" e lasciare che il viewshed
+    // lavori su quello che c'e', dichiarandolo.
+    if (NetworkStatus.instance.isOffline) return null;
+
     final url = '$_tileBase/$z/$x/$y.png';
     try {
       final resp = await http
@@ -247,60 +489,94 @@ class TerrainTileService {
     _memCacheOrder.add(key);
   }
 
-  /// Combina più tile in una griglia DemGrid unica con risoluzione uniforme.
-  /// La risoluzione output combacia con quella dei tile (256 px per tile).
-  DemGrid _mosaic(List<_DemTile> tiles) {
-    double minLat = double.infinity;
-    double maxLat = -double.infinity;
-    double minLng = double.infinity;
-    double maxLng = -double.infinity;
-    for (final t in tiles) {
-      if (t.minLat < minLat) minLat = t.minLat;
-      if (t.maxLat > maxLat) maxLat = t.maxLat;
-      if (t.minLng < minLng) minLng = t.minLng;
-      if (t.maxLng > maxLng) maxLng = t.maxLng;
-    }
-    // Pixel size: usa lo stesso dei tile (tutti hanno stesso zoom).
-    final z = tiles.first.z;
-    final tileCount = math.pow(2, z).toInt();
-    final lngRangePerTile = 360.0 / tileCount;
-    final px = lngRangePerTile / tiles.first.width;
-    final cols = ((maxLng - minLng) / px).round();
-    final rows = ((maxLat - minLat) / px).round(); // approssimato (latitudine)
-    final out = Float32List(rows * cols);
+  /// Combina più tile in una griglia DemGrid unica con risoluzione uniforme,
+  /// sulla bbox **richiesta**.
+  ///
+  /// Le celle che nessun tile copre restano **NaN**, non 0. Prima erano zeri
+  /// (la `Float32List` nasce azzerata) e il viewshed li leggeva come quota
+  /// valida sul livello del mare: un tile mancante diventava un buco da cui si
+  /// vedeva *attraverso* la montagna. NaN significa "non lo so", e chi legge
+  /// salta il campione invece di credere a una pianura che non esiste.
+  DemGrid _mosaic(
+    List<_DemTile> tiles, {
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    required int zoom,
+  }) {
+    // Passo dei pixel: quello nativo dei tile, **separato per i due assi**.
+    // In Mercator un pixel è quadrato in metri ma non in gradi: alle nostre
+    // latitudini copre 1,4 volte meno gradi in latitudine che in longitudine.
+    // Usando il passo della longitudine anche per le righe si buttava via un
+    // terzo del dettaglio verticale del DEM.
+    final tileCount = math.pow(2, zoom).toInt();
+    final lngPx = (360.0 / tileCount) / tiles.first.width;
+    final first = tiles.first;
+    final latPx = (first.maxLat - first.minLat) / first.height;
+    final cols = math.max(2, ((maxLng - minLng) / lngPx).round());
+    final rows = math.max(2, ((maxLat - minLat) / latPx).round());
 
-    // Per ogni cella destinazione, trova il tile contenente e fai sampling.
-    for (int r = 0; r < rows; r++) {
-      final lat = maxLat - (r + 0.5) * (maxLat - minLat) / rows;
-      for (int c = 0; c < cols; c++) {
-        final lng = minLng + (c + 0.5) * (maxLng - minLng) / cols;
-        final tile = _findTile(tiles, lat, lng);
-        if (tile == null) continue;
-        final fy = (tile.maxLat - lat) / (tile.maxLat - tile.minLat) * (tile.height - 1);
-        final fx = (lng - tile.minLng) / (tile.maxLng - tile.minLng) * (tile.width - 1);
-        final ry = fy.round().clamp(0, tile.height - 1);
-        final rx = fx.round().clamp(0, tile.width - 1);
-        out[r * cols + c] = tile.elevations[ry * tile.width + rx];
-      }
-    }
-
-    return DemGrid(
+    // La griglia si costruisce PRIMA e si riempie attraverso i suoi stessi
+    // `latForRow`/`lngForCol`. Non è un vezzo: scrivendo la formula a mano qui
+    // dentro, questa funzione e `DemGrid.elevationAt` avevano finito per usare
+    // convenzioni opposte per le righe, e il DEM veniva letto specchiato
+    // nord-sud. Passando dai metodi della griglia le due cose non possono più
+    // divergere.
+    final out = Float32List(rows * cols)..fillRange(0, rows * cols, double.nan);
+    final grid = DemGrid(
       minLat: minLat, maxLat: maxLat,
       minLng: minLng, maxLng: maxLng,
       rows: rows, cols: cols,
-      elevations: out.toList(growable: false),
+      elevations: out,
     );
-  }
 
-  _DemTile? _findTile(List<_DemTile> tiles, double lat, double lng) {
-    for (final t in tiles) {
-      if (lat >= t.minLat && lat <= t.maxLat &&
-          lng >= t.minLng && lng <= t.maxLng) {
-        return t;
+    // Si scorre **per tile**, non per cella di destinazione.
+    //
+    // Il verso opposto sembrava più naturale ("per ogni cella, trova il tile")
+    // ma cercava il tile con una scansione lineare: su due milioni di celle e
+    // qualche decina di tile sono decine di milioni di confronti, tutti sul
+    // thread principale, cioè scatti nella preview della fotocamera proprio
+    // mentre l'utente sta inquadrando. Qui invece ogni tile calcola una volta
+    // sola l'intervallo di righe e colonne che gli compete e ci scrive dentro:
+    // il costo torna lineare nel numero di celle.
+    for (final tile in tiles) {
+      // Righe/colonne della destinazione che cadono dentro questo tile.
+      final range = destinationRangeFor(
+        gridMinLat: minLat, gridMaxLat: maxLat,
+        gridMinLng: minLng, gridMaxLng: maxLng,
+        rows: rows, cols: cols,
+        tileMinLat: tile.minLat, tileMaxLat: tile.maxLat,
+        tileMinLng: tile.minLng, tileMaxLng: tile.maxLng,
+      );
+      if (range == null) continue;
+      final rowFrom = range.rowFrom;
+      final rowTo = range.rowTo;
+      final colFrom = range.colFrom;
+      final colTo = range.colTo;
+
+      final tLatSpan = tile.maxLat - tile.minLat;
+      final tLngSpan = tile.maxLng - tile.minLng;
+      if (tLatSpan <= 0 || tLngSpan <= 0) continue;
+
+      for (int r = rowFrom; r <= rowTo; r++) {
+        final lat = grid.latForRow(r);
+        final fy = (tile.maxLat - lat) / tLatSpan * (tile.height - 1);
+        final ry = fy.round().clamp(0, tile.height - 1);
+        final rowBase = ry * tile.width;
+        final outBase = r * cols;
+        for (int c = colFrom; c <= colTo; c++) {
+          final lng = grid.lngForCol(c);
+          final fx = (lng - tile.minLng) / tLngSpan * (tile.width - 1);
+          final rx = fx.round().clamp(0, tile.width - 1);
+          out[outBase + c] = tile.elevations[rowBase + rx];
+        }
       }
     }
-    return null;
+
+    return grid;
   }
+
 
   // ── XYZ tile math ────────────────────────────────────────────────────
 
@@ -347,6 +623,75 @@ class TerrainTileService {
   }
 
   double _sinh(double x) => (math.exp(x) - math.exp(-x)) / 2;
+}
+
+/// Intervallo di righe e colonne della griglia destinazione coperte da una
+/// bbox (tipicamente quella di un tile). `null` se non si intersecano.
+///
+/// Vive fuori dal mosaico e senza stato apposta: è la parte che sbagliando
+/// scrive quote nel posto sbagliato, ed è già successo — la versione
+/// precedente del mosaico riempiva le righe al contrario e il DEM veniva
+/// riletto specchiato nord-sud. Qui si può testare con numeri.
+///
+/// Convenzione: riga 0 = bordo sud, colonna 0 = bordo ovest, come [DemGrid].
+({int rowFrom, int rowTo, int colFrom, int colTo})? destinationRangeFor({
+  required double gridMinLat,
+  required double gridMaxLat,
+  required double gridMinLng,
+  required double gridMaxLng,
+  required int rows,
+  required int cols,
+  required double tileMinLat,
+  required double tileMaxLat,
+  required double tileMinLng,
+  required double tileMaxLng,
+}) {
+  final latSpan = gridMaxLat - gridMinLat;
+  final lngSpan = gridMaxLng - gridMinLng;
+  if (latSpan <= 0 || lngSpan <= 0 || rows < 2 || cols < 2) return null;
+
+  final rowFrom = ((tileMinLat - gridMinLat) / latSpan * (rows - 1)).ceil();
+  final rowTo = ((tileMaxLat - gridMinLat) / latSpan * (rows - 1)).floor();
+  final colFrom = ((tileMinLng - gridMinLng) / lngSpan * (cols - 1)).ceil();
+  final colTo = ((tileMaxLng - gridMinLng) / lngSpan * (cols - 1)).floor();
+
+  // Il tile non interseca la destinazione: va scartato **prima** di limitare
+  // gli indici. Limitandoli soltanto, un tile tutto a nord finirebbe
+  // schiacciato sull'ultima riga e ci scriverebbe dentro quote prese da
+  // tutt'altro posto.
+  if (rowFrom > rows - 1 || rowTo < 0 || colFrom > cols - 1 || colTo < 0) {
+    return null;
+  }
+  final rf = rowFrom.clamp(0, rows - 1);
+  final rt = rowTo.clamp(0, rows - 1);
+  final cf = colFrom.clamp(0, cols - 1);
+  final ct = colTo.clamp(0, cols - 1);
+  if (rf > rt || cf > ct) return null;
+  return (rowFrom: rf, rowTo: rt, colFrom: cf, colTo: ct);
+}
+
+enum _TileOutcome { cached, fetched, failed }
+
+/// Esito di uno scarico anticipato del terreno.
+class TerrainPrefetchResult {
+  final int requested;
+  final int downloaded;
+  final int failed;
+  final bool cancelled;
+
+  const TerrainPrefetchResult({
+    required this.requested,
+    required this.downloaded,
+    required this.failed,
+    this.cancelled = false,
+  });
+
+  /// Tessere gia' presenti prima di cominciare.
+  int get alreadyPresent => requested - downloaded - failed;
+
+  /// True se la zona è coperta abbastanza da poterci contare offline. Qualche
+  /// tile mancante ai bordi non compromette il risultato; molti sì.
+  bool get isUsable => requested > 0 && failed * 10 < requested;
 }
 
 /// Risultato decode in isolate. Solo tipi primitivi (Float32List + int)

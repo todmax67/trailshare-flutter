@@ -718,6 +718,26 @@ class AppLocalizationsIt extends AppLocalizations {
   String get storageUsed => 'Spazio utilizzato';
 
   @override
+  String get includeTerrain => 'Includi il terreno per il Peak Finder';
+
+  @override
+  String includeTerrainHint(int tiles, String mb) {
+    return '$tiles tessere, circa $mb MB — serve a capire quali cime sono nascoste dietro un crinale, anche senza rete';
+  }
+
+  @override
+  String get downloadingTerrain => 'Scarico il terreno…';
+
+  @override
+  String get terrainStorage => 'Terreno Peak Finder';
+
+  @override
+  String get clearTerrainCache => 'Elimina il terreno scaricato';
+
+  @override
+  String get terrainCleared => 'Terreno eliminato';
+
+  @override
   String get units => 'Unità di misura';
 
   @override
@@ -4576,6 +4596,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mfDistanceFilterTitle => 'Distanza massima';
 
   @override
+  String get mfViewOptionsTitle => 'Vista';
+
+  @override
+  String get mfViewOptionsHelp => 'Cosa mostrare, e fin dove guardare';
+
+  @override
   String get mfDistanceFilterHelp =>
       'Limita le cime mostrate a questa distanza dalla tua posizione.';
 
@@ -5134,6 +5160,64 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get mfViewshedOffTooltip =>
       'Filtro visibilità OFF — mostra solo cime non occluse';
+
+  @override
+  String get mfViewshedNoTerrain =>
+      'Senza rete non so quali cime sono nascoste: le mostro tutte';
+
+  @override
+  String get mfViewshedNoTerrainHere =>
+      'Dati del terreno incompleti qui: mostro tutte le cime';
+
+  @override
+  String get mfCompassUnreliable =>
+      'Bussola da calibrare: muovi il telefono a forma di otto';
+
+  @override
+  String get mfAlignTooltip =>
+      'Allinea le etichette — tocca a lungo per azzerare';
+
+  @override
+  String get mfAlignHint =>
+      'Trascina finché i nomi non cadono sulle cime giuste';
+
+  @override
+  String get mfAlignReset => 'Allineamento azzerato';
+
+  @override
+  String get mfAlignExpired => 'Ti sei spostato: allineamento manuale azzerato';
+
+  @override
+  String get mfSkylineTitle => 'Profilo dell\'orizzonte';
+
+  @override
+  String get mfPanoramaFromHere => 'Cosa si vede da questa vetta';
+
+  @override
+  String get mfSkylineHelp =>
+      'Disegna il profilo del terreno sopra la camera: se combacia con le montagne, il puntamento è giusto';
+
+  @override
+  String get mfSunPathTitle => 'Sole e luna';
+
+  @override
+  String get mfPanoramaFromMyPosition => 'Panorama da dove sono';
+
+  @override
+  String get mfPanoramaFromMyPositionHelp =>
+      'Il giro d\'orizzonte disegnato dal terreno, senza puntare la fotocamera';
+
+  @override
+  String get mfSunPathHelp =>
+      'Disegna il cammino di sole e luna con le ore: dice quando il sole scavalcherà una cresta, e permette di verificare il puntamento sul sole vero';
+
+  @override
+  String get mfViewshedPartialTerrain =>
+      'Dati del terreno incompleti: alcune cime potrebbero essere nascoste';
+
+  @override
+  String get mfViewshedNothingVisible =>
+      'Da qui non si vede nessuna cima: sono tutte dietro un crinale';
 
   @override
   String get locationTimeout =>
