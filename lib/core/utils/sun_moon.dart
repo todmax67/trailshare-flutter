@@ -262,6 +262,40 @@ String moonPhaseLabel(({double fraction, bool waxing}) phase) {
   return null;
 }
 
+/// L'**ultima** sparizione dietro il terreno nell'arco della giornata.
+///
+/// In una valle stretta il sole si nasconde dietro una cresta a est la mattina
+/// e riappare mezz'ora dopo: quella prima sparizione è vera, ma non è il
+/// tramonto. Chiedere «la prima» darebbe una risposta corretta alla domanda
+/// sbagliata, e proprio nel tipo di terreno per cui quest'app esiste.
+///
+/// Stesse convenzioni di [horizonCrossing], una sola passata.
+({DateTime time, double azimuthDeg, double elevationDeg})?
+    lastHorizonDisappearance(
+  List<SkyTrackPoint> track,
+  double Function(double azimuthDeg) horizonElevationDeg,
+) {
+  bool? wasAbove;
+  ({DateTime time, double azimuthDeg, double elevationDeg})? last;
+  for (final p in track) {
+    final ground = horizonElevationDeg(p.position.azimuthDeg);
+    if (ground.isNaN) {
+      wasAbove = null;
+      continue;
+    }
+    final above = p.position.elevationDeg > ground;
+    if (wasAbove == true && !above) {
+      last = (
+        time: p.time,
+        azimuthDeg: p.position.azimuthDeg,
+        elevationDeg: p.position.elevationDeg,
+      );
+    }
+    wasAbove = above;
+  }
+  return last;
+}
+
 /// Soglia convenzionale di alba e tramonto: il disco solare tocca l'orizzonte
 /// quando il suo centro è mezzo grado sotto, e la rifrazione atmosferica lo
 /// solleva di altri 34 primi.

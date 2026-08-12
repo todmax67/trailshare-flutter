@@ -248,6 +248,32 @@ void main() {
           reason: 'e tramonta a nordovest');
     });
 
+    test('in una valle stretta il tramonto è l\'ULTIMA sparizione', () {
+      // Cresta alta a est (75°-105°) che il sole di giugno scavalca in tarda
+      // mattinata: e' la situazione di mezza Valtellina.
+      double valley(double az) {
+        if (az > 75 && az < 105) return 35;
+        return 0;
+      }
+
+      final first = horizonCrossing(track, valley)!;
+      final last = lastHorizonDisappearance(track, valley)!;
+
+      expect(first.azimuthDeg, lessThan(120),
+          reason: 'la prima sparizione e\' dietro la cresta a est, di mattina');
+      expect(last.azimuthDeg, greaterThan(270),
+          reason: 'il tramonto vero e\' a nordovest');
+      expect(last.time.isAfter(first.time), isTrue);
+      // E la differenza non e' un dettaglio: sono ore.
+      expect(last.time.difference(first.time).inHours, greaterThan(6));
+    });
+
+    test('senza ostacoli intermedi le due risposte coincidono', () {
+      final first = horizonCrossing(track, (_) => 0)!;
+      final last = lastHorizonDisappearance(track, (_) => 0)!;
+      expect(last.time, first.time);
+    });
+
     test('`after` trova il passaggio successivo, non quello di stamattina', () {
       final noon = day.add(const Duration(hours: 12));
       final next = horizonCrossing(track, (_) => 0, descending: false,

@@ -164,7 +164,7 @@ class _PanoramaPageState extends State<PanoramaPage> {
     final fine = sunTrack(
         _dayMidnightUtc, widget.observerLat, widget.observerLng,
         stepMinutes: 1);
-    _sunset = horizonCrossing(fine, _skylineAt);
+    _sunset = lastHorizonDisappearance(fine, _skylineAt);
     final s = _sunset;
     _sunsetPeak = s == null ? null : _occluderNear(s.azimuthDeg, s.elevationDeg);
   }
