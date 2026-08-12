@@ -641,6 +641,74 @@ mostrare.
 
 ---
 
+## 7-quater. Confronto con PeakFinder, a fasi 0–4 chiuse
+
+Fonti: [peakfinder.com/mobile](https://www.peakfinder.com/mobile/) e il
+[manuale dell'app](https://www.peakfinder.com/mobile/manual/), consultati il
+2026-08-12.
+
+| | PeakFinder | TrailShare Peak Finder |
+|---|---|---|
+| Cime | **oltre 1.000.000, mondo intero** | 37.209, Italia (lat 35,6–47,2 / lon 6,0–17,2), OSM ODbL |
+| Terreno | modello di elevazione **dentro l'app** | tessere scaricate, cache su disco, 43 KB/tessera |
+| Offline | totale, con pacchetti regione installabili dal menu | verificato in modalità aereo, ma la zona va scaricata prima da Mappe Offline |
+| Resa | **panorama 3D ombreggiato** | linea dell'orizzonte + etichette |
+| Puntamento | assetto + trascinamento manuale | assetto nativo dall'OS, nord geografico, roll compensato, **FOV letto dall'obiettivo** + trascinamento con scadenza per distanza |
+| Occlusioni | implicite nel render | linea di vista verso ogni cima, tolleranza 0,05° |
+| Sole e luna | orbite + cursore data/ora | orbite + ore + **dietro quale cima tramonta, all'ultima sparizione** |
+| Telescopio | tap al centro | pinch zoom della fotocamera |
+| «Volare» su e giù | sì | no |
+| Punto di vista arbitrario | **ovunque nel mondo** | da una cima del catalogo (il motore accetta già coordinate qualsiasi) |
+| Cerca «dov'è il Monte X» | lista delle cime visibili | **manca** |
+| Export | SVG per la stampa, orizzonte per Stellarium | foto annotata |
+| Rifugi con aperture stagionali | no | **sì** |
+| Sentieri che passano dalla vetta | no | **sì** |
+| Prezzo | acquisto singolo, senza pubblicità né abbonamento | dentro Pro |
+
+**Dove pareggiamo o siamo avanti.** Il motore geometrico. Il campo visivo letto
+dall'obiettivo invece che supposto è una cosa che PeakFinder non dichiara di
+fare, e sul nostro dispositivo di prova valeva un errore del 52%. La tolleranza
+di visibilità a 0,05° e la linea di vista per singola cima sono più severe di un
+render. E sul sole diciamo una cosa in più: non solo *dove* passa, ma **dietro
+quale cima sparisce e a che ora**.
+
+**Dove perdiamo, e non di poco.**
+
+1. **Copertura geografica.** Un milione di cime nel mondo contro trentasettemila
+   in Italia. Sulla densità *italiana* siamo probabilmente allineati — è OSM per
+   entrambi — ma fuori dai confini non esistiamo. Chi va sulle Alpi francesi o in
+   Austria apre PeakFinder.
+2. **La resa grafica.** Loro disegnano un panorama ombreggiato, noi una linea.
+   È la differenza che si vede nel primo secondo, prima di qualunque
+   considerazione sulla precisione.
+3. **L'offline non è alla pari.** Il loro è un menu «installa questa regione»;
+   il nostro dipende dall'aver scaricato la zona da un'altra schermata. Funziona
+   — è stato verificato in modalità aereo — ma va trovato.
+4. **Manca la ricerca.** «Dov'è il Monte Rosa da qui» non si può chiedere. È il
+   buco più economico da chiudere di tutta la lista.
+
+**Dove non possono seguirci.** I rifugi con le aperture stagionali e i sentieri
+che salgono in vetta. Riconoscere una montagna lo sanno fare in tanti; dire *«il
+Rifugio Curò è 300 metri più in basso, e in questa stagione è aperto»* lo sa fare
+solo un'app che conosce già i rifugi. Questo non è un vantaggio di
+implementazione — è l'unico che non si compra scrivendo più codice.
+
+**Nota che vale la pena tenere.** Il manuale di PeakFinder consiglia di allineare
+il panorama **sulla posizione del sole**. È esattamente il secondo uso per cui
+l'overlay solare è stato messo nella camera, e per cui il disco è disegnato alla
+dimensione angolare vera invece che come simbolo: un cerchione grande coprirebbe
+l'errore che deve mostrare.
+
+**Verdetto.** Sul motore siamo alla pari. Sulla presentazione e sulla copertura
+siamo dietro, e le due cose insieme sono ciò che un utente giudica in trenta
+secondi. Sul contesto siamo davanti in modo non replicabile. La conseguenza per
+il posizionamento è che questa funzione non regge come *sostituto* di PeakFinder
+per chi gira il mondo, mentre regge benissimo come **la funzione di
+riconoscimento dentro l'app che l'escursionista italiano usa già** — dove il
+confronto non è con PeakFinder ma con il non averla.
+
+---
+
 ## 8. Domande aperte (decisione del founder)
 
 1. **Packaging.** Oggi il viewshed è attivo per tutti con limiti Free e l'unica cosa davvero
