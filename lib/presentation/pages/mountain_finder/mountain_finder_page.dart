@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,8 @@ import '../../widgets/paywall_sheet.dart';
 import '../../widgets/peak_context_section.dart';
 import '../../widgets/skyline_overlay.dart';
 import '../../widgets/sun_path_overlay.dart';
+import 'ar_frame.dart';
+import 'ar_peaks_painter.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
 import 'panorama_page.dart';
@@ -88,7 +91,16 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// Ultima posizione per cui abbiamo chiesto la quota del terreno.
   Position? _lastElevationPosition;
 
-  List<ProjectedPeak> _visiblePeaks = const [];
+
+  /// Quello che cambia a ogni campione dei sensori. Non e' `setState`: e' un
+  /// `Listenable` che i painter ascoltano direttamente, cosi' l'albero dei
+  /// widget resta fermo mentre si muove solo il disegno.
+  final ArFrame _arFrame = ArFrame();
+
+  /// Testi delle etichette gia' composti. Vive nella pagina e non nel painter,
+  /// perche' il painter viene ricreato a ogni `build` e la cache deve
+  /// sopravvivergli.
+  final Map<String, ui.Paragraph> _labelParagraphs = {};
 
   // Zoom camera: lo zoom effettivo cambia il FOV. A 2x zoom il FOV si
   // dimezza, quindi i pin vanno riposizionati di conseguenza.
@@ -265,6 +277,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     final cameraInit = _cameraInit;
     _camera = null;
     unawaited(closeCameraSafely(camera, cameraInit));
+    _arFrame.dispose();
+    // I paragrafi tengono risorse del motore di testo: uscendo dalla schermata
+    // vanno lasciati andare, altrimenti restano attaccati a una pagina morta.
+    _labelParagraphs.clear();
     super.dispose();
   }
 
@@ -385,7 +401,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       // immobile per tutto il tempo.
       _attitudeSub = DeviceAttitudeService().stream.listen((attitude) {
         if (!mounted || _arLocked) return;
-        setState(() => _attitude = attitude);
+        // Niente `setState`: qui non cambia nessun widget, cambia dove vanno
+        // disegnate delle cose. Ricostruire l'albero per spostare dei punti
+        // era il grosso del costo per fotogramma.
+        _attitude = attitude;
+        _recomputeArFrame();
       });
 
       // GPS — prima posizione + stream. Da qui in poi si lavora in sottofondo,
@@ -408,6 +428,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       ).listen((pos) async {
         if (!mounted) return;
         setState(() => _userPosition = pos);
+        _recomputeArFrame();
         unawaited(_expireStaleAlignOffset(pos));
         unawaited(_refreshObserverElevation(pos));
         // Il dataset delle cime si ricarica ogni ~5 km (è un raggio largo),
@@ -466,66 +487,78 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     ];
   }
 
-  List<Widget> _buildPinLayer(List<ProjectedPeak> projected, Size viewport) {
-    if (projected.isEmpty) return const [];
+  /// Ricalcola tutto quello che dipende dall'orientamento, **fuori da `build`**.
+  ///
+  /// Prima girava dentro `build`: la proiezione di 1.200 cime, il layout
+  /// anti-collisione con i suoi ottomila confronti e la costruzione di un
+  /// albero da 1.188 elementi, tutto a ogni campione dei sensori. Qui invece si
+  /// tocca solo il contenitore che i painter ascoltano, e il fotogramma salta
+  /// `build` e `layout` per andare dritto a `paint`.
+  void _recomputeArFrame() {
+    final viewport = _arFrame.viewport;
+    if (viewport.isEmpty) return;
 
-    // La cima più centrata è la prima della lista (projectAll ordina per
-    // centratura): la evidenziamo (colore + dimensione) e le garantiamo
-    // sempre un'etichetta.
-    final centeredId = projected.first.peak.id;
+    final pos = _userPosition;
+    final basis = _currentBasis;
+    final (hFov, vFov) = _fovForViewport(viewport);
 
-    // Etichette decluttered: solo le cime più importanti (quota maggiore)
-    // ricevono un nome; le altre restano solo come dot. Evita il muro di
-    // testo quando molte cime cadono nello stesso settore.
-    final labelLayouts =
-        _layoutLabels(projected, centeredId, _reservedRegions(viewport));
+    final projected = (pos != null && basis != null)
+        ? MountainProjection.projectAll(
+            peaks: _effectiveCandidatePeaks,
+            observerLat: pos.latitude,
+            observerLng: pos.longitude,
+            observerElevationMeters: _observerEyeElevationM,
+            basis: basis,
+            viewport: viewport,
+            maxVisible: _maxLiveLabels,
+            horizontalFovDeg: hFov,
+            verticalFovDeg: vFov,
+            zoom: _zoomLevel,
+            previouslyShownIds: _shownLabelIds,
+          )
+        : const <ProjectedPeak>[];
 
-    return [
-      // Steli connettori dot → ancoraggio etichetta (sotto tutto, no tap).
-      Positioned.fill(
-        child: IgnorePointer(
-          child: CustomPaint(
-            painter: _PinLinesPainter(labelLayouts),
-          ),
-        ),
-      ),
-      // Dot per TUTTE le cime visibili (anche quelle senza etichetta).
-      for (final p in projected)
-        // Niente animazione sulla posizione: vedi la nota su
-        // _DiagonalPeakLabel. Un dot che insegue la montagna con un ritardo
-        // proprio è peggio di uno che la seguirebbe e basta.
-        Positioned(
-          key: ValueKey('dot_${p.peak.id}'),
-          left: p.screenX - 5,
-          top: p.screenY - 5,
-          width: 10,
-          height: 10,
-          child: IgnorePointer(
-            child: _PeakDot(
-              isVolcano: p.peak.type == 'volcano',
-              isCentered: p.peak.id == centeredId,
-            ),
-          ),
-        ),
-      // Etichette diagonali (stile PeakFinder): testo ruotato che sale
-      // verso destra dall'ancoraggio dello stelo.
-      for (final l in labelLayouts)
-        _DiagonalPeakLabel(
-          key: ValueKey('label_${l.peak.peak.id}'),
-          layout: l,
-          isCentered: l.peak.peak.id == centeredId,
-          onTap: () => _showPeakDetail(l.peak),
-        ),
-    ];
+    // Memoria per l'isteresi del fotogramma successivo: senza, non c'e' banda
+    // morta e le cime attorno alla soglia tornano a sfarfallare.
+    _shownLabelIds = {for (final p in projected) p.peak.id};
+
+    final centeredId = projected.isEmpty ? null : projected.first.peak.id;
+
+    _arFrame
+      ..basis = basis
+      ..horizontalFovDeg = hFov
+      ..verticalFovDeg = vFov
+      ..zoom = _zoomLevel
+      ..projected = projected
+      ..centeredId = centeredId
+      ..layouts = centeredId == null
+          ? const []
+          : _layoutLabels(projected, centeredId, _reservedRegions(viewport))
+      ..commit();
+
+    // Nota: il conteggio nella card lo legge la card stessa dal frame. Prima
+    // ogni cambio faceva un `setState` di pagina intera solo per aggiornare un
+    // numero, e quel numero cambia nell'8-19% dei fotogrammi.
+  }
+
+  /// La cima toccata, se il tocco e' caduto su un'etichetta.
+  ///
+  /// Le etichette non sono piu' widget, quindi il tap non arriva da solo: si
+  /// interroga il painter, che rifa' al contrario la rotazione di 45 gradi.
+  void _handleTapUp(TapUpDetails d) {
+    if (_alignMode) return;
+    final hit = ArPeaksPainter.peakAt(
+        d.localPosition, _arFrame, _labelParagraphs);
+    if (hit != null) _showPeakDetail(hit);
   }
 
   /// Stima la lunghezza in pixel dell'etichetta (nome + meta) per la
   /// collisione. Sovrastima leggermente (è meglio scartare un'etichetta in
-  /// più che lasciarne due sovrapposte). Coerente con `_DiagonalPeakLabel`.
+  /// più che lasciarne due sovrapposte). Coerente con `ArPeaksPainter`.
   static double _estLabelLength(ProjectedPeak p, bool centered) {
     final nameF = centered ? 16.0 : 14.0;
     final metaF = centered ? 12.0 : 11.0;
-    final meta = _peakLabelMeta(p, full: centered);
+    final meta = peakLabelMeta(p, full: centered);
     final nameW = p.peak.name.length * nameF * 0.56;
     final metaW = meta.isEmpty ? 0.0 : 6 + meta.length * metaF * 0.56;
     return 8 + nameW + metaW + 10;
@@ -547,7 +580,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// lo stelo di qualche gradino per cercare una banda libera; se non la
   /// trova, **niente etichetta** (resta il dot) → nei cluster fitti
   /// sopravvivono i nomi delle vette più alte.
-  List<_PinLayout> _layoutLabels(
+  List<PinLayout> _layoutLabels(
       List<ProjectedPeak> peaks, String centeredId, List<Rect> reserved) {
     const baseStem = 22.0; // stelo minimo (px sopra il dot)
     const stemStep = 30.0; // allungamento stelo per cercare una banda libera
@@ -570,7 +603,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
     // Rettangoli orientati già piazzati: (pu inizio, pu fine, pn).
     final placed = <(double, double, double)>[];
-    final result = <_PinLayout>[];
+    final result = <PinLayout>[];
 
     for (final p in ranked) {
       final centered = p.peak.id == centeredId;
@@ -619,7 +652,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
           if (!collides) {
             placed.add((pu, pu + len, pn));
-            result.add(_PinLayout(
+            result.add(PinLayout(
               peak: p,
               dotX: p.screenX,
               dotY: p.screenY,
@@ -720,6 +753,9 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           : candidates;
       _lastCandidatePosition = pos;
     });
+    // Cambiate le candidate cambia cosa si disegna: il frame non se ne
+    // accorgerebbe da solo, perche' non passa piu' da `build`.
+    _recomputeArFrame();
     debugPrint('[MountainFinder] candidate peaks aggiornate: '
         '${_candidatePeaks.length} entro ${radius}km');
   }
@@ -970,6 +1006,8 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           _groundElevationM = ground;
         }
       });
+      // Il filtro ha cambiato l'insieme delle cime da mostrare.
+      _recomputeArFrame();
       debugPrint(
           '[MountainFinder] viewshed: ${result.visible.length} cime visibili '
           '(tier=${tier.label}, ${result.elapsedMs}ms, ${result.status.name})');
@@ -1008,6 +1046,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         _viewshedRetryAfter = null;
       }
     });
+    _recomputeArFrame();
     if (wantOn) {
       await _recomputeViewshedIfNeeded(pos, force: true);
     }
@@ -1303,40 +1342,18 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
-        final pos = _userPosition;
-        final basis = _currentBasis;
 
-        // Campo visivo riferito allo schermo: misurato dall'obiettivo se
-        // possibile, altrimenti dalla calibrazione manuale.
+        // Il campo visivo serve ancora qui, ma solo ai gesti: il calcolo di
+        // cosa disegnare e' uscito da `build` e vive in `_recomputeArFrame`.
         final (effectiveHFov, effectiveVFov) = _fovForViewport(viewport);
-        final projected = (pos != null && basis != null)
-            ? MountainProjection.projectAll(
-                peaks: _effectiveCandidatePeaks,
-                observerLat: pos.latitude,
-                observerLng: pos.longitude,
-                observerElevationMeters: _observerEyeElevationM,
-                basis: basis,
-                viewport: viewport,
-                maxVisible: _maxLiveLabels,
-                horizontalFovDeg: effectiveHFov,
-                verticalFovDeg: effectiveVFov,
-                zoom: _zoomLevel,
-                previouslyShownIds: _shownLabelIds,
-              )
-            : <ProjectedPeak>[];
 
-        // Memoria per l'isteresi del fotogramma successivo. Va scritta qui e
-        // non nel `setState`, perché la selezione avviene proprio in questo
-        // punto: rimandarla farebbe ragionare la banda morta su un insieme
-        // vecchio di un fotogramma, cioè su niente.
-        _shownLabelIds = {for (final p in projected) p.peak.id};
-
-        // Riallinea il count per la info card al prossimo frame.
-        if (projected.length != _visiblePeaks.length) {
+        // Cambio di dimensioni (rotazione dello schermo, comparsa della
+        // tastiera): la proiezione va rifatta, ma non durante `build` — toccare
+        // il frame qui dentro notificherebbe i painter a meta' costruzione.
+        if (viewport != _arFrame.viewport) {
+          _arFrame.viewport = viewport;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && projected.length != _visiblePeaks.length) {
-              setState(() => _visiblePeaks = projected);
-            }
+            if (mounted) _recomputeArFrame();
           });
         }
 
@@ -1347,6 +1364,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             // GestureDetector per il pinch-to-zoom.
             Positioned.fill(
               child: GestureDetector(
+                // Le etichette non sono piu' widget: il tocco arriva qui e si
+                // decide col hit test del painter. Un GestureDetector proprio
+                // sopra il disegno ruberebbe il pinch a quello sotto.
+                onTapUp: _handleTapUp,
                 onScaleStart: (_) {
                   _baseZoom = _zoomLevel;
                 },
@@ -1365,7 +1386,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                   if ((next - _zoomLevel).abs() < 0.02) return;
                   _zoomLevel = next;
                   _camera?.setZoomLevel(next);
-                  setState(() {});
+                  _recomputeArFrame();
                 },
                 onScaleEnd: (_) {
                   if (_alignMode) {
@@ -1384,51 +1405,78 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                       : (2.0).clamp(_minZoom, _maxZoom);
                   _zoomLevel = target;
                   _camera?.setZoomLevel(target);
-                  setState(() {});
+                  _recomputeArFrame();
                 },
                 child: _buildCameraPreviewBox(viewport),
               ),
             ),
 
-            // Profilo dell'orizzonte dal DEM: sotto le etichette, sopra la
-            // preview. E' il riferimento che permette di vedere a colpo d'occhio
-            // se il puntamento combacia con le montagne vere.
-            if (basis != null && _showSkyline && _skylineIsCurrent)
-              Positioned.fill(
-                child: SkylineOverlay(
-                  skylineAngles: _skylineAngles,
-                  profiles: _terrainProfiles,
-                  basis: basis,
-                  horizontalFovDeg: effectiveHFov,
-                  verticalFovDeg: effectiveVFov,
-                  zoom: _zoomLevel,
+            // Profilo dell'orizzonte e sole: restano widget, ma dentro un
+            // `AnimatedBuilder` sul frame. Cosi' a ogni campione si ricostruisce
+            // qualche decina di elementi invece di milleduecento, e la pagina
+            // attorno non si accorge di niente.
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _arFrame,
+                  builder: (context, _) {
+                    final basis = _arFrame.basis;
+                    if (basis == null) return const SizedBox.shrink();
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (_showSkyline && _skylineIsCurrent)
+                          SkylineOverlay(
+                            skylineAngles: _skylineAngles,
+                            profiles: _terrainProfiles,
+                            basis: basis,
+                            horizontalFovDeg: _arFrame.horizontalFovDeg,
+                            verticalFovDeg: _arFrame.verticalFovDeg,
+                            zoom: _arFrame.zoom,
+                          ),
+                        // Il sole sopra il terreno perche' il disco deve restare
+                        // leggibile anche quando cade sulla linea, e sotto le
+                        // etichette perche' i nomi vengono prima.
+                        if (_showSunPath && _userPosition != null)
+                          SunPathOverlay(
+                            basis: basis,
+                            horizontalFovDeg: _arFrame.horizontalFovDeg,
+                            verticalFovDeg: _arFrame.verticalFovDeg,
+                            zoom: _arFrame.zoom,
+                            observerLat: _userPosition!.latitude,
+                            observerLng: _userPosition!.longitude,
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ),
-
-            // Sole e luna. Sopra il profilo del terreno perche' il disco solare
-            // deve restare leggibile anche quando cade sulla linea, e sotto le
-            // etichette perche' i nomi delle cime vengono prima.
-            if (basis != null && _showSunPath && _userPosition != null)
-              Positioned.fill(
-                child: SunPathOverlay(
-                  basis: basis,
-                  horizontalFovDeg: effectiveHFov,
-                  verticalFovDeg: effectiveVFov,
-                  zoom: _zoomLevel,
-                  observerLat: _userPosition!.latitude,
-                  observerLng: _userPosition!.longitude,
-                ),
-              ),
-
-            // Reticolo centrale (mirino).
-            const Center(
-              child: _Crosshair(),
             ),
 
-            // Pin AR: layout anti-collisione + linee connettrici + label
-            // animate. Le label si impilano verticalmente quando le cime
-            // sono allineate sullo stesso bearing per evitare overlap.
-            ..._buildPinLayer(projected, viewport),
+            // Reticolo centrale (mirino). In un RepaintBoundary perche' non si
+            // muove mai: senza, verrebbe ridipinto insieme a tutto il resto
+            // venticinque volte al secondo.
+            const RepaintBoundary(
+              child: Center(child: _Crosshair()),
+            ),
+
+            // Punti, steli ed etichette delle cime: un solo strato disegnato,
+            // che si ridipinge ascoltando il frame senza passare da `build`.
+            // `IgnorePointer` perche' il tocco lo gestisce il GestureDetector
+            // della preview, con il hit test del painter.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: ArPeaksPainter(
+                      frame: _arFrame,
+                      cache: _labelParagraphs,
+                    ),
+                    size: Size.infinite,
+                  ),
+                ),
+              ),
+            ),
 
             // Modalità allineamento: istruzione + offset applicato. I numeri
             // sono in gradi apposta — sono la misura dell'errore residuo dei
@@ -1546,7 +1594,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                   ? () => setState(() => _showDiagnostics = !_showDiagnostics)
                   : null,
               behavior: HitTestBehavior.opaque,
-              child: Container(
+              // Solo questo chip segue i sensori: e' l'unico pezzo di
+              // interfaccia il cui testo cambia a ogni campione.
+              child: AnimatedBuilder(
+                animation: _arFrame,
+                builder: (context, _) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.5),
@@ -1585,6 +1637,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                     ),
                   ],
                 ],
+              ),
               ),
               ),
             ),
@@ -1661,6 +1714,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                   _arLocked = !_arLocked;
                   _lockedBasis = _arLocked ? basis : null;
                 });
+                _recomputeArFrame();
               },
               icon: Icon(
                 _arLocked ? Icons.lock : Icons.lock_open,
@@ -1763,7 +1817,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   }
 
   Widget _buildInfoCard() {
-    final count = _visiblePeaks.length;
+    return AnimatedBuilder(
+      animation: _arFrame,
+      builder: (context, _) => _buildInfoCardBody(),
+    );
+  }
+
+  Widget _buildInfoCardBody() {
+    final count = _arFrame.projected.length;
     final scheme = Theme.of(context).colorScheme;
     final warning = _statusWarning();
 
@@ -1859,6 +1920,10 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         (delta.dy / viewport.height) * vFovDeg / _zoomLevel;
     MountainFinderSettings()
         .nudgeAlignOffset(deltaAzDeg: deltaAz, deltaPitchDeg: deltaPitch);
+    // La correzione entra in `_currentBasis`, quindi sposta tutto: senza questo
+    // il trascinamento muoverebbe il profilo del terreno e non le etichette,
+    // cioe' proprio le due cose che si sta cercando di far combaciare.
+    _recomputeArFrame();
   }
 
   /// Pannello diagnostico di campo (solo admin).
@@ -1870,6 +1935,13 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// 2. stiamo puntando al nord geografico o a quello magnetico?
   /// 3. la quota viene dal DEM o dal GPS?
   Widget _buildDiagnosticsPanel() {
+    return AnimatedBuilder(
+      animation: _arFrame,
+      builder: (context, _) => _buildDiagnosticsPanelBody(),
+    );
+  }
+
+  Widget _buildDiagnosticsPanelBody() {
     final attitude = _attitude;
     final basis = _currentBasis;
     final ground = _groundElevationM;
@@ -2049,187 +2121,6 @@ class _CrosshairPainter extends CustomPainter {
 ///   (utente sta puntando bene).
 /// Risultato dell'algoritmo di layout anti-collisione: dot sempre alla
 /// posizione reale della cima, label eventualmente offset verticalmente.
-class _PinLayout {
-  final ProjectedPeak peak;
-  final double dotX;
-  final double dotY;
-  final double labelX; // X centro label
-  final double labelY; // Y centro label
-  const _PinLayout({
-    required this.peak,
-    required this.dotX,
-    required this.dotY,
-    required this.labelX,
-    required this.labelY,
-  });
-}
-
-/// Painter delle linee connettrici label↔dot. Disegnata sotto le label
-/// con IgnorePointer così non intercetta tap.
-class _PinLinesPainter extends CustomPainter {
-  final List<_PinLayout> layouts;
-
-  _PinLinesPainter(this.layouts);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.6)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-
-    for (final l in layouts) {
-      // Stelo verticale dal dot all'ancoraggio dell'etichetta diagonale.
-      final from = Offset(l.dotX, l.dotY - 4); // appena sopra il dot
-      final to = Offset(l.labelX, l.labelY); // ancoraggio etichetta
-      canvas.drawLine(from, to, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PinLinesPainter oldDelegate) =>
-      oldDelegate.layouts != layouts;
-}
-
-/// Solo il dot della cima — sempre alla posizione reale, mai spostato.
-class _PeakDot extends StatelessWidget {
-  final bool isVolcano;
-  final bool isCentered;
-
-  const _PeakDot({required this.isVolcano, required this.isCentered});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isVolcano
-        ? AppColors.danger
-        : (isCentered ? AppColors.warning : Colors.white);
-    return Container(
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 4,
-          ),
-          if (isCentered)
-            BoxShadow(
-              color: color.withValues(alpha: 0.5),
-              blurRadius: 8,
-              spreadRadius: 1,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Etichetta cima in **diagonale** (stile PeakFinder): testo ancorato in
-/// cima allo stelo verticale e ruotato verso l'alto-destra. Riduce molto la
-/// sovrapposizione quando si mostrano molte cime su tutta la larghezza, e dà
-/// il look "professionale" delle app concorrenti. Tap → bottom sheet.
-/// Metadati cima per l'etichetta diagonale. [full] (cima selezionata) =
-/// quota + distanza; altrimenti solo quota → etichetta più corta, meno
-/// sovrapposizioni nei cluster. Condiviso tra rendering e stima ingombro
-/// nel layout anti-collisione, così le due cose restano coerenti.
-String _peakLabelMeta(ProjectedPeak p, {required bool full}) {
-  final ele = p.peak.elevation;
-  final dist = p.distanceMeters / 1000;
-  final distStr =
-      dist < 10 ? dist.toStringAsFixed(1) : dist.toStringAsFixed(0);
-  if (ele == null) return full ? '$distStr km' : '';
-  return full ? '${ele.round()} m · $distStr km' : '${ele.round()} m';
-}
-
-class _DiagonalPeakLabel extends StatelessWidget {
-  final _PinLayout layout;
-  final bool isCentered;
-  final VoidCallback onTap;
-
-  const _DiagonalPeakLabel({
-    super.key,
-    required this.layout,
-    required this.isCentered,
-    required this.onTap,
-  });
-
-  /// -45° → il testo sale verso destra (in Flutter l'angolo positivo è
-  /// orario perché l'asse Y punta in basso, quindi negativo = antiorario).
-  static const double _angleRad = -45 * math.pi / 180;
-
-  static const List<Shadow> _shadows = [
-    Shadow(color: Colors.black, blurRadius: 3, offset: Offset(0, 1)),
-    Shadow(color: Colors.black87, blurRadius: 6),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final p = layout.peak;
-    final isVolcano = p.peak.type == 'volcano';
-    final accent = isVolcano
-        ? AppColors.danger
-        : (isCentered ? AppColors.warning : Colors.white);
-
-    final meta = _peakLabelMeta(p, full: isCentered);
-
-    return Positioned(
-      left: layout.labelX,
-      top: layout.labelY,
-      child: Transform.rotate(
-        // Pivot in alto-sinistra = ancoraggio dello stelo: il testo parte da
-        // lì e sale verso destra, indipendentemente dalla sua lunghezza.
-        angle: _angleRad,
-        alignment: Alignment.topLeft,
-        child: GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            // Stacca il testo di qualche px dall'ancoraggio dello stelo.
-            padding: const EdgeInsets.only(left: 6, bottom: 3),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  p.peak.name,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.visible,
-                  style: TextStyle(
-                    color: isCentered ? accent : Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: isCentered ? 16 : 14,
-                    height: 1.0,
-                    shadows: _shadows,
-                  ),
-                ),
-                if (meta.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    meta,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: TextStyle(
-                      color: accent,
-                      fontWeight: FontWeight.w600,
-                      fontSize: isCentered ? 12 : 11,
-                      height: 1.0,
-                      shadows: _shadows,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Bottom sheet con i dettagli completi di una cima toccata nel viewfinder.
 class _PeakDetailSheet extends StatefulWidget {
   final ProjectedPeak projected;
