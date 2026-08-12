@@ -905,6 +905,58 @@ proprio i nomi lunghi — ma la semantica no. La risposta giusta non sarebbe
 comunque un testo ruotato dentro un mirino, bensì un **elenco consultabile delle
 cime visibili**, che oggi manca del tutto.
 
+### Il tempo, il filtro e la frequenza
+
+Tre cose legate: il filtro ha bisogno del tempo vero, e il tempo vero permette di
+alzare la frequenza.
+
+**Timestamp.** Nessuno dei due canali nativi mandava un tempo, e Dart usava
+`DateTime.now()` all'arrivo — che include la coda del platform channel,
+variabile e senza rapporto con quando la misura è stata presa. Un `dt` sporco
+entra dritto nella stima della velocità, cioè nel cuore di qualunque filtro
+adattivo. Ora Android manda `event.timestamp` e iOS `data.timestamp`: due
+orologi monotoni diversi, ma servono solo le differenze.
+
+**Frequenza.** Su Android il cancello a 33 ms incrociato coi 20 ms del sensore
+faceva passare un campione ogni 40 ms — 25 Hz contro uno schermo a 60, cioè un
+battimento 2-3-2-3 visibile. Ora 15 ms, quindi passano tutti (50 Hz); iOS da 30 a
+60. **Si poteva fare solo dopo aver disaccoppiato il disegno**: a queste
+frequenze, col vecchio `setState`, si sarebbe ricostruito un albero da 1.188
+elementi cento volte al secondo. L'ordine dei passi qui era vincolante, non
+estetico.
+
+**One Euro Filter** al posto dell'EMA adattivo. Il taglio diventa funzione della
+velocità: fermo taglia basso e il tremolio sparisce, in movimento apre e il
+ritardo si annulla proprio quando si noterebbe. Misurato contro la replica
+dell'EMA precedente: a 40°/s resta indietro **meno del 60%**, e da fermo non
+trema di più.
+
+Si porta via anche un difetto che l'EMA aveva per costruzione: ricavava **un**
+coefficiente dalla velocità dell'*azimut* e lo applicava anche a beccheggio e
+rollio. Alzare il telefono verso una cima senza girarsi prendeva lo smorzamento
+da «fermo», cioè un decimo di secondo di ritardo proprio sul movimento che si
+stava facendo. Ora ogni angolo ha la sua derivata e il suo taglio.
+
+Il beccheggio **non** è trattato come angolo che gira: sta fra -90° e +90° e
+normalizzarlo lo farebbe uscire a 348° invece che a -12°, con lo stesso coseno e
+un significato diverso per chiunque lo legga. L'azimut si chiude in [0, 360), il
+rollio in (-180, 180] perché il segno dice da che parte è inclinato.
+
+### Elenco delle cime visibili
+
+L'unica funzione economica che il concorrente aveva e noi no. Il calcolo esisteva
+già — se ne teneva solo il **conteggio**, buttando via le cime che l'avevano
+prodotto — mancava un posto dove leggerlo.
+
+In **giro d'orizzonte**, non per distanza né per quota: è l'ordine in cui si
+guardano davvero le montagne, e rende l'elenco una mappa mentale invece di una
+classifica. Il settore inquadrato è evidenziato, così lista e mirino si parlano.
+
+Risolve tre cose che il mirino non sa fare: sapere cosa c'è **alle spalle** senza
+girarsi, leggere i nomi **senza tenere il telefono alzato**, e ritrovare una cima
+quando la luce è finita. Ed è la risposta accessibile che le etichette disegnate
+non possono più dare — qui i nomi sono testo vero.
+
 ### Terreno per fasce di distanza
 
 Il panorama era una macchia piatta perché di ogni direzione tenevamo un solo
