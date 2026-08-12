@@ -5110,6 +5110,38 @@ class AppLocalizationsEn extends AppLocalizations {
       'Visibility filter OFF — show only non-occluded peaks';
 
   @override
+  String get mfViewshedNoTerrain =>
+      'Offline I can\'t tell which peaks are hidden: showing them all';
+
+  @override
+  String get mfViewshedNoTerrainHere =>
+      'Incomplete terrain data here: showing all peaks';
+
+  @override
+  String get mfCompassUnreliable =>
+      'Compass needs calibrating: move the phone in a figure of eight';
+
+  @override
+  String get mfAlignTooltip => 'Align the labels — long press to reset';
+
+  @override
+  String get mfAlignHint => 'Drag until the names sit on the right peaks';
+
+  @override
+  String get mfAlignReset => 'Alignment reset';
+
+  @override
+  String get mfAlignExpired => 'You have moved: manual alignment reset';
+
+  @override
+  String get mfViewshedPartialTerrain =>
+      'Incomplete terrain data: some peaks may be hidden';
+
+  @override
+  String get mfViewshedNothingVisible =>
+      'No peak is visible from here: they are all behind a ridge';
+
+  @override
   String get locationTimeout =>
       'Cannot get position (GPS timeout). Try again outdoors.';
 

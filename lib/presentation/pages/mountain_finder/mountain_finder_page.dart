@@ -3,18 +3,19 @@ import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/device_attitude_service.dart';
 import '../../../core/services/mountain_finder_settings.dart';
 import '../../../core/services/peaks_dataset_service.dart';
 import '../../../core/services/pro_gate_service.dart';
+import '../../../core/services/terrain_tile_service.dart';
 import '../../../core/services/viewshed_service.dart';
+import '../../../core/utils/camera_orientation.dart';
 import '../../../core/utils/mountain_photo_renderer.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
@@ -56,27 +57,30 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
   // Sensor state
   Position? _userPosition;
-  double? _heading; // 0..360, 0 = Nord (smoothed)
-  double _pitchDeg = 0; // -90..+90, 0 = orizzonte (smoothed)
+
+  /// Assetto corrente del telefono (terna della fotocamera + qualità della
+  /// bussola). Sorgente unica: [DeviceAttitudeService], che fonde i sensori
+  /// nativi e sa dove punta l'**obiettivo**, non il bordo alto del telefono.
+  DeviceAttitude? _attitude;
 
   StreamSubscription<Position>? _positionSub;
-  StreamSubscription<CompassEvent>? _compassSub;
-  StreamSubscription<AccelerometerEvent>? _accelSub;
+  StreamSubscription<DeviceAttitude>? _attitudeSub;
 
-  // Smoothing low-pass adattivo: alpha basso (0.06) quando il telefono
-  // e' fermo → pin "ancorati", stabili. Alpha alto (0.30) quando si
-  // ruota rapidamente → pin reattivi. Lerp lineare in mezzo.
-  static const double _alphaMin = 0.06;
-  static const double _alphaMax = 0.30;
-  static const double _rateForMaxAlpha = 30.0; // °/s per alpha max
-  DateTime? _lastHeadingTime;
-  DateTime? _lastPitchTime;
-  double _lastRawPitch = 0;
+  /// Terna congelata dall'AR lock: si continua a disegnare con questa mentre i
+  /// sensori vanno avanti per conto loro.
+  CameraBasis? _lockedBasis;
 
-  double _adaptiveAlpha(double ratePerSec) {
-    final t = (ratePerSec / _rateForMaxAlpha).clamp(0.0, 1.0);
-    return _alphaMin + t * (_alphaMax - _alphaMin);
-  }
+  /// Altezza degli occhi sopra il terreno, in metri.
+  static const double _eyeHeightM = 1.7;
+
+  /// Quota del terreno sotto l'utente secondo il DEM. È molto più affidabile
+  /// dell'altitudine GPS (che su Android sbaglia di 20-50 m, cioè un grado di
+  /// errore verticale a 3 km) ed è la stessa quota che usa il viewshed: senza,
+  /// le due metà del sistema non concordano su dove si trova l'utente.
+  double? _groundElevationM;
+
+  /// Ultima posizione per cui abbiamo chiesto la quota del terreno.
+  Position? _lastElevationPosition;
 
   List<ProjectedPeak> _visiblePeaks = const [];
 
@@ -117,6 +121,16 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// label senza muoversi. Toggle dall'icona lock nell'HUD.
   bool _arLocked = false;
 
+  /// Modalità allineamento: il trascinamento sposta le etichette invece di
+  /// zoomare, così l'utente le fa combaciare con le montagne vere.
+  ///
+  /// Non è un ripiego per una math sbagliata: il magnetometro di uno smartphone
+  /// sbaglia di qualche grado in presenza di roccia ferrosa, funivie, ferrate o
+  /// custodie magnetiche, e nessuna fusione di sensori lo corregge. Tutti i
+  /// concorrenti seri danno questa manopola; senza, l'unica reazione possibile
+  /// a un errore è chiudere l'app.
+  bool _alignMode = false;
+
   // ── Viewshed filter (default ON, esteso con Pro) ────────────────────
   /// Quando true, mostriamo solo le cime effettivamente visibili dalla
   /// posizione utente (occlusione da crinali calcolata su DEM). È il
@@ -131,6 +145,40 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   bool _computingViewshed = false;
   /// Posizione usata per l'ultimo compute (per invalidare > 500m).
   Position? _lastViewshedPosition;
+  /// Esito dell'ultimo compute: serve a distinguere "non vedi cime" da "non
+  /// sono riuscito a calcolarlo", che prima erano indistinguibili.
+  ViewshedStatus _viewshedStatus = ViewshedStatus.ok;
+  /// True quando buona parte delle cime mostrate è "non so se è nascosta":
+  /// il DEM non copriva tutto il terreno in mezzo.
+  bool _viewshedPatchyTerrain = false;
+  /// True quando esiste un risultato valido, anche se la lista è **vuota**.
+  /// Serve a distinguere "il filtro ha girato e non vedi nulla" (fondovalle
+  /// chiuso: risposta legittima) da "il filtro non ha ancora girato" — che
+  /// prima erano lo stesso insieme vuoto, e nel dubbio si mostravano tutte le
+  /// cime con l'icona del filtro accesa.
+  bool _viewshedHasResult = false;
+  /// Non riprovare prima di questo istante, dopo un calcolo fallito.
+  DateTime? _viewshedRetryAfter;
+  /// Tier risolto una volta sola: il controllo admin è una chiamata Firestore
+  /// e adesso il viewshed gira ogni 500 m invece che ogni 5 km.
+  ViewshedTier? _resolvedTier;
+
+  // ── Diagnostica di campo (solo admin) ───────────────────────────────
+  /// L'allineamento AR si può giudicare solo con il telefono in mano davanti
+  /// a montagne vere, e in release i log non si leggono. Questo pannello
+  /// mostra a schermo cosa stanno facendo davvero i sensori. Gated su admin:
+  /// è uno strumento di lavoro, non una feature.
+  bool _isAdmin = false;
+  bool _showDiagnostics = false;
+
+  /// Riepilogo dell'ultimo calcolo viewshed, per il pannello.
+  int _viewshedVisibleCount = 0;
+  int _viewshedUncertainCount = 0;
+  int _viewshedElapsedMs = 0;
+
+  /// Distanza oltre la quale il viewshed va rifatto. In cresta l'occlusione
+  /// cambia radicalmente in poche centinaia di metri.
+  static const double _viewshedRefreshMeters = 500;
 
   @override
   void initState() {
@@ -151,8 +199,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     MountainFinderSettings().removeListener(_onSettingsChanged);
     ProGateService().removeListener(_onProChanged);
     _positionSub?.cancel();
-    _compassSub?.cancel();
-    _accelSub?.cancel();
+    _attitudeSub?.cancel();
     // Staccata dal campo e chiusa fuori: `dispose()` e' sincrono per
     // contratto, e chiudere la fotocamera mentre si sta ancora inizializzando
     // faceva esplodere CameraX. Vedi [closeCameraSafely].
@@ -164,7 +211,16 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   }
 
   void _onProChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // Il tier è memorizzato per non interrogare Firestore ogni 500 m: se
+    // l'utente compra Pro adesso, va ricalcolato o resterebbe free per tutta
+    // la sessione.
+    _resolvedTier = null;
+    final pos = _userPosition;
+    if (pos != null) {
+      unawaited(_recomputeViewshedIfNeeded(pos, force: true));
+    }
+    setState(() {});
   }
 
   /// Settings precedenti per detection del cambio distanza (che richiede
@@ -176,10 +232,12 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     final newDist = MountainFinderSettings().maxDistanceKmValue;
     if ((newDist - _lastSeenDistanceKm).abs() > 0.5) {
       _lastSeenDistanceKm = newDist;
-      // La distanza è cambiata: rifetcha le candidate dal dataset.
+      // La distanza è cambiata: rifetcha le candidate dal dataset e rifai il
+      // viewshed, che dipende dal raggio.
       final pos = _userPosition;
       if (pos != null) {
-        _refreshCandidatePeaksIfNeeded(pos, force: true);
+        _refreshCandidatePeaksIfNeeded(pos, force: true)
+            .then((_) => _recomputeViewshedIfNeeded(pos, force: true));
       }
     }
     setState(() {});
@@ -243,64 +301,28 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       ).listen((pos) async {
         if (!mounted) return;
         setState(() => _userPosition = pos);
+        unawaited(_expireStaleAlignOffset(pos));
+        unawaited(_refreshObserverElevation(pos));
+        // Il dataset delle cime si ricarica ogni ~5 km (è un raggio largo),
+        // il viewshed ogni 500 m: sono due cadenze diverse e vanno tenute
+        // separate. Prima il secondo era annidato nel primo, quindi in pratica
+        // l'elenco delle cime visibili si aggiornava solo ogni 5 km.
         await _refreshCandidatePeaksIfNeeded(pos);
+        await _recomputeViewshedIfNeeded(pos);
       });
 
       if (_userPosition != null) {
+        unawaited(_refreshObserverElevation(_userPosition!));
         await _refreshCandidatePeaksIfNeeded(_userPosition!);
+        unawaited(_recomputeViewshedIfNeeded(_userPosition!));
       }
 
-      // Compass: smoothing low-pass ADATTIVO. Quando il telefono e'
-      // fermo i pin si "ancorano" alle cime (alpha basso = molto smooth);
-      // quando ruoti rapidamente, i pin seguono senza lag (alpha alto).
-      _compassSub = FlutterCompass.events?.listen((event) {
+      // Orientamento: una sola sorgente, fusa dal sistema operativo, che sa
+      // dove punta l'obiettivo posteriore e conosce anche il roll. Lo
+      // smoothing adattivo vive dentro il servizio.
+      _attitudeSub = DeviceAttitudeService().stream.listen((attitude) {
         if (!mounted || _arLocked) return;
-        final raw = event.heading;
-        if (raw == null) return;
-        final normalized = raw < 0 ? raw + 360 : raw;
-        final now = DateTime.now();
-        final prev = _heading;
-        if (prev == null) {
-          _heading = normalized;
-          _lastHeadingTime = now;
-          setState(() {});
-          return;
-        }
-        // Gestisci wraparound 359°→0°
-        double delta = normalized - prev;
-        if (delta > 180) delta -= 360;
-        if (delta < -180) delta += 360;
-        // Calcola la velocità angolare per alpha adattivo
-        final dt = _lastHeadingTime == null
-            ? 0.05
-            : (now.difference(_lastHeadingTime!).inMilliseconds / 1000.0)
-                .clamp(0.01, 0.5);
-        final rate = (delta / dt).abs();
-        final alpha = _adaptiveAlpha(rate);
-        final smoothed = (prev + alpha * delta + 360) % 360;
-        _lastHeadingTime = now;
-        setState(() => _heading = smoothed);
-      });
-
-      // Accelerometer: pitch del telefono con smoothing adattivo.
-      _accelSub = accelerometerEventStream().listen((event) {
-        if (!mounted || _arLocked) return;
-        final rawPitch = MountainProjection.pitchFromAccelerometer(
-          event.x,
-          event.y,
-          event.z,
-        );
-        final now = DateTime.now();
-        final dt = _lastPitchTime == null
-            ? 0.05
-            : (now.difference(_lastPitchTime!).inMilliseconds / 1000.0)
-                .clamp(0.01, 0.5);
-        final rate = ((rawPitch - _lastRawPitch) / dt).abs();
-        final alpha = _adaptiveAlpha(rate);
-        final smoothed = _pitchDeg + alpha * (rawPitch - _pitchDeg);
-        _lastRawPitch = rawPitch;
-        _lastPitchTime = now;
-        setState(() => _pitchDeg = smoothed);
+        setState(() => _attitude = attitude);
       });
 
       if (!mounted) return;
@@ -540,36 +562,135 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     });
     debugPrint('[MountainFinder] candidate peaks aggiornate: '
         '${_candidatePeaks.length} entro ${radius}km');
+  }
 
-    // Viewshed ON di default: ricalcola le cime visibili ad ogni refresh
-    // delle candidate (ogni ~5km di spostamento), per tutti gli utenti. Il
-    // tier (raggio/limite cime) resta differenziato Free vs Pro dentro
-    // _recomputeViewshedIfNeeded. Pro aggiunge raggio 100km e nessun cap.
-    if (_viewshedOnly) {
-      unawaited(_recomputeViewshedIfNeeded(pos, force: true));
+  /// Aggiorna la quota del terreno sotto l'utente dal DEM, se si è spostato
+  /// abbastanza da poter essere cambiata.
+  /// Butta la correzione manuale se l'utente si è spostato oltre il raggio in
+  /// cui era stata tarata.
+  ///
+  /// Serve perché quella correzione compensa il campo magnetico **locale**:
+  /// misurata dentro casa, accanto a un telaio metallico, vale una decina di
+  /// gradi; all'aperto uno o due. Trascinarsela dietro non è prudente, è la
+  /// cosa peggiore possibile — la correzione diventa essa stessa l'errore, e
+  /// per giunta con l'utente convinto di aver già allineato.
+  Future<void> _expireStaleAlignOffset(Position pos) async {
+    final settings = MountainFinderSettings();
+    if (!settings.hasAlignOffset) return;
+    final lat = settings.alignLat, lng = settings.alignLng;
+    if (lat == null || lng == null) return;
+    final moved = Geolocator.distanceBetween(lat, lng, pos.latitude, pos.longitude);
+    if (moved < MountainFinderSettings.alignValidityMeters) return;
+    await settings.resetAlignOffset();
+    if (!mounted) return;
+    AppSnackBar.info(context, context.l10n.mfAlignExpired);
+  }
+
+  Future<void> _refreshObserverElevation(Position pos) async {
+    final last = _lastElevationPosition;
+    if (last != null &&
+        Geolocator.distanceBetween(
+              last.latitude,
+              last.longitude,
+              pos.latitude,
+              pos.longitude,
+            ) <
+            50) {
+      return;
+    }
+    _lastElevationPosition = pos;
+    // Comunichiamo la posizione alla piattaforma: ad Android serve per la
+    // declinazione magnetica (che è ciò che separa il nord magnetico da quello
+    // geografico, ~4° nelle Alpi).
+    unawaited(DeviceAttitudeService().setLocation(
+      latitude: pos.latitude,
+      longitude: pos.longitude,
+      altitude: pos.altitude,
+    ));
+    try {
+      final ground = await TerrainTileService().groundElevationAt(
+        pos.latitude,
+        pos.longitude,
+      );
+      if (!mounted || ground == null) return;
+      setState(() => _groundElevationM = ground);
+    } catch (e) {
+      debugPrint('[MountainFinder] quota DEM non disponibile: $e');
     }
   }
 
-  /// (Re)compute viewshed se posizione è cambiata > 500m o force=true.
-  Future<void> _recomputeViewshedIfNeeded(Position pos, {bool force = false}) async {
+  /// Quota dell'occhio dell'osservatore, in metri.
+  ///
+  /// Preferisce il DEM: l'altitudine GPS sbaglia di 20-50 m su Android, e
+  /// quell'errore si traduce direttamente in pin spostati in verticale.
+  double get _observerEyeElevationM {
+    final ground = _groundElevationM;
+    if (ground != null) return ground + _eyeHeightM;
+    return _userPosition?.altitude ?? 0;
+  }
+
+  /// Terna della fotocamera da usare per disegnare: quella congelata se l'AR
+  /// lock è attivo, altrimenti quella corrente, in entrambi i casi corretta
+  /// dall'offset manuale di allineamento.
+  CameraBasis? get _currentBasis {
+    final raw = _arLocked ? _lockedBasis : _attitude?.basis;
+    if (raw == null) return null;
+    final settings = MountainFinderSettings();
+    return raw.nudged(
+      deltaAzimuthDeg: settings.alignAzimuthOffsetDeg,
+      deltaPitchDeg: settings.alignPitchOffsetDeg,
+    );
+  }
+
+  /// Tier del viewshed, risolto una volta sola per sessione: il controllo
+  /// admin passa da Firestore e ora il viewshed gira ogni 500 m.
+  Future<ViewshedTier> _viewshedTier() async {
+    final cached = _resolvedTier;
+    if (cached != null) return cached;
+    // Pro sbloccato da subscription IAP attiva OPPURE admin (per permettere
+    // test in development senza acquisto).
+    final isPro = ProGateService().isPro;
+    final isAdmin = await AdminRepository.isCurrentUserAdmin();
+    if (isAdmin != _isAdmin && mounted) {
+      setState(() => _isAdmin = isAdmin);
+    }
+    final tier = (isPro || isAdmin) ? ViewshedTier.pro : ViewshedTier.free;
+    _resolvedTier = tier;
+    return tier;
+  }
+
+  /// (Re)compute viewshed se la posizione è cambiata più di
+  /// [_viewshedRefreshMeters], o se [force].
+  Future<void> _recomputeViewshedIfNeeded(Position pos,
+      {bool force = false}) async {
+    if (!_viewshedOnly) return;
     if (!force && _lastViewshedPosition != null) {
       final moved = Geolocator.distanceBetween(
         _lastViewshedPosition!.latitude, _lastViewshedPosition!.longitude,
         pos.latitude, pos.longitude,
       );
-      if (moved < 500) return;
+      if (moved < _viewshedRefreshMeters) return;
     }
     if (_computingViewshed) return; // già in corso, evita race
     if (_candidatePeaks.isEmpty) return;
+    // Dopo un fallimento aspettiamo prima di riprovare: senza, un errore
+    // ripetibile (offline) fa ripartire il calcolo a ogni fix GPS, cioè ogni
+    // 5 metri, con decine di tile richiesti ogni volta.
+    final retryAfter = _viewshedRetryAfter;
+    if (!force && retryAfter != null && DateTime.now().isBefore(retryAfter)) {
+      return;
+    }
 
-    // Pro tier sbloccato da: subscription IAP attiva OPPURE admin (per
-    // permettere test in development senza acquisto).
-    final isPro = ProGateService().isPro;
-    final isAdmin = await AdminRepository.isCurrentUserAdmin();
-    final tier = (isPro || isAdmin) ? ViewshedTier.pro : ViewshedTier.free;
-
-    setState(() => _computingViewshed = true);
+    // Il flag va alzato **prima** di qualsiasi await, altrimenti non protegge
+    // nulla: il primo giro attende il controllo admin su Firestore, e in quelle
+    // centinaia di millisecondi ogni nuovo fix GPS supera il guard e lancia un
+    // calcolo in parallelo. Succedeva davvero — due `[Viewshed] start` in fila
+    // nei log del telefono, e il tempo raddoppiato.
+    _computingViewshed = true;
+    setState(() {});
     try {
+      final tier = await _viewshedTier();
+      if (!mounted) return;
       final result = await ViewshedService().computeVisible(
         observerLat: pos.latitude,
         observerLng: pos.longitude,
@@ -579,15 +700,50 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       if (!mounted) return;
       setState(() {
         _viewshedVisibleIds = result.visible.map((v) => v.peak.id).toSet();
-        _lastViewshedPosition = pos;
-        _computingViewshed = false;
+        _viewshedStatus = result.status;
+        _viewshedPatchyTerrain = result.hasPatchyTerrain;
+        _viewshedVisibleCount = result.visible.length;
+        _viewshedUncertainCount = result.uncertainCount;
+        _viewshedElapsedMs = result.elapsedMs;
+        _viewshedHasResult = result.isReliable;
+        if (result.isReliable) {
+          // Riuscito: la posizione è "consumata", si rifà fra 500 m.
+          _lastViewshedPosition = pos;
+          _viewshedRetryAfter = null;
+        } else {
+          // Fallito: non consumiamo la posizione (vogliamo riprovare anche da
+          // fermi, la rete può tornare) ma imponiamo un'attesa, altrimenti si
+          // riparte a ogni fix GPS.
+          _viewshedRetryAfter =
+              DateTime.now().add(const Duration(seconds: 30));
+        }
+        // Quota del terreno: la teniamo solo come ripiego. Quella del viewshed
+        // viene da un DEM a zoom 10 (~110 m/pixel), mentre
+        // `_refreshObserverElevation` ne prende una a zoom 12 (~30 m): se si
+        // sovrascrivessero a vicenda la quota oscillerebbe fra due valori a ogni
+        // ricalcolo, e i pin salterebbero in verticale.
+        final ground = result.observerGroundElevationM;
+        if (_groundElevationM == null && ground != null && ground.isFinite) {
+          _groundElevationM = ground;
+        }
       });
       debugPrint(
           '[MountainFinder] viewshed: ${result.visible.length} cime visibili '
-          '(tier=${tier.label}, ${result.elapsedMs}ms)');
+          '(tier=${tier.label}, ${result.elapsedMs}ms, ${result.status.name})');
     } catch (e) {
       debugPrint('[MountainFinder] viewshed error: $e');
-      if (mounted) setState(() => _computingViewshed = false);
+      if (mounted) {
+        _viewshedRetryAfter = DateTime.now().add(const Duration(seconds: 30));
+      }
+    } finally {
+      // In un `finally`, non in ogni ramo: un `return` anticipato per
+      // `!mounted` lasciava il flag alzato per sempre, e da lì in poi nessun
+      // ricalcolo sarebbe più partito.
+      if (mounted) {
+        setState(() => _computingViewshed = false);
+      } else {
+        _computingViewshed = false;
+      }
     }
   }
 
@@ -604,6 +760,9 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       if (!wantOn) {
         _viewshedVisibleIds = const {};
         _lastViewshedPosition = null;
+        _viewshedStatus = ViewshedStatus.ok;
+        _viewshedHasResult = false;
+        _viewshedRetryAfter = null;
       }
     });
     if (wantOn) {
@@ -612,8 +771,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   }
 
   /// Lista cime effettiva considerando il filtro viewshed.
+  ///
+  /// La condizione è "esiste un risultato", non "l'insieme non è vuoto": un
+  /// fondovalle chiuso in cui davvero non si vede nessuna cima è una risposta
+  /// legittima, e prima veniva scambiata per "filtro non disponibile" — l'app
+  /// mostrava tutte le cime del raggio, etichettate sopra il crinale che le
+  /// nasconde, con l'icona del filtro accesa e nessun avviso.
   List<MountainPeak> get _effectiveCandidatePeaks {
-    if (!_viewshedOnly || _viewshedVisibleIds.isEmpty) return _candidatePeaks;
+    if (!_viewshedOnly || !_viewshedHasResult) return _candidatePeaks;
     return _candidatePeaks
         .where((p) => _viewshedVisibleIds.contains(p.id))
         .toList();
@@ -646,6 +811,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             // verticale alla preview camera.
             if (!_initializing && _error == null)
               ..._buildBottomControls(),
+
+            // Diagnostica di campo (solo admin, e solo se richiesta).
+            if (_isAdmin && _showDiagnostics && !_initializing)
+              Positioned(
+                left: 8,
+                top: 60,
+                child: _buildDiagnosticsPanel(),
+              ),
 
             // Loader durante il processing post-capture
             if (_processingCapture)
@@ -794,8 +967,8 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   Future<void> _capturePhoto() async {
     final cam = _camera;
     final pos = _userPosition;
-    final heading = _heading;
-    if (cam == null || pos == null || heading == null) {
+    final basis = _currentBasis;
+    if (cam == null || pos == null || basis == null) {
       AppSnackBar.error(context, context.l10n.mfPhotoNoSensors);
       return;
     }
@@ -811,12 +984,13 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       );
 
       // FOV: orientation-aware (swap H/V in landscape, vedi note in
-      // _buildCameraWithOverlay). Diviso per zoom per ridurre il cono.
+      // _buildCameraWithOverlay). Lo zoom non si applica più dividendo i
+      // gradi: restringe la **tangente** del semiangolo, dentro la proiezione.
       final isPortrait = viewport.height >= viewport.width;
       final calibH = settings.horizontalFovDeg;
       final calibV = settings.verticalFovDeg;
-      final effHFov = (isPortrait ? calibH : calibV) / _zoomLevel;
-      final effVFov = (isPortrait ? calibV : calibH) / _zoomLevel;
+      final effHFov = isPortrait ? calibH : calibV;
+      final effVFov = isPortrait ? calibV : calibH;
 
       // Tutti i peak nel cono FOV — niente cap come in live
       // (la differenza Free vs Pro!).
@@ -824,13 +998,13 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         peaks: _effectiveCandidatePeaks,
         observerLat: pos.latitude,
         observerLng: pos.longitude,
-        observerAltitudeMeters: pos.altitude,
-        phoneHeadingDeg: heading,
-        phonePitchDeg: _pitchDeg,
+        observerElevationMeters: _observerEyeElevationM,
+        basis: basis,
         viewport: viewport,
         maxVisible: 9999, // illimitato
         horizontalFovDeg: effHFov,
         verticalFovDeg: effVFov,
+        zoom: _zoomLevel,
       );
 
       // 6.A2 v2: anche i POI OSM (rifugi, sorgenti, ecc.) nel cono FOV.
@@ -840,13 +1014,13 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         pois: _candidatePois,
         observerLat: pos.latitude,
         observerLng: pos.longitude,
-        observerAltitudeMeters: pos.altitude,
-        phoneHeadingDeg: heading,
-        phonePitchDeg: _pitchDeg,
+        observerElevationMeters: _observerEyeElevationM,
+        basis: basis,
         viewport: viewport,
         maxVisible: 12,
         horizontalFovDeg: effHFov,
         verticalFovDeg: effVFov,
+        zoom: _zoomLevel,
       );
 
       // Cattura
@@ -890,33 +1064,31 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       builder: (context, constraints) {
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
         final pos = _userPosition;
-        final heading = _heading;
+        final basis = _currentBasis;
 
         // Ricalcola sincrono con la dimensione corrente.
         final settings = MountainFinderSettings();
         // FOV effettivo: la calibrazione H/V è fatta in portrait
         // (sensor long-axis verticale). In landscape il long-axis e'
-        // orizzontale: H/V vanno scambiati per applicare correttamente
-        // la math di proiezione allo schermo.
+        // orizzontale: H/V vanno scambiati perché descrivono gli assi dello
+        // schermo, non quelli del sensore.
         final isPortrait = viewport.height >= viewport.width;
         final calibH = settings.horizontalFovDeg;
         final calibV = settings.verticalFovDeg;
-        final effectiveHFov =
-            (isPortrait ? calibH : calibV) / _zoomLevel;
-        final effectiveVFov =
-            (isPortrait ? calibV : calibH) / _zoomLevel;
-        final projected = (pos != null && heading != null)
+        final effectiveHFov = isPortrait ? calibH : calibV;
+        final effectiveVFov = isPortrait ? calibV : calibH;
+        final projected = (pos != null && basis != null)
             ? MountainProjection.projectAll(
                 peaks: _effectiveCandidatePeaks,
                 observerLat: pos.latitude,
                 observerLng: pos.longitude,
-                observerAltitudeMeters: pos.altitude,
-                phoneHeadingDeg: heading,
-                phonePitchDeg: _pitchDeg,
+                observerElevationMeters: _observerEyeElevationM,
+                basis: basis,
                 viewport: viewport,
                 maxVisible: _maxLiveLabels,
                 horizontalFovDeg: effectiveHFov,
                 verticalFovDeg: effectiveVFov,
+                zoom: _zoomLevel,
               )
             : <ProjectedPeak>[];
 
@@ -940,6 +1112,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                   _baseZoom = _zoomLevel;
                 },
                 onScaleUpdate: (details) {
+                  // In modalità allineamento il trascinamento a un dito muove
+                  // le etichette; il pinch a due dita continua a zoomare, così
+                  // si può ingrandire per allineare con più precisione.
+                  if (_alignMode && details.pointerCount <= 1) {
+                    _applyAlignDrag(details.focalPointDelta,
+                        effectiveHFov, effectiveVFov, viewport);
+                    return;
+                  }
                   if (_maxZoom <= _minZoom) return; // device senza zoom
                   final next = (_baseZoom * details.scale)
                       .clamp(_minZoom, _maxZoom);
@@ -947,6 +1127,16 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                   _zoomLevel = next;
                   _camera?.setZoomLevel(next);
                   setState(() {});
+                },
+                onScaleEnd: (_) {
+                  if (_alignMode) {
+                    // Insieme all'offset salviamo dove è stato tarato: fuori
+                    // da quel raggio non vale più.
+                    unawaited(MountainFinderSettings().commitAlignOffset(
+                      latitude: _userPosition?.latitude,
+                      longitude: _userPosition?.longitude,
+                    ));
+                  }
                 },
                 onDoubleTap: () {
                   // Doppio tap: toggle 1x / 2x rapido
@@ -970,6 +1160,51 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             // animate. Le label si impilano verticalmente quando le cime
             // sono allineate sullo stesso bearing per evitare overlap.
             ..._buildPinLayer(projected),
+
+            // Modalità allineamento: istruzione + offset applicato. I numeri
+            // sono in gradi apposta — sono la misura dell'errore residuo dei
+            // sensori, non solo una regolazione estetica.
+            if (_alignMode)
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 170,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          context.l10n.mfAlignHint,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '↔ ${MountainFinderSettings().alignAzimuthOffsetDeg.toStringAsFixed(1)}°'
+                          '   ↕ ${MountainFinderSettings().alignPitchOffsetDeg.toStringAsFixed(1)}°',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
             // Indicatore zoom: visibile solo quando zoom > 1.05x.
             if (_zoomLevel > 1.05)
@@ -1034,7 +1269,15 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Container(
+            // Il chip fa anche da interruttore della diagnostica di campo per
+            // gli admin: la barra è già piena, e un pulsante in più andrebbe
+            // in overflow sui telefoni stretti.
+            child: GestureDetector(
+              onTap: _isAdmin
+                  ? () => setState(() => _showDiagnostics = !_showDiagnostics)
+                  : null,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.5),
@@ -1044,20 +1287,36 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                 children: [
                   const Icon(Icons.terrain, color: Colors.white, size: 18),
                   const SizedBox(width: 6),
-                  // Bearing live + pitch (debug) prima del titolo così rimane
-                  // sempre visibile; il titolo si elide se manca spazio.
-                  Text(
-                    _heading != null
-                        ? '${_heading!.toStringAsFixed(0)}°'
-                        : '—°',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      fontFeatures: [FontFeature.tabularFigures()],
+                  // Bearing live prima del titolo così rimane sempre
+                  // visibile; il titolo si elide se manca spazio.
+                  Flexible(
+                    child: Text(
+                      _currentBasis != null
+                          ? '${_currentBasis!.azimuthDeg.toStringAsFixed(0)}°'
+                          : '—°',
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
                     ),
                   ),
+                  // Bussola inaffidabile: è la causa più comune di etichette
+                  // fuori posto, e finora l'informazione c'era ma non veniva
+                  // mai mostrata.
+                  if (_attitude?.needsCalibration ?? false) ...[
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.explore_off,
+                      size: 14,
+                      color: AppColors.warning,
+                    ),
+                  ],
                 ],
+              ),
               ),
             ),
           ),
@@ -1087,6 +1346,36 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             ),
           ),
           const SizedBox(width: 4),
+          // Allineamento manuale: trascina le etichette sulle montagne vere.
+          // Tap lungo per azzerare e tornare ai sensori nudi. Il pulsante resta
+          // evidenziato finché una correzione è attiva: correggere in silenzio
+          // sarebbe peggio che non correggere, perché l'utente non saprebbe di
+          // stare guardando una scena spostata a mano.
+          Material(
+            color: _alignMode || MountainFinderSettings().hasAlignOffset
+                ? AppColors.primary
+                : Colors.black.withValues(alpha: 0.5),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => setState(() => _alignMode = !_alignMode),
+              onLongPress: () async {
+                await MountainFinderSettings().resetAlignOffset();
+                if (mounted) {
+                  AppSnackBar.info(context, context.l10n.mfAlignReset);
+                }
+              },
+              child: Tooltip(
+                message: context.l10n.mfAlignTooltip,
+                child: const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(Icons.open_with, color: Colors.white, size: 20),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
           // AR lock: congela il puntamento per leggere le label.
           Material(
             color: _arLocked
@@ -1094,7 +1383,16 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                 : Colors.black.withValues(alpha: 0.5),
             shape: const CircleBorder(),
             child: IconButton(
-              onPressed: () => setState(() => _arLocked = !_arLocked),
+              onPressed: () {
+                // Senza una terna da congelare il lock spegnerebbe l'AR fino
+                // allo sblocco: meglio non entrarci proprio.
+                final basis = _attitude?.basis;
+                if (!_arLocked && basis == null) return;
+                setState(() {
+                  _arLocked = !_arLocked;
+                  _lockedBasis = _arLocked ? basis : null;
+                });
+              },
               icon: Icon(
                 _arLocked ? Icons.lock : Icons.lock_open,
                 color: Colors.white,
@@ -1191,6 +1489,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   Widget _buildInfoCard() {
     final count = _visiblePeaks.length;
     final scheme = Theme.of(context).colorScheme;
+    final warning = _statusWarning();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1199,38 +1498,199 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: context.themedBorder),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            count > 0 ? Icons.check_circle : Icons.search,
-            size: 18,
-            color: count > 0 ? AppColors.success : context.textMuted,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              count == 0
-                  ? context.l10n.mfNoPeaksInView
-                  : context.l10n.mfPeaksInView(count),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: context.textPrimary,
+          Row(
+            children: [
+              Icon(
+                count > 0 ? Icons.check_circle : Icons.search,
+                size: 18,
+                color: count > 0 ? AppColors.success : context.textMuted,
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  count == 0
+                      ? context.l10n.mfNoPeaksInView
+                      : context.l10n.mfPeaksInView(count),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: context.textPrimary,
+                  ),
+                ),
+              ),
+              if (_userPosition != null)
+                Text(
+                  '${_observerEyeElevationM.toStringAsFixed(0)} m',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.textMuted,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+            ],
           ),
-          if (_userPosition != null)
+          // Quando il filtro visibilità non ha potuto girare (offline, o DEM
+          // scoperto proprio qui) l'elenco torna a essere "tutte le cime nel
+          // cono": dirlo, invece di lasciar credere che siano quelle visibili.
+          if (warning != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 14, color: AppColors.warning),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    warning,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.3,
+                      color: context.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Converte un trascinamento in gradi di correzione del puntamento.
+  ///
+  /// La scala è quella naturale: trascinare per tutta la larghezza dello
+  /// schermo sposta di un intero campo visivo, quindi le etichette seguono il
+  /// dito. Diviso per lo zoom, perché a 3× lo stesso pixel vale un terzo di
+  /// grado — ed è proprio zoomando che si fanno le regolazioni fini.
+  void _applyAlignDrag(
+    Offset delta,
+    double hFovDeg,
+    double vFovDeg,
+    Size viewport,
+  ) {
+    if (viewport.width <= 0 || viewport.height <= 0) return;
+    // Segni: trascinando a destra le etichette devono andare a destra. Le
+    // etichette si spostano a destra quando l'azimut della camera DIMINUISCE,
+    // da cui il meno; in verticale il verso è invece concorde.
+    final deltaAz =
+        -(delta.dx / viewport.width) * hFovDeg / _zoomLevel;
+    final deltaPitch =
+        (delta.dy / viewport.height) * vFovDeg / _zoomLevel;
+    MountainFinderSettings()
+        .nudgeAlignOffset(deltaAzDeg: deltaAz, deltaPitchDeg: deltaPitch);
+  }
+
+  /// Pannello diagnostico di campo (solo admin).
+  ///
+  /// L'allineamento AR si giudica solo con montagne vere davanti, e in release
+  /// i log non si leggono: questo mostra a schermo cosa fanno davvero i
+  /// sensori. Serve a rispondere a tre domande, in ordine:
+  /// 1. la sorgente di orientamento è quella nativa o il ripiego?
+  /// 2. stiamo puntando al nord geografico o a quello magnetico?
+  /// 3. la quota viene dal DEM o dal GPS?
+  Widget _buildDiagnosticsPanel() {
+    final attitude = _attitude;
+    final basis = _currentBasis;
+    final ground = _groundElevationM;
+
+    String row(String k, String v) => '$k  $v';
+    final lines = <String>[
+      row('sorgente',
+          attitude == null
+              ? '—'
+              : (attitude.isNative ? 'fusione nativa' : 'RIPIEGO bussola')),
+      row('nord',
+          attitude == null
+              ? '—'
+              : (attitude.isTrueNorth ? 'geografico' : 'MAGNETICO')),
+      row('bussola',
+          attitude?.accuracyDeg == null
+              ? 'INAFFIDABILE'
+              : '±${attitude!.accuracyDeg!.toStringAsFixed(0)}°'),
+      row('az/pitch/roll',
+          basis == null
+              ? '—'
+              : '${basis.azimuthDeg.toStringAsFixed(1)}° / '
+                  '${basis.pitchDeg.toStringAsFixed(1)}° / '
+                  '${basis.rollDeg.toStringAsFixed(1)}°'),
+      row('quota',
+          ground != null
+              ? 'DEM ${ground.toStringAsFixed(0)} m (+${_eyeHeightM.toStringAsFixed(1)})'
+              : 'GPS ${(_userPosition?.altitude ?? 0).toStringAsFixed(0)} m'),
+      row('viewshed',
+          '${_viewshedStatus.name} · $_viewshedVisibleCount vis · '
+              '$_viewshedUncertainCount inc · ${_viewshedElapsedMs}ms'),
+      row('tier', _resolvedTier?.label ?? '—'),
+      row('allineam.',
+          '↔ ${MountainFinderSettings().alignAzimuthOffsetDeg.toStringAsFixed(2)}° '
+              '↕ ${MountainFinderSettings().alignPitchOffsetDeg.toStringAsFixed(2)}°'),
+      row('fov',
+          '${MountainFinderSettings().horizontalFovDeg.toStringAsFixed(0)}×'
+              '${MountainFinderSettings().verticalFovDeg.toStringAsFixed(0)}°'
+              ' · zoom ${_zoomLevel.toStringAsFixed(2)}x'),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final l in lines)
             Text(
-              '${(_userPosition!.altitude).toStringAsFixed(0)} m',
-              style: TextStyle(
-                fontSize: 12,
-                color: context.textMuted,
-                fontFeatures: const [FontFeature.tabularFigures()],
+              l,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10.5,
+                height: 1.5,
+                fontFamily: 'monospace',
+                fontFeatures: [FontFeature.tabularFigures()],
               ),
             ),
         ],
       ),
     );
+  }
+
+  /// Avviso da mostrare nella card, o null se è tutto a posto. In ordine di
+  /// priorità: prima quello che invalida le cime mostrate, poi quello che
+  /// invalida il puntamento.
+  String? _statusWarning() {
+    if (_viewshedOnly) {
+      switch (_viewshedStatus) {
+        case ViewshedStatus.demUnavailable:
+          return context.l10n.mfViewshedNoTerrain;
+        case ViewshedStatus.observerOutsideDem:
+          return context.l10n.mfViewshedNoTerrainHere;
+        case ViewshedStatus.ok:
+          // Il filtro sta girando: qui il terreno lacunoso non disattiva nulla,
+          // rende solo incerte alcune cime — e il messaggio deve dire questo,
+          // non "mostro tutte le cime".
+          if (_viewshedPatchyTerrain) {
+            return context.l10n.mfViewshedPartialTerrain;
+          }
+          if (_viewshedHasResult && _viewshedVisibleCount == 0) {
+            return context.l10n.mfViewshedNothingVisible;
+          }
+          break;
+        case ViewshedStatus.noPeaksInRange:
+          break;
+      }
+    }
+    if (_attitude?.needsCalibration ?? false) {
+      return context.l10n.mfCompassUnreliable;
+    }
+    return null;
   }
 }
 

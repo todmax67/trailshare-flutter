@@ -2,15 +2,15 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/extensions/l10n_extension.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/services/device_attitude_service.dart';
 import '../../../core/services/mountain_finder_settings.dart';
 import '../../../core/services/peaks_dataset_service.dart';
+import '../../../core/services/terrain_tile_service.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
 import '../../../core/utils/camera_teardown.dart';
@@ -48,27 +48,21 @@ class _MountainFinderCalibrationPageState
   String? _error;
 
   Position? _userPosition;
-  double? _heading;
-  double _pitchDeg = 0;
+  DeviceAttitude? _attitude;
+
+  /// Quota del terreno sotto l'utente dal DEM (vedi MountainFinderPage).
+  double? _groundElevationM;
+  static const double _eyeHeightM = 1.7;
 
   StreamSubscription<Position>? _positionSub;
-  StreamSubscription<CompassEvent>? _compassSub;
-  StreamSubscription<AccelerometerEvent>? _accelSub;
+  StreamSubscription<DeviceAttitude>? _attitudeSub;
 
-  // Smoothing adattivo: vedi MountainFinderPage per il razionale.
-  // In calibrazione vogliamo i pin il più reattivi possibile per
-  // valutare l'allineamento, quindi range leggermente più alto.
-  static const double _alphaMin = 0.08;
-  static const double _alphaMax = 0.35;
-  static const double _rateForMaxAlpha = 30.0;
   static const double _candidateRadiusKm = 60;
-  DateTime? _lastHeadingTime;
-  DateTime? _lastPitchTime;
-  double _lastRawPitch = 0;
 
-  double _adaptiveAlpha(double ratePerSec) {
-    final t = (ratePerSec / _rateForMaxAlpha).clamp(0.0, 1.0);
-    return _alphaMin + t * (_alphaMax - _alphaMin);
+  double get _observerEyeElevationM {
+    final ground = _groundElevationM;
+    if (ground != null) return ground + _eyeHeightM;
+    return _userPosition?.altitude ?? 0;
   }
 
   // Zoom (replica di MountainFinderPage per fine-tuning anche in calibrazione)
@@ -91,8 +85,7 @@ class _MountainFinderCalibrationPageState
   void dispose() {
     MountainFinderSettings().removeListener(_onSettingsChanged);
     _positionSub?.cancel();
-    _compassSub?.cancel();
-    _accelSub?.cancel();
+    _attitudeSub?.cancel();
     final camera = _camera;
     final cameraInit = _cameraInit;
     _camera = null;
@@ -161,51 +154,11 @@ class _MountainFinderCalibrationPageState
         await _refreshCandidates(_userPosition!);
       }
 
-      _compassSub = FlutterCompass.events?.listen((event) {
+      // Stessa sorgente di orientamento della pagina AR: calibrare su un
+      // puntamento diverso da quello che poi si usa non avrebbe senso.
+      _attitudeSub = DeviceAttitudeService().stream.listen((attitude) {
         if (!mounted) return;
-        final raw = event.heading;
-        if (raw == null) return;
-        final normalized = raw < 0 ? raw + 360 : raw;
-        final now = DateTime.now();
-        final prev = _heading;
-        if (prev == null) {
-          _heading = normalized;
-          _lastHeadingTime = now;
-          setState(() {});
-          return;
-        }
-        double delta = normalized - prev;
-        if (delta > 180) delta -= 360;
-        if (delta < -180) delta += 360;
-        final dt = _lastHeadingTime == null
-            ? 0.05
-            : (now.difference(_lastHeadingTime!).inMilliseconds / 1000.0)
-                .clamp(0.01, 0.5);
-        final rate = (delta / dt).abs();
-        final alpha = _adaptiveAlpha(rate);
-        final smoothed = (prev + alpha * delta + 360) % 360;
-        _lastHeadingTime = now;
-        setState(() => _heading = smoothed);
-      });
-
-      _accelSub = accelerometerEventStream().listen((event) {
-        if (!mounted) return;
-        final rawPitch = MountainProjection.pitchFromAccelerometer(
-          event.x,
-          event.y,
-          event.z,
-        );
-        final now = DateTime.now();
-        final dt = _lastPitchTime == null
-            ? 0.05
-            : (now.difference(_lastPitchTime!).inMilliseconds / 1000.0)
-                .clamp(0.01, 0.5);
-        final rate = ((rawPitch - _lastRawPitch) / dt).abs();
-        final alpha = _adaptiveAlpha(rate);
-        final smoothed = _pitchDeg + alpha * (rawPitch - _pitchDeg);
-        _lastRawPitch = rawPitch;
-        _lastPitchTime = now;
-        setState(() => _pitchDeg = smoothed);
+        setState(() => _attitude = attitude);
       });
 
       if (!mounted) return;
@@ -229,6 +182,25 @@ class _MountainFinderCalibrationPageState
     );
     if (!mounted) return;
     setState(() => _candidatePeaks = cands);
+
+    // Quota dal DEM e posizione alla piattaforma (per la declinazione
+    // magnetica su Android): stesse premesse della pagina AR, altrimenti si
+    // calibrerebbe su una geometria diversa da quella che si userà.
+    unawaited(DeviceAttitudeService().setLocation(
+      latitude: pos.latitude,
+      longitude: pos.longitude,
+      altitude: pos.altitude,
+    ));
+    try {
+      final ground = await TerrainTileService().groundElevationAt(
+        pos.latitude,
+        pos.longitude,
+      );
+      if (!mounted || ground == null) return;
+      setState(() => _groundElevationM = ground);
+    } catch (_) {
+      // Senza rete si resta sull'altitudine GPS.
+    }
   }
 
   @override
@@ -270,33 +242,31 @@ class _MountainFinderCalibrationPageState
       builder: (context, constraints) {
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
         final pos = _userPosition;
-        final heading = _heading;
+        final basis = _attitude?.basis;
 
-        // FOV effettivo: orientation-aware + zoom adjustment. Vedi
-        // commento su MountainFinderPage. La calibrazione H/V e' fatta
-        // assumendo portrait; in landscape vanno scambiati.
+        // FOV effettivo: orientation-aware. La calibrazione H/V e' fatta
+        // assumendo portrait; in landscape vanno scambiati perché descrivono
+        // gli assi dello schermo. Lo zoom lo applica la proiezione.
         final isPortrait = viewport.height >= viewport.width;
         final calibH = settings.horizontalFovDeg;
         final calibV = settings.verticalFovDeg;
-        final effectiveHFov =
-            (isPortrait ? calibH : calibV) / _zoomLevel;
-        final effectiveVFov =
-            (isPortrait ? calibV : calibH) / _zoomLevel;
+        final effectiveHFov = isPortrait ? calibH : calibV;
+        final effectiveVFov = isPortrait ? calibV : calibH;
 
         // Mostriamo fino a 8 pin (più del normale 5) così l'utente ha
         // riferimenti multipli per giudicare l'allineamento.
-        final projected = (pos != null && heading != null)
+        final projected = (pos != null && basis != null)
             ? MountainProjection.projectAll(
                 peaks: _candidatePeaks,
                 observerLat: pos.latitude,
                 observerLng: pos.longitude,
-                observerAltitudeMeters: pos.altitude,
-                phoneHeadingDeg: heading,
-                phonePitchDeg: _pitchDeg,
+                observerElevationMeters: _observerEyeElevationM,
+                basis: basis,
                 viewport: viewport,
                 maxVisible: 8,
                 horizontalFovDeg: effectiveHFov,
                 verticalFovDeg: effectiveVFov,
+                zoom: _zoomLevel,
               )
             : <ProjectedPeak>[];
 

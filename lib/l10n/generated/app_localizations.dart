@@ -9248,6 +9248,60 @@ abstract class AppLocalizations {
   /// **'Filtro visibilità OFF — mostra solo cime non occluse'**
   String get mfViewshedOffTooltip;
 
+  /// No description provided for @mfViewshedNoTerrain.
+  ///
+  /// In it, this message translates to:
+  /// **'Senza rete non so quali cime sono nascoste: le mostro tutte'**
+  String get mfViewshedNoTerrain;
+
+  /// No description provided for @mfViewshedNoTerrainHere.
+  ///
+  /// In it, this message translates to:
+  /// **'Dati del terreno incompleti qui: mostro tutte le cime'**
+  String get mfViewshedNoTerrainHere;
+
+  /// No description provided for @mfCompassUnreliable.
+  ///
+  /// In it, this message translates to:
+  /// **'Bussola da calibrare: muovi il telefono a forma di otto'**
+  String get mfCompassUnreliable;
+
+  /// No description provided for @mfAlignTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Allinea le etichette — tocca a lungo per azzerare'**
+  String get mfAlignTooltip;
+
+  /// No description provided for @mfAlignHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Trascina finché i nomi non cadono sulle cime giuste'**
+  String get mfAlignHint;
+
+  /// No description provided for @mfAlignReset.
+  ///
+  /// In it, this message translates to:
+  /// **'Allineamento azzerato'**
+  String get mfAlignReset;
+
+  /// No description provided for @mfAlignExpired.
+  ///
+  /// In it, this message translates to:
+  /// **'Ti sei spostato: allineamento manuale azzerato'**
+  String get mfAlignExpired;
+
+  /// No description provided for @mfViewshedPartialTerrain.
+  ///
+  /// In it, this message translates to:
+  /// **'Dati del terreno incompleti: alcune cime potrebbero essere nascoste'**
+  String get mfViewshedPartialTerrain;
+
+  /// No description provided for @mfViewshedNothingVisible.
+  ///
+  /// In it, this message translates to:
+  /// **'Da qui non si vede nessuna cima: sono tutte dietro un crinale'**
+  String get mfViewshedNothingVisible;
+
   /// No description provided for @locationTimeout.
   ///
   /// In it, this message translates to:

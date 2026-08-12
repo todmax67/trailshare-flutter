@@ -5136,6 +5136,40 @@ class AppLocalizationsIt extends AppLocalizations {
       'Filtro visibilità OFF — mostra solo cime non occluse';
 
   @override
+  String get mfViewshedNoTerrain =>
+      'Senza rete non so quali cime sono nascoste: le mostro tutte';
+
+  @override
+  String get mfViewshedNoTerrainHere =>
+      'Dati del terreno incompleti qui: mostro tutte le cime';
+
+  @override
+  String get mfCompassUnreliable =>
+      'Bussola da calibrare: muovi il telefono a forma di otto';
+
+  @override
+  String get mfAlignTooltip =>
+      'Allinea le etichette — tocca a lungo per azzerare';
+
+  @override
+  String get mfAlignHint =>
+      'Trascina finché i nomi non cadono sulle cime giuste';
+
+  @override
+  String get mfAlignReset => 'Allineamento azzerato';
+
+  @override
+  String get mfAlignExpired => 'Ti sei spostato: allineamento manuale azzerato';
+
+  @override
+  String get mfViewshedPartialTerrain =>
+      'Dati del terreno incompleti: alcune cime potrebbero essere nascoste';
+
+  @override
+  String get mfViewshedNothingVisible =>
+      'Da qui non si vede nessuna cima: sono tutte dietro un crinale';
+
+  @override
   String get locationTimeout =>
       'Impossibile ottenere la posizione (timeout GPS). Riprova all\'aperto.';
 
