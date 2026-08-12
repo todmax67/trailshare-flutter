@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import '../utils/dem_tile_codec.dart';
+import 'network_status.dart';
 import '../utils/viewshed_compute.dart';
 
 /// Fetch e decode di tile DEM da AWS Open Terrain Tiles.
@@ -101,6 +102,7 @@ class TerrainTileService {
     var done = 0;
     var failed = 0;
     var downloaded = 0;
+    var alreadyHad = 0;
     onProgress?.call(0, wanted.length);
 
     const batchSize = 6;
@@ -117,17 +119,20 @@ class TerrainTileService {
         // Già su disco: non si rifà la rete. Il senso del prefetch è riempire
         // i buchi, non ripagare quello che c'è.
         final key = '${t[0]}/${t[1]}/${t[2]}';
-        if (_diskBox?.containsKey(key) ?? false) return true;
+        if (_diskBox?.containsKey(key) ?? false) return _TileOutcome.cached;
         final tile = await _fetchTile(t[0], t[1], t[2]);
-        return tile != null;
+        return tile != null ? _TileOutcome.fetched : _TileOutcome.failed;
       });
       final results = await Future.wait(batch);
-      for (final ok in results) {
+      for (final outcome in results) {
         done++;
-        if (ok) {
-          downloaded++;
-        } else {
-          failed++;
+        switch (outcome) {
+          case _TileOutcome.cached:
+            alreadyHad++;
+          case _TileOutcome.fetched:
+            downloaded++;
+          case _TileOutcome.failed:
+            failed++;
         }
       }
       onProgress?.call(done, wanted.length);
@@ -136,8 +141,8 @@ class TerrainTileService {
       await Future<void>.delayed(const Duration(milliseconds: 40));
     }
 
-    debugPrint('[Terrain] prefetch: $downloaded/${wanted.length} tile '
-        '($failed falliti)');
+    debugPrint('[Terrain] prefetch: ${wanted.length} tessere richieste — '
+        '$downloaded scaricate, $alreadyHad già presenti, $failed fallite');
     return TerrainPrefetchResult(
       requested: wanted.length,
       downloaded: downloaded,
@@ -427,6 +432,14 @@ class TerrainTileService {
   }
 
   Future<_DemTile?> _doFetch(int z, int x, int y) async {
+    // Senza rete non si tenta nemmeno. Ogni tentativo costa 12 secondi di
+    // timeout, e a lotti da otto un raggio pieno con la cache incompleta
+    // significa oltre un minuto di attesa prima che compaia una sola cima —
+    // cioe' proprio la situazione per cui il terreno si scarica in anticipo.
+    // Meglio dire subito "questo pezzo non ce l'ho" e lasciare che il viewshed
+    // lavori su quello che c'e', dichiarandolo.
+    if (NetworkStatus.instance.isOffline) return null;
+
     final url = '$_tileBase/$z/$x/$y.png';
     try {
       final resp = await http
@@ -657,6 +670,8 @@ class TerrainTileService {
   return (rowFrom: rf, rowTo: rt, colFrom: cf, colTo: ct);
 }
 
+enum _TileOutcome { cached, fetched, failed }
+
 /// Esito di uno scarico anticipato del terreno.
 class TerrainPrefetchResult {
   final int requested;
@@ -670,6 +685,9 @@ class TerrainPrefetchResult {
     required this.failed,
     this.cancelled = false,
   });
+
+  /// Tessere gia' presenti prima di cominciare.
+  int get alreadyPresent => requested - downloaded - failed;
 
   /// True se la zona è coperta abbastanza da poterci contare offline. Qualche
   /// tile mancante ai bordi non compromette il risultato; molti sì.
