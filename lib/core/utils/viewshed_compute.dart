@@ -222,9 +222,68 @@ class LayeredDem {
   }
 }
 
+/// Il terreno visibile diviso in **fasce di distanza**.
+///
+/// È ciò che trasforma una riga in un paesaggio. Finora di ogni direzione
+/// tenevamo un solo numero — l'angolo del punto più alto — e buttavamo tutto il
+/// resto: da una vetta alpina lungo ogni raggio ci sono in media cinque creste
+/// visibili una dietro l'altra, e ne disegnavamo una.
+///
+/// **Perché per fasce e non per creste.** L'alternativa ovvia è emettere ogni
+/// cresta e poi cucire quelle di azimut adiacenti in linee continue. Sembra più
+/// naturale ma non lo è: due creste su raggi vicini non hanno nessuna identità
+/// che le leghi, e l'abbinamento va indovinato — un abbinamento sbagliato
+/// produce linee che si incrociano e sfarfallano, e circa metà dei frammenti
+/// risulta lungo due punti, cioè sporcizia. Le fasce invece sono definite per
+/// costruzione: sono sempre continue lungo l'azimut, non c'è niente da
+/// indovinare, e l'ordine di disegno è esatto perché una fascia vicina copre
+/// sempre quella lontana.
+///
+/// In più danno gratis la cosa che fa leggere la profondità a colpo d'occhio: la
+/// prospettiva aerea. Il colore per fascia *è* la distanza.
+class TerrainProfiles {
+  /// Confine esterno di ogni fascia, in metri. L'ultima arriva all'infinito.
+  ///
+  /// Spaziatura quasi logaritmica: da vicino un chilometro cambia il panorama,
+  /// a cinquanta no.
+  static const List<double> bandLimitsM = [2000, 6000, 15000, 35000, 1e9];
+
+  static int bandFor(double distanceM) {
+    for (var i = 0; i < bandLimitsM.length; i++) {
+      if (distanceM <= bandLimitsM[i]) return i;
+    }
+    return bandLimitsM.length - 1;
+  }
+
+  static int get bandCount => bandLimitsM.length;
+
+  /// `byBand[fascia][azimut]` = angolo massimo di terreno **visibile** in quella
+  /// fascia, in gradi. `NaN` dove quella fascia non ha terreno visibile, oppure
+  /// dove non sappiamo cosa ci sia.
+  final List<List<double>> byBand;
+
+  /// Fin dove arriva la nostra conoscenza lungo ogni azimut, in metri.
+  ///
+  /// Oltre questa distanza il DEM non ha risposto, quindi lì non si disegna
+  /// niente: potrebbe esserci una montagna che non abbiamo scaricato. È la
+  /// differenza fra dire «l'orizzonte è questo» e «l'orizzonte è questo fino a
+  /// dove ho guardato».
+  final List<double> knownUpToM;
+
+  const TerrainProfiles({required this.byBand, required this.knownUpToM});
+
+  static const TerrainProfiles empty =
+      TerrainProfiles(byBand: [], knownUpToM: []);
+
+  bool get isEmpty => byBand.isEmpty;
+}
+
 class ViewshedResult {
   /// Skyline in gradi per ogni step di azimut, vuoto se non richiesto.
   final List<double> skylineAngles;
+
+  /// Il terreno per fasce di distanza, vuoto se lo skyline non era richiesto.
+  final TerrainProfiles profiles;
 
   /// Risultati per ogni cima candidata, stessi indici input.
   final List<PeakResult> peaks;
@@ -232,6 +291,7 @@ class ViewshedResult {
   const ViewshedResult({
     required this.skylineAngles,
     required this.peaks,
+    this.profiles = TerrainProfiles.empty,
   });
 }
 
@@ -367,41 +427,89 @@ ViewshedResult computeViewshed(ViewshedRequest req) {
     ));
   }
 
-  final skyline = req.computeSkyline
-      ? _computeSkyline(req, eyeElev)
-      : const <double>[];
+  final terrain = req.computeSkyline ? _computeSkyline(req, eyeElev) : null;
 
-  return ViewshedResult(skylineAngles: skyline, peaks: peaks);
+  return ViewshedResult(
+    skylineAngles: terrain?.skyline ?? const <double>[],
+    profiles: terrain?.profiles ?? TerrainProfiles.empty,
+    peaks: peaks,
+  );
 }
 
-/// Profilo dell'orizzonte a 360°: massimo angolo di elevazione del terreno per
-/// ogni azimut. Non serve più a decidere la visibilità — serve a **disegnare**
-/// la linea dell'orizzonte sopra la camera.
-List<double> _computeSkyline(ViewshedRequest req, double eyeElev) {
+/// Profilo dell'orizzonte a 360° **e** il terreno per fasce di distanza.
+///
+/// Una sola marcia di raggi produce entrambi, perché sono la stessa passeggiata
+/// con una contabilità in più: ogni volta che il terreno supera il massimo
+/// corrente quel punto è *visibile*, e si annota nella fascia di distanza in cui
+/// cade. Il massimo finale di ogni raggio è lo skyline di sempre.
+///
+/// Il costo aggiunto è un confronto e una scrittura per campione visibile, cioè
+/// pochi punti percentuali: la marcia dei raggi resta il grosso, e resta
+/// invariata.
+({List<double> skyline, TerrainProfiles profiles}) _computeSkyline(
+  ViewshedRequest req,
+  double eyeElev,
+) {
   final dem = req.dem;
-  final skyline = List<double>.filled(req.azimuthSteps, double.nan);
+  final steps = req.azimuthSteps;
+  final skyline = List<double>.filled(steps, double.nan);
   final maxRangeM = req.skylineRadiusM;
 
-  for (int aIdx = 0; aIdx < req.azimuthSteps; aIdx++) {
-    final azDeg = aIdx * 360.0 / req.azimuthSteps;
+  final bands = TerrainProfiles.bandCount;
+  final byBand = [
+    for (var b = 0; b < bands; b++) List<double>.filled(steps, double.nan),
+  ];
+  final knownUpTo = List<double>.filled(steps, double.infinity);
+
+  for (int aIdx = 0; aIdx < steps; aIdx++) {
+    final azDeg = aIdx * 360.0 / steps;
     double maxAngle = double.nan;
+    double firstUnknown = double.infinity;
     double d = dem.stepAt(0);
     while (d <= maxRangeM) {
       final pt = _destinationPoint(req.observerLat, req.observerLng, azDeg, d);
       final ele = dem.elevationAt(pt[0], pt[1]);
-      if (!ele.isNaN) {
+      if (ele.isNaN) {
+        // Qui finisce quello che sappiamo di questa direzione. Si continua a
+        // marciare — lo skyline storico non cambia comportamento — ma da qui in
+        // poi il disegno non ha più diritto di affermare niente.
+        if (firstUnknown.isInfinite) firstUnknown = d;
+      } else {
         final apparent = ele - _earthDropMeters(d);
         final angle = math.atan2(apparent - eyeElev, d) * 180 / math.pi;
         // NaN in un confronto è sempre falso, quindi la prima quota valida
         // vince comunque: non serve un sentinella tipo -90, che invece
         // finirebbe disegnata come una riga piatta sotto i piedi.
-        if (!(angle <= maxAngle)) maxAngle = angle;
+        if (!(angle <= maxAngle)) {
+          // Superare il massimo corrente *è* la definizione di visibile: tutto
+          // ciò che sta più in basso è nascosto da qualcosa di più vicino.
+          maxAngle = angle;
+          final b = TerrainProfiles.bandFor(d);
+          if (!(angle <= byBand[b][aIdx])) byBand[b][aIdx] = angle;
+        }
       }
       d += dem.stepAt(d);
     }
     skyline[aIdx] = maxAngle;
+    knownUpTo[aIdx] = firstUnknown;
+
+    // Le fasce che cominciano oltre il limite della conoscenza non si
+    // disegnano. È l'inverso della regola che vale per le cime — una cima è
+    // nascosta da ciò che ha *davanti*, una cresta è l'orizzonte per ciò che ha
+    // *dietro* — e confondere le due significa dichiarare certo un orizzonte
+    // che finisce dove finiscono le tessere scaricate.
+    if (firstUnknown.isFinite) {
+      for (var b = 0; b < bands; b++) {
+        final inizioFascia = b == 0 ? 0.0 : TerrainProfiles.bandLimitsM[b - 1];
+        if (inizioFascia >= firstUnknown) byBand[b][aIdx] = double.nan;
+      }
+    }
   }
-  return skyline;
+
+  return (
+    skyline: skyline,
+    profiles: TerrainProfiles(byBand: byBand, knownUpToM: knownUpTo),
+  );
 }
 
 /// Altezza del terreno a un azimut qualsiasi, interpolata fra i campioni dello

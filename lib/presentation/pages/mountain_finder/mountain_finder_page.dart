@@ -15,6 +15,7 @@ import '../../../core/services/peaks_dataset_service.dart';
 import '../../../core/services/pro_gate_service.dart';
 import '../../../core/services/terrain_tile_service.dart';
 import '../../../core/services/viewshed_service.dart';
+import '../../../core/utils/viewshed_compute.dart' show TerrainProfiles;
 import '../../../core/utils/camera_fov.dart';
 import '../../../core/utils/camera_orientation.dart';
 import '../../../core/utils/mountain_photo_renderer.dart';
@@ -118,6 +119,18 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// senza affollare. Limite di sicurezza per zone densissime / viewshed off.
   static const int _maxLiveLabels = 30;
 
+  /// Le cime che avevano un nome al fotogramma precedente.
+  ///
+  /// Serve all'isteresi della selezione (`MountainProjection.selectStable`):
+  /// senza memoria di cosa c'era prima non esiste banda morta, e le cime attorno
+  /// al trentesimo posto in classifica tornano a sfarfallare.
+  ///
+  /// Viene aggiornato dentro `build`, che di norma non si fa. Qui è innocuo
+  /// perché è una cache e non uno stato semantico: due `build` con lo stesso
+  /// assetto producono lo stesso insieme, quindi il valore converge invece di
+  /// oscillare. Sparirà quando la proiezione uscirà da `build` insieme al resto.
+  Set<String> _shownLabelIds = const {};
+
   /// True durante la cattura+annotazione foto (overlay loader).
   bool _processingCapture = false;
 
@@ -168,6 +181,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// Profilo dell'orizzonte calcolato dal DEM: angolo di elevazione massimo del
   /// terreno per ogni direzione. Disegnato sopra la camera come riferimento.
   List<double> _skylineAngles = const [];
+  TerrainProfiles _terrainProfiles = TerrainProfiles.empty;
 
   /// Posizione in cui il profilo è stato calcolato. Il profilo **non si disegna
   /// senza questa**: un orizzonte è valido solo da dove è stato preso, e uno
@@ -925,9 +939,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         // senza la sua posizione è peggio di nessun profilo.
         if (result.skylineAngles.isNotEmpty && result.isReliable) {
           _skylineAngles = result.skylineAngles;
+          _terrainProfiles = result.profiles;
           _skylinePosition = pos;
         } else {
           _skylineAngles = const [];
+          _terrainProfiles = TerrainProfiles.empty;
           _skylinePosition = null;
         }
         _viewshedUncertainCount = result.uncertainCount;
@@ -1305,8 +1321,15 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                 horizontalFovDeg: effectiveHFov,
                 verticalFovDeg: effectiveVFov,
                 zoom: _zoomLevel,
+                previouslyShownIds: _shownLabelIds,
               )
             : <ProjectedPeak>[];
+
+        // Memoria per l'isteresi del fotogramma successivo. Va scritta qui e
+        // non nel `setState`, perché la selezione avviene proprio in questo
+        // punto: rimandarla farebbe ragionare la banda morta su un insieme
+        // vecchio di un fotogramma, cioè su niente.
+        _shownLabelIds = {for (final p in projected) p.peak.id};
 
         // Riallinea il count per la info card al prossimo frame.
         if (projected.length != _visiblePeaks.length) {
@@ -1374,6 +1397,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
               Positioned.fill(
                 child: SkylineOverlay(
                   skylineAngles: _skylineAngles,
+                  profiles: _terrainProfiles,
                   basis: basis,
                   horizontalFovDeg: effectiveHFov,
                   verticalFovDeg: effectiveVFov,

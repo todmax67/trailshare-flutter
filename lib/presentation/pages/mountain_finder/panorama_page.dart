@@ -8,7 +8,8 @@ import '../../../core/services/peaks_dataset_service.dart';
 import '../../../core/services/pro_gate_service.dart';
 import '../../../core/services/terrain_tile_service.dart';
 import '../../../core/services/viewshed_service.dart';
-import '../../../core/utils/viewshed_compute.dart' show skylineElevationAt, occluderIndex;
+import '../../../core/utils/viewshed_compute.dart'
+    show skylineElevationAt, occluderIndex, TerrainProfiles;
 import '../../../core/utils/sun_moon.dart';
 import '../../../data/models/mountain_peak.dart';
 import '../../../data/models/visible_peak.dart';
@@ -52,6 +53,7 @@ class PanoramaPage extends StatefulWidget {
 
 class _PanoramaPageState extends State<PanoramaPage> {
   List<double> _skyline = const [];
+  TerrainProfiles _profiles = TerrainProfiles.empty;
   List<VisiblePeak> _peaks = const [];
   double? _observerElevation;
   bool _loading = true;
@@ -119,6 +121,7 @@ class _PanoramaPageState extends State<PanoramaPage> {
       if (!mounted) return;
       setState(() {
         _skyline = result.skylineAngles;
+        _profiles = result.profiles;
         _peaks = result.visible;
         _observerElevation = result.observerGroundElevationM ?? ground;
         // Il tramonto dipende dal terreno, che arriva solo adesso.
@@ -275,6 +278,7 @@ class _PanoramaPageState extends State<PanoramaPage> {
                   child: CustomPaint(
                     painter: _PanoramaPainter(
                       skyline: _skyline,
+                      profiles: _profiles,
                       peaks: _peaks,
                       terrainColor: AppColors.primary,
                       textColor: context.textPrimary,
@@ -455,6 +459,10 @@ class _PanoramaPageState extends State<PanoramaPage> {
 /// Con la prospettiva rettilinea i bordi si stirerebbero all'infinito.
 class _PanoramaPainter extends CustomPainter {
   final List<double> skyline;
+
+  /// Il terreno per fasce di distanza. Quando c'è, il panorama smette di essere
+  /// una linea e diventa un paesaggio.
+  final TerrainProfiles profiles;
   final List<VisiblePeak> peaks;
   final Color terrainColor;
   final Color textColor;
@@ -474,6 +482,7 @@ class _PanoramaPainter extends CustomPainter {
 
   _PanoramaPainter({
     required this.skyline,
+    required this.profiles,
     required this.peaks,
     required this.terrainColor,
     required this.textColor,
@@ -489,6 +498,10 @@ class _PanoramaPainter extends CustomPainter {
   /// disegnare i propri piedi.
   static const double _bottomDeg = -18;
 
+  /// Il colore verso cui sbiadiscono le fasce lontane: lo stesso del cielo, che
+  /// è ciò che fa la foschia vera.
+  static const Color _skyColor = Color(0xFF9FC6E8);
+
   double _xFor(double azDeg, double width) => azDeg / 360 * width;
 
   double _yFor(double elevDeg, double height) =>
@@ -498,12 +511,11 @@ class _PanoramaPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
-    final steps = skyline.length;
 
     // Cielo.
     canvas.drawRect(
       Rect.fromLTWH(0, 0, w, h),
-      Paint()..color = const Color(0xFF9FC6E8).withValues(alpha: 0.25),
+      Paint()..color = _skyColor.withValues(alpha: 0.25),
     );
 
     // Archi e dischi vanno **sotto** al terreno: quando il sole è già dietro la
@@ -523,16 +535,76 @@ class _PanoramaPainter extends CustomPainter {
         ..strokeWidth = 1,
     );
 
-    // Profilo del terreno, riempito fino in fondo.
-    final path = Path();
+    _paintTerrain(canvas, size);
+    _paintCompass(canvas, size);
+    _paintPeaks(canvas, size);
+  }
+
+  /// Il terreno, una fascia di distanza alla volta.
+  ///
+  /// **L'ordine di disegno è l'ordine di occlusione, ed è esatto senza
+  /// z-buffer.** Ogni fascia si riempie dal suo profilo fino in fondo, e si
+  /// dipinge dalla più lontana alla più vicina: qualunque cosa stia dietro a una
+  /// cresta vicina finisce coperta, che è precisamente ciò che succede
+  /// guardando. Non è un'approssimazione da correggere più avanti — con
+  /// l'osservatore al centro del sistema polare, lungo ogni raggio la distanza
+  /// cresce in modo monotono e le fasce non possono scavalcarsi.
+  ///
+  /// Il colore fa il resto: più lontano, più la fascia sbiadisce verso il colore
+  /// del cielo. È prospettiva aerea, cioè lo stesso indizio che l'occhio usa
+  /// davvero per leggere la profondità di una catena di montagne.
+  void _paintTerrain(Canvas canvas, Size size) {
+    final bands = profiles.isEmpty ? null : profiles.byBand;
+    if (bands == null || bands.isEmpty) {
+      // Nessuna fascia (viewshed vecchio o in cache): resta la riga di prima.
+      _paintBand(canvas, size, skyline, terrainColor, 0.55, 1.4);
+      return;
+    }
+
+    for (var b = bands.length - 1; b >= 0; b--) {
+      final t = bands.length == 1 ? 0.0 : b / (bands.length - 1);
+      // Foschia: si mescola col colore del cielo, non con il bianco, altrimenti
+      // in tema scuro le montagne lontane diventerebbero più luminose del cielo.
+      final color = Color.lerp(terrainColor, _skyColor, t * 0.78)!;
+      _paintBand(
+        canvas,
+        size,
+        bands[b],
+        color,
+        // Le fasce lontane sono anche più trasparenti: la sovrapposizione
+        // aggiunge densità dove le creste si accavallano, come la foschia vera.
+        0.92 - 0.34 * t,
+        1.5 - 0.9 * t,
+      );
+    }
+  }
+
+  /// Riempie una singola fascia dal suo profilo fino al fondo del riquadro.
+  void _paintBand(
+    Canvas canvas,
+    Size size,
+    List<double> profile,
+    Color color,
+    double fillAlpha,
+    double strokeWidth,
+  ) {
+    final w = size.width;
+    final h = size.height;
+    final steps = profile.length;
+    if (steps < 2) return;
+
+    final fill = Path();
+    final ridge = Path();
     bool started = false;
     for (var i = 0; i < steps; i++) {
-      final elev = skyline[i];
+      final elev = profile[i];
       if (elev.isNaN) {
-        // Buco nel terreno: si chiude la figura e si riprende dopo. Meglio
-        // un'interruzione visibile di una montagna inventata.
+        // Terreno sconosciuto, o fascia senza niente di visibile qui: si chiude
+        // la figura e si riprende dopo. Un'interruzione visibile è meglio di una
+        // montagna inventata — e in questa fascia il NaN vuol dire anche «oltre
+        // qui non ho guardato», che non va riempito di colore.
         if (started) {
-          path.lineTo(_xFor(i * 360 / steps, w), h);
+          fill.lineTo(_xFor(i * 360 / steps, w), h);
           started = false;
         }
         continue;
@@ -540,27 +612,30 @@ class _PanoramaPainter extends CustomPainter {
       final x = _xFor(i * 360 / steps, w);
       final y = _yFor(elev.clamp(_bottomDeg, topDeg), h);
       if (!started) {
-        path.moveTo(x, h);
-        path.lineTo(x, y);
+        fill.moveTo(x, h);
+        fill.lineTo(x, y);
+        ridge.moveTo(x, y);
         started = true;
       } else {
-        path.lineTo(x, y);
+        fill.lineTo(x, y);
+        ridge.lineTo(x, y);
       }
     }
-    if (started) path.lineTo(w, h);
-    path.close();
+    if (started) fill.lineTo(w, h);
+    fill.close();
 
-    canvas.drawPath(path, Paint()..color = terrainColor.withValues(alpha: 0.55));
+    canvas.drawPath(fill, Paint()..color = color.withValues(alpha: fillAlpha));
+    // La cresta si ripassa a parte, e non come contorno del riempimento:
+    // altrimenti il tratto correrebbe anche lungo il bordo inferiore e i lati,
+    // disegnando una cornice che non è terreno.
     canvas.drawPath(
-      path,
+      ridge,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = terrainColor,
+        ..strokeWidth = strokeWidth
+        ..strokeJoin = StrokeJoin.round
+        ..color = color,
     );
-
-    _paintCompass(canvas, size);
-    _paintPeaks(canvas, size);
   }
 
   /// Riferimenti cardinali: senza, un panorama a 360° è un nastro senza nord.

@@ -202,6 +202,7 @@ class ViewshedService {
       observerGroundElevationM: observerGroundM,
       status: ViewshedStatus.ok,
       skylineAngles: result.skylineAngles,
+      profiles: result.profiles,
     );
 
     if (useCache && tier.persistentCache) {
@@ -312,6 +313,10 @@ class ViewshedRunResult {
   /// NaN dove il DEM non sa rispondere.
   final List<double> skylineAngles;
 
+  /// Il terreno visibile diviso per fasce di distanza: è ciò che permette di
+  /// disegnare un paesaggio invece di una riga. Vuoto se non calcolato.
+  final TerrainProfiles profiles;
+
   const ViewshedRunResult({
     required this.visible,
     required this.elapsedMs,
@@ -320,6 +325,7 @@ class ViewshedRunResult {
     this.observerGroundElevationM,
     this.status = ViewshedStatus.ok,
     this.skylineAngles = const [],
+    this.profiles = TerrainProfiles.empty,
   });
 
   /// True se il filtro ha davvero girato: solo allora ha senso fidarsi

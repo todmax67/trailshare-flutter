@@ -164,10 +164,22 @@ class MountainProjection {
     );
   }
 
+  /// Quanto più in basso può scendere una cima già mostrata prima di perdere il
+  /// nome, in multipli di [maxVisible].
+  ///
+  /// È il cuore dell'isteresi: si entra al trentesimo posto ma si esce solo al
+  /// quarantaduesimo. Senza questa banda morta le cime che oscillano attorno
+  /// alla soglia comparivano e sparivano a ogni campione dei sensori.
+  static const double labelExitSlack = 1.4;
+
   /// Filtra/proietta tutte le [peaks] e ritorna le top [maxVisible]
   /// **più centrate** rispetto al puntamento.
   ///
   /// Tiebreaker: a parità di centratura preferisce l'altitudine maggiore.
+  ///
+  /// [previouslyShownIds] attiva la **selezione stabile**: vedi [selectStable].
+  /// Passandolo, l'insieme restituito cambia molto più lentamente a parità di
+  /// movimento — che è ciò che si vede, non il numero di cime.
   static List<ProjectedPeak> projectAll({
     required Iterable<MountainPeak> peaks,
     required double observerLat,
@@ -179,6 +191,7 @@ class MountainProjection {
     double horizontalFovDeg = defaultHorizontalFovDeg,
     double verticalFovDeg = defaultVerticalFovDeg,
     double zoom = 1.0,
+    Set<String>? previouslyShownIds,
   }) {
     final visible = <ProjectedPeak>[];
     for (final p in peaks) {
@@ -206,7 +219,67 @@ class MountainProjection {
     });
 
     if (visible.length <= maxVisible) return visible;
-    return visible.take(maxVisible).toList();
+    if (previouslyShownIds == null) return visible.take(maxVisible).toList();
+    return selectStable(
+      ranked: visible,
+      previouslyShownIds: previouslyShownIds,
+      maxVisible: maxVisible,
+    );
+  }
+
+  /// Sceglie quali cime mostrare **con isteresi**, per non farle sfarfallare.
+  ///
+  /// Il problema che risolve non è il costo, è il ricambio. Puntando il telefono
+  /// verso le Orobie cadono nel cono circa 168 cime e se ne etichettano 30: la
+  /// classifica per centratura cambia a ogni campione dei sensori, quindi le
+  /// cime attorno al trentesimo posto entravano e uscivano di continuo —
+  /// misurate 4,5 sostituzioni per campione muovendosi piano e **14 muovendosi
+  /// in fretta**, ognuna con un'etichetta che compare o sparisce di colpo. Con
+  /// l'animazione tolta il ritardo è sparito, ma questo sfarfallio no: è un
+  /// difetto di *decisione*, non di disegno.
+  ///
+  /// La cura è quella di un termostato: due soglie invece di una. Si entra al
+  /// posto [maxVisible], si esce solo dopo esserne scesi di [labelExitSlack]
+  /// volte tanto. Fra le due c'è una banda morta dove una cima non cambia
+  /// stato, e l'oscillazione non produce più eventi.
+  ///
+  /// Due invarianti si mantengono: la cima **più centrata** ha sempre il nome
+  /// (è quella che l'utente sta inquadrando, e togliergliela sarebbe il difetto
+  /// peggiore di tutti), e l'ordine restituito resta quello di classifica,
+  /// perché chi chiama si aspetta la più centrata in testa.
+  ///
+  /// [ranked] dev'essere già ordinata dalla più centrata alla meno.
+  static List<ProjectedPeak> selectStable({
+    required List<ProjectedPeak> ranked,
+    required Set<String> previouslyShownIds,
+    required int maxVisible,
+    double exitSlack = labelExitSlack,
+  }) {
+    if (ranked.length <= maxVisible) return ranked;
+
+    final chosen = <String>{};
+
+    // 1. La più centrata, sempre e comunque: se restasse fuori perché trenta
+    //    veterani le occupano il posto, l'utente vedrebbe senza nome proprio la
+    //    montagna che sta inquadrando.
+    chosen.add(ranked.first.peak.id);
+
+    // 2. I veterani, finché non escono dalla banda morta.
+    final exitRank = math.min(ranked.length, (maxVisible * exitSlack).round());
+    for (var i = 0; i < exitRank && chosen.length < maxVisible; i++) {
+      if (previouslyShownIds.contains(ranked[i].peak.id)) {
+        chosen.add(ranked[i].peak.id);
+      }
+    }
+
+    // 3. I posti avanzati vanno ai migliori nuovi arrivati. Senza questo passo
+    //    la lista si svuoterebbe girando su sé stessi, invece di riempirsi con
+    //    quello che si sta guardando adesso.
+    for (var i = 0; i < ranked.length && chosen.length < maxVisible; i++) {
+      chosen.add(ranked[i].peak.id);
+    }
+
+    return [for (final p in ranked) if (chosen.contains(p.peak.id)) p];
   }
 
   /// Variante di [projectAll] per i POI OSM (rifugi, sorgenti, fontane,
