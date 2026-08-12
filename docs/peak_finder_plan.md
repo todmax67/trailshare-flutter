@@ -859,6 +859,52 @@ toglie la parte spuria e lascia quella legittima.
 Due invarianti tenute: la cima più centrata ha sempre il nome, e l'ordine
 restituito resta quello di classifica.
 
+### Un painter solo, guidato dai sensori invece che da `setState`
+
+L'ultima voce grossa sulla fluidità, e la più invasiva: circa 500 righe riscritte
+su `mountain_finder_page.dart`.
+
+**Prima.** Ogni campione dell'assetto chiamava `setState` sulla pagina intera —
+~1.188 elementi ricostruiti 25 volte al secondo, compresi barra dei comandi,
+card, mirino e otturatore, che non si muovono. E dentro `build` giravano anche la
+proiezione di 1.200 cime e il layout anti-collisione con i suoi ~8.200 confronti:
+il lavoro pesante nel punto del fotogramma dove costa di più. Nel file non
+esisteva **un solo** `RepaintBoundary`.
+
+**Ora.** `ArFrame`, un `ChangeNotifier` mutato sul posto che i painter ricevono
+come `repaint:`. Un `Listenable` passato lì chiama direttamente `markNeedsPaint`:
+salta `build` **e** `layout`.
+
+Due scelte da non invertire:
+- **non** è un `ValueNotifier` — la semantica di `==` qui sarebbe sbagliata,
+  perché l'oggetto è sempre lo stesso e va notificato comunque;
+- **non** è immutabile — riallocare trenta oggetti 25 volte al secondo sarebbe un
+  altro modo di sprecare lo stesso tempo.
+
+Punti, steli ed etichette erano sessanta widget con chiave e ombra sfocata: ora
+sono un solo `CustomPainter`, con i paragrafi di testo **in cache** (comporre il
+testo è la parte cara, e il nome di una cima non cambia mentre si gira il
+telefono) e un alone netto al posto di ~52 sfocature per fotogramma.
+
+Skyline, sole, bussola dell'HUD, card del conteggio e pannello diagnostico
+restano widget ma dentro un `AnimatedBuilder` sul frame: qualche decina di
+elementi per campione invece di milleduecento. Il conteggio in particolare faceva
+un `setState` di pagina intera solo per aggiornare un numero — e quel numero
+cambia nell'8-19% dei fotogrammi.
+
+**Il punto in cui questo genere di rifacimento si rompe** è dimenticare un posto
+in cui la scena cambia senza passare dai sensori, e ritrovarsi un disegno fermo
+su dati vecchi. Sono agganciati: posizione GPS, cime candidate, risultato del
+viewshed, zoom, blocco AR, trascinamento di allineamento, rotazione dello
+schermo.
+
+**Debito dichiarato:** le etichette disegnate spariscono dall'albero di
+accessibilità. Il tap si recupera con un hit test che rifà al contrario la
+rotazione di 45° — usare la distanza dall'ancoraggio renderebbe intoccabili
+proprio i nomi lunghi — ma la semantica no. La risposta giusta non sarebbe
+comunque un testo ruotato dentro un mirino, bensì un **elenco consultabile delle
+cime visibili**, che oggi manca del tutto.
+
 ### Terreno per fasce di distanza
 
 Il panorama era una macchia piatta perché di ogni direzione tenevamo un solo
