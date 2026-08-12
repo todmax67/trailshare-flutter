@@ -126,6 +126,56 @@ class TerrainTileService {
     );
   }
 
+  /// Costruisce il terreno a due risoluzioni per il viewshed: una griglia
+  /// fitta attorno all'osservatore e una larga che copre tutto il raggio.
+  ///
+  /// Le occlusioni si decidono soprattutto vicino — un dosso a 200 m nasconde
+  /// mezzo orizzonte — ma su una griglia a 110 m/cella quel dosso è tre pixel e
+  /// sparisce nella media. Lontano invece la risoluzione conta poco, perché a
+  /// 50 km un dettaglio di 100 m sottende un decimo di grado.
+  ///
+  /// Se la griglia fitta non arriva (rete lenta, cap tile) si prosegue con la
+  /// sola griglia larga: peggio di prima non si sta mai.
+  Future<LayeredDem?> buildLayeredDem({
+    required double observerLat,
+    required double observerLng,
+    required double radiusKm,
+    int coarseZoom = 10,
+    int fineZoom = 12,
+    double fineRadiusKm = 10,
+  }) async {
+    Future<DemGrid?> build(double km, int zoom) {
+      final latDelta = km / 111.0;
+      final lngDelta = km / (111.0 * math.cos(observerLat * math.pi / 180));
+      return buildDemGrid(
+        minLat: observerLat - latDelta,
+        maxLat: observerLat + latDelta,
+        minLng: observerLng - lngDelta,
+        maxLng: observerLng + lngDelta,
+        zoom: zoom,
+      );
+    }
+
+    // Le due griglie si costruiscono **in parallelo**: sono indipendenti, e
+    // metterle in fila raddoppiava l'attesa prima che comparisse una sola cima.
+    // Non ha senso chiedere la griglia fitta più grande del raggio totale.
+    final fineKm = math.min(fineRadiusKm, radiusKm);
+    final built = await Future.wait([
+      build(radiusKm, coarseZoom),
+      build(fineKm, fineZoom),
+    ]);
+    final coarse = built[0];
+    // La griglia larga è indispensabile: senza, non c'è viewshed. Quella fitta
+    // è un miglioramento, e se manca si prosegue lo stesso.
+    if (coarse == null) return null;
+    final fine = built[1];
+
+    debugPrint('[Terrain] DEM a strati: '
+        'fine=${fine == null ? "assente" : "${fine.rows}×${fine.cols} ~${fine.cellSizeMeters.round()}m"}'
+        ' coarse=${coarse.rows}×${coarse.cols} ~${coarse.cellSizeMeters.round()}m');
+    return LayeredDem(coarse: coarse, fine: fine);
+  }
+
   /// Quota del terreno in un punto, dal DEM. Scarica (e cacha) il solo tile
   /// che contiene il punto, quindi dopo il primo accesso è immediata.
   ///
@@ -308,12 +358,17 @@ class TerrainTileService {
     required double maxLng,
     required int zoom,
   }) {
-    // Pixel size: lo stesso dei tile (tutti allo stesso zoom).
+    // Passo dei pixel: quello nativo dei tile, **separato per i due assi**.
+    // In Mercator un pixel è quadrato in metri ma non in gradi: alle nostre
+    // latitudini copre 1,4 volte meno gradi in latitudine che in longitudine.
+    // Usando il passo della longitudine anche per le righe si buttava via un
+    // terzo del dettaglio verticale del DEM.
     final tileCount = math.pow(2, zoom).toInt();
-    final lngRangePerTile = 360.0 / tileCount;
-    final px = lngRangePerTile / tiles.first.width;
-    final cols = math.max(2, ((maxLng - minLng) / px).round());
-    final rows = math.max(2, ((maxLat - minLat) / px).round());
+    final lngPx = (360.0 / tileCount) / tiles.first.width;
+    final first = tiles.first;
+    final latPx = (first.maxLat - first.minLat) / first.height;
+    final cols = math.max(2, ((maxLng - minLng) / lngPx).round());
+    final rows = math.max(2, ((maxLat - minLat) / latPx).round());
 
     // La griglia si costruisce PRIMA e si riempie attraverso i suoi stessi
     // `latForRow`/`lngForCol`. Non è un vezzo: scrivendo la formula a mano qui
@@ -321,7 +376,7 @@ class TerrainTileService {
     // convenzioni opposte per le righe, e il DEM veniva letto specchiato
     // nord-sud. Passando dai metodi della griglia le due cose non possono più
     // divergere.
-    final out = List<double>.filled(rows * cols, double.nan);
+    final out = Float32List(rows * cols)..fillRange(0, rows * cols, double.nan);
     final grid = DemGrid(
       minLat: minLat, maxLat: maxLat,
       minLng: minLng, maxLng: maxLng,

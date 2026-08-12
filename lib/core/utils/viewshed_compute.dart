@@ -1,74 +1,98 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
-/// Algoritmo viewshed "skyline-based" — puro (no I/O), eseguibile in Isolate.
+/// Calcolo di visibilità delle cime — puro (no I/O), eseguibile in Isolate.
 ///
-/// Idea:
-/// 1. Da una posizione utente P (lat,lng,quota_observer), si campiona il
-///    DEM lungo 360 raggi (uno per ogni grado di azimut).
-/// 2. Per ogni raggio si calcola l'elevation angle massimo lungo il percorso:
-///    questo è l'**horizon line** (skyline) in quella direzione.
-/// 3. Per ogni cima candidata si calcola azimut + elevation angle.
-///    Se peak_angle > skyline[az] + margin → visibile.
+/// **Come funziona ora**: per ogni cima si percorre la *linea di vista* che
+/// va dall'occhio dell'osservatore alla vetta, campionando il terreno lungo il
+/// tragitto. Se in un punto il terreno sta più in alto della congiungente, la
+/// cima è nascosta.
 ///
-/// La curvatura terrestre + rifrazione atmosferica vengono applicate:
-///   apparent_drop = (1 - k) * d^2 / (2 * R_earth)
-/// con k=0.13 (rifrazione standard) e R=6371km.
+/// **Come funzionava prima, e perché era sbagliato**: si calcolava una volta lo
+/// skyline a 360 raggi (uno per grado) e si confrontava ogni cima con il raggio
+/// più vicino al suo azimut. Ma un raggio "vicino" a 1° di distanza passa 1,7 km
+/// di lato a 100 km: su un crinale articolato è tutta un'altra montagna. Il
+/// confronto per settori produceva sia falsi positivi sia falsi negativi, e
+/// nessuna delle due cose è accettabile in una funzione che serve proprio a dire
+/// cosa si vede.
 ///
-/// Tutto in metri/gradi, nessuna dipendenza esterna.
+/// Il costo del metodo diretto è irrisorio: qualche centinaio di campioni per
+/// cima, cioè decine di millisecondi per un migliaio di cime.
+///
+/// Curvatura terrestre e rifrazione sono applicate sia alle quote del terreno
+/// sia a quella della cima:
+///   abbassamento_apparente = (1 - k) * d² / (2 * R)
+/// con k=0.13 (rifrazione standard) e R=6371 km.
 
 /// Raggio medio della Terra in metri.
 const double _earthRadiusM = 6371000.0;
 
-/// Coefficiente di rifrazione atmosferica standard. Riduce il drop apparente
-/// di circa il 13%.
+/// Coefficiente di rifrazione atmosferica standard.
 const double _refractionK = 0.13;
 
 class ViewshedRequest {
   final double observerLat;
   final double observerLng;
-  /// Altezza dell'osservatore sopra il terreno (m). Default 1.7m = persona in piedi.
-  final double observerHeightM;
-  final double maxRadiusKm;
-  /// Step in metri lungo ogni raggio. 200m = compromesso buono perf/qualità.
-  final int rayStepMeters;
-  /// Numero di azimut campionati. 360 = uno per grado. 720 = mezzo grado.
-  final int azimuthSteps;
-  /// Tolleranza per dichiarare visibile (gradi). 0.5° standard PeakFinder.
-  final double visibilityMarginDeg;
 
-  /// Cime candidate da testare: [{id, lat, lng, ele}, ...]
+  /// Altezza dell'osservatore sopra il terreno (m). 1,7 m = persona in piedi.
+  final double observerHeightM;
+
+  /// Tolleranza sotto la quale una cima si considera comunque nascosta, in
+  /// gradi di scarto angolare dall'ostacolo peggiore.
+  ///
+  /// Il confronto è **in angolo, misurato dall'occhio**, e non in metri di
+  /// quota: un franco in metri sembra più intuitivo ma vicino all'osservatore è
+  /// spropositato — a 100 m di distanza venti metri valgono undici gradi, e
+  /// qualunque prato in leggera salita "occluderebbe" tutto l'orizzonte.
+  ///
+  /// Il valore serve solo a non far sfarfallare le cime esattamente radenti a
+  /// una cresta, per il rumore di interpolazione del DEM. Il vecchio margine
+  /// era 0,5°, cioè 175 m di stacco richiesti a 20 km e 436 m a 50 km: era
+  /// quello a nascondere cime perfettamente visibili.
+  final double visibilityToleranceDeg;
+
+  /// Quanto prima della vetta si smette di campionare, in metri.
+  ///
+  /// Il terreno immediatamente sotto una cima è il pendio della cima stessa, e
+  /// senza questo taglio la vetta risulterebbe occlusa da sé — soprattutto con
+  /// DEM grossolani, dove la cella che contiene la vetta è una media dell'area
+  /// e può stare più in alto del punto quotato.
+  final double peakClearanceM;
+
+  /// Cime candidate da testare: `[{id, lat, lng, ele}, ...]`.
   final List<Map<String, dynamic>> candidatePeaks;
 
-  /// Funzione DEM: dato (lat, lng) → quota in metri. Nell'isolate viene
-  /// passata come closure su una griglia in memoria già decodificata.
-  /// In questa request è invece una **lookup table** pre-popolata, perché
-  /// le closure non passano i Isolate boundaries.
-  ///
-  /// Formato: lista flat di [lat0,lng0,ele0, lat1,lng1,ele1, ...] +
-  /// metadati griglia. Vedi DemGrid.
-  final DemGrid dem;
+  /// Terreno, eventualmente a due risoluzioni.
+  final LayeredDem dem;
+
+  /// Skyline a 360°: serve al disegno dell'orizzonte, non alla visibilità.
+  /// Di default non si calcola, per non pagarlo quando non lo si usa.
+  final bool computeSkyline;
+  final int azimuthSteps;
 
   const ViewshedRequest({
     required this.observerLat,
     required this.observerLng,
     required this.dem,
-    this.observerHeightM = 1.7,
-    this.maxRadiusKm = 50,
-    this.rayStepMeters = 200,
-    this.azimuthSteps = 360,
-    this.visibilityMarginDeg = 0.5,
     required this.candidatePeaks,
+    this.observerHeightM = 1.7,
+    this.visibilityToleranceDeg = 0.05,
+    this.peakClearanceM = 250,
+    this.computeSkyline = false,
+    this.azimuthSteps = 360,
   });
 }
 
-/// Rappresentazione "flat" di una griglia DEM regolare in lat/lng. Permette
-/// di passare tra Isolate (solo tipi primitivi).
+/// Rappresentazione "flat" di una griglia DEM regolare in lat/lng, passabile
+/// fra Isolate (solo tipi primitivi + [Float32List]).
 ///
-/// La griglia copre la bbox [minLat..maxLat, minLng..maxLng] con
-/// `rows × cols` celle equispaziate. `elevations[row * cols + col]` = quota
-/// in metri al centro della cella.
+/// La griglia copre la bbox [minLat..maxLat, minLng..maxLng] con `rows × cols`
+/// celle. `elevations[row * cols + col]` = quota in metri.
 ///
-/// Lookup: bilineare nelle 4 celle vicine al punto query.
+/// **Riga 0 = bordo sud, colonna 0 = bordo ovest.** Chi riempie la griglia deve
+/// usare [latForRow] e [lngForCol]: scrivere la formula a mano è già costato un
+/// difetto in cui il mosaico riempiva al contrario e il DEM veniva riletto
+/// specchiato nord-sud.
 class DemGrid {
   final double minLat;
   final double maxLat;
@@ -76,7 +100,12 @@ class DemGrid {
   final double maxLng;
   final int rows;
   final int cols;
-  final List<double> elevations; // length = rows * cols
+
+  /// Quote in metri, `Float32List` e non `List<double>`: su una griglia da 2,5
+  /// milioni di celle la seconda pesa ~50 MB di double incassettati e viene
+  /// serializzata elemento per elemento verso l'isolate, la prima ne pesa 10 e
+  /// si trasferisce come un blocco di memoria.
+  final Float32List elevations;
 
   const DemGrid({
     required this.minLat,
@@ -88,15 +117,7 @@ class DemGrid {
     required this.elevations,
   });
 
-  /// Latitudine del centro della riga [row]. **Riga 0 = bordo SUD** della bbox.
-  ///
-  /// Questa è *la* convenzione della griglia, quella che segue [elevationAt], e
-  /// chi riempie `elevations` deve usare la stessa. Non è pedanteria: le due
-  /// metà erano scritte con convenzioni opposte e il DEM veniva riletto
-  /// **specchiato nord-sud**, quindi il viewshed guardava verso nord e trovava
-  /// il terreno che sta a sud. L'errore era invisibile esattamente nel punto in
-  /// cui si tende a controllare — l'osservatore sta al centro della bbox, cioè
-  /// sull'asse dello specchio, dove la quota risulta giusta.
+  /// Latitudine del centro della riga [row]. Riga 0 = bordo sud.
   double latForRow(int row) =>
       rows <= 1 ? minLat : minLat + row * (maxLat - minLat) / (rows - 1);
 
@@ -104,13 +125,23 @@ class DemGrid {
   double lngForCol(int col) =>
       cols <= 1 ? minLng : minLng + col * (maxLng - minLng) / (cols - 1);
 
-  /// Lookup bilineare (lat,lng) → quota in metri. Restituisce
-  /// [double.nan] se fuori bbox (così il viewshed sa distinguere "out of
-  /// grid" da "sea level = 0").
+  /// Lato approssimato di una cella in metri: serve a scegliere un passo di
+  /// campionamento che non scavalchi le creste.
+  double get cellSizeMeters {
+    if (rows <= 1) return 100;
+    final latSpanM = (maxLat - minLat) * 111320.0;
+    return latSpanM / (rows - 1);
+  }
+
+  /// True se il punto cade dentro la bbox.
+  bool contains(double lat, double lng) =>
+      lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
+
+  /// Lookup bilineare (lat,lng) → quota in metri. Restituisce [double.nan] se
+  /// fuori bbox o se una delle celle vicine non ha dato — così chi legge sa
+  /// distinguere "non lo so" da "livello del mare".
   double elevationAt(double lat, double lng) {
-    if (lat < minLat || lat > maxLat || lng < minLng || lng > maxLng) {
-      return double.nan;
-    }
+    if (!contains(lat, lng)) return double.nan;
     final fy = (lat - minLat) / (maxLat - minLat) * (rows - 1);
     final fx = (lng - minLng) / (maxLng - minLng) * (cols - 1);
     final r0 = fy.floor().clamp(0, rows - 1);
@@ -129,24 +160,58 @@ class DemGrid {
   }
 }
 
-class ViewshedResult {
-  /// Skyline in gradi per ogni step di azimut. Lunghezza = `azimuthSteps`.
-  final List<double> skylineAngles;
+/// Terreno a due risoluzioni: una griglia fitta nel campo vicino e una larga
+/// per il resto.
+///
+/// Il motivo è che le occlusioni si decidono soprattutto vicino: un dosso a
+/// 200 metri nasconde mezzo orizzonte, ma su una griglia a 110 m/cella è tre
+/// pixel e sparisce nella media. Lontano invece la risoluzione conta poco,
+/// perché a 50 km un dettaglio di 100 m sottende 0,1°.
+class LayeredDem {
+  /// Griglia fitta attorno all'osservatore. Può mancare (offline, o fallita).
+  final DemGrid? fine;
 
-  /// Per ogni azimut, la distanza (m) del **primo** campione di terreno
-  /// sconosciuto lungo il raggio, o infinito se il DEM copre tutto.
+  /// Griglia larga, che copre tutto il raggio.
+  final DemGrid coarse;
+
+  const LayeredDem({required this.coarse, this.fine});
+
+  /// Quota nel punto, preferendo la griglia fitta dove c'è.
+  double elevationAt(double lat, double lng) {
+    final f = fine;
+    if (f != null && f.contains(lat, lng)) {
+      final e = f.elevationAt(lat, lng);
+      if (!e.isNaN) return e;
+    }
+    return coarse.elevationAt(lat, lng);
+  }
+
+  /// Passo di campionamento consigliato a distanza [d] dall'osservatore.
   ///
-  /// Serve a non confondere "non c'è niente che la occluda" con "non so cosa
-  /// ci sia in mezzo": un tile mancante è un pezzo di montagna che non
-  /// vediamo, non una pianura.
-  final List<double> unknownFromMeters;
+  /// Vicino serve un passo fine come la griglia fitta, lontano si può allargare:
+  /// il passo fisso di 250 m su celle da 110 m scavalcava le creste sottili, e
+  /// avendo il primo campione a 250 m rendeva invisibile qualunque dosso più
+  /// vicino di così.
+  double stepAt(double d) {
+    final f = fine;
+    final near = f != null ? math.max(20.0, f.cellSizeMeters * 0.8) : 40.0;
+    final far = math.max(60.0, coarse.cellSizeMeters * 1.2);
+    if (f != null && d <= 2000) return near;
+    // Crescita graduale, per non avere un salto netto al bordo della griglia fitta.
+    final t = ((d - 2000) / 8000).clamp(0.0, 1.0);
+    return near + (far - near) * t;
+  }
+}
+
+class ViewshedResult {
+  /// Skyline in gradi per ogni step di azimut, vuoto se non richiesto.
+  final List<double> skylineAngles;
 
   /// Risultati per ogni cima candidata, stessi indici input.
   final List<PeakResult> peaks;
 
   const ViewshedResult({
     required this.skylineAngles,
-    required this.unknownFromMeters,
     required this.peaks,
   });
 }
@@ -155,13 +220,18 @@ class PeakResult {
   final String id;
   final double azimuthDeg;
   final double distanceMeters;
+
+  /// Angolo di elevazione apparente della cima sull'orizzonte dell'osservatore.
   final double elevationAngleDeg;
-  final double skylineAngleDeg;
+
+  /// Di quanti gradi la cima sta sopra l'ostacolo peggiore lungo il tragitto.
+  /// Negativo = occlusa. Vicino a zero = "spunta appena dietro la cresta".
+  final double clearanceDeg;
+
   final bool visible;
 
-  /// True quando la dichiariamo visibile ma il terreno fra noi e lei è in
-  /// parte sconosciuto: potrebbe esserci un crinale che non abbiamo scaricato.
-  /// Chi mostra la cima dovrebbe dirlo, invece di far credere a una certezza.
+  /// True quando la dichiariamo visibile ma parte del terreno che sta in mezzo
+  /// è sconosciuta: potrebbe esserci un crinale che non abbiamo scaricato.
   final bool uncertain;
 
   const PeakResult({
@@ -169,51 +239,40 @@ class PeakResult {
     required this.azimuthDeg,
     required this.distanceMeters,
     required this.elevationAngleDeg,
-    required this.skylineAngleDeg,
+    required this.clearanceDeg,
     required this.visible,
     this.uncertain = false,
   });
 }
 
-/// Calcola lo skyline + visibilità cime. Top-level function = passabile a
-/// `compute()` o `Isolate.run()`.
+/// Calcola la visibilità delle cime. Top-level = passabile a `compute()`.
 ViewshedResult computeViewshed(ViewshedRequest req) {
-  // 1. Quota dell'osservatore = DEM(P) + altezza persona.
-  final eyeElev = req.dem.elevationAt(req.observerLat, req.observerLng) +
-      req.observerHeightM;
+  final dem = req.dem;
 
-  // 2. Skyline: per ogni azimut, ray-march fino a maxRadius.
-  final skyline = List<double>.filled(req.azimuthSteps, -90.0);
-  final unknownFrom = List<double>.filled(req.azimuthSteps, double.infinity);
-  final maxRangeM = req.maxRadiusKm * 1000.0;
-
-  for (int aIdx = 0; aIdx < req.azimuthSteps; aIdx++) {
-    final azDeg = aIdx * 360.0 / req.azimuthSteps;
-    double maxAngle = -90.0;
-    double firstUnknown = double.infinity;
-
-    for (double d = req.rayStepMeters.toDouble();
-        d <= maxRangeM;
-        d += req.rayStepMeters) {
-      final pt = _destinationPoint(req.observerLat, req.observerLng, azDeg, d);
-      final ele = req.dem.elevationAt(pt[0], pt[1]);
-      if (ele.isNaN) {
-        // Terreno sconosciuto (fuori griglia o tile non scaricato). Lo saltiamo
-        // — non possiamo inventarci una quota — ma ce ne ricordiamo: da qui in
-        // poi lo skyline su questo raggio è una stima per difetto.
-        if (d < firstUnknown) firstUnknown = d;
-        continue;
-      }
-      final apparentEle = ele - _earthDropMeters(d);
-      final dy = apparentEle - eyeElev;
-      final angle = math.atan2(dy, d) * 180 / math.pi;
-      if (angle > maxAngle) maxAngle = angle;
-    }
-    skyline[aIdx] = maxAngle;
-    unknownFrom[aIdx] = firstUnknown;
+  // Quota dell'occhio = terreno sotto l'osservatore + altezza persona.
+  final ground = dem.elevationAt(req.observerLat, req.observerLng);
+  if (ground.isNaN) {
+    // Senza sapere dove siamo non si può dire nulla: meglio dichiarare tutto
+    // incerto che restituire "nessuna cima visibile", che è indistinguibile da
+    // una risposta legittima.
+    return ViewshedResult(
+      skylineAngles: const [],
+      peaks: [
+        for (final p in req.candidatePeaks)
+          PeakResult(
+            id: p['id']?.toString() ?? '',
+            azimuthDeg: 0,
+            distanceMeters: 0,
+            elevationAngleDeg: 0,
+            clearanceDeg: 0,
+            visible: true,
+            uncertain: true,
+          ),
+      ],
+    );
   }
+  final eyeElev = ground + req.observerHeightM;
 
-  // 3. Per ogni cima candidata: distanza, azimut, angolo elev, confronto.
   final peaks = <PeakResult>[];
   for (final peak in req.candidatePeaks) {
     final pLat = (peak['lat'] as num).toDouble();
@@ -223,33 +282,111 @@ ViewshedResult computeViewshed(ViewshedRequest req) {
 
     final dist = _haversineMeters(req.observerLat, req.observerLng, pLat, pLng);
     final az = _bearingDeg(req.observerLat, req.observerLng, pLat, pLng);
-    final apparentEle = pEle - _earthDropMeters(dist);
-    final dy = apparentEle - eyeElev;
-    final angle = math.atan2(dy, dist) * 180 / math.pi;
+    final peakApparent = pEle - _earthDropMeters(dist);
+    final elevationAngle =
+        math.atan2(peakApparent - eyeElev, dist) * 180 / math.pi;
 
-    final azIdx = (az / (360.0 / req.azimuthSteps)).round() % req.azimuthSteps;
-    final skyAngle = skyline[azIdx];
-    final visible = angle > skyAngle + req.visibilityMarginDeg;
+    if (dist < 1) {
+      // Siamo praticamente sulla vetta.
+      peaks.add(PeakResult(
+        id: id,
+        azimuthDeg: az,
+        distanceMeters: dist,
+        elevationAngleDeg: elevationAngle,
+        clearanceDeg: 90,
+        visible: true,
+      ));
+      continue;
+    }
 
+    // Si campiona fino a poco prima della vetta: l'ultimo tratto è il pendio
+    // della cima stessa e non può nasconderla.
+    final endD = math.max(dist * 0.5, dist - req.peakClearanceM);
+
+    double worstMarginDeg = double.infinity;
+    double firstUnknownAt = double.infinity;
+    bool occluded = false;
+
+    double d = dem.stepAt(0);
+    while (d < endD) {
+      final pt = _destinationPoint(req.observerLat, req.observerLng, az, d);
+      final ele = dem.elevationAt(pt[0], pt[1]);
+      if (ele.isNaN) {
+        // Terreno sconosciuto: non possiamo inventarci una quota, ma non è
+        // nemmeno "via libera" — ce ne ricordiamo per marcare l'esito incerto.
+        if (d < firstUnknownAt) firstUnknownAt = d;
+      } else {
+        // Confronto in ANGOLO visto dall'occhio: è la stessa cosa che
+        // confrontare le quote sulla congiungente, ma resta sensato anche a
+        // pochi metri dall'osservatore, dove la linea di vista sfiora il suolo.
+        final terrainApparent = ele - _earthDropMeters(d);
+        final terrainAngle =
+            math.atan2(terrainApparent - eyeElev, d) * 180 / math.pi;
+        final margin = elevationAngle - terrainAngle;
+        if (margin < worstMarginDeg) worstMarginDeg = margin;
+        if (margin < req.visibilityToleranceDeg) {
+          occluded = true;
+          break;
+        }
+      }
+      d += dem.stepAt(d);
+    }
+
+    if (!worstMarginDeg.isFinite) worstMarginDeg = 90;
+    final visible = !occluded;
     peaks.add(PeakResult(
       id: id,
       azimuthDeg: az,
       distanceMeters: dist,
-      elevationAngleDeg: angle,
-      skylineAngleDeg: skyAngle,
+      elevationAngleDeg: elevationAngle,
+      clearanceDeg: worstMarginDeg,
       visible: visible,
-      // Se il terreno lungo il raggio è ignoto *prima* della cima, il fatto che
-      // nulla la occluda non dimostra nulla. Se invece è già occlusa dal
-      // terreno che conosciamo, il buco più in là non cambia la conclusione.
-      uncertain: visible && unknownFrom[azIdx] < dist,
+      // Se il terreno ignoto sta *prima* della cima, il fatto che nulla la
+      // occluda non dimostra niente. Se è già occlusa dal terreno noto, il
+      // buco più in là non cambia la conclusione.
+      uncertain: visible && firstUnknownAt < dist,
     ));
   }
 
-  return ViewshedResult(
-    skylineAngles: skyline,
-    unknownFromMeters: unknownFrom,
-    peaks: peaks,
-  );
+  final skyline = req.computeSkyline
+      ? _computeSkyline(req, eyeElev)
+      : const <double>[];
+
+  return ViewshedResult(skylineAngles: skyline, peaks: peaks);
+}
+
+/// Profilo dell'orizzonte a 360°: massimo angolo di elevazione del terreno per
+/// ogni azimut. Non serve più a decidere la visibilità — serve a **disegnare**
+/// la linea dell'orizzonte sopra la camera.
+List<double> _computeSkyline(ViewshedRequest req, double eyeElev) {
+  final dem = req.dem;
+  final skyline = List<double>.filled(req.azimuthSteps, -90.0);
+  // Raggio massimo: la diagonale della griglia larga basta e avanza.
+  final maxRangeM = _haversineMeters(
+        dem.coarse.minLat,
+        dem.coarse.minLng,
+        dem.coarse.maxLat,
+        dem.coarse.maxLng,
+      ) /
+      2;
+
+  for (int aIdx = 0; aIdx < req.azimuthSteps; aIdx++) {
+    final azDeg = aIdx * 360.0 / req.azimuthSteps;
+    double maxAngle = -90.0;
+    double d = dem.stepAt(0);
+    while (d <= maxRangeM) {
+      final pt = _destinationPoint(req.observerLat, req.observerLng, azDeg, d);
+      final ele = dem.elevationAt(pt[0], pt[1]);
+      if (!ele.isNaN) {
+        final apparent = ele - _earthDropMeters(d);
+        final angle = math.atan2(apparent - eyeElev, d) * 180 / math.pi;
+        if (angle > maxAngle) maxAngle = angle;
+      }
+      d += dem.stepAt(d);
+    }
+    skyline[aIdx] = maxAngle;
+  }
+  return skyline;
 }
 
 /// Drop apparente dovuto a curvatura terrestre + rifrazione atmosferica.
@@ -266,7 +403,7 @@ double _haversineMeters(double lat1, double lng1, double lat2, double lng2) {
           math.cos(lat2 * math.pi / 180) *
           math.sin(dLng / 2) *
           math.sin(dLng / 2);
-  return 2 * _earthRadiusM * math.asin(math.sqrt(a));
+  return 2 * _earthRadiusM * math.asin(math.min(1.0, math.sqrt(a)));
 }
 
 /// Bearing iniziale in gradi (0 = nord, 90 = est) da P1 a P2.
@@ -283,7 +420,8 @@ double _bearingDeg(double lat1, double lng1, double lat2, double lng2) {
 
 /// Punto di arrivo dato origine + bearing + distanza (great-circle).
 /// Restituisce [lat, lng].
-List<double> _destinationPoint(double lat, double lng, double bearingDeg, double distanceM) {
+List<double> _destinationPoint(
+    double lat, double lng, double bearingDeg, double distanceM) {
   final phi1 = lat * math.pi / 180;
   final lambda1 = lng * math.pi / 180;
   final theta = bearingDeg * math.pi / 180;

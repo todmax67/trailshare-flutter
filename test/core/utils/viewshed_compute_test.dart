@@ -1,310 +1,362 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trailshare_flutter/core/utils/viewshed_compute.dart';
 
-/// Unit test puri sulla math di [computeViewshed] — niente network, niente
-/// I/O. Usano un [DemGrid] sintetico per verificare i comportamenti chiave:
-///   1. Cima dietro un crinale è OCCLUSA
-///   2. Cima libera in linea diretta è VISIBILE
-///   3. Distanza, azimut e elevation angle sono calcolati correttamente
-///   4. La curvatura terrestre abbassa cime molto lontane
-void main() {
-  group('computeViewshed — terreno piatto', () {
-    // DEM piatto a 0m, 0.5° × 0.5° intorno all'osservatore (~55 km lato).
-    final flatDem = DemGrid(
-      minLat: 44.5, maxLat: 45.0,
-      minLng: 8.5, maxLng: 9.0,
-      rows: 50, cols: 50,
-      elevations: List<double>.filled(50 * 50, 0.0),
-    );
+/// Test della visibilità delle cime su terreni sintetici. Niente rete, niente
+/// I/O: si costruisce il DEM da una funzione della posizione e si verifica che
+/// l'algoritmo concluda quello che si vede a occhio sulla geometria.
 
-    test('skyline ~0° su terreno piatto', () {
-      final res = computeViewshed(ViewshedRequest(
-        observerLat: 44.75,
-        observerLng: 8.75,
-        dem: flatDem,
-        maxRadiusKm: 20,
-        azimuthSteps: 36,
-        candidatePeaks: const [],
-      ));
-      // Su terreno piatto + osservatore alto 1.7m → skyline angles tutti
-      // negativi piccoli (l'orizzonte è sotto la linea di vista).
-      for (final a in res.skylineAngles) {
-        expect(a, lessThan(0.01));
-        expect(a, greaterThan(-5));
-      }
-    });
+const double _obsLat = 45.0;
+const double _obsLng = 9.0;
 
-    test('cima isolata in pianura è visibile', () {
-      final res = computeViewshed(ViewshedRequest(
-        observerLat: 44.75,
-        observerLng: 8.75,
-        dem: flatDem,
-        maxRadiusKm: 30,
-        azimuthSteps: 36,
-        candidatePeaks: const [
-          {'id': 'p1', 'lat': 44.85, 'lng': 8.85, 'ele': 1000.0},
-        ],
-      ));
-      expect(res.peaks, hasLength(1));
-      expect(res.peaks.first.visible, isTrue);
-      // Distanza ~ 13.6km (0.1° lat + 0.1° lng @ 45°)
-      expect(res.peaks.first.distanceMeters, inInclusiveRange(12000, 15000));
-      // Azimut NE-ish: 0.1° lat = 11.1km, 0.1° lng = ~7.9km a lat 44.7
-      // → bearing = atan2(7.9, 11.1) ≈ 35°. Allarghiamo il range.
-      expect(res.peaks.first.azimuthDeg, inInclusiveRange(30, 50));
-    });
-  });
+/// Metri di latitudine per grado, per posizionare le cose a distanze note.
+const double _mPerDegLat = 111320.0;
 
-  group('computeViewshed — crinale che occlude', () {
-    // DEM con un "muro" di quota 2000m che taglia diagonalmente la griglia.
-    // L'osservatore al centro guarda verso una cima oltre il muro.
-    DemGrid wallDem() {
-      const rows = 50, cols = 50;
-      final ele = List<double>.filled(rows * cols, 0.0);
-      // Muro: riga centrale di altezza alta nel range lat~44.78
-      for (int c = 10; c < 40; c++) {
-        for (int r = 22; r < 28; r++) {
-          ele[r * cols + c] = 2000;
-        }
-      }
-      return DemGrid(
-        minLat: 44.5, maxLat: 45.0,
-        minLng: 8.5, maxLng: 9.0,
-        rows: rows, cols: cols,
-        elevations: ele,
-      );
+double _latAtNorth(double meters) => _obsLat + meters / _mPerDegLat;
+
+/// Costruisce una griglia riempita da [terrain], usando i metodi della griglia
+/// stessa per la corrispondenza riga↔latitudine — cioè lo stesso contratto che
+/// deve seguire il mosaico dei tile.
+DemGrid buildGrid({
+  required double minLat,
+  required double maxLat,
+  required double minLng,
+  required double maxLng,
+  required int rows,
+  required int cols,
+  required double Function(double lat, double lng) terrain,
+}) {
+  final ele = Float32List(rows * cols);
+  final grid = DemGrid(
+    minLat: minLat,
+    maxLat: maxLat,
+    minLng: minLng,
+    maxLng: maxLng,
+    rows: rows,
+    cols: cols,
+    elevations: ele,
+  );
+  for (var r = 0; r < rows; r++) {
+    final lat = grid.latForRow(r);
+    for (var c = 0; c < cols; c++) {
+      ele[r * cols + c] = terrain(lat, grid.lngForCol(c));
     }
+  }
+  return grid;
+}
 
-    test('cima dietro il muro è occlusa', () {
-      // Muro a ~7km dall'osservatore, alto 2000m → skyline angle ~16°.
-      // Cima a ~33km dietro: ele 1500m → angle ~2.6° → CHIARAMENTE occlusa.
-      final res = computeViewshed(ViewshedRequest(
-        observerLat: 44.65,
-        observerLng: 8.75,
-        dem: wallDem(),
-        maxRadiusKm: 30,
-        azimuthSteps: 90,
-        rayStepMeters: 100,
-        candidatePeaks: const [
-          {'id': 'occluded', 'lat': 44.95, 'lng': 8.75, 'ele': 1500.0},
-        ],
-      ));
-      expect(res.peaks.first.visible, isFalse,
-          reason: 'cima 1500m a 33km vs muro 2000m a 7km → occlusa');
-    });
-
-    test('cima molto più alta del muro è visibile', () {
-      // Per essere visibile da 33km dietro un muro 2000m a 7km, il peak
-      // angle deve > muro angle. Muro angle ≈ atan(2000/7000) ≈ 16°.
-      // Peak a 33km deve avere angle > 16° → ele > tan(16°)*33000 ≈ 9500m.
-      // Quindi mettiamo cima a 12000m (esagerata ma valida il pathway).
-      final res = computeViewshed(ViewshedRequest(
-        observerLat: 44.65,
-        observerLng: 8.75,
-        dem: wallDem(),
-        maxRadiusKm: 30,
-        azimuthSteps: 90,
-        rayStepMeters: 100,
-        candidatePeaks: const [
-          {'id': 'visible', 'lat': 44.95, 'lng': 8.75, 'ele': 12000.0},
-        ],
-      ));
-      expect(res.peaks.first.visible, isTrue,
-          reason: 'cima 12000m a 33km supera angolarmente muro 2000m a 7km');
-    });
-  });
-
-  group('curvatura + rifrazione', () {
-    final flatDem = DemGrid(
-      minLat: 44.0, maxLat: 46.0,
-      minLng: 8.0, maxLng: 10.0,
-      rows: 100, cols: 100,
-      elevations: List<double>.filled(100 * 100, 0.0),
+/// Griglia larga standard: mezzo grado attorno all'osservatore, celle ~100 m.
+DemGrid wideGrid(double Function(double lat, double lng) terrain) => buildGrid(
+      minLat: 44.8,
+      maxLat: 45.4,
+      minLng: 8.7,
+      maxLng: 9.3,
+      rows: 668, // ~100 m
+      cols: 472, // ~100 m
+      terrain: terrain,
     );
 
-    test('cima 100km via mare a 100m sparisce sotto l\'orizzonte', () {
-      // A 100km, earth drop ≈ 683m (con k=0.13). Cima a 100m è sotto l'orizzonte.
-      final res = computeViewshed(ViewshedRequest(
-        observerLat: 44.0,
-        observerLng: 9.0,
-        dem: flatDem,
-        maxRadiusKm: 110,
-        azimuthSteps: 36,
-        candidatePeaks: const [
-          {'id': 'far_low', 'lat': 44.9, 'lng': 9.0, 'ele': 100.0},
-        ],
-      ));
-      final pr = res.peaks.first;
-      expect(pr.elevationAngleDeg, lessThan(0),
-          reason: 'cima oltre orizzonte → elevation angle negativo');
-    });
-  });
+PeakResult runOne({
+  required DemGrid coarse,
+  DemGrid? fine,
+  required double peakLat,
+  required double peakEle,
+  double toleranceDeg = 0.05,
+}) {
+  final res = computeViewshed(ViewshedRequest(
+    observerLat: _obsLat,
+    observerLng: _obsLng,
+    dem: LayeredDem(coarse: coarse, fine: fine),
+    visibilityToleranceDeg: toleranceDeg,
+    candidatePeaks: [
+      {'id': 'p', 'lat': peakLat, 'lng': _obsLng, 'ele': peakEle},
+    ],
+  ));
+  return res.peaks.single;
+}
 
+void main() {
   group('convenzione delle righe della griglia', () {
-    // I DemGrid scritti a mano nei test non passano mai dal mosaico, quindi
-    // non possono accorgersi se chi riempie la griglia e chi la legge usano
-    // convenzioni opposte per le righe. È successo: il mosaico scriveva riga
-    // 0 = nord ed elevationAt leggeva riga 0 = sud, e il DEM veniva riletto
-    // specchiato attorno alla latitudine centrale. Questi test bloccano la
-    // convenzione a monte, dove entrambe le parti la leggono.
-
-    DemGrid grid(List<double> ele, {int rows = 5, int cols = 5}) => DemGrid(
-          minLat: 45.0, maxLat: 46.0,
-          minLng: 9.0, maxLng: 10.0,
-          rows: rows, cols: cols,
-          elevations: ele,
-        );
-
+    // Il mosaico dei tile e elevationAt avevano convenzioni opposte e il DEM
+    // veniva riletto specchiato nord-sud. Questi test bloccano il contratto.
     test('riga 0 = bordo sud, ultima riga = bordo nord', () {
-      final g = grid(List<double>.filled(25, 0));
+      final g = buildGrid(
+        minLat: 45, maxLat: 46, minLng: 9, maxLng: 10,
+        rows: 5, cols: 5, terrain: (_, _) => 0,
+      );
       expect(g.latForRow(0), closeTo(45.0, 1e-9));
       expect(g.latForRow(4), closeTo(46.0, 1e-9));
       expect(g.lngForCol(0), closeTo(9.0, 1e-9));
       expect(g.lngForCol(4), closeTo(10.0, 1e-9));
     });
 
-    test('scrivere con latForRow e rileggere con elevationAt dà lo stesso valore',
-        () {
-      const rows = 7, cols = 5;
-      final ele = List<double>.filled(rows * cols, 0);
-      final g = grid(ele, rows: rows, cols: cols);
-      // Ogni cella marcata con un valore univoco.
-      for (var r = 0; r < rows; r++) {
-        for (var c = 0; c < cols; c++) {
-          ele[r * cols + c] = r * 100.0 + c;
-        }
-      }
-      for (var r = 0; r < rows; r++) {
-        for (var c = 0; c < cols; c++) {
-          expect(
-            g.elevationAt(g.latForRow(r), g.lngForCol(c)),
-            closeTo(r * 100.0 + c, 1e-6),
-            reason: 'cella ($r,$c) riletta da un\'altra posizione',
-          );
-        }
-      }
+    test('un terreno che sale verso nord si rilegge in salita verso nord', () {
+      final g = buildGrid(
+        minLat: 45, maxLat: 46, minLng: 9, maxLng: 10,
+        rows: 101, cols: 3,
+        terrain: (lat, _) => 1000 * (lat - 45),
+      );
+      expect(g.elevationAt(45.05, 9.5), closeTo(50, 12));
+      expect(g.elevationAt(45.50, 9.5), closeTo(500, 12));
+      expect(g.elevationAt(45.95, 9.5), closeTo(950, 12));
     });
 
-    test('un terreno che sale verso nord si rilegge in salita verso nord', () {
-      // È il controllo che smaschera lo specchio: con la convenzione sbagliata
-      // a nord si leggerebbero le quote del sud.
-      const rows = 101, cols = 3;
-      final ele = List<double>.filled(rows * cols, 0);
-      final g = grid(ele, rows: rows, cols: cols);
+    test('scrivere e rileggere la stessa cella dà lo stesso valore', () {
+      const rows = 7, cols = 5;
+      final g = buildGrid(
+        minLat: 45, maxLat: 46, minLng: 9, maxLng: 10,
+        rows: rows, cols: cols,
+        terrain: (_, _) => 0,
+      );
       for (var r = 0; r < rows; r++) {
-        final quota = 1000 * (g.latForRow(r) - 45.0);
         for (var c = 0; c < cols; c++) {
-          ele[r * cols + c] = quota;
+          g.elevations[r * cols + c] = r * 100.0 + c;
         }
       }
-      expect(g.elevationAt(45.05, 9.5), closeTo(50, 12));
-      expect(g.elevationAt(45.95, 9.5), closeTo(950, 12));
-      expect(g.elevationAt(45.50, 9.5), closeTo(500, 12));
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          expect(g.elevationAt(g.latForRow(r), g.lngForCol(c)),
+              closeTo(r * 100.0 + c, 1e-3),
+              reason: 'cella ($r,$c) riletta da un\'altra posizione');
+        }
+      }
     });
   });
 
-  group('celle DEM senza dato (NaN)', () {
-    /// Muro continuo con dentro qualche cella "non so", come succede quando un
-    /// tile non si scarica. Prima quelle celle valevano 0 m sul livello del
-    /// mare e il muro diventava una finestra: si vedeva *attraverso* la
-    /// montagna.
-    /// Righe 30-35 ≈ lat 44,81-44,86: il muro sta **fra** l'osservatore
-    /// (44,75) e la cima (44,95), non sopra l'osservatore.
-    DemGrid wallWithHoles({required bool holesAreNaN}) {
-      const rows = 50, cols = 50;
-      final ele = List<double>.filled(rows * cols, 0.0);
-      for (int c = 10; c < 40; c++) {
-        for (int r = 30; r < 36; r++) {
-          ele[r * cols + c] = 2000;
-        }
-      }
-      // Buco nel muro proprio sulla linea di vista verso la cima.
-      for (int r = 30; r < 36; r++) {
-        for (int c = 23; c < 28; c++) {
-          ele[r * cols + c] = holesAreNaN ? double.nan : 0.0;
-        }
-      }
-      return DemGrid(
-        minLat: 44.5, maxLat: 45.0,
-        minLng: 8.5, maxLng: 9.0,
-        rows: rows, cols: cols,
-        elevations: ele,
+  group('linea di vista', () {
+    test('cima isolata in pianura è visibile', () {
+      final dem = wideGrid((_, _) => 500);
+      final pr = runOne(
+        coarse: dem,
+        peakLat: _latAtNorth(15000),
+        peakEle: 2000,
       );
-    }
-
-    ViewshedResult run(DemGrid dem) => computeViewshed(ViewshedRequest(
-          observerLat: 44.75,
-          observerLng: 8.75,
-          dem: dem,
-          maxRadiusKm: 40,
-          rayStepMeters: 100,
-          azimuthSteps: 360,
-          candidatePeaks: const [
-            {'id': 'behind', 'lat': 44.95, 'lng': 8.75, 'ele': 1500.0},
-          ],
-        ));
-
-    test('elevationAt propaga il NaN invece di inventare una quota', () {
-      final dem = wallWithHoles(holesAreNaN: true);
-      // Centro del buco: riga 32 di 50, colonna 25.
-      final lat = 44.5 + 32 / 49 * 0.5;
-      final lng = 8.5 + 25 / 49 * 0.5;
-      expect(dem.elevationAt(lat, lng).isNaN, isTrue);
+      expect(pr.visible, isTrue);
+      expect(pr.distanceMeters, closeTo(15000, 200));
+      expect(pr.azimuthDeg, closeTo(0, 0.5));
+      expect(pr.clearanceDeg, greaterThan(1));
     });
 
-    test('la cima oltre il buco è mostrata ma dichiarata incerta', () {
-      // Non possiamo dimostrare che sia nascosta — il terreno lì non lo
-      // conosciamo — quindi la mostriamo. Ma non è una certezza, e chi legge
-      // deve poterlo sapere.
-      final pr = run(wallWithHoles(holesAreNaN: true)).peaks.first;
+    test('un crinale davanti la occlude', () {
+      // Muro a 2500 m dall'osservatore, 300 m più alto della pianura.
+      final ridgeLat = _latAtNorth(2500);
+      final dem = wideGrid((lat, _) =>
+          (lat - ridgeLat).abs() < 0.003 ? 1400.0 : 500.0);
+      final pr = runOne(
+        coarse: dem,
+        peakLat: _latAtNorth(15000),
+        peakEle: 1500,
+      );
+      expect(pr.visible, isFalse);
+      expect(pr.clearanceDeg, lessThan(0));
+    });
+
+    test('una cima molto più alta del crinale lo scavalca', () {
+      final ridgeLat = _latAtNorth(2500);
+      final dem = wideGrid((lat, _) =>
+          (lat - ridgeLat).abs() < 0.003 ? 1400.0 : 500.0);
+      final pr = runOne(
+        coarse: dem,
+        peakLat: _latAtNorth(15000),
+        peakEle: 8000,
+      );
+      expect(pr.visible, isTrue);
+    });
+
+    test('la vetta non viene occlusa dal proprio pendio', () {
+      // Cono: il terreno sale fino alla vetta. Senza il taglio prima della
+      // cima, gli ultimi campioni — che sono la cima stessa — la nasconderebbero.
+      final peakLat = _latAtNorth(8000);
+      final dem = wideGrid((lat, _) {
+        final dLat = (lat - peakLat).abs();
+        if (dLat > 0.02) return 500.0;
+        return 500 + 1500 * (1 - dLat / 0.02);
+      });
+      final pr = runOne(coarse: dem, peakLat: peakLat, peakEle: 2000);
+      expect(pr.visible, isTrue);
+    });
+  });
+
+  group('il margine non deve nascondere le cime che si vedono', () {
+    // Geometria alpina realistica: una dorsale a 2150 m distante 25 km e una
+    // cima a 2600 m dietro, a 30 km. La linea di vista passa ~90 m sopra la
+    // dorsale, quindi la cima si vede.
+    //
+    // Il vecchio criterio pretendeva 0,5° di stacco *angolare*, che a 30 km
+    // significa 260 m di quota: la differenza qui è 0,21° e la cima veniva
+    // dichiarata invisibile. E' il motivo per cui il filtro nascondeva troppo.
+    DemGrid demWithRidge() {
+      final ridgeLat = _latAtNorth(25000);
+      return wideGrid(
+          (lat, _) => (lat - ridgeLat).abs() < 0.0025 ? 2150.0 : 500.0);
+    }
+
+    test('una cima che sporge di ~90 m dietro una dorsale è visibile', () {
+      final pr = runOne(
+        coarse: demWithRidge(),
+        peakLat: _latAtNorth(30000),
+        peakEle: 2600,
+      );
+      expect(pr.visible, isTrue);
+      expect(pr.clearanceDeg, inInclusiveRange(0.1, 0.4));
+    });
+
+    test('lo stacco angolare qui è sotto il vecchio margine di 0,5°', () {
+      // Verifica che il caso sopra sarebbe davvero stato scartato prima:
+      // e' la ragione per cui il test ha senso.
+      final pr = runOne(
+        coarse: demWithRidge(),
+        peakLat: _latAtNorth(30000),
+        peakEle: 2600,
+      );
+      final ridgeAngle = math.atan2(2150 - 42.7 - 501.7, 25000) * 180 / math.pi;
+      expect(pr.elevationAngleDeg - ridgeAngle, lessThan(0.5));
+    });
+
+    test('ma se passa sotto la dorsale resta nascosta', () {
+      final pr = runOne(
+        coarse: demWithRidge(),
+        peakLat: _latAtNorth(30000),
+        peakEle: 2350,
+      );
+      expect(pr.visible, isFalse);
+    });
+  });
+
+  group('campo vicino e risoluzione del DEM', () {
+    // Un dosso di 60 m ampio 200 m, appena 400 metri davanti, nasconde una
+    // cima a 20 km. Ma un DEM a bassa risoluzione non lo vede come un dosso:
+    // lo **media** col terreno intorno e ne restituisce un rialzo di una
+    // ventina di metri, che non basta a occludere. È il motivo per cui il
+    // terreno vicino si scarica a zoom maggiore.
+    final moundLat = _latAtNorth(400);
+
+    /// Terreno vero: dosso netto.
+    double sharp(double lat, double _) =>
+        (lat - moundLat).abs() < 0.0009 ? 660.0 : 600.0;
+
+    /// Come lo vede una griglia con celle da ~450 m: il dosso è più stretto
+    /// della cella, quindi si spalma su una base più larga e molto più bassa.
+    double smoothed(double lat, double _) {
+      final t = 1 - ((lat - moundLat).abs() / 0.0027);
+      return t <= 0 ? 600.0 : 600.0 + 27.0 * t;
+    }
+
+    test('la griglia fitta vede il dosso vicino e occlude', () {
+      final fine = buildGrid(
+        minLat: _obsLat - 0.02, maxLat: _obsLat + 0.02,
+        minLng: _obsLng - 0.03, maxLng: _obsLng + 0.03,
+        rows: 178, cols: 178, // ~25 m
+        terrain: sharp,
+      );
+      final pr = runOne(
+        coarse: wideGrid(smoothed),
+        fine: fine,
+        peakLat: _latAtNorth(20000),
+        peakEle: 2000,
+      );
+      expect(pr.visible, isFalse,
+          reason: 'un dosso a 400 m nasconde una cima a 20 km');
+    });
+
+    test('con le sole celle grosse lo stesso dosso non occlude più', () {
+      final pr = runOne(
+        coarse: wideGrid(smoothed),
+        peakLat: _latAtNorth(20000),
+        peakEle: 2000,
+      );
+      expect(pr.visible, isTrue,
+          reason: 'il dosso mediato non arriva alla linea di vista');
+    });
+  });
+
+  group('curvatura terrestre', () {
+    test('una cima bassa oltre l\'orizzonte marino è nascosta', () {
+      // A 100 km l'abbassamento vale 683 m: una cima di 100 m sul mare non si
+      // vede, ed e' il mare stesso a occluderla.
+      final dem = buildGrid(
+        minLat: 44.0, maxLat: 46.0, minLng: 8.0, maxLng: 10.0,
+        rows: 500, cols: 500,
+        terrain: (_, _) => 0,
+      );
+      final pr = computeViewshed(ViewshedRequest(
+        observerLat: 44.0,
+        observerLng: 9.0,
+        dem: LayeredDem(coarse: dem),
+        candidatePeaks: [
+          {'id': 'far', 'lat': 44.9, 'lng': 9.0, 'ele': 100.0},
+        ],
+      )).peaks.single;
+      expect(pr.elevationAngleDeg, lessThan(0));
+      expect(pr.visible, isFalse);
+    });
+  });
+
+  group('terreno sconosciuto', () {
+    test('cima oltre un buco: mostrata ma dichiarata incerta', () {
+      final holeLat = _latAtNorth(5000);
+      final dem = wideGrid((lat, _) =>
+          (lat - holeLat).abs() < 0.005 ? double.nan : 500.0);
+      final pr = runOne(
+        coarse: dem,
+        peakLat: _latAtNorth(15000),
+        peakEle: 2000,
+      );
+      expect(pr.visible, isTrue);
+      expect(pr.uncertain, isTrue,
+          reason: 'non possiamo dimostrare che sia libera');
+    });
+
+    test('senza buchi non c\'è incertezza', () {
+      final pr = runOne(
+        coarse: wideGrid((_, _) => 500),
+        peakLat: _latAtNorth(15000),
+        peakEle: 2000,
+      );
+      expect(pr.uncertain, isFalse);
+    });
+
+    test('un buco oltre la cima non la rende incerta', () {
+      final holeLat = _latAtNorth(25000);
+      final dem = wideGrid((lat, _) =>
+          (lat - holeLat).abs() < 0.005 ? double.nan : 500.0);
+      final pr = runOne(
+        coarse: dem,
+        peakLat: _latAtNorth(15000),
+        peakEle: 2000,
+      );
+      expect(pr.uncertain, isFalse);
+    });
+
+    test('osservatore fuori dal DEM: tutto incerto, non tutto invisibile', () {
+      final dem = wideGrid((_, _) => double.nan);
+      final pr = runOne(
+        coarse: dem,
+        peakLat: _latAtNorth(15000),
+        peakEle: 2000,
+      );
       expect(pr.visible, isTrue);
       expect(pr.uncertain, isTrue);
     });
+  });
 
-    test('con i buchi a quota 0 la stessa cima passava per certa', () {
-      // È il bug di prima: un tile mancante diventava mare, e la cima dietro
-      // risultava visibile *senza alcun dubbio dichiarato*.
-      final pr = run(wallWithHoles(holesAreNaN: false)).peaks.first;
-      expect(pr.visible, isTrue);
-      expect(pr.uncertain, isFalse);
-    });
-
-    test('un muro integro occlude, e senza incertezze', () {
-      const rows = 50, cols = 50;
-      final ele = List<double>.filled(rows * cols, 0.0);
-      for (int c = 10; c < 40; c++) {
-        for (int r = 30; r < 36; r++) {
-          ele[r * cols + c] = 2000;
-        }
-      }
-      final pr = run(DemGrid(
-        minLat: 44.5, maxLat: 45.0,
-        minLng: 8.5, maxLng: 9.0,
-        rows: rows, cols: cols,
-        elevations: ele,
-      )).peaks.first;
-      expect(pr.visible, isFalse);
-      expect(pr.uncertain, isFalse);
-    });
-
-    test('il terreno ignoto oltre la cima non la rende incerta', () {
-      // Buco messo più lontano della cima: non può occluderla, quindi non
-      // deve inquinare il giudizio.
-      const rows = 50, cols = 50;
-      final ele = List<double>.filled(rows * cols, 0.0);
-      for (int r = 46; r < 50; r++) {
-        for (int c = 20; c < 30; c++) {
-          ele[r * cols + c] = double.nan;
-        }
-      }
-      final pr = run(DemGrid(
-        minLat: 44.5, maxLat: 45.0,
-        minLng: 8.5, maxLng: 9.0,
-        rows: rows, cols: cols,
-        elevations: ele,
-      )).peaks.first;
-      expect(pr.visible, isTrue);
-      expect(pr.uncertain, isFalse);
+  group('passo di campionamento', () {
+    test('vicino è fine, lontano si allarga', () {
+      final coarse = wideGrid((_, _) => 500);
+      final fine = buildGrid(
+        minLat: _obsLat - 0.02, maxLat: _obsLat + 0.02,
+        minLng: _obsLng - 0.03, maxLng: _obsLng + 0.03,
+        rows: 178, cols: 178,
+        terrain: (_, _) => 500,
+      );
+      final dem = LayeredDem(coarse: coarse, fine: fine);
+      final near = dem.stepAt(500);
+      final far = dem.stepAt(40000);
+      expect(near, lessThan(40));
+      expect(far, greaterThan(near));
+      expect(far, lessThan(200));
     });
   });
 }

@@ -33,11 +33,15 @@ class ViewshedService {
   /// Compute. Restituisce le cime visibili ordinate per azimut, troncate a
   /// `tier.maxVisiblePeaks`. Se la cache è valida per la posizione richiesta,
   /// ritorna senza ricalcolare (Pro only).
+  /// [radiusKm] è il raggio effettivo da usare: normalmente il minore fra
+  /// quello scelto dall'utente e quello consentito dal tier. Se omesso si usa
+  /// il massimo del tier.
   Future<ViewshedRunResult> computeVisible({
     required double observerLat,
     required double observerLng,
     required List<MountainPeak> candidates,
     required ViewshedTier tier,
+    double? radiusKm,
   }) async {
     final stopwatch = Stopwatch()..start();
 
@@ -58,22 +62,25 @@ class ViewshedService {
       }
     }
 
-    // Bbox: raggio in gradi (approssimazione lat ≈ 111 km/°).
-    final radiusKm = tier.maxRadiusKm;
-    final latDelta = radiusKm / 111.0;
-    final lngDelta = radiusKm / (111.0 * math.cos(observerLat * math.pi / 180));
+    final effectiveRadiusKm = math.min(
+      radiusKm ?? tier.maxRadiusKm.toDouble(),
+      tier.maxRadiusKm.toDouble(),
+    );
 
     debugPrint(
-        '[Viewshed] start lat=$observerLat lng=$observerLng radius=${radiusKm}km '
+        '[Viewshed] start lat=$observerLat lng=$observerLng '
+        'radius=${effectiveRadiusKm.toStringAsFixed(0)}km '
         'candidates=${candidates.length} tier=${tier.label}');
 
-    // 1. DEM
-    final dem = await _tiles.buildDemGrid(
-      minLat: observerLat - latDelta,
-      maxLat: observerLat + latDelta,
-      minLng: observerLng - lngDelta,
-      maxLng: observerLng + lngDelta,
-      zoom: tier.demZoom,
+    // 1. Terreno a due risoluzioni: fitto vicino (dove si decidono le
+    //    occlusioni), largo lontano (dove la risoluzione non conta).
+    final dem = await _tiles.buildLayeredDem(
+      observerLat: observerLat,
+      observerLng: observerLng,
+      radiusKm: effectiveRadiusKm,
+      coarseZoom: tier.demZoom,
+      fineZoom: tier.fineDemZoom,
+      fineRadiusKm: tier.fineRadiusKm,
     );
     if (dem == null) {
       debugPrint('[Viewshed] DEM nullo, abort');
@@ -85,11 +92,11 @@ class ViewshedService {
         status: ViewshedStatus.demUnavailable,
       );
     }
-    debugPrint('[Viewshed] DEM pronto: ${dem.rows}×${dem.cols} '
+    debugPrint('[Viewshed] DEM pronto: ${dem.coarse.rows}×${dem.coarse.cols} '
         '(${(stopwatch.elapsedMilliseconds)}ms)');
 
     // Quota del terreno sotto l'osservatore. Se qui il DEM non sa rispondere
-    // (tile mancante proprio dove siamo) ogni angolo calcolato diventa NaN e il
+    // (tile mancante proprio dove siamo) ogni confronto diventa NaN e il
     // risultato sarebbe "nessuna cima visibile" — indistinguibile da "sei in
     // una conca". Meglio dichiararlo: chi chiama mostra lo stato invece di far
     // sparire le cime in silenzio.
@@ -99,17 +106,16 @@ class ViewshedService {
       return ViewshedRunResult(
         visible: const [],
         elapsedMs: stopwatch.elapsedMilliseconds,
-        demRows: dem.rows,
-        demCols: dem.cols,
+        demRows: dem.coarse.rows,
+        demCols: dem.coarse.cols,
         status: ViewshedStatus.observerOutsideDem,
       );
     }
 
-    // 2. Filtra candidati a quelli nel bbox (ottimizzazione: viewshed conosce
-    //    solo cime dentro maxRadius).
+    // 2. Filtra candidati a quelli nel raggio del tier.
     final inRange = candidates.where((p) {
       final d = _haversineMeters(observerLat, observerLng, p.latitude, p.longitude);
-      return d <= radiusKm * 1000;
+      return d <= effectiveRadiusKm * 1000;
     }).toList();
 
     if (inRange.isEmpty) {
@@ -117,8 +123,8 @@ class ViewshedService {
       return ViewshedRunResult(
         visible: const [],
         elapsedMs: stopwatch.elapsedMilliseconds,
-        demRows: dem.rows,
-        demCols: dem.cols,
+        demRows: dem.coarse.rows,
+        demCols: dem.coarse.cols,
         observerGroundElevationM: observerGroundM,
         status: ViewshedStatus.noPeaksInRange,
       );
@@ -129,9 +135,7 @@ class ViewshedService {
       observerLat: observerLat,
       observerLng: observerLng,
       dem: dem,
-      maxRadiusKm: radiusKm.toDouble(),
-      rayStepMeters: tier.rayStepMeters,
-      azimuthSteps: tier.azimuthSteps,
+      visibilityToleranceDeg: tier.visibilityToleranceDeg,
       candidatePeaks: inRange
           .map((p) => {
                 'id': p.id,
@@ -156,15 +160,18 @@ class ViewshedService {
         azimuthDeg: pr.azimuthDeg,
         distanceMeters: pr.distanceMeters,
         elevationAngleDeg: pr.elevationAngleDeg,
-        skylineAngleDeg: pr.skylineAngleDeg,
+        clearanceDeg: pr.clearanceDeg,
         uncertain: pr.uncertain,
       ));
     }
     visible.sort((a, b) => a.azimuthDeg.compareTo(b.azimuthDeg));
     if (visible.length > tier.maxVisiblePeaks) {
-      // Free: keep top-N by prominence (più "stagliate sull'orizzonte").
+      // Free: si tengono le più **imponenti nella scena**, cioè quelle che
+      // sottendono l'angolo maggiore. Prima si usava lo stacco dallo skyline,
+      // che premiava chi sporgeva di più da un crinale anche se in cielo era un
+      // puntino: non è quello che l'utente chiama "le cime che vedo".
       final sorted = [...visible]
-        ..sort((a, b) => b.prominenceOverSkylineDeg.compareTo(a.prominenceOverSkylineDeg));
+        ..sort((a, b) => b.elevationAngleDeg.compareTo(a.elevationAngleDeg));
       visible = sorted.take(tier.maxVisiblePeaks).toList()
         ..sort((a, b) => a.azimuthDeg.compareTo(b.azimuthDeg));
     }
@@ -172,8 +179,8 @@ class ViewshedService {
     final out = ViewshedRunResult(
       visible: visible,
       elapsedMs: stopwatch.elapsedMilliseconds,
-      demRows: dem.rows,
-      demCols: dem.cols,
+      demRows: dem.coarse.rows,
+      demCols: dem.coarse.cols,
       observerGroundElevationM: observerGroundM,
       status: ViewshedStatus.ok,
     );
@@ -201,9 +208,18 @@ class ViewshedTier {
   final int maxRadiusKm;
   final int maxVisiblePeaks;
   final bool persistentCache;
+
+  /// Zoom della griglia larga, che copre tutto il raggio.
   final int demZoom;
-  final int rayStepMeters;
-  final int azimuthSteps;
+
+  /// Zoom della griglia fitta nel campo vicino, dove si decidono le occlusioni.
+  final int fineDemZoom;
+
+  /// Raggio della griglia fitta, in km.
+  final double fineRadiusKm;
+
+  /// Tolleranza angolare per dichiarare occlusa una cima radente, in gradi.
+  final double visibilityToleranceDeg;
 
   const ViewshedTier({
     required this.label,
@@ -211,8 +227,9 @@ class ViewshedTier {
     required this.maxVisiblePeaks,
     required this.persistentCache,
     required this.demZoom,
-    required this.rayStepMeters,
-    required this.azimuthSteps,
+    this.fineDemZoom = 12,
+    this.fineRadiusKm = 10,
+    this.visibilityToleranceDeg = 0.05,
   });
 
   static const free = ViewshedTier(
@@ -220,9 +237,9 @@ class ViewshedTier {
     maxRadiusKm: 20,
     maxVisiblePeaks: 10,
     persistentCache: false,
-    demZoom: 10, // ~150m/pixel → ~4 tile per 20km bbox
-    rayStepMeters: 250,
-    azimuthSteps: 180,
+    demZoom: 10, // ~110 m/pixel alle nostre latitudini
+    fineDemZoom: 12, // ~27 m/pixel nel campo vicino
+    fineRadiusKm: 8,
   );
 
   static const pro = ViewshedTier(
@@ -230,11 +247,13 @@ class ViewshedTier {
     maxRadiusKm: 100,
     maxVisiblePeaks: 1000,
     persistentCache: true,
-    // Zoom 10: ~150m/pixel = sufficiente per skyline a 100 km e tiene il
-    // count tile bbox sotto ~35. Zoom 12 dava 630 tile / 230 MB DemGrid.
+    // Zoom 10 sul raggio pieno: ~110 m/pixel, e tiene il conto dei tile sotto
+    // il cap. Zoom 12 su 100 km darebbe centinaia di tile e una griglia
+    // ingestibile — per quello il dettaglio si aggiunge solo dove serve, con la
+    // griglia fitta del campo vicino.
     demZoom: 10,
-    rayStepMeters: 250,
-    azimuthSteps: 360,
+    fineDemZoom: 12,
+    fineRadiusKm: 12,
   );
 }
 

@@ -532,11 +532,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     if (!ds.isLoaded) {
       await ds.ensureLoaded();
     }
-    final radius = MountainFinderSettings().maxDistanceKmValue;
+    final radius = await _effectiveRadiusKm();
     final candidates = ds.findWithinRadius(
       pos.latitude,
       pos.longitude,
       radiusKm: radius,
+      // Con la quota dell'osservatore il taglio delle candidate premia le cime
+      // che si alzano davvero nella scena, invece delle più vicine.
+      observerElevationM: _observerEyeElevationM,
     );
 
     // Carica anche i POI OSM nello stesso raggio (rifugi, sorgenti,
@@ -642,6 +645,21 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     );
   }
 
+  /// Raggio effettivo, in km: il minore fra quello scelto dall'utente e quello
+  /// consentito dal tier.
+  ///
+  /// Le due cose erano scollegate, e ne usciva il peggio dei due mondi: le cime
+  /// candidate si prendevano nel raggio dell'utente (60 km di default) mentre il
+  /// viewshed girava su quello del tier (100 km per il Pro). Risultato, il
+  /// raggio pieno del Pro non esisteva — nessuna cima oltre i 60 km entrava mai
+  /// nell'insieme — e insieme si sprecava lavoro su un DEM più largo del
+  /// necessario.
+  Future<double> _effectiveRadiusKm() async {
+    final tier = await _viewshedTier();
+    final userKm = MountainFinderSettings().maxDistanceKmValue;
+    return math.min(userKm, tier.maxRadiusKm.toDouble());
+  }
+
   /// Tier del viewshed, risolto una volta sola per sessione: il controllo
   /// admin passa da Firestore e ora il viewshed gira ogni 500 m.
   Future<ViewshedTier> _viewshedTier() async {
@@ -696,6 +714,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         observerLng: pos.longitude,
         candidates: _candidatePeaks,
         tier: tier,
+        radiusKm: await _effectiveRadiusKm(),
       );
       if (!mounted) return;
       setState(() {
