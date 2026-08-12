@@ -1277,6 +1277,19 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.11.0',
+        title: 'Il riconoscimento delle cime, rifatto 🏔️',
+        bullets: [
+          '**Cerca una cima per nome e l\'app ti dice da che parte girarti.** Scrivi "Monte Rosa" o anche solo "coca": una barra ti indica quanti gradi a destra o a sinistra e quanto è lontana, e quando entra nell\'inquadratura te la cerchia',
+          '**Il panorama non è più una linea: è un paesaggio.** Le montagne sono disegnate su più piani di profondità, che sbiadiscono con la distanza come fa la foschia vera — e sono ombreggiate dal sole all\'ora che scegli',
+          '**Sole e luna, e il tramonto vero.** Non quello da almanacco: l\'app ti dice dietro quale cima sparisce il sole e a che ora. In valle può essere mezz\'ora prima, ed è l\'unico orario che conta se stai aspettando la luce',
+          'Muovendo il telefono i nomi restano incollati alle montagne invece di inseguirle. E tenendolo fermo smettono di lampeggiare: prima le cime ai bordi entravano e uscivano di continuo',
+          '**L\'elenco delle cime visibili**, in giro d\'orizzonte: sai cosa c\'è alle tue spalle senza girarti, e leggi i nomi senza tenere il telefono alzato',
+          'Il panorama si apre anche da dove sei adesso, non solo dalla scheda di una cima',
+          'Dove il terreno non l\'abbiamo scaricato, ora l\'app tace invece di disegnare un orizzonte che non conosce',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.10.0',
         title: 'I numeri delle tue tracce dicono la verità 📐',
         bullets: [
