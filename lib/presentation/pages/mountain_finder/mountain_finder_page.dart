@@ -477,10 +477,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       ),
       // Dot per TUTTE le cime visibili (anche quelle senza etichetta).
       for (final p in projected)
-        AnimatedPositioned(
+        // Niente animazione sulla posizione: vedi la nota su
+        // _DiagonalPeakLabel. Un dot che insegue la montagna con un ritardo
+        // proprio è peggio di uno che la seguirebbe e basta.
+        Positioned(
           key: ValueKey('dot_${p.peak.id}'),
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
           left: p.screenX - 5,
           top: p.screenY - 5,
           width: 10,
@@ -1996,11 +1997,26 @@ class _CrosshairPainter extends CustomPainter {
 }
 
 /// Pin di una cima nel viewport AR.
-/// Pin animato di una cima nel viewport AR.
+/// Pin di una cima nel viewport AR.
 ///
-/// Animazioni:
-/// - **AnimatedPositioned** smooth movement quando l'utente ruota il
-///   telefono (200ms easeOut).
+/// **La posizione non è animata, ed è una scelta contro l'istinto.** Prima lo
+/// era, con `AnimatedPositioned` a 200 ms: sembra il modo di rendere morbido il
+/// movimento, e invece è ciò che lo rendeva difficile da usare. L'assetto
+/// arriva ogni 40 ms, quindi l'animazione veniva ribersagliata prima di finire
+/// e ripartiva sempre da zero (`didUpdateWidget` chiama `forward(from: 0)`):
+/// non ammorbidiva, frenava, stabilizzandosi su ~129 ms di ritardo permanente —
+/// due terzi dei ~190 ms totali fra sensore e pixel, cioè ~235 px di
+/// inseguimento durante una panoramica a 40°/s.
+///
+/// Peggio: il profilo dell'orizzonte e il sole **non** erano animati, quindi
+/// durante il movimento le etichette restavano indietro rispetto alla linea del
+/// terreno. Le due cose che l'occhio confronta per giudicare il puntamento si
+/// contraddicevano a vicenda.
+///
+/// Il morbido vero sta già a monte, nel filtro dell'assetto: qui serve solo non
+/// aggiungerci sopra un secondo ritardo.
+///
+/// Animazioni rimaste:
 /// - **AnimatedScale** in base al ranking di centratura: la cima più
 ///   centrata è grande (1.0), le secondarie scalano fino a 0.78.
 /// - **AnimatedOpacity**: la cima centrata è completamente opaca,
@@ -2133,9 +2149,7 @@ class _DiagonalPeakLabel extends StatelessWidget {
 
     final meta = _peakLabelMeta(p, full: isCentered);
 
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
+    return Positioned(
       left: layout.labelX,
       top: layout.labelY,
       child: Transform.rotate(

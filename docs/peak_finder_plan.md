@@ -709,6 +709,131 @@ confronto non è con PeakFinder ma con il non averla.
 
 ---
 
+## 7-quinquies. Perché il concorrente è «burro puro», e noi no
+
+Indagine del 2026-08-12, dieci agenti, con revisione avversariale su quattro
+lenti. **La revisione ha demolito l'affermazione principale del piano proposto**,
+ed è il risultato più utile che potesse dare: quanto segue è ciò che è
+sopravvissuto alla confutazione.
+
+### La causa, misurata
+
+Fra il sensore e il pixel ci sono **tre ritardi in serie**, per un totale di
+~190 ms. Durante una panoramica a 40°/s l'etichetta insegue la montagna di
+**~235 px** su uno schermo largo 1220 — il 19% della larghezza.
+
+| Anello | Ritardo | Pixel |
+|---|---|---|
+| Campionamento a 25 Hz (Android: sensore a 50 Hz, gate a 33 ms → un evento ogni 40 ms) | 20 ms | 25 px |
+| Filtro EMA adattivo dell'assetto | 40 ms | 50 px |
+| **`AnimatedPositioned` 200 ms easeOut** | **129 ms** | **114 px** |
+
+Il colpevole grosso è un'animazione **messa lì apposta per ammorbidire**. Con un
+bersaglio nuovo ogni 40 ms non arriva mai in fondo: `didUpdateWidget` chiama
+`forward(from: 0)` a ogni cambio, quindi riparte sempre da zero e si stabilizza
+su un ritardo permanente. Non ammorbidiva: frenava.
+
+E c'era di peggio. Il profilo dell'orizzonte e il sole **non** sono animati,
+quindi durante il movimento le etichette restavano indietro rispetto alla linea
+del terreno. Le due cose che l'occhio confronta per giudicare il puntamento si
+contraddicevano a vicenda.
+
+**Correzione applicata**: `AnimatedPositioned` → `Positioned` in due punti. Toglie
+il 68% del ritardo, e via anche fino a 60 `setState` indipendenti per fotogramma
+(ogni `AnimatedPositioned` ne fa uno per tick del proprio controller).
+
+### Cosa resta, in ordine di resa
+
+1. **Un solo `CustomPainter` guidato da `repaint:`** invece di `setState` sulla
+   pagina intera. Oggi ogni campione ricostruisce ~1.188 elementi e nel file non
+   esiste **un solo `RepaintBoundary`**: HUD, card, mirino e otturatore — immobili
+   — vengono ri-registrati 25 volte al secondo insieme a ciò che si muove. Un
+   `Listenable` passato come `repaint:` chiama `markNeedsPaint` e salta build e
+   layout. È la voce grossa: 1-2 giornate.
+2. **Selezione stabile con isteresi.** Il vero motivo degli scatti non è il costo
+   ma il ricambio: si tengono 30 etichette su ~168 cime nel cono, e fra due
+   campioni ne entrano ed escono 4,5 a pan lento e **14 a pan veloce**. Ognuna
+   nasce o muore di colpo.
+3. **One Euro Filter sul quaternione** al posto dell'EMA adattivo. Nota: l'EMA
+   attuale calcola l'`alpha` dalla velocità di **azimut** e lo applica anche a
+   pitch e roll — alzare il telefono verso una cima senza ruotare prende il
+   coefficiente più lento, ~106 ms di ritardo sul pitch.
+4. **Timestamp nativi.** Nessuno dei due canali manda un tempo: Dart usa
+   `DateTime.now()` all'arrivo, che ci infila dentro la coda del platform channel.
+   Serve prima di qualunque predizione.
+
+### Il render del terreno: direzione giusta, argomento falso
+
+La proposta era passare dalla singola linea d'orizzonte a **più linee di cresta**
+(per ogni azimut non solo il massimo globale ma i massimi locali lungo il raggio),
+venduta con la misura «costano *meno* dello skyline che già calcoliamo, il costo
+marginale è negativo».
+
+**Tre revisori indipendenti hanno rieseguito quel benchmark e trovato il segno
+invertito**: skyline 81-84 ms AOT, creste 87-92 ms. Sempre +7-11%, mai una volta a
+favore, in 15 misure su tre macchine. Ed è l'unico esito possibile, visto che il
+piano stesso definisce le creste come «stessa marcia di raggi, cambia solo la
+contabilità dentro il ciclo»: un soprainsieme stretto non può costare meno.
+
+Quello che invece **regge**, verificato su terreno vero:
+
+- L'ordinamento in profondità è **esatto per costruzione**, senza z-buffer: la
+  camera sta al centro del sistema polare, quindi lungo ogni raggio la distanza
+  cresce in modo monotono. Zero coppie non monotone su 720 azimut × 2 siti.
+- La stessa struttura `(azimut, angolo)` serve **entrambe** le proiezioni,
+  cilindrica del panorama e rettilineare della camera, senza codice nuovo.
+- Da una vetta alpina ci sono in media **5,6 creste per azimut** (massimo 14):
+  oggi ne disegniamo una e buttiamo via le altre quattro.
+
+E due difetti che il piano **credeva di aver risolto**:
+
+1. **La regola sull'incertezza è invertita.** Una cima è nascosta da ciò che sta
+   *davanti*; una cresta è l'orizzonte in base a ciò che sta *dietro*. Marcare
+   «NaN prima di lei» sulle creste non scatta mai — per definizione la cresta è la
+   cosa più lontana che si è vista, quindi il buco sta sempre dopo. Misurato in
+   uno scenario offline realistico: **0 creste su 2.407 marcate incerte**, mentre
+   nello stesso DEM l'87% delle *cime* risulta incerto. In quello scenario 438
+   azimut su 720 disegnano un orizzonte sbagliato di oltre mezzo grado, con punte
+   di 5,26°. Oggi quell'errore produce una riga; col piano produrrebbe un
+   paesaggio riempito di colore, dichiarato certo.
+2. **Il DEM smussa le vette.** Sul Pizzo Coca dà 2.984 m contro i 3.050 del
+   dataset. Sotto i 5 km lo scarto mediano sulle cime vere è **74 m = 1,5° = 105
+   px**: la linea di cresta passerebbe visibilmente *sotto* l'etichetta della
+   cima. E siccome quella linea è il riferimento che l'utente usa per decidere se
+   trascinare per allineare, un disaccordo sistematico lo porta a salvare un
+   offset falso. Va deciso prima, non scoperto in campo.
+
+Infine, il vero collo di bottiglia del viewshed non era nemmeno nel piano:
+`_destinationPoint` è **67 ms degli 81** della marcia di raggi (82%), con quasi un
+milione di `List<double>` allocate per ricalcolo. Un passo incrementale al posto
+della destinazione great-circle rifatta da capo vale dieci volte il delta su cui
+si discuteva.
+
+### MapLibre per il panorama: no
+
+MapLibre GL JS **4.7.1** è già bundlato (784 KB) e serve il 3D delle tracce. Per
+il panorama del Peak Finder non regge, per tre motivi verificati leggendo il
+bundle:
+
+- **La camera non è pilotabile**: `getFreeCameraOptions`/`setFreeCameraOptions`
+  non esistono in MapLibre 4.x (sono API di Mapbox). Zero occorrenze nel bundle.
+  Restano solo `center + zoom + pitch + bearing`, e la quota della camera è un
+  *derivato*: per stare 1,7 m sopra la cima servirebbe zoom ≈ 21,7.
+- **Il pitch è tagliato a 85°** per costruzione, e il setter taglia in silenzio.
+  A 85° l'orizzonte è in quadro, quindi la vista da vetta è geometricamente
+  possibile — ma con il terrain attivo `_elevateCameraIfInsideTerrain` riscrive
+  pitch e zoom a ogni aggiornamento, cioè combatte contro chi vuole la camera
+  posata sulla cima.
+- **Non funziona offline**: il terrain viene da MapTiler via rete e non c'è
+  nessuna cache applicativa. Senza rete lo `style.json` non arriva, l'evento
+  `load` non scatta e la pagina resta sullo spinner **per sempre** — degrado zero.
+
+In più sarebbe una *seconda* fonte di terreno, incoerente con quella su cui
+calcoliamo viewshed e tramonti: la superficie disegnata direbbe una cosa e le
+etichette sopra un'altra.
+
+---
+
 ## 8. Domande aperte (decisione del founder)
 
 1. **Packaging.** Oggi il viewshed è attivo per tutti con limiti Free e l'unica cosa davvero
