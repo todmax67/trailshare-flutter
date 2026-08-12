@@ -834,6 +834,74 @@ etichette sopra un'altra.
 
 ---
 
+## 7-sexies. Cosa è stato costruito davvero
+
+### Isteresi sulla selezione delle etichette
+
+Tolta l'animazione restava il *ricambio*: nel cono cadono ~168 cime e se ne
+etichettano 30, quindi quelle attorno al trentesimo posto entravano e uscivano a
+ogni campione dei sensori. Non è ritardo, è sfarfallio — e si vede proprio quando
+si tiene il telefono fermo per leggere un nome.
+
+Due soglie invece di una, come un termostato: si entra al 30°, si esce al 42°.
+In mezzo c'è una banda morta dove una cima non cambia stato.
+
+| Situazione | Cambi su 199 campioni, prima | Dopo |
+|---|---|---|
+| **Telefono fermo** (solo tremolio dei sensori) | 360 | **0** |
+| Panoramica lenta (~5°/s) | 142 | 134 |
+| Panoramica veloce (~40°/s) | 138 | 120 |
+
+Il guadagno in panoramica è modesto **e deve esserlo**: se giro il telefono, le
+cime escono davvero dall'inquadratura, e trattenerle sarebbe mentire. L'isteresi
+toglie la parte spuria e lascia quella legittima.
+
+Due invarianti tenute: la cima più centrata ha sempre il nome, e l'ordine
+restituito resta quello di classifica.
+
+### Terreno per fasce di distanza
+
+Il panorama era una macchia piatta perché di ogni direzione tenevamo un solo
+numero. Ora la stessa marcia di raggi annota ogni punto **visibile** nella sua
+fascia di distanza — 2 / 6 / 15 / 35 km e oltre — al costo di un confronto per
+campione.
+
+**Perché fasce e non creste cucite.** La proposta dell'indagine era emettere ogni
+cresta e poi abbinare quelle di azimut adiacenti in polilinee. Sembra più
+naturale, ma i revisori hanno mostrato che è la parte fragile: due creste su
+raggi vicini non hanno nessuna identità che le leghi, l'abbinamento va
+indovinato, e indovinarlo male produce linee che si incrociano e sfarfallano —
+con circa metà dei frammenti lunghi due punti, cioè sporcizia. Le fasce sono
+continue per costruzione: non c'è niente da indovinare.
+
+E l'ordine di disegno è **esatto senza z-buffer**: con l'osservatore al centro
+del sistema polare la distanza cresce in modo monotono lungo ogni raggio, quindi
+una fascia vicina copre sempre quella dietro. Non è un'approssimazione da
+sistemare dopo.
+
+Nel panorama le fasce si riempiono, sbiadendo verso il colore del cielo man mano
+che si allontanano: è prospettiva aerea, lo stesso indizio che l'occhio usa
+davvero per leggere la profondità di una catena. Sopra la fotocamera restano
+**linee**, perché una superficie piena coprirebbe l'immagine — l'unica cosa che
+l'AR ha da mostrare.
+
+### L'onestà sui buchi, nel verso giusto
+
+Il difetto che l'indagine credeva di aver risolto: la regola delle cime non si
+può copiare sulle creste. Una cima è nascosta da ciò che ha **davanti**, una
+cresta è l'orizzonte per ciò che ha **dietro**.
+
+Quindi si registra `knownUpToM`, cioè fin dove arriva la conoscenza lungo ogni
+raggio, e **le fasce che cominciano oltre quel limite non si disegnano affatto**.
+Dove il DEM tace, il disegno tace.
+
+Lo skyline storico non cambia comportamento: resta il massimo di ciò che si è
+potuto misurare. Altre funzioni ci ragionano già sopra con le proprie regole (il
+tramonto dietro la cresta ha la sua), e cambiarlo lì sarebbe stata una modifica
+silenziosa a due chiamanti invece che a uno.
+
+---
+
 ## 8. Domande aperte (decisione del founder)
 
 1. **Packaging.** Oggi il viewshed è attivo per tutti con limiti Free e l'unica cosa davvero
