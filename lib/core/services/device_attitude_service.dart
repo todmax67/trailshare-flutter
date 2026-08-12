@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
+import '../utils/attitude_filter.dart';
 import '../utils/camera_orientation.dart';
 import '../utils/mountain_projection.dart';
 
@@ -75,20 +76,19 @@ class DeviceAttitudeService {
 
   bool _usingFallback = false;
 
-  // Stato dello smoothing (in spazio angolare: azimut con wrap-around, pitch,
-  // roll). L'assetto nativo è già fuso col giroscopio e quindi molto più
-  // pulito del magnetometro grezzo: gli basta un filtro leggero, mentre il
-  // ripiego ne ha bisogno di uno robusto.
-  double? _azimuth;
-  double _pitch = 0;
-  double _roll = 0;
-  DateTime? _lastSample;
+  /// Smoothing dell'assetto. L'assetto nativo è già fuso col giroscopio e
+  /// quindi molto più pulito del magnetometro grezzo: gli basta un filtro
+  /// leggero, mentre il ripiego ne ha bisogno di uno più severo. Sono due filtri
+  /// distinti e non uno riconfigurato, perché passando dall'uno all'altro lo
+  /// stato del precedente non ha più senso.
+  final AttitudeFilter _nativeFilter =
+      AttitudeFilter(minCutoff: 0.8, beta: 0.40);
 
-  static const double _nativeAlphaMin = 0.20;
-  static const double _nativeAlphaMax = 0.50;
-  static const double _fallbackAlphaMin = 0.06;
-  static const double _fallbackAlphaMax = 0.30;
-  static const double _rateForMaxAlpha = 30.0; // °/s
+  /// Il ripiego bussola+accelerometro arriva a ~17 Hz ed è molto più rumoroso:
+  /// taglio più basso e apertura più lenta, cioè si accetta più ritardo pur di
+  /// non far ballare le etichette.
+  final AttitudeFilter _fallbackFilter =
+      AttitudeFilter(minCutoff: 0.25, beta: 0.12);
 
   // Ultimi valori grezzi del ripiego, che arrivano da due stream separati.
   double _fallbackHeading = 0;
@@ -206,10 +206,8 @@ class DeviceAttitudeService {
   }
 
   void _resetSmoothing() {
-    _azimuth = null;
-    _pitch = 0;
-    _roll = 0;
-    _lastSample = null;
+    _nativeFilter.reset();
+    _fallbackFilter.reset();
     _loggedFirstSample = false;
   }
 
@@ -230,6 +228,9 @@ class DeviceAttitudeService {
       accuracyDeg: (event['accuracy'] as num?)?.toDouble(),
       isTrueNorth: event['trueNorth'] as bool? ?? false,
       isNative: true,
+      // Orologio monotono del sensore, in millisecondi. Se il nativo è vecchio
+      // e non lo manda, il filtro ripiega sul passo nominale.
+      timestampMs: (event['t'] as num?)?.toDouble(),
     );
   }
 
@@ -270,10 +271,12 @@ class DeviceAttitudeService {
     );
   }
 
-  /// Filtro passa-basso **adattivo** sugli angoli: quando il telefono è fermo
-  /// smorza molto (le etichette si "ancorano" alle cime), quando si ruota in
-  /// fretta lascia passare (niente lag). Lo smoothing sta qui e non nelle
-  /// pagine, così le due schermate AR si comportano allo stesso modo.
+  /// Smoothing e pubblicazione dell'assetto.
+  ///
+  /// Il filtro sta qui e non nelle pagine, così le due schermate AR si
+  /// comportano allo stesso modo. Che filtro sia è spiegato in
+  /// [AttitudeFilter]: in breve, il taglio si apre con la velocità, quindi da
+  /// fermi le etichette si ancorano alle cime e ruotando non restano indietro.
   void _emitSmoothed({
     required double azimuthDeg,
     required double pitchDeg,
@@ -281,6 +284,7 @@ class DeviceAttitudeService {
     required double? accuracyDeg,
     required bool isTrueNorth,
     required bool isNative,
+    double? timestampMs,
   }) {
     final controller = _controller;
     if (controller == null || controller.isClosed) return;
@@ -290,47 +294,28 @@ class DeviceAttitudeService {
       debugPrint('[Attitude] sorgente=${isNative ? "nativa" : "RIPIEGO"} '
           'nord=${isTrueNorth ? "geografico" : "MAGNETICO"} '
           'bussola=${accuracyDeg == null ? "inaffidabile" : "±${accuracyDeg.toStringAsFixed(0)}°"} '
+          'tempo=${timestampMs == null ? "assente" : "dal sensore"} '
           'az=${azimuthDeg.toStringAsFixed(1)} '
           'pitch=${pitchDeg.toStringAsFixed(1)} '
           'roll=${rollDeg.toStringAsFixed(1)}');
     }
 
-    final now = DateTime.now();
-    final prev = _azimuth;
-    if (prev == null) {
-      _azimuth = azimuthDeg;
-      _pitch = pitchDeg;
-      _roll = rollDeg;
-    } else {
-      double delta = azimuthDeg - prev;
-      if (delta > 180) delta -= 360;
-      if (delta < -180) delta += 360;
-
-      final dt = _lastSample == null
-          ? 0.05
-          : (now.difference(_lastSample!).inMilliseconds / 1000.0)
-              .clamp(0.01, 0.5);
-      final rate = (delta / dt).abs();
-      final alphaMin = isNative ? _nativeAlphaMin : _fallbackAlphaMin;
-      final alphaMax = isNative ? _nativeAlphaMax : _fallbackAlphaMax;
-      final t = (rate / _rateForMaxAlpha).clamp(0.0, 1.0);
-      final alpha = alphaMin + t * (alphaMax - alphaMin);
-
-      _azimuth = (prev + alpha * delta + 360) % 360;
-      _pitch = _pitch + alpha * (pitchDeg - _pitch);
-
-      double rollDelta = rollDeg - _roll;
-      if (rollDelta > 180) rollDelta -= 360;
-      if (rollDelta < -180) rollDelta += 360;
-      _roll = _roll + alpha * rollDelta;
-    }
-    _lastSample = now;
+    final filter = isNative ? _nativeFilter : _fallbackFilter;
+    final f = filter.filter(
+      azimuthDeg: azimuthDeg,
+      pitchDeg: pitchDeg,
+      rollDeg: rollDeg,
+      timestampMs: timestampMs,
+      // Il ripiego non ha timestamp e gira molto più lento: dichiararlo a 20 ms
+      // farebbe stimare velocità sei volte più alte del vero.
+      fallbackDt: isNative ? 0.02 : 0.06,
+    );
 
     controller.add(DeviceAttitude(
       basis: CameraBasis.fromAngles(
-        azimuthDeg: _azimuth!,
-        pitchDeg: _pitch,
-        rollDeg: _roll,
+        azimuthDeg: f.azimuthDeg,
+        pitchDeg: f.pitchDeg,
+        rollDeg: f.rollDeg,
       ),
       accuracyDeg: accuracyDeg,
       isTrueNorth: isTrueNorth,

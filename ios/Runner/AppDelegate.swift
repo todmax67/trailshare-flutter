@@ -142,7 +142,9 @@ class DeviceAttitudeChannel: NSObject, FlutterStreamHandler {
       usingTrueNorth = false
     }
 
-    motion.deviceMotionUpdateInterval = 1.0 / 30.0
+    // 60 Hz: finche' ogni campione ricostruiva l'intera pagina non si potevano
+    // reggere, ora il disegno e' disaccoppiato.
+    motion.deviceMotionUpdateInterval = 1.0 / 60.0
     // Coda principale: il sink di Flutter va richiamato sul platform thread.
     motion.startDeviceMotionUpdates(using: frame, to: .main) { [weak self] data, _ in
       guard let self = self, let data = data else { return }
@@ -189,6 +191,10 @@ class DeviceAttitudeChannel: NSObject, FlutterStreamHandler {
     // standard, e dall'altra parte una chiave assente si legge già come null.
     var payload: [String: Any] = [
       "m": m,
+      // Il tempo della MISURA (secondi dall'avvio del dispositivo, orologio
+      // monotono), non quello dell'arrivo in Dart: fra i due c'e' la coda del
+      // canale, che entrerebbe dritta nella stima della velocita'.
+      "t": data.timestamp * 1000.0,
       "screenRotation": screenRotationDeg(),
       "trueNorth": usingTrueNorth,
     ]

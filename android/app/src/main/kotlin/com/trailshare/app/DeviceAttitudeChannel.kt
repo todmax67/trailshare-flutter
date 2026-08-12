@@ -88,6 +88,9 @@ class DeviceAttitudeChannel(private val activity: Activity) :
             events?.error("no_sensor", "TYPE_ROTATION_VECTOR non disponibile", null)
             return
         }
+        // SENSOR_DELAY_GAME sono 20 ms, cioe' 50 Hz. Finche' ogni campione
+        // ricostruiva l'intera pagina non si poteva usarli tutti; ora il disegno
+        // e' disaccoppiato e il collo di bottiglia non c'e' piu'.
         sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME)
     }
 
@@ -101,7 +104,10 @@ class DeviceAttitudeChannel(private val activity: Activity) :
 
         val now = SystemClock.elapsedRealtime()
         if (now < nextEmitAtMs) return
-        nextEmitAtMs = now + 33
+        // Il vecchio cancello a 33 ms, incrociato coi 20 ms del sensore, faceva
+        // passare un campione ogni 40 ms: 25 Hz contro uno schermo a 60, cioe'
+        // un battimento 2-3-2-3 visibile. A 15 ms passano tutti.
+        nextEmitAtMs = now + 15
 
         // Alcuni dispositivi riportano 5 valori invece di 4 e
         // getRotationMatrixFromVector va in errore: copiamo solo i primi 4.
@@ -136,6 +142,10 @@ class DeviceAttitudeChannel(private val activity: Activity) :
         eventSink?.success(
             hashMapOf(
                 "m" to enuMatrix.toList(),
+                // Il tempo della MISURA, non quello dell'arrivo in Dart: fra i
+                // due c'e' la coda del canale, variabile, che entrerebbe dritta
+                // nella stima della velocita' usata dal filtro.
+                "t" to event.timestamp / 1_000_000.0,
                 "screenRotation" to screenRotationDeg(),
                 "accuracy" to accuracyDeg,
                 "trueNorth" to (decl != null)

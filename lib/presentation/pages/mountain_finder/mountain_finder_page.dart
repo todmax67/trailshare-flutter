@@ -22,6 +22,7 @@ import '../../../core/utils/camera_orientation.dart';
 import '../../../core/utils/mountain_photo_renderer.dart';
 import '../../../core/utils/mountain_projection.dart';
 import '../../../data/models/mountain_peak.dart';
+import '../../../data/models/visible_peak.dart';
 import '../../../data/models/osm_poi.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/osm_pois_repository.dart';
@@ -33,6 +34,7 @@ import '../../widgets/skyline_overlay.dart';
 import '../../widgets/sun_path_overlay.dart';
 import 'ar_frame.dart';
 import 'ar_peaks_painter.dart';
+import 'visible_peaks_sheet.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
 import 'panorama_page.dart';
@@ -171,6 +173,11 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   bool _viewshedOnly = true;
   /// Set di peak.id che il viewshed considera visibili. Vuoto = nessun filtro.
   Set<String> _viewshedVisibleIds = const {};
+
+  /// L'elenco completo delle cime visibili, tutto il giro d'orizzonte e non solo
+  /// il cono inquadrato. Serve alla lista consultabile: fin qui del risultato si
+  /// teneva solo il numero, buttando via le cime che l'avevano prodotto.
+  List<VisiblePeak> _viewshedVisible = const [];
   /// Loading flag mentre gira il compute viewshed.
   bool _computingViewshed = false;
   /// Posizione usata per l'ultimo compute (per invalidare > 500m).
@@ -968,6 +975,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       if (!mounted) return;
       setState(() {
         _viewshedVisibleIds = result.visible.map((v) => v.peak.id).toSet();
+        _viewshedVisible = result.visible;
         _viewshedStatus = result.status;
         _viewshedPatchyTerrain = result.hasPatchyTerrain;
         _viewshedVisibleCount = result.visible.length;
@@ -1040,6 +1048,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       _viewshedOnly = wantOn;
       if (!wantOn) {
         _viewshedVisibleIds = const {};
+        _viewshedVisible = const [];
         _lastViewshedPosition = null;
         _viewshedStatus = ViewshedStatus.ok;
         _viewshedHasResult = false;
@@ -1823,12 +1832,37 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     );
   }
 
+  /// Apre l'elenco delle cime visibili.
+  void _showVisiblePeaks() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      builder: (ctx) => VisiblePeaksSheet(
+        peaks: _viewshedVisible,
+        currentAzimuthDeg: _arFrame.basis?.azimuthDeg,
+      ),
+    );
+  }
+
   Widget _buildInfoCardBody() {
     final count = _arFrame.projected.length;
     final scheme = Theme.of(context).colorScheme;
     final warning = _statusWarning();
 
-    return Container(
+    // La card diventa la porta dell'elenco: era gia' il posto dove si legge
+    // "N cime riconosciute", ed e' li' che si va a cercare quali siano.
+    return GestureDetector(
+      onTap: _viewshedVisible.isEmpty ? null : _showVisiblePeaks,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: scheme.surface.withValues(alpha: 0.92),
@@ -1894,6 +1928,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
             ),
           ],
         ],
+      ),
       ),
     );
   }
