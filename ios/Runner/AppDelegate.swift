@@ -1,6 +1,8 @@
 import Flutter
 import UIKit
 import CoreMotion
+import AVFoundation
+import CoreMedia
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -29,6 +31,13 @@ import CoreMotion
         switch call.method {
         case "isAvailable":
           result(channel.isAvailable)
+        case "getCameraFov":
+          // Campo visivo reale dell'obiettivo posteriore. `videoFieldOfView`
+          // e' l'angolo ORIZZONTALE del formato attivo, cioe' esattamente
+          // quello che la sessione sta usando: il verticale si ricava dal
+          // rapporto d'aspetto, e va calcolato sulle TANGENTI perche' la
+          // proiezione e' prospettica, non lineare.
+          result(Self.backCameraFieldOfView())
         case "setLocation":
           // Su iOS la posizione non serve: il reference frame
           // `xTrueNorthZVertical` è già riferito al nord geografico ed è il
@@ -45,6 +54,40 @@ import CoreMotion
       )
       eventChannel.setStreamHandler(channel)
     }
+  }
+}
+
+extension AppDelegate {
+  /// Campo visivo del fotogramma pieno della fotocamera posteriore, in gradi.
+  ///
+  /// Serve al Mountain Finder: per sovrapporre le etichette alle montagne
+  /// bisogna sapere quanti gradi di mondo entrano nell'inquadratura, e finora
+  /// era un valore medio scritto a tavolino e mai verificato sul dispositivo.
+  /// Il ritaglio della preview lo applica il lato Dart, che e' l'unico a sapere
+  /// come e' composta a schermo.
+  static func backCameraFieldOfView() -> [String: Any]? {
+    guard let device = AVCaptureDevice.default(
+      .builtInWideAngleCamera, for: .video, position: .back
+    ) else { return nil }
+
+    let format = device.activeFormat
+    let horizontal = Double(format.videoFieldOfView)
+    guard horizontal > 1 else { return nil }
+
+    let dims = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+    guard dims.width > 0, dims.height > 0 else { return nil }
+
+    // Verticale dalle tangenti, non dai gradi: raddoppiare l'angolo non
+    // raddoppia l'estensione inquadrata.
+    let aspect = Double(dims.height) / Double(dims.width)
+    let halfH = horizontal / 2 * .pi / 180
+    let vertical = 2 * atan(tan(halfH) * aspect) * 180 / .pi
+
+    return [
+      "horizontalDeg": horizontal,
+      "verticalDeg": vertical,
+      "format": "\(dims.width)x\(dims.height)",
+    ]
   }
 }
 

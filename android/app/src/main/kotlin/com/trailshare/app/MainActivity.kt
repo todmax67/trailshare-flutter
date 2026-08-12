@@ -69,6 +69,11 @@ class MainActivity : FlutterFragmentActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isAvailable" -> result.success(channel.isAvailable)
+                // Campo visivo reale dell'obiettivo: vive qui e non in un
+                // canale a parte perche' e' una sola lettura, e serve alla
+                // stessa schermata dell'assetto.
+                "getCameraFov" ->
+                    result.success(CameraFovProbe.backCameraFieldOfView(this))
                 "setLocation" -> {
                     val lat = call.argument<Double>("latitude")
                     val lng = call.argument<Double>("longitude")

@@ -112,6 +112,29 @@ class DeviceAttitudeService {
     }
   }
 
+  /// Campo visivo del fotogramma pieno della fotocamera posteriore, in gradi,
+  /// nell'orientamento nativo del sensore. `null` se la piattaforma non sa
+  /// rispondere — in quel caso restano i valori di calibrazione manuale.
+  ///
+  /// Il ritaglio della preview NON è applicato qui: lo fa `screenFovFromSensor`,
+  /// perché dipende da come la preview è composta a schermo e questo lo sa solo
+  /// la pagina.
+  Future<({double horizontalDeg, double verticalDeg})?> sensorFieldOfView() async {
+    try {
+      final r = await _method.invokeMethod('getCameraFov');
+      if (r is! Map) return null;
+      final h = (r['horizontalDeg'] as num?)?.toDouble();
+      final v = (r['verticalDeg'] as num?)?.toDouble();
+      if (h == null || v == null || h <= 1 || v <= 1) return null;
+      debugPrint('[Attitude] FOV sensore: '
+          '${h.toStringAsFixed(1)}x${v.toStringAsFixed(1)}° ${r['sensorMm'] ?? r['format'] ?? ''}');
+      return (horizontalDeg: h, verticalDeg: v);
+    } catch (e) {
+      debugPrint('[Attitude] FOV sensore non disponibile: $e');
+      return null;
+    }
+  }
+
   /// True quando siamo sul ripiego bussola + accelerometro.
   bool get isUsingFallback => _usingFallback;
 

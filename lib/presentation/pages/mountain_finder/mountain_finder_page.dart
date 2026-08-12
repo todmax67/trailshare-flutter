@@ -15,6 +15,7 @@ import '../../../core/services/peaks_dataset_service.dart';
 import '../../../core/services/pro_gate_service.dart';
 import '../../../core/services/terrain_tile_service.dart';
 import '../../../core/services/viewshed_service.dart';
+import '../../../core/utils/camera_fov.dart';
 import '../../../core/utils/camera_orientation.dart';
 import '../../../core/utils/mountain_photo_renderer.dart';
 import '../../../core/utils/mountain_projection.dart';
@@ -172,6 +173,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
   /// offset falso che sposta anche tutte le etichette. Lo strumento che deve
   /// dimostrare la correttezza diventerebbe la causa dell'errore.
   Position? _skylinePosition;
+
+  /// Campo visivo del fotogramma pieno dell'obiettivo, letto dall'hardware.
+  /// Null finché non risponde, o se la piattaforma non lo espone.
+  ({double horizontalDeg, double verticalDeg})? _sensorFov;
+
+  /// Ultimo campo visivo effettivo calcolato, per la diagnostica.
+  CameraFov? _lastEffectiveFov;
+  bool _loggedEffectiveFov = false;
 
   /// Mostra il profilo dell'orizzonte (preferenza persistita).
   bool get _showSkyline => MountainFinderSettings().showSkyline;
@@ -331,6 +340,14 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         // Su alcuni device il plugin non espone questi metodi: lasciamo
         // i default (1.0, 1.0) che disabilitano il pinch-to-zoom.
       }
+
+      // Campo visivo reale dell'obiettivo. Era l'ultimo numero indovinato
+      // della catena: 60°x80° scritti a tavolino e mai verificati su questo
+      // telefono, mentre orientamento, declinazione, quota e occlusioni sono
+      // ormai tutti misurati o derivati.
+      unawaited(DeviceAttitudeService().sensorFieldOfView().then((fov) {
+        if (mounted && fov != null) setState(() => _sensorFov = fov);
+      }));
 
       // GPS — prima posizione + stream.
       try {
@@ -699,6 +716,56 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     );
   }
 
+  /// Campo visivo da usare per la proiezione, in gradi (orizzontale, verticale)
+  /// **riferiti allo schermo**.
+  ///
+  /// Se l'utente non ha regolato nulla si usa quello letto dall'obiettivo,
+  /// corretto per la rotazione e per il ritaglio `BoxFit.cover` della preview —
+  /// una misura, non una supposizione. Gli slider di calibrazione restano come
+  /// sovrascrittura, ma da qui in poi servono a rifinire, non a indovinare.
+  (double, double) _fovForViewport(Size viewport) {
+    final settings = MountainFinderSettings();
+    final isPortrait = viewport.height >= viewport.width;
+
+    final sensor = _sensorFov;
+    if (!settings.hasManualFov && sensor != null) {
+      final preview = _camera?.value.previewSize;
+      if (preview != null) {
+        final measured = screenFovFromSensor(
+          sensorHorizontalDeg: sensor.horizontalDeg,
+          sensorVerticalDeg: sensor.verticalDeg,
+          // Il buffer arriva sempre nell'orientamento nativo del sensore.
+          bufferWidth: preview.width,
+          bufferHeight: preview.height,
+          viewportWidth: viewport.width,
+          viewportHeight: viewport.height,
+        );
+        if (measured != null) {
+          if (!_loggedEffectiveFov) {
+            _loggedEffectiveFov = true;
+            debugPrint('[MountainFinder] FOV schermo: '
+                '${measured.horizontalDeg.toStringAsFixed(1)}×'
+                '${measured.verticalDeg.toStringAsFixed(1)}° '
+                '(sensore ${sensor.horizontalDeg.toStringAsFixed(1)}×'
+                '${sensor.verticalDeg.toStringAsFixed(1)}°, '
+                'buffer ${preview.width.toStringAsFixed(0)}×'
+                '${preview.height.toStringAsFixed(0)}, '
+                'viewport ${viewport.width.toStringAsFixed(0)}×'
+                '${viewport.height.toStringAsFixed(0)})');
+          }
+          _lastEffectiveFov = measured;
+          return (measured.horizontalDeg, measured.verticalDeg);
+        }
+      }
+    }
+
+    // Ripiego: valori di calibrazione. Sono espressi assumendo portrait, quindi
+    // in landscape vanno scambiati perché descrivono gli assi dello schermo.
+    final calibH = settings.horizontalFovDeg;
+    final calibV = settings.verticalFovDeg;
+    return isPortrait ? (calibH, calibV) : (calibV, calibH);
+  }
+
   /// Raggio effettivo, in km: il minore fra quello scelto dall'utente e quello
   /// consentito dal tier.
   ///
@@ -1062,8 +1129,6 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
     }
     setState(() => _processingCapture = true);
     try {
-      final settings = MountainFinderSettings();
-
       // Snapshot del viewport corrente per la math di proiezione.
       final mq = MediaQuery.of(context);
       final viewport = Size(
@@ -1074,11 +1139,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       // FOV: orientation-aware (swap H/V in landscape, vedi note in
       // _buildCameraWithOverlay). Lo zoom non si applica più dividendo i
       // gradi: restringe la **tangente** del semiangolo, dentro la proiezione.
-      final isPortrait = viewport.height >= viewport.width;
-      final calibH = settings.horizontalFovDeg;
-      final calibV = settings.verticalFovDeg;
-      final effHFov = isPortrait ? calibH : calibV;
-      final effVFov = isPortrait ? calibV : calibH;
+      final (effHFov, effVFov) = _fovForViewport(viewport);
 
       // Tutti i peak nel cono FOV — niente cap come in live
       // (la differenza Free vs Pro!).
@@ -1154,17 +1215,9 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
         final pos = _userPosition;
         final basis = _currentBasis;
 
-        // Ricalcola sincrono con la dimensione corrente.
-        final settings = MountainFinderSettings();
-        // FOV effettivo: la calibrazione H/V è fatta in portrait
-        // (sensor long-axis verticale). In landscape il long-axis e'
-        // orizzontale: H/V vanno scambiati perché descrivono gli assi dello
-        // schermo, non quelli del sensore.
-        final isPortrait = viewport.height >= viewport.width;
-        final calibH = settings.horizontalFovDeg;
-        final calibV = settings.verticalFovDeg;
-        final effectiveHFov = isPortrait ? calibH : calibV;
-        final effectiveVFov = isPortrait ? calibV : calibH;
+        // Campo visivo riferito allo schermo: misurato dall'obiettivo se
+        // possibile, altrimenti dalla calibrazione manuale.
+        final (effectiveHFov, effectiveVFov) = _fovForViewport(viewport);
         final projected = (pos != null && basis != null)
             ? MountainProjection.projectAll(
                 peaks: _effectiveCandidatePeaks,
@@ -1731,10 +1784,18 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       row('allineam.',
           '↔ ${MountainFinderSettings().alignAzimuthOffsetDeg.toStringAsFixed(2)}° '
               '↕ ${MountainFinderSettings().alignPitchOffsetDeg.toStringAsFixed(2)}°'),
-      row('fov',
-          '${MountainFinderSettings().horizontalFovDeg.toStringAsFixed(0)}×'
-              '${MountainFinderSettings().verticalFovDeg.toStringAsFixed(0)}°'
-              ' · zoom ${_zoomLevel.toStringAsFixed(2)}x'),
+      row('fov sensore',
+          _sensorFov == null
+              ? '—'
+              : '${_sensorFov!.horizontalDeg.toStringAsFixed(1)}×'
+                  '${_sensorFov!.verticalDeg.toStringAsFixed(1)}°'),
+      row('fov schermo',
+          _lastEffectiveFov == null
+              ? (MountainFinderSettings().hasManualFov ? 'manuale' : '—')
+              : '${_lastEffectiveFov!.horizontalDeg.toStringAsFixed(1)}×'
+                  '${_lastEffectiveFov!.verticalDeg.toStringAsFixed(1)}°'
+                  ' ${MountainFinderSettings().hasManualFov ? "(manuale)" : ""}'),
+      row('zoom', '${_zoomLevel.toStringAsFixed(2)}x'),
     ];
 
     return Container(

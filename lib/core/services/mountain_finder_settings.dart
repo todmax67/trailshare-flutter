@@ -28,6 +28,7 @@ class MountainFinderSettings extends ChangeNotifier {
   static const _kAlignLat = 'mf_align_lat';
   static const _kAlignLng = 'mf_align_lng';
   static const _kSkyline = 'mf_show_skyline';
+  static const _kManualFov = 'mf_manual_fov';
 
   /// Distanza oltre la quale una correzione manuale va buttata.
   ///
@@ -42,9 +43,16 @@ class MountainFinderSettings extends ChangeNotifier {
   static const double maxAlignOffsetDeg = 25;
 
   // Range ammessi nello slider di calibrazione.
-  static const double minHFov = 40;
+  //
+  // Il minimo orizzontale era 40°, ma su un telefono reale il campo davvero
+  // inquadrato in portrait è risultato 39,4°: il valore corretto stava **fuori
+  // dall'intervallo regolabile**, quindi nessuna calibrazione manuale poteva
+  // raggiungerlo. Un intervallo che esclude il vero non è una protezione, è un
+  // difetto — la preview è un ritaglio stretto del sensore, e può scendere
+  // parecchio.
+  static const double minHFov = 20;
   static const double maxHFov = 95;
-  static const double minVFov = 40;
+  static const double minVFov = 20;
   static const double maxVFov = 115;
 
   // Range ammesso per il filtro distanza (km).
@@ -63,6 +71,7 @@ class MountainFinderSettings extends ChangeNotifier {
   double? _alignLat;
   double? _alignLng;
   bool _showSkyline = true;
+  bool _manualFov = false;
   bool _loaded = false;
 
   double get horizontalFovDeg => _hFovDeg;
@@ -90,6 +99,10 @@ class MountainFinderSettings extends ChangeNotifier {
   /// già riconosce.
   bool get showSkyline => _showSkyline;
 
+  /// True se l'utente ha regolato il campo visivo a mano. Finché è false si usa
+  /// quello letto dall'obiettivo, che è una misura e non una supposizione.
+  bool get hasManualFov => _manualFov;
+
   bool get isLoaded => _loaded;
 
   /// Carica i valori salvati. Idempotente.
@@ -107,6 +120,7 @@ class MountainFinderSettings extends ChangeNotifier {
       _alignLat = prefs.getDouble(_kAlignLat);
       _alignLng = prefs.getDouble(_kAlignLng);
       _showSkyline = prefs.getBool(_kSkyline) ?? true;
+      _manualFov = prefs.getBool(_kManualFov) ?? false;
       _loaded = true;
       notifyListeners();
     } catch (e) {
@@ -198,10 +212,36 @@ class MountainFinderSettings extends ChangeNotifier {
     }
   }
 
+  /// Torna al campo visivo letto dall'obiettivo, scartando la regolazione
+  /// manuale.
+  Future<void> clearManualFov() async {
+    if (!_manualFov) return;
+    _manualFov = false;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kManualFov, false);
+    } catch (e) {
+      debugPrint('[MFSettings] clear manual fov error: $e');
+    }
+  }
+
+  Future<void> _markManualFov() async {
+    if (_manualFov) return;
+    _manualFov = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kManualFov, true);
+    } catch (e) {
+      debugPrint('[MFSettings] mark manual fov error: $e');
+    }
+  }
+
   Future<void> setHorizontalFov(double deg) async {
     final clamped = deg.clamp(minHFov, maxHFov).toDouble();
     if ((clamped - _hFovDeg).abs() < 0.01) return;
     _hFovDeg = clamped;
+    await _markManualFov();
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -215,6 +255,7 @@ class MountainFinderSettings extends ChangeNotifier {
     final clamped = deg.clamp(minVFov, maxVFov).toDouble();
     if ((clamped - _vFovDeg).abs() < 0.01) return;
     _vFovDeg = clamped;
+    await _markManualFov();
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -230,5 +271,6 @@ class MountainFinderSettings extends ChangeNotifier {
     await setVerticalFov(MountainProjection.defaultVerticalFovDeg);
     await setMaxDistanceKm(defaultDistanceKm);
     await resetAlignOffset();
+    await clearManualFov();
   }
 }
