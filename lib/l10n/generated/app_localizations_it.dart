@@ -5185,6 +5185,9 @@ class AppLocalizationsIt extends AppLocalizations {
   String get mfSkylineTitle => 'Profilo dell\'orizzonte';
 
   @override
+  String get mfPanoramaFromHere => 'Cosa si vede da questa vetta';
+
+  @override
   String get mfSkylineHelp =>
       'Disegna il profilo del terreno sopra la camera: se combacia con le montagne, il puntamento è giusto';
 

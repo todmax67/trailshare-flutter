@@ -30,6 +30,7 @@ import '../../widgets/peak_context_section.dart';
 import '../../widgets/skyline_overlay.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
+import 'panorama_page.dart';
 import 'peak_map_page.dart';
 import '../../../core/utils/camera_teardown.dart';
 
@@ -2430,6 +2431,28 @@ class _PeakDetailSheetState extends State<_PeakDetailSheet> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            // Il panorama da quella vetta. È la domanda che la fotocamera non
+            // può porre — per puntarla bisogna già essere lassù — e la sola
+            // parte della funzione che si può provare stando a casa.
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PanoramaPage.fromPeak(p),
+                  ),
+                ),
+                icon: const Icon(Icons.panorama_horizontal_outlined, size: 18),
+                label: Text(context.l10n.mfPanoramaFromHere),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: BorderSide(color: accent.withValues(alpha: 0.5)),
+                  foregroundColor: accent,
+                ),
+              ),
             ),
             const SizedBox(height: 10),
             // Pulsante OSM (secondario)

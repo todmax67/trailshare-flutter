@@ -5157,6 +5157,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mfSkylineTitle => 'Horizon outline';
 
   @override
+  String get mfPanoramaFromHere => 'What you can see from this summit';
+
+  @override
   String get mfSkylineHelp =>
       'Draws the terrain outline over the camera: if it matches the mountains, the aim is right';
 

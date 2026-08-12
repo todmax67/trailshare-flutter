@@ -9332,6 +9332,12 @@ abstract class AppLocalizations {
   /// **'Profilo dell\'orizzonte'**
   String get mfSkylineTitle;
 
+  /// No description provided for @mfPanoramaFromHere.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa si vede da questa vetta'**
+  String get mfPanoramaFromHere;
+
   /// No description provided for @mfSkylineHelp.
   ///
   /// In it, this message translates to:

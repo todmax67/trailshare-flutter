@@ -43,6 +43,10 @@ class ViewshedService {
     required ViewshedTier tier,
     double? radiusKm,
     bool computeSkyline = true,
+    /// A false il risultato non entra in cache e non ne esce: serve al
+    /// panorama, che calcola da un punto di vista **diverso** da dove si
+    /// trova l'utente e altrimenti butterebbe fuori il risultato dell'AR.
+    bool useCache = true,
   }) async {
     final stopwatch = Stopwatch()..start();
 
@@ -62,7 +66,7 @@ class ViewshedService {
     // risultato dipende da entrambi, e con la chiave incompleta spostare lo
     // slider della distanza non produceva alcun effetto finché l'utente non
     // camminava per mezzo chilometro — lo slider sembrava rotto.
-    if (tier.persistentCache && _cached != null) {
+    if (useCache && tier.persistentCache && _cached != null) {
       final dist = _haversineMeters(
         observerLat, observerLng,
         _cached!.observerLat, _cached!.observerLng,
@@ -200,7 +204,7 @@ class ViewshedService {
       skylineAngles: result.skylineAngles,
     );
 
-    if (tier.persistentCache) {
+    if (useCache && tier.persistentCache) {
       _cached = _CachedViewshed(
         observerLat: observerLat,
         observerLng: observerLng,
