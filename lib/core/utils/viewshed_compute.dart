@@ -404,6 +404,58 @@ List<double> _computeSkyline(ViewshedRequest req, double eyeElev) {
   return skyline;
 }
 
+/// Altezza del terreno a un azimut qualsiasi, interpolata fra i campioni dello
+/// skyline.
+///
+/// Lo skyline è un array **circolare**: il campione dopo l'ultimo è il primo, e
+/// l'azimut 359,9° sta fra i due. Chi lo indicizza a mano lo dimentica, e il
+/// difetto si vede solo guardando a nord.
+///
+/// Restituisce `NaN` dove il terreno non è noto, propagando l'ignoranza invece
+/// di appiattirla su uno zero che sembrerebbe un orizzonte piatto vero.
+double skylineElevationAt(List<double> skyline, double azDeg) {
+  final n = skyline.length;
+  if (n == 0) return double.nan;
+  final f = (azDeg % 360) / 360 * n;
+  final i0 = f.floor() % n;
+  final i1 = (i0 + 1) % n;
+  final a = skyline[i0];
+  final b = skyline[i1];
+  if (a.isNaN || b.isNaN) return double.nan;
+  return a + (b - a) * (f - f.floorToDouble());
+}
+
+/// Quale cima può nascondere qualcosa che si trova in una certa direzione.
+///
+/// Restituisce l'indice nella lista, o `null` se nessuna cima è candidata.
+///
+/// Il vincolo che conta non è la vicinanza in azimut ma l'**altezza**: una cima
+/// più bassa del punto in cui il sole sparisce non può essere lei a nasconderlo,
+/// per quanto sia allineata. Senza questo controllo si finisce a dire «il sole
+/// tramonta dietro il Monte Tal dei Tali» indicando una collinetta che in quel
+/// momento sta dieci gradi più in basso.
+int? occluderIndex(
+  List<double> azimuthsDeg,
+  List<double> elevationAnglesDeg,
+  double azDeg,
+  double elevDeg, {
+  double maxDeltaDeg = 4,
+  double toleranceDeg = 0.5,
+}) {
+  int? best;
+  var bestDelta = maxDeltaDeg;
+  for (var i = 0; i < azimuthsDeg.length; i++) {
+    if (elevationAnglesDeg[i] < elevDeg - toleranceDeg) continue;
+    var d = (azimuthsDeg[i] - azDeg).abs();
+    if (d > 180) d = 360 - d;
+    if (d < bestDelta) {
+      bestDelta = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
 /// Drop apparente dovuto a curvatura terrestre + rifrazione atmosferica.
 double _earthDropMeters(double distanceM) {
   return (1 - _refractionK) * distanceM * distanceM / (2 * _earthRadiusM);

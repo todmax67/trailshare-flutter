@@ -78,6 +78,7 @@ PeakResult runOne({
 }
 
 void main() {
+  _skylineHelpers();
   group('convenzione delle righe della griglia', () {
     // Il mosaico dei tile e elevationAt avevano convenzioni opposte e il DEM
     // veniva riletto specchiato nord-sud. Questi test bloccano il contratto.
@@ -357,6 +358,90 @@ void main() {
       expect(near, lessThan(40));
       expect(far, greaterThan(near));
       expect(far, lessThan(200));
+    });
+  });
+}
+
+/// Le due funzioni che il pannello del sole usa per dire *dietro quale cima*
+/// tramonta. Sono geometria pura e sbagliano in modi silenziosi: un errore
+/// sul giro dei 360° si vede solo guardando a nord.
+void _skylineHelpers() {
+  group('skylineElevationAt — array circolare', () {
+    // Quattro campioni: nord 10°, est 20°, sud 30°, ovest 40°.
+    final sky = [10.0, 20.0, 30.0, 40.0];
+
+    test('sui campioni restituisce il valore esatto', () {
+      expect(skylineElevationAt(sky, 0), closeTo(10, 1e-9));
+      expect(skylineElevationAt(sky, 90), closeTo(20, 1e-9));
+      expect(skylineElevationAt(sky, 180), closeTo(30, 1e-9));
+      expect(skylineElevationAt(sky, 270), closeTo(40, 1e-9));
+    });
+
+    test('interpola fra due campioni', () {
+      expect(skylineElevationAt(sky, 45), closeTo(15, 1e-9));
+      expect(skylineElevationAt(sky, 135), closeTo(25, 1e-9));
+    });
+
+    test('chiude il cerchio fra l\'ultimo campione e il primo', () {
+      // Fra ovest (40°) e nord (10°) si torna indietro: a 315° siamo a meta'.
+      expect(skylineElevationAt(sky, 315), closeTo(25, 1e-9));
+      // E appena prima del nord si e' quasi tornati a 10.
+      expect(skylineElevationAt(sky, 359.9), closeTo(10.03, 0.05));
+    });
+
+    test('360 e 0 sono lo stesso azimut', () {
+      expect(skylineElevationAt(sky, 360), closeTo(skylineElevationAt(sky, 0), 1e-9));
+    });
+
+    test('gli azimut negativi rientrano nel giro', () {
+      expect(skylineElevationAt(sky, -90), closeTo(40, 1e-9));
+    });
+
+    test('il terreno ignoto resta ignoto, non diventa zero', () {
+      final holed = [10.0, double.nan, 30.0, 40.0];
+      expect(skylineElevationAt(holed, 90).isNaN, isTrue);
+      // Anche il tratto che confina col buco: interpolare verso NaN sarebbe
+      // inventare meta' pendio.
+      expect(skylineElevationAt(holed, 45).isNaN, isTrue);
+      expect(skylineElevationAt(holed, 180), closeTo(30, 1e-9));
+    });
+
+    test('uno skyline vuoto non manda in crash', () {
+      expect(skylineElevationAt(const [], 123).isNaN, isTrue);
+    });
+  });
+
+  group('occluderIndex — chi nasconde davvero', () {
+    test('sceglie la cima allineata e abbastanza alta', () {
+      final az = [100.0, 250.0, 252.0];
+      final el = [30.0, 12.0, 3.0];
+      // Il sole sparisce a 251°, a 10° di altezza: la cima a 252° e' troppo
+      // bassa, quella a 250° arriva.
+      expect(occluderIndex(az, el, 251, 10), 1);
+    });
+
+    test('scarta una cima più bassa del punto di sparizione', () {
+      final az = [250.0];
+      final el = [3.0];
+      expect(occluderIndex(az, el, 250, 10), isNull,
+          reason: 'una collina bassa non puo\' nascondere il sole alto');
+    });
+
+    test('scarta le cime lontane in azimut', () {
+      final az = [200.0];
+      final el = [40.0];
+      expect(occluderIndex(az, el, 250, 10), isNull);
+    });
+
+    test('trova la cima anche a cavallo del nord', () {
+      final az = [359.0];
+      final el = [20.0];
+      expect(occluderIndex(az, el, 1, 5), 0,
+          reason: '359° e 1° distano due gradi, non trecentocinquantotto');
+    });
+
+    test('una lista vuota non dà nessun colpevole', () {
+      expect(occluderIndex(const [], const [], 250, 10), isNull);
     });
   });
 }

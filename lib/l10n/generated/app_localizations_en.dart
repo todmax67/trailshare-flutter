@@ -5164,6 +5164,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Draws the terrain outline over the camera: if it matches the mountains, the aim is right';
 
   @override
+  String get mfSunPathTitle => 'Sun and moon';
+
+  @override
+  String get mfSunPathHelp =>
+      'Draws the path of the sun and moon with the hours: shows when the sun will clear a ridge, and lets you check the aim against the real sun';
+
+  @override
   String get mfViewshedPartialTerrain =>
       'Incomplete terrain data: some peaks may be hidden';
 

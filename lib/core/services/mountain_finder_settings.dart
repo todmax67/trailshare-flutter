@@ -28,6 +28,7 @@ class MountainFinderSettings extends ChangeNotifier {
   static const _kAlignLat = 'mf_align_lat';
   static const _kAlignLng = 'mf_align_lng';
   static const _kSkyline = 'mf_show_skyline';
+  static const _kSunPath = 'mf_show_sun_path';
   static const _kManualFov = 'mf_manual_fov';
 
   /// Distanza oltre la quale una correzione manuale va buttata.
@@ -71,6 +72,7 @@ class MountainFinderSettings extends ChangeNotifier {
   double? _alignLat;
   double? _alignLng;
   bool _showSkyline = true;
+  bool _showSunPath = false;
   bool _manualFov = false;
   bool _loaded = false;
 
@@ -99,6 +101,11 @@ class MountainFinderSettings extends ChangeNotifier {
   /// già riconosce.
   bool get showSkyline => _showSkyline;
 
+  /// Se disegnare il cammino di sole e luna sopra la camera. Spento di default:
+  /// è la funzione in più, non quella per cui si apre la schermata, e con la
+  /// camera già piena di nomi meglio che sia l'utente ad accenderla.
+  bool get showSunPath => _showSunPath;
+
   /// True se l'utente ha regolato il campo visivo a mano. Finché è false si usa
   /// quello letto dall'obiettivo, che è una misura e non una supposizione.
   bool get hasManualFov => _manualFov;
@@ -120,6 +127,7 @@ class MountainFinderSettings extends ChangeNotifier {
       _alignLat = prefs.getDouble(_kAlignLat);
       _alignLng = prefs.getDouble(_kAlignLng);
       _showSkyline = prefs.getBool(_kSkyline) ?? true;
+      _showSunPath = prefs.getBool(_kSunPath) ?? false;
       _manualFov = prefs.getBool(_kManualFov) ?? false;
       _loaded = true;
       notifyListeners();
@@ -196,6 +204,18 @@ class MountainFinderSettings extends ChangeNotifier {
       await prefs.setBool(_kSkyline, value);
     } catch (e) {
       debugPrint('[MFSettings] save skyline error: $e');
+    }
+  }
+
+  Future<void> setShowSunPath(bool value) async {
+    if (_showSunPath == value) return;
+    _showSunPath = value;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kSunPath, value);
+    } catch (e) {
+      debugPrint('[MFSettings] save sun path error: $e');
     }
   }
 

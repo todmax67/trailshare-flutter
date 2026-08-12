@@ -9344,6 +9344,18 @@ abstract class AppLocalizations {
   /// **'Disegna il profilo del terreno sopra la camera: se combacia con le montagne, il puntamento è giusto'**
   String get mfSkylineHelp;
 
+  /// No description provided for @mfSunPathTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Sole e luna'**
+  String get mfSunPathTitle;
+
+  /// No description provided for @mfSunPathHelp.
+  ///
+  /// In it, this message translates to:
+  /// **'Disegna il cammino di sole e luna con le ore: dice quando il sole scavalcherà una cresta, e permette di verificare il puntamento sul sole vero'**
+  String get mfSunPathHelp;
+
   /// No description provided for @mfViewshedPartialTerrain.
   ///
   /// In it, this message translates to:

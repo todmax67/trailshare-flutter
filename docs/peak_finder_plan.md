@@ -574,6 +574,73 @@ da soli giustificano il metodo:
 
 ---
 
+## 7-ter. Fase 4 — sole e luna
+
+Il pezzo che chi fotografa cerca per primo, e che finora mancava del tutto.
+
+**Astronomia** (`lib/core/utils/sun_moon.dart`). Sole con l'algoritmo NOAA a
+bassa precisione (pochi primi d'arco), luna con i termini principali di Meeus
+(~mezzo grado). Nessuna dipendenza: né rete, né terreno, né sensori — sono
+formule, quindi funziona ovunque e sempre.
+
+I test non confrontano con una libreria, verificano **geometria calcolabile a
+mano**, che nessuna formula sbagliata soddisfa per caso:
+
+| Verifica | Valore atteso |
+|---|---|
+| Solstizio d'estate, 45°N | 68,4° di altezza massima |
+| Solstizio d'inverno, 45°N | 21,6° |
+| Equinozio all'equatore | il sole passa allo zenit |
+| Equinozio, alba e tramonto | esattamente 90° e 270° |
+| Durata del giorno a 45°N | 15,5 h a giugno, 8,7 h a dicembre |
+| 80°N a dicembre / giugno | notte polare / sole di mezzanotte |
+| Mezzogiorno a Sydney | il sole sta a **nord** |
+| Fase lunare su un mese | ciclo completo nuova → piena, nell'ordine |
+
+L'ultima riga della tabella è quella che protegge dall'errore più insidioso:
+gli almanacchi astronomici misurano l'azimut **dal sud**, il resto del Peak
+Finder dal nord. Chi mischia le due convenzioni disegna il sole a 180° dal punto
+in cui sta, e i numeri restano dall'aria sensata.
+
+**Il tramonto vero** (`horizonCrossing`). Non quello da almanacco: l'istante in
+cui il sole passa **dietro la cresta**, che in montagna arriva anche mezz'ora
+prima. Si incrocia il cammino solare col profilo del terreno già calcolato. Dove
+il DEM non sa rispondere la funzione **tace** invece di ripiegare su un orizzonte
+piatto immaginario — c'è un test apposta.
+
+Per dire *dietro quale cima*, non basta la più vicina in azimut: serve che arrivi
+almeno all'altezza a cui il sole sparisce (`occluderIndex`). Senza quel vincolo
+si annuncia il tramonto dietro una collinetta che in quel momento sta dieci gradi
+più in basso. Quando nessuna cima ci arriva si dà la direzione in gradi e basta:
+sparire dietro una cresta senza nome è la norma, inventarle un nome no.
+
+**Nel panorama.** Arco del sole e della luna con le ore segnate, cursore
+dell'ora, scelta della data, e la riga che riassume tutto: *«Il sole sparisce
+dietro il Pizzo del Diavolo alle 19:58»*. Gli archi e i dischi si disegnano
+**sotto** il terreno: quando il sole è già dietro la cresta ci sparisce dietro
+anche nel disegno, altrimenti l'immagine direbbe il contrario della riga di
+riepilogo. La fascia verticale si allarga da 42° a quanto serve, perché a
+mezzogiorno d'estate il sole sta a 68° e verrebbe schiacciato sul bordo.
+
+**Nella camera** (`sun_path_overlay.dart`). Stesso cammino proiettato sulla vista
+AR, spento di default. Serve a due cose, e **la seconda vale più della prima**:
+
+1. Alzi il telefono verso una cresta e leggi a che ora il sole ci passerà sopra.
+2. Il sole è **l'unico oggetto in cielo di cui conosciamo la posizione esatta
+   senza sensori**. Se il disco disegnato cade sul sole vero, il puntamento è
+   giusto; se non ci cade, si vede di quanto sbaglia. Il profilo del terreno
+   richiede di riconoscere le montagne — il sole no. È la prima verifica
+   dell'allineamento che funziona anche per chi non conosce la zona.
+
+Per questo il disco è disegnato alla **dimensione angolare vera** (mezzo grado) e
+non come un cerchione: un simbolo grande coprirebbe l'errore che dovrebbe
+mostrare.
+
+> Avvertenza d'uso: si guarda lo schermo, non il sole. E la fotocamera non va
+> tenuta puntata sul disco solare a lungo, per il sensore.
+
+---
+
 ## 8. Domande aperte (decisione del founder)
 
 1. **Packaging.** Oggi il viewshed è attivo per tutti con limiti Free e l'unica cosa davvero

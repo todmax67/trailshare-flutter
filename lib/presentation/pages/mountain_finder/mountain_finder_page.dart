@@ -28,6 +28,7 @@ import '../../widgets/app_snackbar.dart';
 import '../../widgets/paywall_sheet.dart';
 import '../../widgets/peak_context_section.dart';
 import '../../widgets/skyline_overlay.dart';
+import '../../widgets/sun_path_overlay.dart';
 import 'mountain_finder_calibration_page.dart';
 import 'mountain_photo_result_page.dart';
 import 'panorama_page.dart';
@@ -186,6 +187,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
 
   /// Mostra il profilo dell'orizzonte (preferenza persistita).
   bool get _showSkyline => MountainFinderSettings().showSkyline;
+  bool get _showSunPath => MountainFinderSettings().showSunPath;
 
   /// True se il profilo disegnato è stato calcolato abbastanza vicino a dove
   /// siamo adesso. La verifica sta qui, in un solo punto, invece che nei vari
@@ -1375,6 +1377,21 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
                   horizontalFovDeg: effectiveHFov,
                   verticalFovDeg: effectiveVFov,
                   zoom: _zoomLevel,
+                ),
+              ),
+
+            // Sole e luna. Sopra il profilo del terreno perche' il disco solare
+            // deve restare leggibile anche quando cade sulla linea, e sotto le
+            // etichette perche' i nomi delle cime vengono prima.
+            if (basis != null && _showSunPath && _userPosition != null)
+              Positioned.fill(
+                child: SunPathOverlay(
+                  basis: basis,
+                  horizontalFovDeg: effectiveHFov,
+                  verticalFovDeg: effectiveVFov,
+                  zoom: _zoomLevel,
+                  observerLat: _userPosition!.latitude,
+                  observerLng: _userPosition!.longitude,
                 ),
               ),
 
@@ -2805,6 +2822,29 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
               ),
               subtitle: Text(
                 context.l10n.mfSkylineHelp,
+                style: TextStyle(fontSize: 12, color: context.textSecondary),
+              ),
+              activeThumbColor: AppColors.primary,
+            ),
+            // Sole e luna. Spento di default: e' la funzione in piu', e con la
+            // camera gia' piena di nomi va accesa quando serve.
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: MountainFinderSettings().showSunPath,
+              onChanged: (v) {
+                setState(() {});
+                MountainFinderSettings().setShowSunPath(v);
+              },
+              title: Text(
+                context.l10n.mfSunPathTitle,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: context.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                context.l10n.mfSunPathHelp,
                 style: TextStyle(fontSize: 12, color: context.textSecondary),
               ),
               activeThumbColor: AppColors.primary,

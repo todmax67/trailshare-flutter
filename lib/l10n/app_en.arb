@@ -2492,6 +2492,8 @@
   "mfSkylineTitle": "Horizon outline",
   "mfPanoramaFromHere": "What you can see from this summit",
   "mfSkylineHelp": "Draws the terrain outline over the camera: if it matches the mountains, the aim is right",
+  "mfSunPathTitle": "Sun and moon",
+  "mfSunPathHelp": "Draws the path of the sun and moon with the hours: shows when the sun will clear a ridge, and lets you check the aim against the real sun",
   "mfViewshedPartialTerrain": "Incomplete terrain data: some peaks may be hidden",
   "mfViewshedNothingVisible": "No peak is visible from here: they are all behind a ridge",
   "locationTimeout": "Cannot get position (GPS timeout). Try again outdoors.",

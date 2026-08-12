@@ -5192,6 +5192,13 @@ class AppLocalizationsIt extends AppLocalizations {
       'Disegna il profilo del terreno sopra la camera: se combacia con le montagne, il puntamento è giusto';
 
   @override
+  String get mfSunPathTitle => 'Sole e luna';
+
+  @override
+  String get mfSunPathHelp =>
+      'Disegna il cammino di sole e luna con le ore: dice quando il sole scavalcherà una cresta, e permette di verificare il puntamento sul sole vero';
+
+  @override
   String get mfViewshedPartialTerrain =>
       'Dati del terreno incompleti: alcune cime potrebbero essere nascoste';
 
