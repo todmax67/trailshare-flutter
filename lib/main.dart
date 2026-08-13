@@ -72,20 +72,26 @@ void main() async {
   // codice non si trova niente, perché non c'è niente da trovare: nessun
   // `signOut` automatico, persistenza al valore di default.
   //
-  // Tre righe che rispondono a tre domande diverse: su quale app Firebase si
-  // sta lavorando davvero (gli appId in `firebase_options.dart` erano di una
-  // registrazione vecchia), se all'avvio un utente c'è già, e se ne arriva uno
-  // **più tardi** — perché «assente subito» e «assente per sempre» sono due
-  // guasti diversi e finora li abbiamo visti come uno solo.
+  // La causa è stata trovata il 2026-08-13 (vedi AuthKeysetRepair.kt): il
+  // backup di Android ripristinava la sessione cifrata senza la chiave del
+  // Keystore che la apre, e Firebase restituiva null in silenzio.
+  //
+  // Queste righe restano accese come rete di sicurezza: se il guasto tornasse,
+  // in un'altra forma o su un altro dispositivo, si vedrebbe subito invece di
+  // costarci un'altra mattinata. Non dicono più CHI è l'utente — vedi sotto.
   if (!kIsWeb) {
     try {
       final opts = Firebase.app().options;
       debugPrint('[Auth/diag] appId=${opts.appId} progetto=${opts.projectId}');
-      debugPrint('[Auth/diag] utente all\'avvio: '
-          '${FirebaseAuth.instance.currentUser?.uid ?? "NESSUNO"}');
+      // Si dice SE la sessione è stata ritrovata, non DI CHI è. L'uid è servito
+      // mentre si cercava il guasto; adesso sarebbe un identificatore scritto
+      // nel log di sistema di tutti i telefoni, a beneficio di nessuno.
+      final ritrovata = FirebaseAuth.instance.currentUser != null;
+      debugPrint('[Auth/diag] sessione ritrovata all\'avvio: '
+          '${ritrovata ? "sì" : "NO"}');
       FirebaseAuth.instance.authStateChanges().take(3).listen(
             (u) => debugPrint(
-                '[Auth/diag] authStateChanges → ${u?.uid ?? "null"}'),
+                '[Auth/diag] authStateChanges → ${u == null ? "nessuno" : "utente"}'),
           );
     } catch (e) {
       debugPrint('[Auth/diag] non disponibile: $e');
