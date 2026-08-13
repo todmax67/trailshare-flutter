@@ -64,6 +64,34 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // Diagnostica della sessione, per un difetto che non lascia tracce.
+  //
+  // Il 2026-08-13, su Android, la sessione spariva a ogni chiusura dell'app:
+  // qualunque metodo di accesso, nessun errore, nessun crash, nessun rapporto
+  // in Crashlytics — mentre sullo stesso account iOS reggeva. Leggendo il
+  // codice non si trova niente, perché non c'è niente da trovare: nessun
+  // `signOut` automatico, persistenza al valore di default.
+  //
+  // Tre righe che rispondono a tre domande diverse: su quale app Firebase si
+  // sta lavorando davvero (gli appId in `firebase_options.dart` erano di una
+  // registrazione vecchia), se all'avvio un utente c'è già, e se ne arriva uno
+  // **più tardi** — perché «assente subito» e «assente per sempre» sono due
+  // guasti diversi e finora li abbiamo visti come uno solo.
+  if (!kIsWeb) {
+    try {
+      final opts = Firebase.app().options;
+      debugPrint('[Auth/diag] appId=${opts.appId} progetto=${opts.projectId}');
+      debugPrint('[Auth/diag] utente all\'avvio: '
+          '${FirebaseAuth.instance.currentUser?.uid ?? "NESSUNO"}');
+      FirebaseAuth.instance.authStateChanges().take(3).listen(
+            (u) => debugPrint(
+                '[Auth/diag] authStateChanges → ${u?.uid ?? "null"}'),
+          );
+    } catch (e) {
+      debugPrint('[Auth/diag] non disponibile: $e');
+    }
+  }
+
   // Crashlytics — prima di tutto il resto, così cattura anche i fallimenti di
   // init dei servizi qui sotto. Non esiste su web (il plugin non ha
   // implementazione web): lì restiamo senza.

@@ -14,6 +14,20 @@ import 'package:flutter/foundation.dart'
 ///   options: DefaultFirebaseOptions.currentPlatform,
 /// );
 /// ```
+/// **Attenzione: questo file era sbagliato, e per mesi nessuno se n'è accorto.**
+///
+/// Era stato generato prima che il pacchetto venisse rinominato in
+/// `com.trailshare.app`, e conteneva ancora gli appId e il bundle id della
+/// vecchia registrazione (`com.trailshare.trailshare_flutter`). Su mobile non
+/// faceva danno visibile perché a runtime vincono i file nativi —
+/// `google-services.json` e `GoogleService-Info.plist` — che il plugin legge
+/// per conto suo: questi valori venivano ignorati.
+///
+/// È il tipo di errore che non si manifesta finché qualcosa non comincia
+/// davvero a usarli, e allora si presenta come un guasto incomprensibile.
+///
+/// Se un domani si rigenera con `flutterfire configure`, **si verifichi che gli
+/// appId corrispondano ai due file nativi** prima di committare.
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
@@ -52,7 +66,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyClfCz4n9NPVVopvf0_tx9JCj8bHcZQ87w',
-    appId: '1:760969043040:android:c8beb2f286e9b85476f705',
+    appId: '1:760969043040:android:5a5dac92738c770876f705',
     messagingSenderId: '760969043040',
     projectId: 'trailshare-5334b',
     storageBucket: 'trailshare-5334b.firebasestorage.app',
@@ -60,24 +74,24 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCCto_miE4_c9EfOwDa7NovDI7Jh_0DhSA',
-    appId: '1:760969043040:ios:aa052dd2e9489d4b76f705',
+    appId: '1:760969043040:ios:68e32749c97160ea76f705',
     messagingSenderId: '760969043040',
     projectId: 'trailshare-5334b',
     storageBucket: 'trailshare-5334b.firebasestorage.app',
     androidClientId: '760969043040-1ngorkl23ebkn42l7qqnqkke89vc2i7i.apps.googleusercontent.com',
     iosClientId: '760969043040-rebmjpn824dc40gfo8s70k7n96262ud5.apps.googleusercontent.com',
-    iosBundleId: 'com.trailshare.trailshareFlutter',
+    iosBundleId: 'com.trailshare.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyCCto_miE4_c9EfOwDa7NovDI7Jh_0DhSA',
-    appId: '1:760969043040:ios:aa052dd2e9489d4b76f705',
+    appId: '1:760969043040:ios:68e32749c97160ea76f705',
     messagingSenderId: '760969043040',
     projectId: 'trailshare-5334b',
     storageBucket: 'trailshare-5334b.firebasestorage.app',
     androidClientId: '760969043040-1ngorkl23ebkn42l7qqnqkke89vc2i7i.apps.googleusercontent.com',
     iosClientId: '760969043040-rebmjpn824dc40gfo8s70k7n96262ud5.apps.googleusercontent.com',
-    iosBundleId: 'com.trailshare.trailshareFlutter',
+    iosBundleId: 'com.trailshare.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
