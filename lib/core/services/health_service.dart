@@ -95,6 +95,35 @@ class HealthService {
     }
   }
 
+  /// Se i permessi di **lettura** ci sono già, senza chiederli.
+  ///
+  /// Serve a distinguere due situazioni che finora si assomigliavano troppo:
+  /// «non ho dati da mostrarti» e «non mi è permesso leggerli». Sono due frasi
+  /// diverse e portano a due gesti diversi — la prima fa alzare le spalle, la
+  /// seconda fa toccare un pulsante.
+  ///
+  /// È successo davvero, il 2026-08-13: dopo una reinstallazione Android revoca
+  /// ogni permesso, e la dashboard ha continuato a dire «Passi oggi 0» e
+  /// «Nessun dato disponibile». Chi la leggeva ne ha concluso di aver **perso
+  /// lo storico** — la cosa peggiore che potesse pensare, e non era vera: i dati
+  /// stavano in Health Connect, intatti, dall'altra parte di un permesso.
+  ///
+  /// `null` quando la domanda non ha senso (web) o l'interrogazione fallisce:
+  /// anche qui, non sapere non è un no.
+  Future<bool?> hasReadPermissions() async {
+    if (kIsWeb) return null;
+    try {
+      await configure();
+      return await _health.hasPermissions(
+        _readTypes,
+        permissions: List.filled(_readTypes.length, HealthDataAccess.READ),
+      );
+    } catch (e) {
+      debugPrint('[HealthService] stato permessi non determinabile: $e');
+      return null;
+    }
+  }
+
   /// Verifica se Health Connect è disponibile (solo Android)
   Future<bool> isHealthConnectAvailable() async {
     if (kIsWeb) return false; // niente Health sul web

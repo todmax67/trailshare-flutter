@@ -17,6 +17,15 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
   final HealthService _healthService = HealthService();
 
   bool _isLoading = true;
+
+  /// `true` = possiamo leggere, `false` = permesso negato, `null` = non si sa.
+  ///
+  /// I tre stati sono tre messaggi diversi, e tenerne solo due e' esattamente
+  /// il difetto che questa pagina aveva: senza distinguere "negato" da "vuoto",
+  /// diceva "Nessun dato" a chi in realta' aveva tutti i suoi dati al sicuro
+  /// dall'altra parte di un permesso revocato.
+  bool? _canRead;
+
   int _todaySteps = 0;
   int? _restingHR;
   Map<String, double> _weeklyCalories = {};
@@ -35,6 +44,10 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Prima di leggere, chiedere se si puo': altrimenti zero significa due
+      // cose e la pagina ne mostra una sola.
+      _canRead = await _healthService.hasReadPermissions();
+
       final results = await Future.wait([
         _healthService.getTodaySteps(),
         _healthService.getRestingHeartRate(),
@@ -79,6 +92,13 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Il permesso mancante si dice PRIMA dei numeri, non dopo:
+                    // altrimenti si leggono gli zeri e si smette di guardare.
+                    if (_canRead == false) ...[
+                      _buildPermessiMancanti(),
+                      const SizedBox(height: 20),
+                    ],
+
                     // Carte principali
                     _buildMainCards(),
                     const SizedBox(height: 24),
@@ -102,6 +122,68 @@ class _HealthDashboardPageState extends State<HealthDashboardPage> {
               ),
             ),
     );
+  }
+
+  /// Il cartello che mancava.
+  ///
+  /// Dice tre cose in quest'ordine: i dati non sono persi, il motivo, e il
+  /// gesto che risolve. L'ordine conta — la prima e' quella che toglie lo
+  /// spavento, ed e' anche quella che nessuno aveva mai scritto.
+  Widget _buildPermessiMancanti() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.lock_outline, color: AppColors.warning, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'I tuoi dati ci sono, ma non posso leggerli',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: context.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Il permesso di accedere ai dati sanitari e\' stato revocato — '
+            'succede quando l\'app viene reinstallata. Lo storico e\' al sicuro '
+            'dov\'era: serve solo riconcederlo.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.35,
+              color: context.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _richiediPermessi,
+              icon: const Icon(Icons.health_and_safety, size: 18),
+              label: const Text('Riconcedi i permessi'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _richiediPermessi() async {
+    await _healthService.requestPermissions();
+    if (mounted) await _loadData();
   }
 
   Widget _buildMainCards() {
