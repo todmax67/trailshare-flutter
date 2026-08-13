@@ -4,17 +4,52 @@
   (android:fullBackupContent). Da Android 12 vale data_extraction_rules.xml,
   che deve restare coerente con questo file.
 
-  Il motivo per cui esiste: il backup automatico ha una quota di 25 MB per
-  app, e superandola fallisce per l'INTERA app, non solo per i file di
-  troppo. Le tile delle mappe offline stanno in app_flutter/offline_tiles
-  (path_provider mappa getApplicationDocumentsDirectory() su app_flutter,
-  non su files/) e sfondano quella quota al primo download di una regione.
+  ESCLUSIONE 1 — le tile delle mappe offline.
+  Il backup automatico ha una quota di 25 MB per app, e superandola fallisce
+  per l'INTERA app, non solo per i file di troppo. Le tile stanno in
+  app_flutter/offline_tiles (path_provider mappa
+  getApplicationDocumentsDirectory() su app_flutter, non su files/) e sfondano
+  quella quota al primo download di una regione.
 
   Il risultato era che centinaia di MB di tile — riscaricabili in qualunque
   momento con due tap — impedivano il backup di pochi KB che invece non lo
   sono: la persistenza della registrazione in corso, scritta nella stessa
   cartella da recording_persistence_service.dart.
+
+  ESCLUSIONE 2 — la sessione di Firebase Auth. Questa costa spiegarla.
+
+  Su Android la sessione non è salvata in chiaro: è CIFRATA. La chiave che la
+  cifra vive in `com.google.firebase.auth.api.crypto.<pk>.xml`, ed è a sua
+  volta protetta da una chiave dell'Android Keystore legata al dispositivo —
+  che viene DISTRUTTA quando l'app si disinstalla e non è ripristinabile da
+  nessun backup.
+
+  Salvare il file cifrato senza poter salvare la chiave che lo apre produce un
+  lucchetto orfano. Al ripristino, Firebase non riesce ad aprirlo, e — questa è
+  la parte che fa male — non solleva un errore: restituisce null e prosegue,
+  sia in lettura sia in scrittura. L'utente resta slogato a ogni apertura
+  dell'app, per sempre, senza un messaggio. E il file non viene mai rigenerato,
+  perché Tink lo ricrea solo quando NON esiste.
+
+  Misurato sul campo il 2026-08-13, con l'errore in chiaro nel logcat:
+    E FirebearStorageCryptoHelper: Keystore cannot load the key with ID:
+      firebear_main_key_id_for_storage_crypto.W0RFRkFVTFRd+MTo3NjA5...
+    E FirebearStorageCryptoHelper: KeysetManager failed to initialize
+      - unable to decrypt data
+
+  Il nome dei due file contiene la "chiave di persistenza" dell'app Firebase,
+  che è base64url("[DEFAULT]") + "+" + base64url(appId). Se un domani cambia
+  l'appId in google-services.json, questi due path vanno rigenerati — e la
+  verifica è banale: `adb shell run-as <pkg> ls shared_prefs/` su una build di
+  debug.
 -->
 <full-backup-content>
     <exclude domain="root" path="app_flutter/offline_tiles" />
+
+    <exclude
+        domain="sharedpref"
+        path="com.google.firebase.auth.api.crypto.W0RFRkFVTFRd+MTo3NjA5NjkwNDMwNDA6YW5kcm9pZDo1YTVkYWM5MjczOGM3NzA4NzZmNzA1.xml" />
+    <exclude
+        domain="sharedpref"
+        path="com.google.firebase.auth.api.Store.W0RFRkFVTFRd+MTo3NjA5NjkwNDMwNDA6YW5kcm9pZDo1YTVkYWM5MjczOGM3NzA4NzZmNzA1.xml" />
 </full-backup-content>

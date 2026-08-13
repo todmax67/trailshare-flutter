@@ -14,12 +14,49 @@
   fastidio che questa modifica nasce per evitare. Il trasferimento e' un
   gesto esplicito dell'utente, con barra di avanzamento e di solito via cavo:
   qualche centinaio di MB in piu' e' un prezzo accettabile.
+
+  LA SESSIONE DI FIREBASE AUTH SI ESCLUDE DA ENTRAMBI, e non e' un dettaglio.
+
+  Su Android la sessione e' CIFRATA. La chiave che la cifra sta in
+  `com.google.firebase.auth.api.crypto.<pk>.xml` ed e' protetta da una chiave
+  dell'Android Keystore **legata al dispositivo**: non esce di li' con nessun
+  backup e nessun trasferimento, e viene distrutta dalla disinstallazione.
+
+  Portarsi dietro il file cifrato senza la chiave che lo apre significa
+  consegnare al nuovo stato un lucchetto orfano. E Firebase, quando non riesce
+  ad aprirlo, NON solleva un errore: restituisce null e prosegue, sia in
+  lettura sia in scrittura. L'utente resta slogato a ogni apertura, per sempre,
+  senza un messaggio — e il file non viene mai rigenerato, perche' Tink lo
+  ricrea solo quando NON esiste.
+
+  Quindi vale per il trasferimento fra dispositivi esattamente quanto per il
+  backup su cloud, anzi di piu': una chiave del Keystore non attraversa
+  nemmeno il cavo. Meglio un login da rifare sul telefono nuovo — che l'utente
+  si aspetta — di una sessione che non si salva mai piu'.
+
+  Misurato sul campo il 2026-08-13. Il nome dei file contiene la chiave di
+  persistenza, cioe' base64url("[DEFAULT]") + "+" + base64url(appId): se cambia
+  l'appId vanno rigenerati.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" path="app_flutter/offline_tiles" />
+        <exclude
+            domain="sharedpref"
+            path="com.google.firebase.auth.api.crypto.W0RFRkFVTFRd+MTo3NjA5NjkwNDMwNDA6YW5kcm9pZDo1YTVkYWM5MjczOGM3NzA4NzZmNzA1.xml" />
+        <exclude
+            domain="sharedpref"
+            path="com.google.firebase.auth.api.Store.W0RFRkFVTFRd+MTo3NjA5NjkwNDMwNDA6YW5kcm9pZDo1YTVkYWM5MjczOGM3NzA4NzZmNzA1.xml" />
     </cloud-backup>
-    <!-- Nessun <exclude> qui: il trasferimento fra dispositivi porta con se'
-         anche le mappe offline. -->
-    <device-transfer />
+
+    <!-- Le mappe offline attraversano il cavo; la sessione cifrata no, per il
+         motivo spiegato sopra. -->
+    <device-transfer>
+        <exclude
+            domain="sharedpref"
+            path="com.google.firebase.auth.api.crypto.W0RFRkFVTFRd+MTo3NjA5NjkwNDMwNDA6YW5kcm9pZDo1YTVkYWM5MjczOGM3NzA4NzZmNzA1.xml" />
+        <exclude
+            domain="sharedpref"
+            path="com.google.firebase.auth.api.Store.W0RFRkFVTFRd+MTo3NjA5NjkwNDMwNDA6YW5kcm9pZDo1YTVkYWM5MjczOGM3NzA4NzZmNzA1.xml" />
+    </device-transfer>
 </data-extraction-rules>

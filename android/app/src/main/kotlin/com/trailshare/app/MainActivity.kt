@@ -1,5 +1,6 @@
 package com.trailshare.app
 
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -14,6 +15,15 @@ class MainActivity : FlutterFragmentActivity() {
 
     private var garminService: GarminSyncService? = null
     private var attitudeChannel: DeviceAttitudeChannel? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // PRIMA di super.onCreate, cioe' prima che parta il motore Flutter e
+        // che il codice Dart tocchi Firebase Auth per la prima volta: e' l'unico
+        // momento in cui cancellare quel file ha davvero effetto, perche' dopo
+        // le SharedPreferences sono gia' aperte e tenute in memoria.
+        AuthKeysetRepair.repairIfOrphaned(this)
+        super.onCreate(savedInstanceState)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
