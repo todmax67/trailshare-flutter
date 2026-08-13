@@ -74,3 +74,10 @@ social_lab/assets/**/*.ai
 # Dipendenze degli script di manutenzione locali (scripts/make_qr.cjs e simili):
 # stanno sulla macchina di chi li lancia, non nel repo.
 scripts/node_modules/
+
+# Il collegamento che si usa per spegnere temporaneamente la firma di rilascio
+# nei worktree. Non contiene segreti — git salva un symlink, non il contenuto —
+# ma punta al file delle password e per chiunque altro sarebbe un link rotto.
+# Ci era finito dentro con un `git add -A`.
+android/key.properties.off
+key.properties.off
