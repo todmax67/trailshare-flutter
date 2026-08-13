@@ -54,12 +54,32 @@ non possono sostituirsi: **si disinstalla e si reinstalla**, e la
 disinstallazione porta via i dati privati **e revoca tutti i permessi** —
 Health Connect compreso.
 
-Il 2026-08-12 è successo: dopo aver passato dalle build locali a quella da Play,
-la Dashboard salute è rimasta vuota e l'utente ha creduto di aver perso lo
-storico. Non era vero: erano i permessi.
+Il 2026-08-12 è successo, e il conto è stato più salato di così. Passando dalle
+build locali a quella da Play:
 
-**Per provare una build senza perdere i dati**, caricarla su Play come test
-interno: arrivando da Play ha la stessa firma e si installa come aggiornamento.
+- la Dashboard salute è rimasta vuota e il founder ha creduto di aver perso lo
+  storico — erano i permessi revocati;
+- e la disinstallazione ha distrutto la chiave dell'Android Keystore che cifra
+  la sessione di Firebase Auth, lasciando un **lucchetto orfano** che ha
+  prodotto un logout permanente e silenzioso. Tre ore per trovarlo, perché il
+  guasto non generava nessun errore. Vedi `AuthKeysetRepair.kt`.
+
+### La regola operativa, dal 2026-08-13
+
+> **Le build di prova si caricano su Play come test interno. Sempre.**
+
+Arrivando da Play hanno la stessa firma dell'app pubblicata, quindi si
+installano come **aggiornamento**: niente disinstallazione, niente dati persi,
+niente permessi da riconcedere, e nessun rischio di ricreare il lucchetto
+orfano.
+
+È un giro leggermente più macchinoso di un `flutter run --release`, e in cambio
+dà due cose che valgono molto di più: si prova **esattamente il pacchetto che
+riceveranno gli utenti** — stessa firma, stessi split APK, stessa
+ottimizzazione — e non si maltratta il dispositivo di prova a ogni iterazione.
+
+`flutter run` resta il posto giusto per il ciclo veloce durante lo sviluppo,
+sull'app di debug. Ma **quando si verifica una release, si passa da Play**.
 
 ## 3. «Non lo so» non è «non c'è»
 
