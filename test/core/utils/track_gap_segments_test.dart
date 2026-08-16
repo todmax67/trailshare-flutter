@@ -112,4 +112,210 @@ void main() {
     );
     expect(totalGapDuration(const []), Duration.zero);
   });
+
+  group('rilevamento dei buchi non dichiarati', () {
+    // Un punto ogni 10 secondi, passo regolare: registrazione sana.
+    TrackPoint at(int seconds, {double lat = 45.0, double lng = 9.0}) =>
+        TrackPoint(
+          latitude: lat,
+          longitude: lng,
+          timestamp: DateTime.utc(2026, 8, 16, 10).add(Duration(seconds: seconds)),
+        );
+
+    // Bilancio "da congelamento": quasi tutto il tempo della traccia risulta
+    // NON in movimento, come succede quando i campioni mancano davvero.
+    const dFreeze = Duration(minutes: 40);
+    const mFreeze = Duration(minutes: 2);
+
+    test('una registrazione sana non produce candidati', () {
+      final pts = [for (var i = 0; i < 100; i++) at(i * 10, lat: 45.0 + i * 0.0001)];
+      expect(
+        detectUndeclaredGaps(pts, const [],
+            duration: const Duration(minutes: 17),
+            movingTime: const Duration(minutes: 16)),
+        isEmpty,
+      );
+    });
+
+    test('la pausa pranzo (tanto tempo, stesso posto) NON e\' un candidato', () {
+      final pts = [
+        at(0),
+        at(60, lat: 45.001),
+        // 40 minuti fermi al rifugio: ricompare a ~11 m da dove si era fermato.
+        at(60 + 2400, lat: 45.0011),
+        at(60 + 2460, lat: 45.002),
+      ];
+      // Il bilancio coprirebbe (la sosta non e' movimento): a respingere
+      // dev'essere la soglia spaziale.
+      expect(
+        detectUndeclaredGaps(pts, const [],
+            duration: const Duration(minutes: 42), movingTime: mFreeze),
+        isEmpty,
+        reason: 'chi si ferma resta dov\'e\': dichiarare qui sarebbe sbagliato',
+      );
+    });
+
+    test('il congelamento (tempo, distanza E bilancio) e\' un candidato', () {
+      final pts = [
+        at(0),
+        at(60, lat: 45.001),
+        // 37 minuti dopo, 5,5 km piu' in la': la firma del caso reale.
+        at(60 + 2220, lat: 45.051),
+        at(60 + 2280, lat: 45.052),
+      ];
+      final found = detectUndeclaredGaps(pts, const [],
+          duration: dFreeze, movingTime: mFreeze);
+      expect(found, hasLength(1));
+      expect(found.single.cause, TrackGap.causeOwnerDeclared);
+      // Gli estremi sono ESATTI (timestamp dei punti), non stime del watchdog.
+      expect(found.single.startedAt, pts[1].timestamp);
+      expect(found.single.endedAt, pts[2].timestamp);
+    });
+
+    test('il rettilineo compresso da Douglas-Peucker NON passa il bilancio', () {
+      // Stessa firma spaziale e temporale del congelamento — ma il tempo in
+      // movimento dice che in quei minuti si stava pedalando: l'arco e' un
+      // rettilineo di pianura collassato dalla semplificazione, non un buco.
+      // E' il difetto trovato dalla revisione avversariale della Fase 1.
+      final pts = [
+        at(0),
+        at(60, lat: 45.001),
+        at(60 + 2220, lat: 45.051),
+        at(60 + 2280, lat: 45.052),
+      ];
+      expect(
+        detectUndeclaredGaps(pts, const [],
+            duration: const Duration(minutes: 39),
+            movingTime: const Duration(minutes: 38)),
+        isEmpty,
+        reason: 'il tempo di quell\'arco risulta in movimento: nessun buco',
+      );
+    });
+
+    test('senza un tempo in movimento attendibile non si propone niente', () {
+      final pts = [
+        at(0),
+        at(60, lat: 45.001),
+        at(60 + 2220, lat: 45.051),
+      ];
+      // movingTime == duration: le tracce pre-2.10.0, dove era una copia.
+      expect(
+        detectUndeclaredGaps(pts, const [],
+            duration: dFreeze, movingTime: dFreeze),
+        isEmpty,
+      );
+      // movingTime zero: mai calcolato (split/merge, import senza tempi).
+      expect(
+        detectUndeclaredGaps(pts, const [],
+            duration: dFreeze, movingTime: Duration.zero),
+        isEmpty,
+      );
+    });
+
+    test('il bilancio tiene i buchi piu\' lunghi e scarta chi non ci sta', () {
+      final pts = [
+        at(0),
+        at(60, lat: 45.001),
+        at(60 + 2220, lat: 45.051), // 37 minuti: il congelamento vero
+        at(60 + 2280, lat: 45.052),
+        at(60 + 2280 + 360, lat: 45.057), // 6 minuti, 550 m: sospetto piccolo
+        at(60 + 2280 + 420, lat: 45.058),
+      ];
+      // Il bilancio copre solo i 37 minuti: il piccolo resta fuori.
+      final found = detectUndeclaredGaps(pts, const [],
+          duration: const Duration(minutes: 46), movingTime: const Duration(minutes: 9));
+      expect(found, hasLength(1));
+      expect(found.single.duration, const Duration(minutes: 37));
+    });
+
+    test('sotto la soglia spaziale non scatta, anche con tanto tempo', () {
+      final pts = [
+        at(0),
+        // 30 minuti ma ~111 m: sotto i 300 m richiesti.
+        at(1800, lat: 45.001),
+      ];
+      expect(
+        detectUndeclaredGaps(pts, const [],
+            duration: dFreeze, movingTime: mFreeze),
+        isEmpty,
+      );
+    });
+
+    test('sotto la soglia temporale non scatta, anche con tanta distanza', () {
+      final pts = [
+        at(0),
+        // 4 minuti e 5,5 km: puo' essere un dato sporco, non un buco da 5 min.
+        at(240, lat: 45.05),
+      ];
+      expect(
+        detectUndeclaredGaps(pts, const [],
+            duration: dFreeze, movingTime: mFreeze),
+        isEmpty,
+      );
+    });
+
+    test('un arco gia\' coperto da un buco dichiarato viene saltato', () {
+      final pts = [
+        at(0),
+        at(60, lat: 45.001),
+        at(60 + 2220, lat: 45.051),
+      ];
+      final declared = [
+        TrackGap(
+          startedAt: pts[1].timestamp,
+          endedAt: pts[2].timestamp,
+          cause: TrackGap.causeAppFrozen,
+        ),
+      ];
+      expect(
+        detectUndeclaredGaps(pts, declared,
+            duration: dFreeze, movingTime: mFreeze),
+        isEmpty,
+        reason: 'il watchdog l\'aveva gia\' visto: niente doppioni',
+      );
+    });
+
+    test('un orologio che torna indietro non e\' un buco', () {
+      final pts = [
+        at(3600),
+        at(0, lat: 45.05), // timestamp precedente: dato inaffidabile
+        at(3660, lat: 45.051),
+      ];
+      expect(
+        detectUndeclaredGaps(pts, const [],
+            duration: dFreeze, movingTime: mFreeze),
+        isEmpty,
+      );
+    });
+
+    test('due congelamenti danno due candidati distinti', () {
+      final pts = [
+        at(0),
+        at(60, lat: 45.001),
+        at(60 + 2220, lat: 45.051),
+        at(60 + 2280, lat: 45.052),
+        at(60 + 2280 + 2220, lat: 45.102),
+      ];
+      expect(
+        detectUndeclaredGaps(pts, const [],
+            duration: const Duration(minutes: 78), movingTime: const Duration(minutes: 3)),
+        hasLength(2),
+      );
+    });
+
+    test('straightLineMeters misura solo i ponti, in linea retta', () {
+      final pts = [
+        at(0),
+        at(60, lat: 45.001),
+        at(60 + 2220, lat: 45.051), // ponte da ~5,56 km
+        at(60 + 2280, lat: 45.052),
+      ];
+      final gaps = detectUndeclaredGaps(pts, const [],
+          duration: dFreeze, movingTime: mFreeze);
+      final metres = straightLineMeters(pts, gaps);
+      expect(metres, greaterThan(5400));
+      expect(metres, lessThan(5700));
+      expect(straightLineMeters(pts, const []), 0);
+    });
+  });
 }

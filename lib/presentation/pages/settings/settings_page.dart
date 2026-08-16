@@ -1281,7 +1281,8 @@ class _SettingsPageState extends State<SettingsPage> {
         title: 'Quando la registrazione si ferma, te lo diciamo 📍',
         bullets: [
           '**Il tratto tratteggiato non è strada percorsa.** Se il telefono sospende la registrazione, la traccia si ricongiunge con una linea dritta: ora quella linea è tratteggiata e più chiara, e sopra le statistiche c\'è scritto quante volte è successo e per quanto',
-          '**I chilometri di quei minuti non ci sono**, ed è giusto sapere che il totale è incompleto invece di scoprirlo dalla mappa',
+          '**Nel totale quel tratto conta solo in linea retta** — quasi certamente meno della strada vera. Preferiamo dirtelo noi che fartelo scoprire dalla mappa',
+          '**E se una traccia vecchia ha un tratto dritto sospetto**, ora puoi dichiararlo tu: diventa tratteggiato, la scheda lo dice, e puoi sempre tornare indietro. Solo tu puoi farlo, perché solo tu sai dove sei passato',
           '**Esportando il GPX la traccia si spezza** dove si è interrotta, invece di far credere a Garmin o Strava che tu sia passato in linea retta',
           'La Dashboard salute dice quando le manca il permesso, invece di mostrare zeri che sembrano storico perso',
           'Corretto un difetto che a qualcuno faceva rifare l\'accesso a ogni apertura: chi ne era colpito viene riparato da solo, senza fare niente',

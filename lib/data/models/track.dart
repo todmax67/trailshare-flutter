@@ -446,14 +446,26 @@ class TrackLap {
 /// precisi al tick, non al secondo. Meglio dichiarare "circa dodici minuti"
 /// che fingere una precisione che non abbiamo.
 class TrackGap {
+  /// Il watchdog ha visto il sistema sospendere il processo.
+  static const String causeAppFrozen = 'appFrozen';
+
+  /// L'app era viva ma lo stream di posizioni aveva smesso di consegnare.
+  static const String causeStreamStalled = 'streamStalled';
+
+  /// Dichiarato dal proprietario a posteriori: "quel tratto dritto non e'
+  /// strada che ho percorso". Va tenuto distinto dagli altri due perche' e'
+  /// l'unico che il proprietario puo' anche RIMUOVERE — una dichiarazione si
+  /// puo' ritirare, una misura del watchdog no.
+  static const String causeOwnerDeclared = 'ownerDeclared';
+
   /// Ultimo istante con dati validi.
   final DateTime startedAt;
 
   /// Istante in cui la registrazione e' ripartita.
   final DateTime endedAt;
 
-  /// `appFrozen` — il sistema ha sospeso il processo, niente da fare.
-  /// `streamStalled` — l'app era viva ma lo stream aveva smesso di consegnare.
+  /// Vedi le costanti `cause*` qui sopra. Stringa libera per tollerare valori
+  /// futuri senza rompere la deserializzazione.
   final String cause;
 
   const TrackGap({
@@ -463,6 +475,8 @@ class TrackGap {
   });
 
   Duration get duration => endedAt.difference(startedAt);
+
+  bool get isOwnerDeclared => cause == causeOwnerDeclared;
 
   Map<String, dynamic> toMap() => {
         'startedAt': startedAt.toUtc().toIso8601String(),

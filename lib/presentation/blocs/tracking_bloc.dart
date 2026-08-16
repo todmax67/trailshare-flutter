@@ -331,6 +331,7 @@ class TrackingBloc extends ChangeNotifier {
     required DateTime startTime,
     required Duration pausedDuration,
     required ActivityType activityType,
+    List<TrackGap> gaps = const [],
     }) async {
     if (_state.isRecording) {
     debugPrint('[TrackingBloc] Già in registrazione, ignoro restore');
@@ -352,7 +353,9 @@ class TrackingBloc extends ChangeNotifier {
     // Calcola le statistiche dai punti esistenti
     final stats = _calculateStatsFromPoints(points);
 
-    // Ripristina lo stato in pausa (l'utente deve decidere se continuare)
+    // Ripristina lo stato in pausa (l'utente deve decidere se continuare).
+    // I buchi gia' visti prima del kill tornano nello stato: al salvataggio
+    // finiranno sulla traccia come se il kill non ci fosse stato.
     _state = TrackingState(
       status: TrackingStatus.paused,
       points: List.from(points),
@@ -360,6 +363,9 @@ class TrackingBloc extends ChangeNotifier {
       startTime: startTime,
       pausedDuration: pausedDuration,
       activityType: activityType,
+      gaps: List.from(gaps),
+      gapCount: gaps.length,
+      lostTime: gaps.fold(Duration.zero, (sum, g) => sum + g.duration),
     );
 
     _pauseStartTime = DateTime.now();

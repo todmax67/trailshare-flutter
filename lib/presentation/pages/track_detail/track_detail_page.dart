@@ -575,27 +575,50 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   /// di upload (processing → done con link / error). I campi
   /// `stravaActivityId` / `stravaUploadStatus` sono scritti dalla Cloud
   /// Function `stravaUploadActivity` dopo il salvataggio.
-  /// Dice che la registrazione si è interrotta, quando è successo.
+  /// Dice che la registrazione si è interrotta, e — per il proprietario —
+  /// propone di dichiarare i tratti dritti che hanno la firma di
+  /// un'interruzione mai registrata (tracce salvate prima della 2.11.3).
   ///
-  /// Non è un errore da nascondere: senza questa riga, la retta tratteggiata
-  /// sulla mappa resta un mistero, e i chilometri qui sotto sembrano il totale
-  /// del giro mentre sono solo quello che siamo riusciti a misurare.
-  ///
-  /// Sulle tracce salvate prima che il campo esistesse l'elenco è vuoto e la
-  /// riga non compare: non sappiamo se avessero buchi, e dire "nessuna
-  /// interruzione" sarebbe inventare.
+  /// Sulle tracce senza buchi né candidati non compare niente: "nessuna
+  /// interruzione" sulle tracce vecchie sarebbe inventare, e su quelle nuove
+  /// il silenzio è già l'informazione giusta.
   Widget _buildGapNotice() {
     final gaps = _track.gaps;
-    if (gaps.isEmpty) return const SizedBox.shrink();
+    // Solo il proprietario vede i candidati: la dichiarazione vale perché la
+    // fa chi c'era, e giudicare "sospetta" la traccia di un altro non spetta
+    // a noi. Durata e tempo in movimento servono al bilancio del tempo
+    // mancante — vedi detectUndeclaredGaps — che distingue un congelamento
+    // vero da un rettilineo compresso dalla semplificazione.
+    final candidates = (_isOwner && _track.id != null)
+        ? detectUndeclaredGaps(
+            _track.points,
+            gaps,
+            duration: _track.stats.duration,
+            movingTime: _track.stats.movingTime,
+          )
+        : const <TrackGap>[];
+    if (gaps.isEmpty && candidates.isEmpty) return const SizedBox.shrink();
 
+    return Column(
+      children: [
+        if (gaps.isNotEmpty) _declaredGapsCard(gaps),
+        if (candidates.isNotEmpty) _candidateGapsCard(candidates),
+      ],
+    );
+  }
+
+  Widget _declaredGapsCard(List<TrackGap> gaps) {
     final lost = totalGapDuration(gaps);
-    // Arrotondato al minuto: gli estremi arrivano dal watchdog e sono precisi
-    // al tick. "Circa dodici minuti" è vero, "12:04" no.
+    // Arrotondato al minuto: gli estremi del watchdog sono precisi al tick.
+    // "Circa dodici minuti" è vero, "12:04" no.
     final minutes = lost.inMinutes;
-    final quanto = minutes >= 1 ? 'circa $minutes minut${minutes == 1 ? 'o' : 'i'}' : 'meno di un minuto';
+    final quanto = minutes >= 1
+        ? 'circa $minutes minut${minutes == 1 ? 'o' : 'i'}'
+        : 'meno di un minuto';
     final quante = gaps.length == 1
         ? 'La registrazione si è interrotta una volta'
         : 'La registrazione si è interrotta ${gaps.length} volte';
+    final hasDeclared = gaps.any((g) => g.isOwnerDeclared);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -620,13 +643,25 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                         fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
+                  // Il tratto dritto ENTRA nel totale, come linea retta fra i
+                  // due estremi: dirlo è il minimo, e sostenere il contrario
+                  // (come faceva la prima stesura di questo avviso) era falso.
                   Text(
                     'Il tratto tratteggiato sulla mappa non è strada percorsa: '
-                    'è la linea fra il punto dove ci siamo fermati e quello '
-                    'dove abbiamo ripreso. Distanza e dislivello di quei '
-                    'minuti non sono nei numeri qui sotto.',
+                    'è la linea retta fra il punto dove la registrazione si è '
+                    'fermata e quello dove ha ripreso. Nel totale quel tratto '
+                    'conta solo in linea retta — quasi certamente meno della '
+                    'strada che hai fatto davvero.',
                     style: TextStyle(fontSize: 13, color: context.textSecondary),
                   ),
+                  if (_isOwner && hasDeclared)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _removeDeclaredGaps,
+                        child: const Text('Rimuovi le interruzioni dichiarate da te'),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -634,6 +669,107 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         ),
       ),
     );
+  }
+
+  /// La proposta al proprietario, per le tracce registrate prima che il
+  /// watchdog scrivesse i buchi: tanto tempo E tanta distanza fra due punti
+  /// consecutivi sono la firma di un'interruzione, ma a confermarla dev'essere
+  /// chi c'era.
+  Widget _candidateGapsCard(List<TrackGap> candidates) {
+    final minutes = totalGapDuration(candidates).inMinutes;
+    final km = straightLineMeters(_track.points, candidates) / 1000;
+    final n = candidates.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.content_cut, size: 20, color: AppColors.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    n == 1
+                        ? 'Un tratto dritto sospetto'
+                        : '$n tratti dritti sospetti',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Fra ${n == 1 ? 'due punti passano' : 'alcuni punti passano in tutto'} '
+              '$minutes minuti senza dati, con ${km.toStringAsFixed(1)} km in '
+              'linea retta: lì la registrazione probabilmente si è interrotta. '
+              'Se lo confermi, il tratto diventa tratteggiato, la scheda lo '
+              'dice e il GPX esportato si spezza in quel punto. I numeri non '
+              'cambiano, e puoi tornare indietro quando vuoi.',
+              style: TextStyle(fontSize: 13, color: context.textSecondary),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => _declareGaps(candidates),
+                child: Text(n == 1
+                    ? 'Dichiara l\'interruzione'
+                    : 'Dichiara le $n interruzioni'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _declareGaps(List<TrackGap> candidates) async {
+    final id = _track.id;
+    if (id == null) return;
+    try {
+      final merged = await _tracksRepository.declareGaps(id, candidates);
+      if (!mounted) return;
+      setState(() => _track = _track.copyWith(gaps: merged));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Interruzioni dichiarate.'),
+          action: SnackBarAction(
+            label: 'Annulla',
+            onPressed: _removeDeclaredGaps,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[TrackDetail] dichiarazione interruzioni: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Non sono riuscito a salvare. Riprova.')),
+      );
+    }
+  }
+
+  Future<void> _removeDeclaredGaps() async {
+    final id = _track.id;
+    if (id == null) return;
+    try {
+      final remaining = await _tracksRepository.removeDeclaredGaps(id);
+      if (!mounted) return;
+      setState(() => _track = _track.copyWith(gaps: remaining));
+    } catch (e) {
+      debugPrint('[TrackDetail] rimozione dichiarazioni: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Non sono riuscito a salvare. Riprova.')),
+      );
+    }
   }
 
   Widget _buildStravaBadge() {

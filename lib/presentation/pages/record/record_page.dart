@@ -480,6 +480,9 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       startTime: state.startTime ?? DateTime.now(),
       pausedDuration: state.pausedDuration,
       activityType: state.activityType,
+      // I buchi gia' visti dal watchdog viaggiano col backup: senza, un kill
+      // dell'app li azzerava e la traccia salvata usciva senza.
+      gaps: state.gaps,
       photos: _photos.map((p) => PhotoBackup(
         localPath: p.localPath, latitude: p.latitude,
         longitude: p.longitude, elevation: p.elevation, timestamp: p.timestamp,
@@ -643,6 +646,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       await _trackingBloc.restoreFromBackup(
         points: backup.points, startTime: backup.startTime,
         pausedDuration: backup.pausedDuration, activityType: backup.activityType,
+        gaps: backup.gaps,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

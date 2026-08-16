@@ -725,6 +725,91 @@ class TracksRepository {
     }
   }
 
+  /// Il proprietario dichiara che in certi tratti la registrazione era
+  /// interrotta: "quel tratto dritto non e' strada che ho percorso".
+  ///
+  /// Aggiunge SOLTANTO metadati di assenza — nessun punto viene toccato,
+  /// nessun dato inventato entra da nessuna parte. E' la Fase 1 di
+  /// docs/tracce_ricostruite.md: statistiche, segmenti, classifiche e salute
+  /// non cambiano perche' leggono `points`, che resta identico.
+  ///
+  /// Ritorna l'elenco completo dei buchi dopo la scrittura, per aggiornare
+  /// lo stato locale senza rileggere il documento.
+  Future<List<TrackGap>> declareGaps(
+      String trackId, List<TrackGap> newGaps) async {
+    final userId = _auth.currentUser?.uid;
+    // Si LANCIA invece di tornare come se fosse andata: la prima stesura
+    // ritornava newGaps e la UI mostrava "Interruzioni dichiarate" senza che
+    // fosse stato scritto niente — un successo finto che spariva alla
+    // riapertura. Il catch del chiamante mostra gia' il messaggio giusto.
+    if (userId == null) throw StateError('dichiarazione senza utente');
+
+    final docRef = _tracksCollection(userId).doc(trackId);
+    final snap = await docRef.get();
+    if (!snap.exists) {
+      throw StateError('traccia $trackId inesistente');
+    }
+
+    final existing = _parseGaps(snap.data()?['gaps']);
+    if (newGaps.isEmpty) return existing; // niente da scrivere
+
+    // Difesa in profondita': il rilevamento gia' salta gli archi coperti, ma
+    // questo metodo e' pubblico e non deve poter scrivere sovrapposizioni.
+    final merged = List<TrackGap>.of(existing);
+    for (final g in newGaps) {
+      final overlaps = merged.any((e) =>
+          e.startedAt.isBefore(g.endedAt) && e.endedAt.isAfter(g.startedAt));
+      if (!overlaps) merged.add(g);
+    }
+    merged.sort((a, b) => a.startedAt.compareTo(b.startedAt));
+
+    await docRef.update({'gaps': merged.map((g) => g.toMap()).toList()});
+    return merged;
+  }
+
+  /// Ritira le dichiarazioni del proprietario. SOLO quelle: i buchi visti dal
+  /// watchdog sono misure, e non esiste un percorso in cui il proprietario
+  /// possa cancellarli — altrimenti la retta tornerebbe piena e la traccia
+  /// tornerebbe a mentire.
+  Future<List<TrackGap>> removeDeclaredGaps(String trackId) async {
+    final userId = _auth.currentUser?.uid;
+    // Come in declareGaps: un fallimento deve lanciare, non restituire una
+    // lista che il chiamante scambierebbe per il nuovo stato.
+    if (userId == null) throw StateError('rimozione senza utente');
+
+    final docRef = _tracksCollection(userId).doc(trackId);
+    final snap = await docRef.get();
+    if (!snap.exists) {
+      throw StateError('traccia $trackId inesistente');
+    }
+
+    final remaining = _parseGaps(snap.data()?['gaps'])
+        .where((g) => !g.isOwnerDeclared)
+        .toList();
+
+    // Vuoto → si toglie il campo: l'assenza torna a voler dire "non lo
+    // sappiamo", che era lo stato prima della dichiarazione.
+    await docRef.update({
+      'gaps': remaining.isEmpty
+          ? FieldValue.delete()
+          : remaining.map((g) => g.toMap()).toList(),
+    });
+    return remaining;
+  }
+
+  List<TrackGap> _parseGaps(Object? raw) {
+    if (raw is! List) return const [];
+    final out = <TrackGap>[];
+    for (final g in raw) {
+      try {
+        if (g is Map) out.add(TrackGap.fromMap(Map<String, dynamic>.from(g)));
+      } catch (e) {
+        debugPrint('[TracksRepository] Errore parsing buco: $e');
+      }
+    }
+    return out;
+  }
+
   /// Parser tolerante per stringhe activityType da Firestore.
   static ActivityType _parseActivity(String? raw) {
     if (raw == null) return ActivityType.trekking;
@@ -1033,6 +1118,13 @@ class TracksRepository {
       'avgSpeed': stats.avgSpeed,
       'maxAltitude': stats.maxElevation,
       'minAltitude': stats.minElevation,
+      // I buchi di registrazione visti dal watchdog. ATTENZIONE: questa mappa
+      // e' costruita a mano, NON via track.toMap() — dimenticare un campo qui
+      // significa perderlo in silenzio al salvataggio, ed e' esattamente
+      // quello che era successo ai gaps: il watchdog li vedeva, il bloc li
+      // metteva sulla Track, e questa funzione li buttava.
+      if (track.gaps.isNotEmpty)
+        'gaps': track.gaps.map((g) => g.toMap()).toList(),
       // 📸 Foto
       'photos': track.photos.map((p) => p.toMap()).toList(),
       if (track.healthCalories != null)
@@ -1435,6 +1527,17 @@ class TracksRepository {
     final firstStats = _recomputeStats(first);
     final secondStats = _recomputeStats(second);
 
+    // Ogni meta' porta con se' SOLO i buchi che cadono nel suo intervallo:
+    // copyWith erediterebbe src.gaps per intero in entrambe, e la parte
+    // "sbagliata" mostrerebbe l'avviso di un'interruzione che sta nell'altra
+    // — con mappa e GPX che, giustamente, non troverebbero niente da
+    // tratteggiare. Trovato dalla revisione avversariale della Fase 1.
+    List<TrackGap> gapsWithin(List<TrackPoint> segment) => src.gaps
+        .where((g) =>
+            g.startedAt.isBefore(segment.last.timestamp) &&
+            g.endedAt.isAfter(segment.first.timestamp))
+        .toList();
+
     final firstTrack = src.copyWith(
       id: null, // nuovo doc
       name: '${src.name} (parte 1)',
@@ -1442,6 +1545,7 @@ class TracksRepository {
       stats: firstStats,
       recordedAt: src.recordedAt,
       createdAt: DateTime.now(),
+      gaps: gapsWithin(first),
     );
     final secondTrack = src.copyWith(
       id: null,
@@ -1450,6 +1554,7 @@ class TracksRepository {
       stats: secondStats,
       recordedAt: first.last.timestamp,
       createdAt: DateTime.now(),
+      gaps: gapsWithin(second),
     );
 
     try {
@@ -1506,6 +1611,12 @@ class TracksRepository {
       createdAt: DateTime.now(),
       // Unisci anche i tag dedup-lowercase.
       tags: {...ordered[0].tags, ...ordered[1].tags}.toList(),
+      // I buchi di ENTRAMBE le tracce: copyWith da ordered[0] perderebbe
+      // quelli della seconda, e il ponte del watchdog tornerebbe linea piena
+      // dopo un'operazione di routine. I TrackGap usano timestamp assoluti,
+      // quindi restano validi dopo la concatenazione senza rimappature.
+      gaps: ([...ordered[0].gaps, ...ordered[1].gaps]
+        ..sort((x, y) => x.startedAt.compareTo(y.startedAt))),
     );
 
     try {

@@ -113,6 +113,12 @@ class RecordingBackup {
   /// null = backup di una registrazione interrotta, mai salvata.
   final String? savedTrackId;
 
+  /// I buchi già visti dal watchdog. Senza, il ripristino dopo un kill
+  /// ripartiva con l'elenco vuoto e la traccia salvata usciva senza i buchi
+  /// misurati — proprio sui dispositivi che uccidono l'app, cioè quelli per
+  /// cui il watchdog esiste.
+  final List<TrackGap> gaps;
+
   RecordingBackup({
     required this.points,
     required this.startTime,
@@ -121,6 +127,7 @@ class RecordingBackup {
     required this.photos,
     DateTime? lastSaveTime,
     this.savedTrackId,
+    this.gaps = const [],
   }) : lastSaveTime = lastSaveTime ?? DateTime.now();
 
   RecordingBackup copyWithSavedTrackId(String trackId) => RecordingBackup(
@@ -131,6 +138,7 @@ class RecordingBackup {
         photos: photos,
         lastSaveTime: lastSaveTime,
         savedTrackId: trackId,
+        gaps: gaps,
       );
 
   Map<String, dynamic> toMap() => {
@@ -141,6 +149,7 @@ class RecordingBackup {
     'photos': photos.map((p) => p.toMap()).toList(),
     'lastSaveTime': lastSaveTime.toIso8601String(),
     if (savedTrackId != null) 'savedTrackId': savedTrackId,
+    if (gaps.isNotEmpty) 'gaps': gaps.map((g) => g.toMap()).toList(),
   };
 
   factory RecordingBackup.fromMap(Map<String, dynamic> map) {
@@ -156,6 +165,12 @@ class RecordingBackup {
           .toList() ?? [],
       lastSaveTime: DateTime.parse(map['lastSaveTime'] as String),
       savedTrackId: map['savedTrackId'] as String?,
+      // Tollerante: i backup scritti prima di questo campo non ce l'hanno.
+      gaps: (map['gaps'] as List?)
+              ?.whereType<Map>()
+              .map((g) => TrackGap.fromMap(Map<String, dynamic>.from(g)))
+              .toList() ??
+          const [],
     );
   }
 }

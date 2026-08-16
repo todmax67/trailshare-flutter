@@ -90,7 +90,77 @@ List<TrackPoint> simplifyTrack(
   if (result.length > maxPoints) {
     result = _uniformFallback(result, maxPoints);
   }
-  return result;
+
+  // Ultima passata: nessun arco della traccia salvata deve coprire 5 o piu'
+  // minuti SE fra i suoi estremi esistevano punti registrati. Senza questa
+  // guardia un rettilineo di pianura percorso lentamente collassa nei due
+  // estremi, e nella traccia salvata diventa indistinguibile da un
+  // congelamento vero — la revisione avversariale della Fase 1 (2026-08-16)
+  // l'ha dimostrato con uno scenario concreto. Il costo e' qualche punto in
+  // piu' (al massimo uno ogni 5 minuti); il guadagno e' che "arco lungo nel
+  // salvato" torna a voler dire "buco reale nella registrazione".
+  return _breakLongTemporalArcs(points, result);
+}
+
+/// Vedi la chiamata in [simplifyTrack]: reinserisce il minimo numero di punti
+/// originali perche' nessun arco fra sopravvissuti superi
+/// [_maxTemporalArcWithData] dove c'erano dati. Dove i dati NON c'erano — un
+/// buco vero — l'arco resta lungo, ed e' giusto cosi': e' la firma che il
+/// rilevamento cerca.
+const Duration _maxTemporalArcWithData = Duration(minutes: 5);
+
+List<TrackPoint> _breakLongTemporalArcs(
+  List<TrackPoint> original,
+  List<TrackPoint> kept,
+) {
+  if (kept.length < 2) return kept;
+
+  final out = <TrackPoint>[kept.first];
+  var oi = 0; // indice sul tracciato originale, avanza e basta: O(n) totale.
+
+  for (var ki = 1; ki < kept.length; ki++) {
+    final a = out.last;
+    final b = kept[ki];
+
+    if (b.timestamp.difference(a.timestamp) < _maxTemporalArcWithData) {
+      out.add(b);
+      continue;
+    }
+
+    // Porta l'indice originale subito dopo `a`.
+    while (oi < original.length && !identical(original[oi], a)) {
+      oi++;
+    }
+    var last = a;
+    TrackPoint? pending; // ultimo originale ancora sotto soglia da `last`
+    for (var j = oi + 1;
+        j < original.length && !identical(original[j], b);
+        j++) {
+      final w = original[j];
+      while (w.timestamp.difference(last.timestamp) >=
+              _maxTemporalArcWithData &&
+          pending != null) {
+        out.add(pending);
+        last = pending;
+        pending = null;
+      }
+      if (w.timestamp.difference(last.timestamp) >= _maxTemporalArcWithData) {
+        // Nemmeno il punto precedente poteva spezzare l'arco: fra last e w i
+        // dati NON esistono — buco reale. Si tiene w e si riparte da li'.
+        out.add(w);
+        last = w;
+      } else {
+        pending = w;
+      }
+    }
+    // Se l'arco residuo verso b resta lungo e un intermedio c'era, si usa.
+    if (pending != null &&
+        b.timestamp.difference(last.timestamp) >= _maxTemporalArcWithData) {
+      out.add(pending);
+    }
+    out.add(b);
+  }
+  return out;
 }
 
 /// Douglas-Peucker iterativo.

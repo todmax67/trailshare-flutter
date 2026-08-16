@@ -107,14 +107,52 @@ Da mettere nei test, non nei commenti:
 
 ## Le fasi
 
-**Fase 1 — il taglio, senza ridisegno.**
-Il proprietario dice *"quel tratto dritto non è mio percorso"*. Si cancella la
-retta, resta il buco dichiarato. Nessun dato inventato entra da nessuna parte.
+**Fase 1 — il taglio, senza ridisegno. FATTA il 2026-08-16.**
+Il proprietario dice *"quel tratto dritto non è mio percorso"*. Il buco diventa
+dichiarato (`TrackGap` con `causeOwnerDeclared`), la retta si tratteggia, la
+scheda lo dice, il GPX si spezza. Nessun dato inventato entra da nessuna parte.
 
-È metà del valore a un decimo del rischio: non serve il pianificatore, non serve
-il campo `reconstruction`, non tocca nessuno dei ventiquattro consumatori. In
-pratica è già fatto — basta che la mappa smetta di disegnare il ponte quando il
-proprietario lo chiede.
+Com'è fatta davvero:
+
+- `detectUndeclaredGaps` (track_gap_segments.dart) trova gli archi con la firma
+  di un'interruzione — **≥ 5 minuti E ≥ 300 metri** fra due punti consecutivi.
+  La doppia soglia distingue il congelamento dalla pausa pranzo: chi si ferma
+  resta dov'è. Limite dichiarato: un congelamento durante un anello che riparte
+  vicino allo stesso punto non supera la soglia spaziale e non viene proposto.
+- Solo il proprietario vede i candidati e può confermarli; la conferma è
+  reversibile, e la rimozione ritira **solo** le dichiarazioni — i buchi del
+  watchdog sono misure e non si cancellano da nessun percorso.
+- Niente cambia in `points`, statistiche, segmenti, classifica, salute:
+  verificato da test che confrontano il documento prima e dopo.
+
+La Fase 1 e' passata da una **revisione avversariale** (tre revisori
+indipendenti, ogni segnalazione contro-verificata da uno scettico) prima del
+commit: sei difetti confermati, tutti corretti. Il piu' importante: tempo e
+distanza da soli NON distinguono un congelamento da un rettilineo compresso da
+Douglas-Peucker — la semplificazione butta i punti intermedi di un rettilineo
+vero, e nell'archivio i due casi sono identici. Il discriminatore giusto e' il
+**tempo in movimento**, calcolato sui punti pieni prima della semplificazione:
+un buco vero non ha campioni e resta fuori dal movimento, un rettilineo
+pedalato ci sta dentro. Il rilevatore ora accetta candidati solo se il
+"tempo mancante" (durata − movimento) li copre; e la semplificazione ha una
+guardia che impedisce di creare archi da 5+ minuti dove i dati esistevano,
+cosi' i salvataggi futuri restano non ambigui.
+
+Due cose scoperte implementando:
+
+1. **Il salvataggio buttava i gaps del watchdog.** `_trackToFirestore`
+   costruisce la mappa a mano, non via `toMap()`, e il campo non c'era: il
+   watchdog vedeva il buco, il bloc lo metteva sulla Track, il salvataggio lo
+   perdeva. I test sul modello non potevano accorgersene perché provavano
+   `toMap()`, che era corretta. Sulla 2.11.3+128 i buchi registrati non
+   arrivavano mai su Firestore. Corretto, con un test sul percorso vero.
+2. **La corda del buco ENTRA in `stats.distance`** (la somma fra punti
+   consecutivi non ha un guard sul salto). L'avviso della 2.11.3 sosteneva il
+   contrario ed è stato corretto: ora dice che il tratto conta "solo in linea
+   retta, quasi certamente meno della strada vera" — che è matematicamente
+   garantito (corda ≤ percorso). Escludere la corda è una decisione futura:
+   toccherebbe il numero più visibile dell'app e desincronizzerebbe classifica
+   e XP già calcolati.
 
 **Fase 2 — il ridisegno col pianificatore.**
 Sopra la stessa struttura. Il pianificatore esiste già (`planner_tab.dart`) e sa
@@ -124,6 +162,13 @@ estremi del buco e si salva il risultato in `reconstruction`.
 **Fase 3 — la marcatura che viaggia.**
 GPX, scheda condivisa, web. Va fatta prima che le tracce ricostruite comincino a
 uscire dall'app, non dopo.
+
+Dentro c'è anche un pezzo trovato in Fase 1: **la copia pubblicata perde i
+buchi**. `published_tracks` è una collezione separata e `CommunityTrack` non
+porta il campo `gaps`, quindi la vista community disegna il ponte pieno anche
+quando la scheda del proprietario lo tratteggia. Vale già per i buchi del
+watchdog dalla 2.11.3: da chiudere qui, propagando i gaps alla pubblicazione e
+usando `trackPolylines` anche nella vista community.
 
 ## Come si verifica che non abbia rotto niente
 

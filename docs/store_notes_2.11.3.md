@@ -20,14 +20,16 @@ schermo acceso**. Si può però smettere di fingere che non sia successo.
 
 ## "Novità in questa versione"
 
-### IT — Play Console (482 / 500)
+### IT — Play Console (498 / 500)
 
 ```
-Se il telefono sospende la registrazione, la traccia si ricongiunge con una linea dritta. Ora quella linea è tratteggiata, e sopra le statistiche c'è scritto quante volte è successo e per quanto: i chilometri di quei minuti non sono nel totale, ed è giusto saperlo.
+Se il telefono sospende la registrazione, la traccia si ricongiunge con una linea dritta. Ora è tratteggiata, e la scheda dice quante volte è successo e per quanto: nel totale conta solo la retta, quasi certamente meno della strada vera.
 
-Esportando il GPX la traccia si spezza dove si è interrotta, invece di far credere a Garmin o Strava che tu sia passato in linea retta.
+Un tratto dritto sospetto su una traccia vecchia lo dichiari tu: solo tu sai dove sei passato.
 
-La Dashboard salute dice quando le manca il permesso, invece di mostrare zeri.
+Il GPX si spezza dove la registrazione si è interrotta: niente rette spacciate per percorso.
+
+La Dashboard salute dice quando le manca il permesso, invece di zeri.
 ```
 
 ### IT — App Store Connect (max 4000)
@@ -38,8 +40,11 @@ Se il telefono sospende l'app — succede, e non solo alla nostra — la traccia
 
 Quella linea ora è tratteggiata e più chiara, così non si confonde con il sentiero percorso. E sopra le statistiche compare una riga che dice quante volte è successo e per quanti minuti in tutto.
 
-I CHILOMETRI DI QUEI MINUTI NON CI SONO
-Il totale che vedi è quello che siamo riusciti a misurare, non il giro intero. Preferiamo dirtelo noi piuttosto che fartelo scoprire guardando la mappa a casa.
+NEL TOTALE QUEL TRATTO CONTA SOLO IN LINEA RETTA
+La strada vera di quei minuti era quasi certamente più lunga della linea che la sostituisce. Preferiamo dirtelo noi piuttosto che fartelo scoprire guardando la mappa a casa.
+
+I TRATTI DRITTI DELLE TRACCE VECCHIE LI DICHIARI TU
+Se una traccia salvata prima di questa versione ha un tratto dritto sospetto — tanti minuti e tanti chilometri fra due punti — te lo segnaliamo e puoi dichiararlo: diventa tratteggiato, la scheda lo dice, il GPX si spezza lì. Puoi sempre tornare indietro, e può farlo solo chi la traccia l'ha registrata.
 
 IL GPX SI SPEZZA DOVE SI È INTERROTTO
 Esportando la traccia, l'interruzione diventa uno stacco fra due segmenti: Garmin, Strava e chiunque altro la legga vedranno un buco invece di una linea retta percorsa. È il modo che il formato GPX prevede da sempre per dirlo.
@@ -59,8 +64,11 @@ If the phone suspends the app — it happens, and not only to ours — the track
 
 That line is now dashed and lighter, so it cannot be mistaken for the trail you walked. And above the stats there is a line saying how many times it happened, and for how many minutes in total.
 
-THE KILOMETRES OF THOSE MINUTES ARE NOT THERE
-The total you see is what we managed to measure, not the whole outing. We would rather tell you than let you work it out from the map once you are home.
+THAT STRETCH COUNTS ONLY AS A STRAIGHT LINE
+The real path of those minutes was almost certainly longer than the line standing in for it. We would rather tell you than let you work it out from the map once you are home.
+
+STRAIGHT STRETCHES ON OLDER TRACKS ARE YOURS TO DECLARE
+If a track saved before this version has a suspicious straight stretch — many minutes and many kilometres between two points — we point it out and you can declare it: it turns dashed, the page says so, the GPX breaks there. You can always undo it, and only whoever recorded the track can do it.
 
 THE GPX BREAKS WHERE THE RECORDING DID
 Export the track and the interruption becomes a break between two segments: Garmin, Strava and anything else reading it will see a gap instead of a straight line you never rode. It is how the GPX format has always said this.
