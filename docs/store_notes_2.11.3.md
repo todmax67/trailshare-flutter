@@ -1,4 +1,8 @@
-# Note release 2.11.3+128 per gli store
+# Note release 2.11.3+129 per gli store
+
+> La build 128 (canale interno + TestFlight) NON va promossa: aveva i buchi
+> del watchdog che non si salvavano e un'affermazione falsa nell'avviso.
+> La 129 e' la 2.11.3 vera, piu' la dichiarazione dei tratti sospetti.
 
 Una cosa sola da comunicare, e non è una funzione nuova: **quando la
 registrazione si ferma, ora la traccia lo dice.**
