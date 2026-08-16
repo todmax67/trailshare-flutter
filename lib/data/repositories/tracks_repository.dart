@@ -707,6 +707,22 @@ class TracksRepository {
     }
 
     await docRef.update(updates);
+
+    // La prima traccia resa pubblica si segna QUI, non solo al salvataggio.
+    //
+    // Prima stava unicamente nel ramo `if (track.isPublic)` di saveTrack, che
+    // copre il solo caso in cui la traccia nasce gia' pubblica. Ma il gesto
+    // vero e' un altro: si salva, si guarda, e si pubblica dopo dalla scheda
+    // di dettaglio — cioe' passando di qui. Il risultato era che il funnel
+    // riportava zero tracce pubbliche mentre ce n'erano, comprese quelle del
+    // founder: il gradino misurava un percorso che quasi nessuno prende.
+    //
+    // Solo quando si pubblica: togliere il pubblico non e' una milestone, e
+    // ripubblicare non conta due volte perche' milestone() e' idempotente.
+    if (isPublic == true) {
+      unawaited(GrowthAnalyticsService.instance
+          .milestone(GrowthMilestone.firstTrackPublic));
+    }
   }
 
   /// Parser tolerante per stringhe activityType da Firestore.
