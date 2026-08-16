@@ -1277,6 +1277,17 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.11.3',
+        title: 'Quando la registrazione si ferma, te lo diciamo 📍',
+        bullets: [
+          '**Il tratto tratteggiato non è strada percorsa.** Se il telefono sospende la registrazione, la traccia si ricongiunge con una linea dritta: ora quella linea è tratteggiata e più chiara, e sopra le statistiche c\'è scritto quante volte è successo e per quanto',
+          '**I chilometri di quei minuti non ci sono**, ed è giusto sapere che il totale è incompleto invece di scoprirlo dalla mappa',
+          '**Esportando il GPX la traccia si spezza** dove si è interrotta, invece di far credere a Garmin o Strava che tu sia passato in linea retta',
+          'La Dashboard salute dice quando le manca il permesso, invece di mostrare zeri che sembrano storico perso',
+          'Corretto un difetto che a qualcuno faceva rifare l\'accesso a ogni apertura: chi ne era colpito viene riparato da solo, senza fare niente',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.11.0',
         title: 'Il riconoscimento delle cime, rifatto 🏔️',
         bullets: [
