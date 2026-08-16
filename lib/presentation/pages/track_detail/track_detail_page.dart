@@ -36,6 +36,7 @@ import '../../widgets/share_track_to_group_sheet.dart';
 import '../../../presentation/widgets/heart_rate_zones_widget.dart';
 import '../../../core/services/health_service.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
+import '../../../core/utils/track_gap_segments.dart';
 import '../../widgets/flat_section.dart';
 import '../../widgets/track_stats_bar.dart';
 
@@ -397,6 +398,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
                   const SizedBox(height: 12),
 
+                  // Sta PRIMA delle statistiche di proposito: se una parte del
+                  // giro non è stata registrata, i numeri qui sotto non sono
+                  // sbagliati ma sono incompleti, e chi legge deve saperlo
+                  // prima di leggerli, non dopo.
+                  _buildGapNotice(),
+
                   _buildMainStats(),
 
                   // ⭐ Galleria foto — visibile sempre al proprietario
@@ -568,6 +575,67 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   /// di upload (processing → done con link / error). I campi
   /// `stravaActivityId` / `stravaUploadStatus` sono scritti dalla Cloud
   /// Function `stravaUploadActivity` dopo il salvataggio.
+  /// Dice che la registrazione si è interrotta, quando è successo.
+  ///
+  /// Non è un errore da nascondere: senza questa riga, la retta tratteggiata
+  /// sulla mappa resta un mistero, e i chilometri qui sotto sembrano il totale
+  /// del giro mentre sono solo quello che siamo riusciti a misurare.
+  ///
+  /// Sulle tracce salvate prima che il campo esistesse l'elenco è vuoto e la
+  /// riga non compare: non sappiamo se avessero buchi, e dire "nessuna
+  /// interruzione" sarebbe inventare.
+  Widget _buildGapNotice() {
+    final gaps = _track.gaps;
+    if (gaps.isEmpty) return const SizedBox.shrink();
+
+    final lost = totalGapDuration(gaps);
+    // Arrotondato al minuto: gli estremi arrivano dal watchdog e sono precisi
+    // al tick. "Circa dodici minuti" è vero, "12:04" no.
+    final minutes = lost.inMinutes;
+    final quanto = minutes >= 1 ? 'circa $minutes minut${minutes == 1 ? 'o' : 'i'}' : 'meno di un minuto';
+    final quante = gaps.length == 1
+        ? 'La registrazione si è interrotta una volta'
+        : 'La registrazione si è interrotta ${gaps.length} volte';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.timeline, size: 20, color: AppColors.warning),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$quante, per $quanto in tutto.',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Il tratto tratteggiato sulla mappa non è strada percorsa: '
+                    'è la linea fra il punto dove ci siamo fermati e quello '
+                    'dove abbiamo ripreso. Distanza e dislivello di quei '
+                    'minuti non sono nei numeri qui sotto.',
+                    style: TextStyle(fontSize: 13, color: context.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildStravaBadge() {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
     if (currentUid == null || _track.id == null) return const SizedBox.shrink();
