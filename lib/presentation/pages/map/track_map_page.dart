@@ -329,14 +329,19 @@ class _TrackMapPageState extends State<TrackMapPage> {
   Color _getGradientColor(double gradient) => slopeColor(gradient);
 
   /// Segmenti colorati per pendenza — delega all'helper condiviso.
+  ///
+  /// Entrambi i rami sanno dei buchi di registrazione: il ponte sopra un buco
+  /// esce tratteggiato, non colorato con la "pendenza" di un tratto mai
+  /// percorso.
   List<Polyline> _buildGradientPolylines() {
     final fallback = _isPlanned ? AppColors.info : AppColors.primary;
+    final gaps = (_hydratedTrack ?? widget.track)?.gaps ?? const <TrackGap>[];
     if (!_showGradientColors) {
-      return [
-        Polyline(points: _trackPoints, strokeWidth: 5, color: fallback),
-      ];
+      return solidTrackPolylines(_points, gaps,
+          strokeWidth: 5, color: fallback);
     }
-    return slopeGradientPolylines(_points, strokeWidth: 5, fallbackColor: fallback);
+    return gapAwareSlopeGradientPolylines(_points, gaps,
+        strokeWidth: 5, fallbackColor: fallback);
   }
 
   /// Komoot K1b — costruisce polyline a tratti coi colori del terreno.

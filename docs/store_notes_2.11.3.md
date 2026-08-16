@@ -1,6 +1,8 @@
-# Note release 2.11.3+130 per gli store
+# Note release 2.11.3+131 per gli store
 
-> **Si promuove la 130.** La 128 aveva i buchi del watchdog che non si
+> **Si promuove la 131.** La 130 tratteggiava solo nel ramo a tinta unita
+> (il default e' la pendenza) e la conferma aveva "Annulla" come unico modo
+> di chiuderla. La 128 aveva i buchi del watchdog che non si
 > salvavano e un'affermazione falsa nell'avviso; la 129 li correggeva ma il
 > rilevatore ignorava le tracce di prima di agosto 2026 — proprio quelle con
 > le rette da dichiarare — perche' il loro movingTime copiato dalla durata

@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../data/models/track.dart';
+import 'track_gap_segments.dart';
 
 /// Colorazione tracce per pendenza — logica condivisa tra la mappa fullscreen
 /// (`TrackMapPage`) e la mappa inline (`InteractiveTrackMap`).
@@ -122,4 +123,81 @@ class SlopeLegend extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─── Disegno consapevole dei buchi di registrazione ─────────────────────────
+
+/// Il ponte sopra un buco: tratteggiato, piu' sottile e piu' chiaro del
+/// percorso. Si legge come "qui siamo meno sicuri" senza bisogno di legenda.
+Polyline gapBridgePolyline(
+  TrackSegment bridge, {
+  required double strokeWidth,
+  required Color color,
+}) =>
+    Polyline(
+      points: bridge.points
+          .map((p) => LatLng(p.latitude, p.longitude))
+          .toList(),
+      strokeWidth: strokeWidth * 0.75,
+      color: color.withValues(alpha: 0.45),
+      pattern: StrokePattern.dashed(segments: const [8, 8]),
+    );
+
+/// Come [slopeGradientPolylines], ma i ponti sopra i buchi di registrazione
+/// escono tratteggiati invece che colorati per pendenza.
+///
+/// Esiste perche' la colorazione per pendenza e' il disegno di DEFAULT della
+/// scheda traccia, e la prima stesura del tratteggio (2.11.3) viveva solo nel
+/// ramo a tinta unita: sulla mappa che gli utenti vedono davvero il ponte
+/// restava una linea piena — colorata, per giunta, con la "pendenza" di un
+/// tratto mai percorso. Trovato dal founder al primo collaudo sul campo.
+List<Polyline> gapAwareSlopeGradientPolylines(
+  List<TrackPoint> points,
+  List<TrackGap> gaps, {
+  double strokeWidth = 5,
+  required Color fallbackColor,
+}) {
+  if (gaps.isEmpty) {
+    return slopeGradientPolylines(points,
+        strokeWidth: strokeWidth, fallbackColor: fallbackColor);
+  }
+  final out = <Polyline>[];
+  for (final seg in splitTrackOnGaps(points, gaps)) {
+    if (seg.points.length < 2) continue;
+    if (seg.isGap) {
+      out.add(gapBridgePolyline(seg,
+          strokeWidth: strokeWidth, color: fallbackColor));
+    } else {
+      out.addAll(slopeGradientPolylines(seg.points,
+          strokeWidth: strokeWidth, fallbackColor: fallbackColor));
+    }
+  }
+  return out;
+}
+
+/// Traccia a tinta unita, con i ponti sopra i buchi tratteggiati. E' il
+/// gemello non-gradiente di [gapAwareSlopeGradientPolylines]; la logica di
+/// divisione sta in track_gap_segments.dart ed e' verificata dai suoi test.
+List<Polyline> solidTrackPolylines(
+  List<TrackPoint> points,
+  List<TrackGap> gaps, {
+  double strokeWidth = 5,
+  required Color color,
+}) {
+  final segments = splitTrackOnGaps(points, gaps);
+  final out = <Polyline>[];
+  for (final seg in segments) {
+    if (seg.points.length < 2) continue;
+    if (seg.isGap) {
+      out.add(gapBridgePolyline(seg, strokeWidth: strokeWidth, color: color));
+    } else {
+      out.add(Polyline(
+        points:
+            seg.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
+        strokeWidth: strokeWidth,
+        color: color,
+      ));
+    }
+  }
+  return out;
 }

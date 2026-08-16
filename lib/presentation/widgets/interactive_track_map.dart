@@ -5,7 +5,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/utils/map_bounds.dart';
-import '../../core/utils/track_gap_segments.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/map_styles.dart';
 import '../../core/services/map_style_prefs.dart';
@@ -507,13 +506,21 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
                 
                 // Percorso — colorato per pendenza (elemento-firma) o singolo
                 PolylineLayer(
+                  // Entrambi i rami sanno dei buchi: la prima stesura del
+                  // tratteggio viveva solo in quello a tinta unita, e sul
+                  // disegno di default (pendenza) il ponte restava pieno.
                   polylines: widget.colorBySlope
-                      ? slopeGradientPolylines(widget.points,
-                          strokeWidth: 4, fallbackColor: AppColors.primary)
-                      : trackPolylines(
-                          points: widget.points,
-                          gaps: widget.track?.gaps ?? const [],
+                      ? gapAwareSlopeGradientPolylines(
+                          widget.points,
+                          widget.track?.gaps ?? const [],
                           strokeWidth: 4,
+                          fallbackColor: AppColors.primary,
+                        )
+                      : solidTrackPolylines(
+                          widget.points,
+                          widget.track?.gaps ?? const [],
+                          strokeWidth: 4,
+                          color: AppColors.primary,
                         ),
                 ),
 
@@ -845,43 +852,6 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
 // WIDGET: Map Button
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Le linee di una traccia: piene dove si e' camminato, tratteggiate sopra i
-/// buchi di registrazione.
-///
-/// Prima era una polilinea sola, quindi il salto sopra un'interruzione usciva
-/// identico al sentiero percorso e non c'era modo di distinguerli guardando.
-/// Il tratteggio non ripara niente — i punti di quei minuti non esistono — ma
-/// smette di presentare come strada qualcosa che non lo e'.
-///
-/// Sta qui e non nel core perche' dipende da flutter_map; la divisione dei
-/// tratti, che e' la parte con la logica, sta in track_gap_segments.dart ed e'
-/// verificata dai suoi test.
-List<Polyline> trackPolylines({
-  required List<TrackPoint> points,
-  required List<TrackGap> gaps,
-  required double strokeWidth,
-}) {
-  final segments = splitTrackOnGaps(points, gaps);
-  if (segments.isEmpty) return const [];
-
-  return segments
-      .where((s) => s.points.length >= 2)
-      .map((s) => Polyline(
-            points:
-                s.points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
-            strokeWidth: s.isGap ? strokeWidth * 0.75 : strokeWidth,
-            // Piu' chiaro e piu' sottile: si legge come "qui siamo meno
-            // sicuri" senza bisogno di una legenda.
-            color: s.isGap
-                ? AppColors.primary.withValues(alpha: 0.45)
-                : AppColors.primary,
-            pattern: s.isGap
-                ? StrokePattern.dashed(segments: const [8, 8])
-                : const StrokePattern.solid(),
-          ))
-      .toList();
-}
-
 class _MapButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -1158,10 +1128,11 @@ class _FullscreenMapPageState extends State<_FullscreenMapPage> {
               ),
               
               PolylineLayer(
-                polylines: trackPolylines(
-                  points: widget.points,
-                  gaps: widget.gaps,
+                polylines: solidTrackPolylines(
+                  widget.points,
+                  widget.gaps,
                   strokeWidth: 5,
+                  color: AppColors.primary,
                 ),
               ),
 

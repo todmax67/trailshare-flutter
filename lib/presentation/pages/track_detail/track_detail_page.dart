@@ -744,13 +744,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
       final merged = await _tracksRepository.declareGaps(id, candidates);
       if (!mounted) return;
       setState(() => _track = _track.copyWith(gaps: merged));
+      // Nessuna azione "Annulla" qui: con quella come unico gesto visibile
+      // per chiudere la barra, chiuderla DISFACEVA la dichiarazione. Il
+      // ritiro sta nella card dell'avviso, sempre visibile e senza fretta.
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Interruzioni dichiarate.'),
-          action: SnackBarAction(
-            label: 'Annulla',
-            onPressed: _removeDeclaredGaps,
-          ),
+        const SnackBar(
+          content: Text('Interruzioni dichiarate.'),
+          duration: Duration(seconds: 3),
         ),
       );
     } catch (e) {
