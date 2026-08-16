@@ -31,13 +31,24 @@ void main() {
 
   /// Track di test con [n] punti reali (distanza > 0). DEM disattivata
   /// (`elevationCorrectedFromDem: true`) per non innescare chiamate di rete.
+  ///
+  /// I punti DEVONO curvare. Prima erano su una retta perfetta
+  /// (`lat = 45 + i·0.0005`, `lng = 9 + i·0.0003`), e dal 2026-08-05 il
+  /// salvataggio semplifica con Douglas-Peucker: una retta di trenta punti si
+  /// riduce correttamente ai due estremi, perche' la forma e' identica. I test
+  /// che contavano i punti fallivano — non per un difetto, ma perche' stavano
+  /// misurando un tracciato che nessuno percorrerebbe mai.
+  ///
+  /// Lo zigzag qui sotto sposta ogni punto di alcune decine di metri dalla
+  /// corda, molto oltre i 2 m di tolleranza: la semplificazione li tiene tutti
+  /// e il conteggio torna a voler dire qualcosa.
   Track makeTrack({int n = 50, Map<DateTime, int>? hr}) {
     final base = DateTime(2026, 6, 1, 8);
     final points = List.generate(
       n,
       (i) => TrackPoint(
         latitude: 45.0 + i * 0.0005,
-        longitude: 9.0 + i * 0.0003,
+        longitude: 9.0 + i * 0.0003 + (i.isEven ? 0.0006 : -0.0006),
         elevation: 100.0 + i,
         timestamp: base.add(Duration(seconds: i * 10)),
         speed: 1.5,

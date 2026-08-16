@@ -19,8 +19,12 @@ Group makeGroup({
 
 void main() {
   group('BusinessCaps.applies', () {
-    test('returns false for non-business groups', () {
-      expect(BusinessCaps.applies(makeGroup()), isFalse);
+    // Semantica cambiata con Sprint B del 2026-05-10 (modello a tre livelli):
+    // `applies` non vuol piu' dire "valgono i cap business" ma "valgono dei
+    // cap", e per un gruppo normale valgono quelli base. Il test era rimasto
+    // alla lettura precedente.
+    test('returns true for non-business groups (cap base)', () {
+      expect(BusinessCaps.applies(makeGroup()), isTrue);
     });
 
     test('returns true for verified tier business groups', () {
@@ -50,8 +54,10 @@ void main() {
   });
 
   group('BusinessCaps.additionalAdminCap', () {
-    test('returns null for non-business groups (free behavior)', () {
-      expect(BusinessCaps.additionalAdminCap(makeGroup()), isNull);
+    test('un gruppo non business non ha co-admin aggiuntivi', () {
+      // Prima ci si aspettava `null` (illimitato). Dal modello a tre livelli i
+      // co-admin sono una funzione business: un gruppo normale ne ha zero.
+      expect(BusinessCaps.additionalAdminCap(makeGroup()), 0);
     });
 
     test('verified and trial tiers allow zero co-admins', () {
@@ -84,14 +90,20 @@ void main() {
       );
     });
 
-    test('unknown tier on a Business group falls back to unlimited', () {
-      // Comportamento difensivo: se il dato remoto contiene un tier
-      // sconosciuto (es. nuovo tier non ancora distribuito al client),
-      // non blocchiamo l'utente.
+    test('un tier sconosciuto non sblocca co-admin', () {
+      // Qui c'era una scelta difensiva — un tier nuovo non ancora distribuito
+      // al client non doveva bloccare l'utente — e vale la pena dire perche'
+      // non c'e' piu': l'API in uso, additionalAdminCapAsync, il tier non lo
+      // guarda affatto. Decide su isBusinessGroup e sullo stato Pro del
+      // proprietario, quindi un tier sconosciuto su un gruppo business prende
+      // comunque proAdminCap.
+      //
+      // Questo resta il comportamento della sola versione deprecata, che
+      // sparira' con B.4 portandosi via anche questo test.
       expect(
         BusinessCaps.additionalAdminCap(
             makeGroup(isBusinessGroup: true, tier: 'platinum')),
-        isNull,
+        0,
       );
     });
   });

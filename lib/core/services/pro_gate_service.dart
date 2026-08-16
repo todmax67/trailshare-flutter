@@ -134,15 +134,15 @@ class ProGateService extends ChangeNotifier {
       _currentProductId = null;
     }
     notifyListeners();
-    // Sprint B (2026-05-10): invalida la cache cross-user del Pro status
-    // per il current user. Senza questo, dopo un acquisto la cache di
-    // OwnerProStatusCache resta stale (TTL 5min) e i gating "owner Pro"
-    // continuano a vedere isPro=false → es. "Personalizza gruppo" apre
-    // paywall invece della pagina, anche se Apple ha già confermato Pro.
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      OwnerProStatusCache().invalidate(uid);
-    }
+
+    // PRIMA si salva, poi si ottimizza — e l'ordine non e' estetico.
+    //
+    // Fino al 2026-08-16 la persistenza stava dopo un `FirebaseAuth.instance`
+    // non protetto. Quella chiamata lancia se Firebase non e' inizializzato, e
+    // l'eccezione usciva dal metodo saltando le righe qui sotto: l'utente
+    // pagava, lo stato in memoria diceva Pro, la UI si aggiornava — e al
+    // riavolgersi dell'app `pro_unlocked` era ancora false, perche' non era
+    // mai stato scritto. Un acquisto perso senza un errore visibile.
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_kKey, value);
@@ -151,6 +151,23 @@ class ProGateService extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('[ProGate] save error: $e');
+    }
+
+    // Sprint B (2026-05-10): invalida la cache cross-user del Pro status
+    // per il current user. Senza questo, dopo un acquisto la cache di
+    // OwnerProStatusCache resta stale (TTL 5min) e i gating "owner Pro"
+    // continuano a vedere isPro=false → es. "Personalizza gruppo" apre
+    // paywall invece della pagina, anche se Apple ha già confermato Pro.
+    //
+    // E' un'ottimizzazione, quindi non puo' far fallire lo sblocco: se
+    // Firebase non c'e', la cache scade da sola in cinque minuti.
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        OwnerProStatusCache().invalidate(uid);
+      }
+    } catch (e) {
+      debugPrint('[ProGate] invalidazione cache saltata: $e');
     }
   }
 
