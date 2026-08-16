@@ -1,8 +1,11 @@
-# Note release 2.11.3+129 per gli store
+# Note release 2.11.3+130 per gli store
 
-> La build 128 (canale interno + TestFlight) NON va promossa: aveva i buchi
-> del watchdog che non si salvavano e un'affermazione falsa nell'avviso.
-> La 129 e' la 2.11.3 vera, piu' la dichiarazione dei tratti sospetti.
+> **Si promuove la 130.** La 128 aveva i buchi del watchdog che non si
+> salvavano e un'affermazione falsa nell'avviso; la 129 li correggeva ma il
+> rilevatore ignorava le tracce di prima di agosto 2026 — proprio quelle con
+> le rette da dichiarare — perche' il loro movingTime copiato dalla durata
+> azzerava il bilancio. La 130 aggiunge il regime d'epoca: per le tracce
+> pre-Douglas-Peucker bastano le due soglie, senza bilancio.
 
 Una cosa sola da comunicare, e non è una funzione nuova: **quando la
 registrazione si ferma, ora la traccia lo dice.**

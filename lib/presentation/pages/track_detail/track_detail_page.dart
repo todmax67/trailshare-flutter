@@ -595,6 +595,12 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
             gaps,
             duration: _track.stats.duration,
             movingTime: _track.stats.movingTime,
+            // Le tracce salvate prima della semplificazione per forma non
+            // possono avere rettilinei collassati: per loro bastano le due
+            // soglie, e il bilancio — che il loro movingTime copiato
+            // renderebbe impossibile — non serve.
+            savedBeforeShapeSimplification:
+                _track.createdAt.isBefore(kShapeSimplifiedSince),
           )
         : const <TrackGap>[];
     if (gaps.isEmpty && candidates.isEmpty) return const SizedBox.shrink();

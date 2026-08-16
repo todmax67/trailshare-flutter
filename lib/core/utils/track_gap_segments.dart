@@ -136,6 +136,23 @@ const double kMinUndeclaredGapMeters = 300;
 /// arrotondamenti dell'accumulatore del tempo in movimento.
 const Duration kGapBudgetSlack = Duration(seconds: 60);
 
+/// Da quando le tracce vengono salvate con la semplificazione PER FORMA
+/// (Douglas-Peucker, commit ce2523c del 2026-08-05, in produzione con la
+/// 2.10.0 del 9 agosto).
+///
+/// Prima la riduzione era uniforme — un punto ogni N — e conservava la
+/// cadenza temporale: un arco di 5+ minuti nel salvato poteva essere solo un
+/// buco vero. Da questa data in poi puo' anche essere un rettilineo
+/// collassato, e serve il bilancio del tempo in movimento per distinguerli.
+///
+/// Le tracce piu' vecchie di questa data hanno anche un movingTime copiato
+/// dalla durata (corretto solo nella 2.10.0), quindi senza questa distinzione
+/// il bilancio le escluderebbe tutte — proprio quelle per cui la Fase 1
+/// esiste. Si usa la data del commit e non della release: le tracce salvate
+/// nei quattro giorni di build di sviluppo finiscono nel regime moderno, che
+/// e' il lato prudente.
+final DateTime kShapeSimplifiedSince = DateTime.utc(2026, 8, 5);
+
 /// Trova, in una traccia gia' salvata, gli archi che hanno la firma di
 /// un'interruzione mai dichiarata: tanto tempo E tanta distanza fra due punti
 /// consecutivi, E un bilancio del tempo che confermi l'assenza.
@@ -170,11 +187,20 @@ List<TrackGap> detectUndeclaredGaps(
   List<TrackGap> declared, {
   required Duration duration,
   required Duration movingTime,
+  bool savedBeforeShapeSimplification = false,
 }) {
   if (points.length < 2) return const [];
 
+  // Regime d'epoca (vedi [kShapeSimplifiedSince]): sulle tracce ridotte
+  // uniformemente un arco lungo E' un buco — il bilancio non serve, e il loro
+  // movingTime copiato dalla durata lo renderebbe comunque inutilizzabile.
+  final useBudget = !savedBeforeShapeSimplification;
+
   // Il bilancio: quanto tempo della traccia NON risulta in movimento.
-  if (movingTime <= Duration.zero || movingTime >= duration) return const [];
+  if (useBudget &&
+      (movingTime <= Duration.zero || movingTime >= duration)) {
+    return const [];
+  }
   final budget = duration - movingTime + kGapBudgetSlack;
 
   final raw = <TrackGap>[];
@@ -200,7 +226,7 @@ List<TrackGap> detectUndeclaredGaps(
       cause: TrackGap.causeOwnerDeclared,
     ));
   }
-  if (raw.isEmpty) return raw;
+  if (raw.isEmpty || !useBudget) return raw;
 
   // Prima i piu' lunghi: se il bilancio copre solo una parte, meglio tenere
   // il congelamento da 37 minuti e scartare l'arco da 6 che potrebbe essere

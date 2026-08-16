@@ -228,6 +228,61 @@ void main() {
       expect(found.single.duration, const Duration(minutes: 37));
     });
 
+    group('regime d\'epoca: tracce salvate prima della riduzione per forma', () {
+      // Le tracce di allora hanno movingTime copiato dalla durata — che nel
+      // regime moderno spegnerebbe tutto — ma non possono avere rettilinei
+      // collassati: la riduzione uniforme conservava la cadenza temporale.
+      test('il buco vero viene proposto anche con movingTime inattendibile', () {
+        final pts = [
+          at(0),
+          at(60, lat: 45.001),
+          at(60 + 2220, lat: 45.051),
+          at(60 + 2280, lat: 45.052),
+        ];
+        final found = detectUndeclaredGaps(pts, const [],
+            duration: dFreeze,
+            movingTime: dFreeze, // copia: pre-2.10.0
+            savedBeforeShapeSimplification: true);
+        expect(found, hasLength(1),
+            reason: 'senza Douglas-Peucker un arco lungo e\' un buco vero');
+        expect(found.single.duration, const Duration(minutes: 37));
+      });
+
+      test('la pausa pranzo resta esclusa: la soglia spaziale vale sempre', () {
+        final pts = [
+          at(0),
+          at(60, lat: 45.001),
+          at(60 + 2400, lat: 45.0011),
+          at(60 + 2460, lat: 45.002),
+        ];
+        expect(
+          detectUndeclaredGaps(pts, const [],
+              duration: dFreeze,
+              movingTime: dFreeze,
+              savedBeforeShapeSimplification: true),
+          isEmpty,
+        );
+      });
+
+      test('la stessa traccia nel regime moderno resta bloccata dal bilancio', () {
+        final pts = [
+          at(0),
+          at(60, lat: 45.001),
+          at(60 + 2220, lat: 45.051),
+        ];
+        expect(
+          detectUndeclaredGaps(pts, const [],
+              duration: dFreeze, movingTime: dFreeze),
+          isEmpty,
+          reason: 'movingTime==duration senza regime d\'epoca = non attendibile',
+        );
+      });
+
+      test('la data di soglia e\' quella del cambio di riduzione', () {
+        expect(kShapeSimplifiedSince, DateTime.utc(2026, 8, 5));
+      });
+    });
+
     test('sotto la soglia spaziale non scatta, anche con tanto tempo', () {
       final pts = [
         at(0),
