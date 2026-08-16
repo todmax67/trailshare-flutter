@@ -20,20 +20,26 @@ promettiamo «migliorie»: va detto che è **rifatto**.
 
 ## "Novità in questa versione"
 
-### IT — Play Console (max 500)
+### IT — Play Console (488 / 500)
+
+La versione precedente di questo blocco era **534 caratteri**: Play l'avrebbe
+troncato a metà frase. Con le due correzioni aggiunte in coda ci sono voluti
+altri tagli — sono usciti i nomi che restano incollati alle montagne e l'elenco
+del giro d'orizzonte, che sono le due cose più difficili da capire senza
+vederle. Restano nel blocco App Store, dove c'è spazio.
 
 ```
 Il riconoscimento delle cime è rifatto da capo.
 
-Cerca una cima per nome e l'app ti dice quanti gradi girarti per averla davanti.
+Cerca una cima per nome: l'app ti dice quanti gradi girarti per averla davanti.
 
-Il panorama non è più una linea: montagne su più piani di profondità, ombreggiate dal sole all'ora che scegli.
+Il panorama non è più una linea: montagne su più piani, ombreggiate dal sole all'ora che scegli.
 
-Ti dice dietro quale cima tramonta il sole, e a che ora: in valle può essere mezz'ora prima dell'orario ufficiale.
+Ti dice dietro quale cima tramonta il sole, e a che ora.
 
-I nomi restano incollati alle montagne mentre muovi il telefono, e smettono di lampeggiare quando lo tieni fermo.
+Corretto un difetto che faceva rifare l'accesso a ogni apertura: chi ne era colpito viene riparato da solo.
 
-Nuovo elenco delle cime visibili, tutto il giro d'orizzonte.
+La Dashboard salute dice quando le manca il permesso, invece di zeri che sembrano dati persi.
 ```
 
 ### IT — App Store Connect (max 4000)
@@ -58,6 +64,12 @@ Tutto il giro d'orizzonte, in ordine di direzione: sai cosa c'è alle tue spalle
 
 E QUANDO NON SAPPIAMO, LO DICIAMO
 Dove il terreno non è stato scaricato l'app tace, invece di disegnare un orizzonte che non conosce.
+
+NON DOVRAI PIÙ RIFARE L'ACCESSO
+C'era un difetto per cui alcuni si ritrovavano scollegati a ogni apertura dell'app, per sempre e senza nessun messaggio. Chi ci era dentro viene riparato al primo avvio, senza fare niente.
+
+LA DASHBOARD SALUTE NON MENTE PIÙ
+Quando le manca il permesso lo dice, invece di mostrare zeri che sembrano storico perso.
 ```
 
 ### EN — App Store Connect
@@ -82,6 +94,12 @@ All the way around the horizon, in bearing order: know what is behind you withou
 
 AND WHEN WE DO NOT KNOW, WE SAY SO
 Where the terrain has not been downloaded the app stays silent, instead of drawing a horizon it does not know.
+
+NO MORE SIGNING IN AGAIN
+There was a fault that left some people signed out every time they opened the app — forever, and with no error message. Anyone affected is repaired on the next launch, without doing anything.
+
+THE HEALTH DASHBOARD NO LONGER LIES
+When it is missing the permission it says so, instead of showing zeros that look like lost history.
 ```
 
 ## Cosa NON promettere
