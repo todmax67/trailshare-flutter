@@ -237,9 +237,39 @@ class GpxService {
     if (track.description != null) {
       buffer.writeln('    <desc>${_escapeXml(track.description!)}</desc>');
     }
-    buffer.writeln('    <trkseg>');
-    
+    // Un <trkseg> per ogni tratto continuo, non uno solo per tutta la traccia.
+    //
+    // E' il modo che il formato GPX prevede da sempre per dire "qui la
+    // registrazione si e' interrotta": lo standard descrive proprio il segmento
+    // nuovo come cio' che si apre quando il ricevitore perde il segnale o viene
+    // spento. Ogni programma che legge GPX lo capisce — Garmin, Strava, komoot,
+    // QGIS — e disegna uno stacco invece di una retta.
+    //
+    // Con un segmento unico, invece, il buco diventava una linea dritta
+    // indistinguibile dal percorso vero appena il file usciva dall'app: qualsiasi
+    // avviso mostrato nella nostra scheda non viaggia con il file.
+    final breaks = track.gaps
+        .map((g) => g.startedAt)
+        .toList()
+      ..sort();
+    var nextBreak = 0;
+    var segmentOpen = false;
+
     for (final point in track.points) {
+      // Si chiude il segmento al primo punto successivo all'inizio del buco.
+      while (nextBreak < breaks.length &&
+          point.timestamp.isAfter(breaks[nextBreak])) {
+        if (segmentOpen) {
+          buffer.writeln('    </trkseg>');
+          segmentOpen = false;
+        }
+        nextBreak++;
+      }
+      if (!segmentOpen) {
+        buffer.writeln('    <trkseg>');
+        segmentOpen = true;
+      }
+
       buffer.write('      <trkpt lat="${point.latitude}" lon="${point.longitude}">');
       if (point.elevation != null) {
         buffer.write('<ele>${point.elevation!.toStringAsFixed(1)}</ele>');
@@ -247,7 +277,10 @@ class GpxService {
       buffer.write('<time>${point.timestamp.toUtc().toIso8601String()}</time>');
       buffer.writeln('</trkpt>');
     }
-    
+
+    // Una traccia senza punti resta con il segmento vuoto di prima, per non
+    // cambiare la forma del file rispetto a com'era.
+    if (!segmentOpen) buffer.writeln('    <trkseg>');
     buffer.writeln('    </trkseg>');
     buffer.writeln('  </trk>');
     buffer.writeln('</gpx>');

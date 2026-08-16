@@ -1257,6 +1257,23 @@ class TracksRepository {
       }
     }
 
+    // I buchi di registrazione. Assenti sulle tracce salvate prima che il
+    // campo esistesse: li' l'elenco vuoto vuol dire "non lo sappiamo", non
+    // "non ce ne sono stati".
+    List<TrackGap> gaps = [];
+    final gapsData = data['gaps'];
+    if (gapsData != null && gapsData is List) {
+      for (var g in gapsData) {
+        try {
+          if (g is Map) {
+            gaps.add(TrackGap.fromMap(Map<String, dynamic>.from(g)));
+          }
+        } catch (e) {
+          debugPrint('[TracksRepository] Errore parsing buco: $e');
+        }
+      }
+    }
+
     // Activity type
     ActivityType activityType = ActivityType.trekking;
     final activityStr = data['activityType'] as String?;
@@ -1334,6 +1351,7 @@ class TracksRepository {
       stats: stats,
       photos: photos, // 📸 Foto
       laps: laps,
+      gaps: gaps,
       heartRateData: heartRateData, // ❤️ Battito cardiaco
       healthCalories: healthCalories, // 🔥 Calorie reali
       healthSteps: healthSteps, // 👣 Passi

@@ -34,6 +34,11 @@ class TrackingState {
   final int gapCount;
   final Duration lostTime;
 
+  /// I buchi con i loro estremi, non solo contati. Servono a finire sulla
+  /// traccia salvata: senza, l'informazione muore con questa schermata e chi
+  /// riapre il giro domani vede una retta che sembra strada percorsa.
+  final List<TrackGap> gaps;
+
   const TrackingState({
     this.status = TrackingStatus.idle,
     this.points = const [],
@@ -44,6 +49,7 @@ class TrackingState {
     this.activityType = ActivityType.trekking,
     this.gapCount = 0,
     this.lostTime = Duration.zero,
+    this.gaps = const [],
   });
 
   bool get isRecording => status == TrackingStatus.recording;
@@ -61,6 +67,7 @@ class TrackingState {
     ActivityType? activityType,
     int? gapCount,
     Duration? lostTime,
+    List<TrackGap>? gaps,
   }) {
     return TrackingState(
       status: status ?? this.status,
@@ -72,6 +79,7 @@ class TrackingState {
       activityType: activityType ?? this.activityType,
       gapCount: gapCount ?? this.gapCount,
       lostTime: lostTime ?? this.lostTime,
+      gaps: gaps ?? this.gaps,
     );
   }
 }
@@ -167,9 +175,20 @@ class TrackingBloc extends ChangeNotifier {
   /// di quei minuti non esistono — ma tacerlo significa consegnare all'utente
   /// una traccia incompleta presentata come completa.
   void _onGap(GpsGap gap) {
+    // Il watchdog dice quando se n'e' accorto e quanto e' durato: l'inizio si
+    // ricava all'indietro. Sono estremi precisi al tick, non al secondo — ed e'
+    // il motivo per cui la scheda dira' "circa dodici minuti" e non "12:04".
     _state = _state.copyWith(
       gapCount: _state.gapCount + 1,
       lostTime: _state.lostTime + gap.duration,
+      gaps: [
+        ..._state.gaps,
+        TrackGap(
+          startedAt: gap.detectedAt.subtract(gap.duration),
+          endedAt: gap.detectedAt,
+          cause: gap.cause.name,
+        ),
+      ],
       errorMessage: gap.cause == GpsGapCause.appFrozen
           ? 'gps_gap_frozen'
           : 'gps_gap_stalled',
@@ -278,6 +297,10 @@ class TrackingBloc extends ChangeNotifier {
       recordedAt: _state.startTime,
       createdAt: DateTime.now(),
       stats: _state.stats,
+      // I buchi seguono la traccia invece di morire con la schermata: e' l'unico
+      // modo perche' domani, riaprendo il giro, si sappia che quella retta non
+      // e' strada percorsa.
+      gaps: List.from(_state.gaps),
     );
 
     // Reset stato e tracker

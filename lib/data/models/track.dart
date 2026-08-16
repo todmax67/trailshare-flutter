@@ -429,6 +429,61 @@ class TrackLap {
   }
 }
 
+/// Un tratto in cui la registrazione ha smesso di ricevere punti.
+///
+/// Il watchdog di [LocationService] se ne accorge e lo dice all'utente mentre
+/// cammina, ma finora quell'informazione moriva con la schermata: la traccia
+/// salvata non sapeva di avere un buco. Il risultato e' che la mappa collega i
+/// due estremi con una **retta identica al resto del percorso**, e chi la
+/// guarda — o la riceve condivisa — legge come strada percorsa un tratto dove
+/// non e' mai passato nessuno.
+///
+/// Non si puo' impedire del tutto (quando il sistema congela il processo non
+/// gira una riga di codice nostro, e non ci riesce nemmeno la concorrenza), ma
+/// si puo' smettere di presentarlo come se non fosse successo.
+///
+/// Gli estremi vengono dal watchdog, che misura la deriva dell'orologio: sono
+/// precisi al tick, non al secondo. Meglio dichiarare "circa dodici minuti"
+/// che fingere una precisione che non abbiamo.
+class TrackGap {
+  /// Ultimo istante con dati validi.
+  final DateTime startedAt;
+
+  /// Istante in cui la registrazione e' ripartita.
+  final DateTime endedAt;
+
+  /// `appFrozen` — il sistema ha sospeso il processo, niente da fare.
+  /// `streamStalled` — l'app era viva ma lo stream aveva smesso di consegnare.
+  final String cause;
+
+  const TrackGap({
+    required this.startedAt,
+    required this.endedAt,
+    required this.cause,
+  });
+
+  Duration get duration => endedAt.difference(startedAt);
+
+  Map<String, dynamic> toMap() => {
+        'startedAt': startedAt.toUtc().toIso8601String(),
+        'endedAt': endedAt.toUtc().toIso8601String(),
+        'cause': cause,
+      };
+
+  factory TrackGap.fromMap(Map<String, dynamic> map) {
+    final start = DateTime.tryParse(map['startedAt']?.toString() ?? '');
+    final end = DateTime.tryParse(map['endedAt']?.toString() ?? '');
+    final safeStart = start ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    return TrackGap(
+      startedAt: safeStart,
+      // Un buco senza fine leggibile resta un buco: si tiene, con durata zero,
+      // invece di sparire e far tornare la traccia "completa".
+      endedAt: end ?? safeStart,
+      cause: map['cause']?.toString() ?? 'unknown',
+    );
+  }
+}
+
 /// Traccia completa (CON FOTO)
 class Track {
   final String? id;
@@ -466,6 +521,12 @@ class Track {
   /// Vuota su tutte le tracce che non arrivano da un device che li segna: in
   /// quel caso la scheda continua a calcolarli ogni chilometro.
   final List<TrackLap> laps;
+
+  /// I tratti in cui la registrazione si e' fermata. Vuota quando e' filata
+  /// liscia — che e' anche il caso di tutte le tracce salvate prima che questo
+  /// campo esistesse, per le quali un elenco vuoto non significa "nessun buco"
+  /// ma "non lo sappiamo".
+  final List<TrackGap> gaps;
 
   // ❤️ Dati battito cardiaco da Health Connect/Apple Health
   // Mappa: timestamp -> BPM
@@ -546,6 +607,7 @@ class Track {
     this.groupIds = const [],
     this.photos = const [], // 📸 Default: nessuna foto
     this.laps = const [], // giri dal dispositivo, se li manda
+    this.gaps = const [], // buchi di registrazione, se ce ne sono stati
     this.heartRateData, // ❤️ Battito cardiaco (opzionale)
     this.healthCalories, // 🔥 Calorie reali (opzionale)
     this.healthSteps, // 👣 Passi (opzionale)
@@ -581,6 +643,10 @@ class Track {
       // Solo se ci sono: l'assenza del campo e' gia' il segnale per tornare
       // ai giri calcolati al chilometro.
       if (laps.isNotEmpty) 'laps': laps.map((l) => l.toMap()).toList(),
+      // Come per i giri: si scrive solo se c'e' qualcosa da dire. La differenza
+      // e' che qui l'assenza del campo non e' neutra — vuol dire che di quella
+      // traccia non sappiamo se sia intera, non che lo sia.
+      if (gaps.isNotEmpty) 'gaps': gaps.map((g) => g.toMap()).toList(),
     };
 
     // ❤️ Battito cardiaco (aggiunto separatamente per chiarezza)
@@ -634,6 +700,7 @@ class Track {
     List<String>? groupIds,
     List<TrackPhotoMetadata>? photos, // 📸 NUOVO
     List<TrackLap>? laps,
+    List<TrackGap>? gaps,
     Map<DateTime, int>? heartRateData, // ❤️
     double? healthCalories, // 🔥
     int? healthSteps, // 👣
@@ -662,6 +729,7 @@ class Track {
       groupIds: groupIds ?? this.groupIds,
       photos: photos ?? this.photos, // 📸 NUOVO
       laps: laps ?? this.laps,
+      gaps: gaps ?? this.gaps,
       heartRateData: heartRateData ?? this.heartRateData, // ❤️
       healthCalories: healthCalories ?? this.healthCalories, // 🔥
       healthSteps: healthSteps ?? this.healthSteps, // 👣
