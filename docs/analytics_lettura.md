@@ -145,3 +145,52 @@ Detto perché il silenzio non venga scambiato per uno zero:
 - **il pianificatore, i gruppi, i segmenti cronometrati e i Tour** non hanno
   eventi propri: di loro sappiamo solo le schermate aperte;
 - **il web** (Firebase Hosting) non manda niente di tutto questo.
+
+## Le 17 dimensioni personalizzate da registrare
+
+**Da fare una volta sola, in GA4 → Amministrazione → Definizioni personalizzate
+→ Crea dimensione personalizzata**, con *ambito: evento* e il nome del
+parametro identico alla colonna «parametro».
+
+Senza, l'evento arriva ma **il campo resta invisibile in ogni report**: si vede
+che ci sono state 40 registrazioni, non quante si sono interrotte. È il
+passaggio che fa concludere che la strumentazione non funzioni, e non c'è
+nessun avviso da nessuna parte.
+
+Attenzione: **non è retroattivo.** GA4 comincia a popolare la dimensione dal
+momento in cui la registri, e i dati arrivati prima restano senza. Registrarle
+tutte subito costa dieci minuti e vale mesi di storico.
+
+| parametro | evento | serve a rispondere a |
+|---|---|---|
+| `had_gaps` | `recording_finished` | **quanto è diffuso il congelamento** — oggi lo sappiamo solo per segnalazione |
+| `activity_type` | `recording_started`, `recording_finished` | per quale sport ci usano davvero |
+| `minutes_bucket` | `recording_finished` | uscite brevi o giornate intere |
+| `km_bucket` | `recording_finished` | idem, in distanza |
+| `is_own` | `track_opened` | rivedono le proprie uscite o guardano quelle degli altri |
+| `has_results` | `search_performed` | **quante ricerche escono a vuoto** = dove è bucato il catalogo |
+| `result_bucket` | `search_performed` | pochi risultati o troppi |
+| `scope` | `search_performed` | cosa cercano |
+| `claimed` | `hut_opened` | **quante schede sono di qualcuno e quante POI orfani** — la base della proposta B2B |
+| `has_opening_hours` | `hut_opened` | copertura del dato che manca di più (8%) |
+| `tile_bucket` | `offline_map_downloaded` | aree piccole o intere valli |
+| `max_zoom` | `offline_map_downloaded` | quanto dettaglio vogliono offline |
+| `points_bucket` | `gap_reconstructed` | quanto lavoro fanno per ridisegnare un tratto |
+| `trigger` | `paywall_viewed` | da dove si arriva al paywall |
+| `method` | `signup_started` | quale metodo di registrazione perde meno gente |
+| `provider` | `integration_connect_started` | Strava, Polar, Suunto: chi ci prova |
+| `link_kind` | `deep_link_open` | QR nei rifugi, bio social, stampa |
+
+Diciassette su un limite di cinquanta, quindi c'è spazio per crescere — ma il
+limite è un motivo in più per non aggiungere eventi a caso.
+
+### Le prime tre domande da farsi, quando i dati ci saranno
+
+1. **`recording_started` ÷ `recording_finished`.** La differenza sono le
+   registrazioni cominciate e mai chiuse. Se non è vicina a zero, viene prima
+   di qualunque altra cosa in questo documento.
+2. **`has_results = 0` su `search_performed`.** Ogni ricerca a vuoto è qualcuno
+   che cercava una cosa che non abbiamo. Ripetuta, è una voce di roadmap.
+3. **`claimed = 0` su `hut_opened`.** È la misura di quanto la gente apra
+   schede che nessuno cura — cioè la dimensione reale dell'occasione B2B, che
+   finora era una stima a naso.
