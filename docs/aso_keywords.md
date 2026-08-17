@@ -178,6 +178,38 @@ sta cercando mappe.
 Proposta: **secondaria da Sport a Navigazione**. La primaria può restare Salute
 e benessere, che è quella di komoot e AllTrails.
 
+#### Su Play la conclusione è OPPOSTA, e vale la pena non sbagliarsi
+
+Misurato il 2026-08-17 leggendo `applicationCategory` dal JSON-LD delle schede
+Play (otto app su dieci tentate; PeakVisor e Terra Map non trovate con quei
+package):
+
+| Categoria Play | Chi c'è |
+|---|---|
+| **Salute e fitness** | komoot, AllTrails, Strava, **TrailShare** |
+| Mappe e navigatori | Wikiloc, Gaia GPS |
+| Info e viaggi locali | Outdooractive, OsmAnd |
+
+**Play concede una categoria sola**, non due: non è aggiungere uno slot, è
+uscire da una lista per entrare in un'altra. E lì non siamo l'anomalia — siamo
+dove stanno i tre concorrenti più vicini.
+
+Il ragionamento di sopra vale per Apple *proprio perché* i posti sono due: si
+prende Navigazione senza rinunciare a Salute e benessere. Su Play lo stesso
+gesto ci allontanerebbe da komoot e AllTrails per raggiungere Wikiloc.
+
+Aggiungasi che a questi volumi l'argomento delle classifiche di categoria non
+morde: si entra per download, e con qualche decina di utenti non si compare in
+nessuna delle due liste. Su Play la categoria conta soprattutto per le
+superfici "app simili", cioè per l'accostamento — e l'accostamento giusto oggi
+è con le app di attività outdoor, non con i navigatori stradali.
+
+**Quindi: si cambia su Apple, non su Play.** Cosa farebbe cambiare idea: se la
+proposta diventasse davvero centrata sui rifugi (vedi la nota su un PRO
+costruito sui rifugi), *Info e viaggi locali* tornerebbe in gioco — è dove
+stanno Outdooractive e OsmAnd, cioè chi vende territorio più che allenamento.
+Da rivalutare allora, con i numeri di allora.
+
 ### 2. Nessuna scheda in inglese, mentre l'app è tradotta per intero
 
 `lib/l10n/` ha 2.076 chiavi in italiano e **2.076 in inglese**: l'interfaccia è
