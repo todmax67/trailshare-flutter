@@ -151,7 +151,66 @@ di più.
 Google indicizza **titolo (30), descrizione breve (80) e descrizione lunga
 (4000)**. Le stesse parole vanno fatte entrare nel testo, scritte in frasi
 vere: il keyword stuffing su Play è penalizzato, su Apple no perché il campo è
-nascosto. Da fare separatamente, non è un copia-incolla di questa riga.
+nascosto.
+
+### La misura che mancava, e cosa dice
+
+Fino al 2026-08-17 di Play non sapevamo nulla — il brief del lunedì lo
+dichiarava ogni settimana come "non guardato", perché Google non ha un'API di
+ricerca pubblica. **Non serve**: la pagina dei risultati porta i pacchetti
+nell'ordine di posizionamento dentro l'HTML. Ora c'è `scripts/play_rank.py`,
+gemello di `aso_rank.py`.
+
+Prima misura (Play IT, 2026-08-17):
+
+```
+sentieri · rifugi · bivacchi · malghe · ciaspole · orobie · ferrate ·
+escursioni · trekking · mappe offline · sentieri montagna · rifugi alpini
+   → FUORI da tutti, sempre
+
+trailshare
+   → 1°
+```
+
+**Fuori da tutto il paniere**, comprese `bivacchi` e `rifugi alpini`, dove su
+Apple siamo dodicesimi e ottavi. Primi sul nome dell'app: quindi la scheda **è
+indicizzata**, e il problema è di posizionamento, non di presenza. Sono due
+cose che si curano in modo molto diverso, e distinguerle è costato una ricerca
+sola.
+
+### Cosa insegna un'app da 100 installazioni
+
+Cercando `sentieri` su Play compare al 7° posto **Sentieri** di Alfredo Panu:
++100 installazioni, nessun voto, categoria Strumenti. Davanti a noi, che di
+installazioni ne abbiamo la metà — ma anche davanti a nessuno di importante,
+mentre komoot e Wikiloc restano sopra.
+
+La differenza misurabile fra la sua scheda e la nostra è **il titolo**:
+
+| | titolo | posizione su `sentieri` |
+|---|---|---|
+| Sentieri | `Sentieri` — la query esatta | 7° |
+| TrailShare | `TrailShare: sentieri e rifugi` (29/30) | fuori |
+
+La parola ce l'abbiamo, e sta anche in apertura della descrizione breve
+(`Sentieri, rifugi e bivacchi sulla mappa…`, 79/80). Quello che non abbiamo è
+**la posizione**: la parte più forte del titolo la spendiamo su un marchio che
+nessuno cerca. Wikiloc e komoot possono permetterselo; un'app da cinquanta
+utenti no.
+
+**Esperimento proponibile** — il primo dopo settimane di "zero esperimenti
+proponibili", e possibile solo ora che sappiamo misurare:
+
+> Invertire il titolo Play in `Sentieri e rifugi: TrailShare` (29/30), lasciando
+> tutto il resto identico. Non è keyword stuffing — è lo stesso testo in un
+> altro ordine — e non richiede una build: il titolo Play sta nella scheda.
+> Rimisurare con `play_rank.py` dopo 7 e 14 giorni.
+
+Onestà su cosa aspettarsi: **potrebbe non bastare.** Con cinquanta
+installazioni il volume pesa comunque, e non è dimostrato che l'ordine delle
+parole nel titolo conti quanto la corrispondenza esatta. Ma è reversibile in
+trenta secondi, è misurabile, e finora non lo era — che è la differenza fra un
+esperimento e un'opinione.
 
 ## Altro da ottimizzare, in ordine di valore
 
