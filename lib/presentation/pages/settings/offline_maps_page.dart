@@ -726,7 +726,8 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
           if (context.mounted) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const OfflineMapsPage()),
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'OfflineMapsPage'),builder: (_) => const OfflineMapsPage()),
             );
           }
         }

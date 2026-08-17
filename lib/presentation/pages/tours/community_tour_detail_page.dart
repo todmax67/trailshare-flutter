@@ -167,7 +167,8 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
       if (!mounted || trail == null) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TrailDetailPage(trail: trail)),
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'TrailDetailPage'),builder: (_) => TrailDetailPage(trail: trail)),
       );
       return;
     }
@@ -177,7 +178,8 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
     if (!mounted || track == null) return;
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => CommunityTrackDetailPage(track: track)),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'CommunityTrackDetailPage'),builder: (_) => CommunityTrackDetailPage(track: track)),
     );
   }
 
@@ -396,6 +398,7 @@ class _CommunityTourDetailPageState extends State<CommunityTourDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'Track3DPage'),
         builder: (_) => Track3DPage(
           trackName: _tour?.title ?? 'Tour',
           segments: segments,

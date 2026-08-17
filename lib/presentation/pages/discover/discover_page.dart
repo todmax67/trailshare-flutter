@@ -535,6 +535,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'Track3DPage'),
         builder: (_) => Track3DPage(
           trackName: 'Sentieri in zona',
           segments: segments,
@@ -1158,6 +1159,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
+                                settings: const RouteSettings(name: 'BusinessProfilePage'),
                                 builder: (_) =>
                                     BusinessProfilePage(businessId: b.id!),
                               ),
@@ -1411,7 +1413,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
   void _openTrailDetail(PublicTrail trail) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => TrailDetailPage(trail: trail)),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'TrailDetailPage'),builder: (_) => TrailDetailPage(trail: trail)),
     );
   }
 

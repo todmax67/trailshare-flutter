@@ -171,6 +171,7 @@ class _BusinessCreatePageState extends State<BusinessCreatePage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'BusinessProfilePage'),
           builder: (_) => BusinessProfilePage(businessId: ref.id),
         ),
       );

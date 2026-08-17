@@ -205,6 +205,7 @@ class PushNotificationService {
     if (groupId != null && groupId.isNotEmpty && tabIndex != null) {
       navigatorKey.currentState?.push(
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'GroupDetailPage'),
           builder: (_) => GroupDetailPage(
             groupId: groupId,
             groupName: 'Gruppo',
@@ -220,7 +221,8 @@ class PushNotificationService {
       final userId = data['userId'] as String?;
       if (userId == null || userId.isEmpty) return;
       navigatorKey.currentState?.push(
-        MaterialPageRoute(builder: (_) => PublicProfilePage(userId: userId)),
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'PublicProfilePage'),builder: (_) => PublicProfilePage(userId: userId)),
       );
       return;
     }
@@ -234,7 +236,8 @@ class PushNotificationService {
       final track = await CommunityTracksRepository().getTrackById(trackId);
       if (track == null) return;
       navigatorKey.currentState?.push(
-        MaterialPageRoute(builder: (_) => CommunityTrackDetailPage(track: track)),
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'CommunityTrackDetailPage'),builder: (_) => CommunityTrackDetailPage(track: track)),
       );
       return;
     }

@@ -196,6 +196,7 @@ class _ChallengesPageState extends State<ChallengesPage>
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'ChallengeDetailPage'),
         builder: (_) => ChallengeDetailPage(challenge: challenge),
       ),
     );

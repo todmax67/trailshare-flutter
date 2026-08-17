@@ -460,6 +460,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
+                  settings: const RouteSettings(name: 'CommunityTrackDetailPage'),
                   builder: (_) => CommunityTrackDetailPage(track: track),
                 ),
               );
@@ -474,6 +475,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'FollowListPage'),
         builder: (_) => FollowListPage(
           userId: widget.userId,
           username: _username,

@@ -128,6 +128,7 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
+                      settings: const RouteSettings(name: 'BusinessCreatePage'),
                       builder: (_) => const BusinessCreatePage(),
                     ),
                   ),
@@ -288,6 +289,7 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
+                      settings: const RouteSettings(name: 'WebAiDraftsReviewPage'),
                       builder: (_) => const WebAiDraftsReviewPage(),
                     ),
                   ),
@@ -298,6 +300,7 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
+                      settings: const RouteSettings(name: 'WebTrailDraftsReviewPage'),
                       builder: (_) => const WebTrailDraftsReviewPage(),
                     ),
                   ),
@@ -327,6 +330,7 @@ class _WebBusinessPickerPageState extends State<WebBusinessPickerPage> {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
+                                  settings: const RouteSettings(name: 'WebBusinessDashboardPage'),
                                   builder: (_) => WebBusinessDashboardPage(
                                       businessId: b.id!),
                                 ),

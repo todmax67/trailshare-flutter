@@ -805,6 +805,7 @@ class _PlannerTabState extends State<PlannerTab> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'RecordPage'),
         builder: (_) => RecordPage(
           reference: RecordingReference.fromPlanner(route: _routeResult!),
           initialActivityType: deducedActivity,

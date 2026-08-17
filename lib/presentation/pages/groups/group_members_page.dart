@@ -104,6 +104,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
+                settings: const RouteSettings(name: 'PublicProfilePage'),
                 builder: (_) => PublicProfilePage(
                   userId: member.userId,
                   username: member.username,

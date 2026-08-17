@@ -121,6 +121,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                   onClaimPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
+                        settings: const RouteSettings(name: 'BusinessClaimRequestPage'),
                         builder: (_) =>
                             BusinessClaimRequestPage(business: b),
                       ),
@@ -212,6 +213,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
+                settings: const RouteSettings(name: 'BusinessEditPage'),
                 builder: (_) => BusinessEditPage(businessId: b.id!),
               ),
             ),
@@ -574,6 +576,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'BusinessPostComposerPage'),
                     builder: (_) =>
                         BusinessPostComposerPage(businessId: b.id!),
                   ),
@@ -585,6 +588,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'BusinessRecommendedTracksManagerPage'),
                     builder: (_) =>
                         BusinessRecommendedTracksManagerPage(business: b),
                   ),
@@ -596,6 +600,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'BusinessServicesManagerPage'),
                     builder: (_) =>
                         BusinessServicesManagerPage(businessId: b.id!),
                   ),
@@ -607,6 +612,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'BusinessAnalyticsPage'),
                     builder: (_) =>
                         BusinessAnalyticsPage(business: b),
                   ),
@@ -630,6 +636,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'BusinessQrCardPage'),
                     builder: (_) => BusinessQrCardPage(business: b),
                   ),
                 ),
@@ -640,6 +647,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'BusinessEditPage'),
                     builder: (_) => BusinessEditPage(businessId: b.id!),
                   ),
                 ),
@@ -657,6 +665,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'BusinessEditPage'),
         builder: (_) => BusinessEditPage(businessId: b.id!),
       ),
     );
@@ -839,6 +848,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
             () => Navigator.push(
               context,
               MaterialPageRoute(
+                settings: const RouteSettings(name: 'BusinessRecommendedTracksManagerPage'),
                 builder: (_) =>
                     BusinessRecommendedTracksManagerPage(business: b),
               ),
@@ -864,6 +874,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
+                          settings: const RouteSettings(name: 'BusinessRecommendedTracksManagerPage'),
                           builder: (_) =>
                               BusinessRecommendedTracksManagerPage(
                                   business: b),
@@ -899,6 +910,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
             () => Navigator.push(
               context,
               MaterialPageRoute(
+                settings: const RouteSettings(name: 'BusinessServicesManagerPage'),
                 builder: (_) =>
                     BusinessServicesManagerPage(businessId: b.id!),
               ),
@@ -921,6 +933,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
+                          settings: const RouteSettings(name: 'BusinessServicesManagerPage'),
                           builder: (_) => BusinessServicesManagerPage(
                               businessId: b.id!, readOnly: true),
                         ),
@@ -951,6 +964,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
             () => Navigator.push(
               context,
               MaterialPageRoute(
+                settings: const RouteSettings(name: 'BusinessPostComposerPage'),
                 builder: (_) =>
                     BusinessPostComposerPage(businessId: b.id!),
               ),
@@ -1119,6 +1133,7 @@ class _RatingBadge extends StatelessWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'BusinessReviewsPage'),
           builder: (_) => BusinessReviewsPage(business: business),
         ),
       ),

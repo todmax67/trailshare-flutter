@@ -57,7 +57,8 @@ class _ToursTabState extends State<ToursTab> {
   Future<void> _openCreate() async {
     final created = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const TourEditPage()),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'TourEditPage'),builder: (_) => const TourEditPage()),
     );
     if (created == true) _load();
   }
@@ -65,7 +66,8 @@ class _ToursTabState extends State<ToursTab> {
   Future<void> _openDetail(Tour tour) async {
     final changed = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => TourDetailPage(tourId: tour.id)),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'TourDetailPage'),builder: (_) => TourDetailPage(tourId: tour.id)),
     );
     if (changed == true) _load();
   }

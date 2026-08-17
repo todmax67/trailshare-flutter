@@ -188,6 +188,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       final picked = await Navigator.push<LatLng?>(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'PoiLocationPickerPage'),
           builder: (_) => PoiLocationPickerPage(
             polyline: const [],
             initialCenter:
@@ -1293,6 +1294,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'WebOutreachPdfPage'),
           builder: (_) => WebOutreachPdfPage(businessId: businessId),
         ),
       );
@@ -3238,6 +3240,7 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
+                        settings: const RouteSettings(name: 'GroupDetailPage'),
                         builder: (_) => GroupDetailPage(
                           groupId: g['id'],
                           groupName: g['name'],

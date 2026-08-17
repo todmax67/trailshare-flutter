@@ -184,6 +184,7 @@ class _WishlistPageState extends State<WishlistPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'CommunityTrackDetailPage'),
         builder: (_) => CommunityTrackDetailPage(track: track),
       ),
     );

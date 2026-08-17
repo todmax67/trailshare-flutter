@@ -73,6 +73,7 @@ class _CommunitySheetState extends State<_CommunitySheet> {
       Navigator.push(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'GroupDetailPage'),
           builder: (_) => GroupDetailPage(
             groupId: groupId,
             groupName: '${business.name} • Community',
@@ -178,6 +179,7 @@ class _CommunitySheetState extends State<_CommunitySheet> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'GroupDetailPage'),
         builder: (_) => GroupDetailPage(
           groupId: groupId,
           groupName: '${widget.business.name} • Community',

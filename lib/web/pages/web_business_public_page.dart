@@ -241,6 +241,7 @@ class _WebBusinessPublicPageState extends State<WebBusinessPublicPage> {
                           onClaimPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
+                                settings: const RouteSettings(name: 'WebClaimRequestPage'),
                                 builder: (_) => WebClaimRequestPage(
                                   business: business,
                                 ),

@@ -441,6 +441,7 @@ class _MentionAwareTextState extends State<_MentionAwareText> {
             Navigator.push(
               context,
               MaterialPageRoute(
+                settings: const RouteSettings(name: 'PublicProfilePage'),
                 builder: (_) => PublicProfilePage(userId: uid),
               ),
             );

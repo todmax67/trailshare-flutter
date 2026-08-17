@@ -100,7 +100,8 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
         onPressed: () async {
           final created = await Navigator.push<bool>(
             context,
-            MaterialPageRoute(builder: (_) => const CreateGroupPage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'CreateGroupPage'),builder: (_) => const CreateGroupPage()),
           );
           if (created == true) {
             _loadMyGroups();
@@ -172,7 +173,8 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
               onPressed: () async {
                 final created = await Navigator.push<bool>(
                   context,
-                  MaterialPageRoute(builder: (_) => const CreateGroupPage()),
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: 'CreateGroupPage'),builder: (_) => const CreateGroupPage()),
                 );
                 if (created == true) _loadMyGroups();
               },
@@ -227,6 +229,7 @@ class _GroupsListPageState extends State<GroupsListPage> with SingleTickerProvid
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'GroupDetailPage'),
                     builder: (_) => GroupDetailPage(groupId: group.id, groupName: group.name),
                   ),
                 );

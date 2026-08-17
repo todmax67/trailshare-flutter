@@ -354,6 +354,7 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
+                          settings: const RouteSettings(name: 'BusinessInviteCardPage'),
                           builder: (_) => BusinessInviteCardPage(
                             group: widget.group,
                           ),
@@ -389,6 +390,7 @@ class _GroupCustomizePageState extends State<GroupCustomizePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'GroupStatsPage'),
                     builder: (_) => GroupStatsPage(group: widget.group),
                   ),
                 );

@@ -374,7 +374,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   void _openCommunityTrackDetail(CommunityTrack track) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => CommunityTrackDetailPage(track: track)),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'CommunityTrackDetailPage'),builder: (_) => CommunityTrackDetailPage(track: track)),
     );
   }
 
@@ -713,6 +714,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
               Navigator.push(
                 context,
                 MaterialPageRoute(
+                  settings: const RouteSettings(name: 'BusinessDiscoveryPage'),
                   builder: (_) => const BusinessDiscoveryPage(),
                 ),
               );
@@ -723,7 +725,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const SearchUsersPage()),
+                MaterialPageRoute(
+                  settings: const RouteSettings(name: 'SearchUsersPage'),builder: (_) => const SearchUsersPage()),
               );
             },
             tooltip: context.l10n.searchUsers,
@@ -961,6 +964,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
+                            settings: const RouteSettings(name: 'CommunityTourDetailPage'),
                             builder: (_) =>
                                 CommunityTourDetailPage(tourId: t.id),
                           ),
@@ -1294,6 +1298,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                         if (id == null) return;
                         Navigator.of(context).push(
                           MaterialPageRoute(
+                            settings: const RouteSettings(name: 'BusinessProfilePage'),
                             builder: (_) =>
                                 BusinessProfilePage(businessId: id),
                           ),
@@ -1488,7 +1493,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         onPressed: () async {
           final created = await Navigator.push<bool>(
             context,
-            MaterialPageRoute(builder: (_) => const CreateGroupPage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'CreateGroupPage'),builder: (_) => const CreateGroupPage()),
           );
           if (created == true) {
             _loadMyGroups();
@@ -1643,6 +1649,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'GroupDetailPage'),
                     builder: (_) => GroupDetailPage(groupId: group.id, groupName: group.name),
                   ),
                 );
@@ -1870,6 +1877,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'GroupDetailPage'),
                     builder: (_) => GroupDetailPage(
                       groupId: item.groupId,
                       groupName: item.groupName,
@@ -2010,6 +2018,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
           Navigator.push(
             context,
             MaterialPageRoute(
+              settings: const RouteSettings(name: 'GroupDetailPage'),
               builder: (_) => GroupDetailPage(
                 groupId: item.groupId,
                 groupName: item.groupName,
@@ -2205,7 +2214,8 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const SearchUsersPage()),
+                    MaterialPageRoute(
+                      settings: const RouteSettings(name: 'SearchUsersPage'),builder: (_) => const SearchUsersPage()),
                   );
                 },
                 icon: const Icon(Icons.person_search),

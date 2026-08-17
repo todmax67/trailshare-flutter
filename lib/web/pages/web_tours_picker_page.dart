@@ -39,6 +39,7 @@ class WebToursPickerPage extends StatelessWidget {
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
+                        settings: const RouteSettings(name: 'WebTourEditPage'),
                         builder: (_) => const WebTourEditPage(),
                       ),
                     ),
@@ -69,6 +70,7 @@ class WebToursPickerPage extends StatelessWidget {
                                   onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
+                                      settings: const RouteSettings(name: 'WebTourEditPage'),
                                       builder: (_) =>
                                           WebTourEditPage(tourId: t.id),
                                     ),
@@ -102,7 +104,8 @@ class WebToursPickerPage extends StatelessWidget {
           FilledButton.icon(
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const WebTourEditPage()),
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'WebTourEditPage'),builder: (_) => const WebTourEditPage()),
             ),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Crea Tour'),

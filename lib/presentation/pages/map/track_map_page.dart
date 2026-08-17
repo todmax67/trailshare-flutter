@@ -552,6 +552,7 @@ class _TrackMapPageState extends State<TrackMapPage> {
                           if (id == null) return;
                           Navigator.of(context).push(
                             MaterialPageRoute(
+                              settings: const RouteSettings(name: 'BusinessProfilePage'),
                               builder: (_) => BusinessProfilePage(
                                 businessId: id,
                               ),

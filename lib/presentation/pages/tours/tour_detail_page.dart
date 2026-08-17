@@ -114,7 +114,8 @@ class _TourDetailPageState extends State<TourDetailPage> {
     if (_tour == null) return;
     final changed = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => TourEditPage(existing: _tour)),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'TourEditPage'),builder: (_) => TourEditPage(existing: _tour)),
     );
     if (changed == true) _load();
   }
@@ -267,6 +268,7 @@ class _TourDetailPageState extends State<TourDetailPage> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
+                          settings: const RouteSettings(name: 'TrackDetailPage'),
                           builder: (_) => TrackDetailPage(track: _tappaPerDetail(i)),
                         ),
                       ),
@@ -328,6 +330,7 @@ class _TourDetailPageState extends State<TourDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'Track3DPage'),
         builder: (_) => Track3DPage(
           trackName: _tour?.title ?? 'Tour',
           segments: segments,

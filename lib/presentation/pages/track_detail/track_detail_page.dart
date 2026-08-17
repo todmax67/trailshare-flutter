@@ -855,6 +855,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
 
     final route = await Navigator.of(context).push<List<LatLng>>(
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'GapReconstructionPage'),
         builder: (_) => GapReconstructionPage(
           gap: gap,
           activityType: _track.activityType,
@@ -1140,6 +1141,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'Track3DPage'),
         builder: (_) => Track3DPage.single(
           trackName: _track.name,
           points: _track.points,
@@ -1505,6 +1507,7 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'RecordPage'),
         builder: (_) => RecordPage(
           reference: RecordingReference.fromTrail(
             trailPoints: points

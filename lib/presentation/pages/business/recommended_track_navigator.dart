@@ -36,7 +36,8 @@ Future<void> openRecommendedTrackDetail(
       }
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TrackDetailPage(track: track)),
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'TrackDetailPage'),builder: (_) => TrackDetailPage(track: track)),
       );
     } else {
       final track =
@@ -52,6 +53,7 @@ Future<void> openRecommendedTrackDetail(
       Navigator.push(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'CommunityTrackDetailPage'),
           builder: (_) => CommunityTrackDetailPage(track: track),
         ),
       );

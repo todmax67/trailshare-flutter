@@ -174,7 +174,8 @@ class _HeartRateZonesWidgetState extends State<HeartRateZonesWidget> {
   Future<void> _openSettings() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const SettingsPage()),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'SettingsPage'),builder: (_) => const SettingsPage()),
     );
     if (mounted) _loadMaxHR();
   }

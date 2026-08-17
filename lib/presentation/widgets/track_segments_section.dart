@@ -116,6 +116,7 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
     final created = await Navigator.push<String>(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'SegmentEditorPage'),
         builder: (_) => SegmentEditorPage(
           sourcePoints: points,
           isOfficial: false,
@@ -132,7 +133,8 @@ class _TrackSegmentsSectionState extends State<TrackSegmentsSection> {
   Future<void> _openSegment(Segment s) async {
     final result = await Navigator.push<String>(
       context,
-      MaterialPageRoute(builder: (_) => SegmentDetailPage(segment: s)),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'SegmentDetailPage'),builder: (_) => SegmentDetailPage(segment: s)),
     );
     if (result == 'deleted') {
       await _load();

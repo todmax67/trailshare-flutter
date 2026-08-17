@@ -247,6 +247,7 @@ class _ProfilePageState extends State<ProfilePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'FollowListPage'),
         builder: (_) => FollowListPage(
           userId: user.uid,
           username: _username ?? context.l10n.defaultUser,
@@ -263,6 +264,7 @@ class _ProfilePageState extends State<ProfilePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'FollowListPage'),
         builder: (_) => FollowListPage(
           userId: user.uid,
           username: _username ?? context.l10n.defaultUser,
@@ -289,7 +291,8 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                MaterialPageRoute(builder: (_) => const SettingsPage()),
+                MaterialPageRoute(
+                  settings: const RouteSettings(name: 'SettingsPage'),builder: (_) => const SettingsPage()),
               );
             },
           ),
@@ -346,7 +349,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             label: context.l10n.viewDashboard,
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const DashboardPage()),
+                              MaterialPageRoute(
+                                settings: const RouteSettings(name: 'DashboardPage'),builder: (_) => const DashboardPage()),
                             ),
                           ),
                           _buildActionTile(
@@ -354,7 +358,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             label: context.l10n.savedRoutes,
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const WishlistPage()),
+                              MaterialPageRoute(
+                                settings: const RouteSettings(name: 'WishlistPage'),builder: (_) => const WishlistPage()),
                             ),
                           ),
                         ]),
@@ -373,7 +378,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             label: context.l10n.myGroups,
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const GroupsListPage()),
+                              MaterialPageRoute(
+                                settings: const RouteSettings(name: 'GroupsListPage'),builder: (_) => const GroupsListPage()),
                             ),
                           ),
                           _buildActionTile(
@@ -381,7 +387,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             label: context.l10n.weeklyLeaderboard,
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => LeaderboardPage()),
+                              MaterialPageRoute(
+                                settings: const RouteSettings(name: 'LeaderboardPage'),builder: (_) => LeaderboardPage()),
                             ),
                           ),
                           _buildActionTile(
@@ -390,6 +397,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
+                                settings: const RouteSettings(name: 'RegionalLeaderboardPage'),
                                 builder: (_) => const RegionalLeaderboardPage(),
                               ),
                             ),
@@ -404,7 +412,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             label: context.l10n.myBadges,
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const BadgesPage()),
+                              MaterialPageRoute(
+                                settings: const RouteSettings(name: 'BadgesPage'),builder: (_) => const BadgesPage()),
                             ),
                           ),
                           _buildActionTile(
@@ -414,6 +423,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
+                                settings: const RouteSettings(name: 'SavedPeaksPage'),
                                 builder: (_) => const SavedPeaksPage(),
                               ),
                             ),
@@ -423,7 +433,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             label: context.l10n.challenges,
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const ChallengesPage()),
+                              MaterialPageRoute(
+                                settings: const RouteSettings(name: 'ChallengesPage'),builder: (_) => const ChallengesPage()),
                             ),
                           ),
                         ]),
@@ -438,7 +449,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               iconColor: Colors.amber.shade700,
                               onTap: () => Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (_) => const AdminPanelPage()),
+                                MaterialPageRoute(
+                                  settings: const RouteSettings(name: 'AdminPanelPage'),builder: (_) => const AdminPanelPage()),
                               ),
                             ),
                           ]),

@@ -79,6 +79,7 @@ class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
+                  settings: const RouteSettings(name: 'WebHomePage'),
                   builder: (_) => const WebHomePage(initialTab: 4),
                 ),
               );
@@ -501,6 +502,7 @@ class _WebBusinessDashboardPageState extends State<WebBusinessDashboardPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
+            settings: const RouteSettings(name: 'WebHomePage'),
             builder: (_) => const WebHomePage(initialTab: 4),
           ),
         );

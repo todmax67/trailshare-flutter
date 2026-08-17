@@ -137,6 +137,7 @@ class _FollowListPageState extends State<FollowListPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'PublicProfilePage'),
         builder: (_) => PublicProfilePage(
           userId: profile.id,
           username: profile.username,

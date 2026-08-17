@@ -1367,6 +1367,7 @@ class _MountainFinderPageState extends State<MountainFinderPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'MountainPhotoResultPage'),
           builder: (_) => MountainPhotoResultPage(
             annotatedImage: annotated,
             peaks: allVisible,
@@ -2372,6 +2373,7 @@ class _PeakDetailSheetState extends State<_PeakDetailSheet> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'PeakMapPage'),
         builder: (_) => PeakMapPage(peak: widget.projected.peak),
       ),
     );
@@ -2587,6 +2589,7 @@ class _PeakDetailSheetState extends State<_PeakDetailSheet> {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'PanoramaPage'),
                     builder: (_) => PanoramaPage.fromPeak(p),
                   ),
                 ),
@@ -3021,6 +3024,7 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
+                      settings: const RouteSettings(name: 'PanoramaPage'),
                       builder: (_) => PanoramaPage(
                         observerLat: widget.observerLat!,
                         observerLng: widget.observerLng!,
@@ -3048,6 +3052,7 @@ class _DistanceFilterSheetState extends State<_DistanceFilterSheet> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'MountainFinderCalibrationPage'),
                     builder: (_) => const MountainFinderCalibrationPage(),
                   ),
                 );

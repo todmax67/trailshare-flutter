@@ -92,6 +92,7 @@ class _AnalyticsConsentPageState extends State<AnalyticsConsentPage> {
                         TextButton.icon(
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute(
+                              settings: const RouteSettings(name: 'PrivacyPolicyPage'),
                               builder: (_) => const PrivacyPolicyPage(),
                             ),
                           ),

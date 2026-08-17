@@ -391,6 +391,7 @@ class _InteractiveTrackMapState extends State<InteractiveTrackMap> {
       Navigator.push(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'TrackMapPage'),
           builder: (_) => TrackMapPage(
             track: widget.track,
             communityTrack: widget.communityTrack,

@@ -381,6 +381,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'PublicProfilePage'),
         builder: (_) => PublicProfilePage(
           userId: entry.userId,
           username: entry.username,

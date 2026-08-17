@@ -54,6 +54,7 @@ class _GroupChallengesTabState extends State<GroupChallengesTab> {
           final created = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
+              settings: const RouteSettings(name: 'CreateChallengePage'),
               builder: (_) => CreateChallengePage(groupId: widget.groupId),
             ),
           );

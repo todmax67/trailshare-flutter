@@ -1590,7 +1590,8 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const MountainFinderPage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'MountainFinderPage'),builder: (_) => const MountainFinderPage()),
           );
         },
         child: const SizedBox(
@@ -2002,6 +2003,7 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
+                      settings: const RouteSettings(name: 'EmergencyContactsPage'),
                       builder: (_) => const EmergencyContactsPage(),
                     ),
                   );

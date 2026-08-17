@@ -38,6 +38,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+// Serve solo per NavigatorObserver: `foundation` non lo espone.
+import 'package:flutter/widgets.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:play_install_referrer/play_install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -258,6 +260,32 @@ class GrowthAnalyticsService {
       return null;
     }
   }
+
+  /// L'osservatore di navigazione da agganciare al `MaterialApp`.
+  ///
+  /// Esiste perche' **in Flutter le schermate non si registrano da sole**: su
+  /// Android e iOS nativi l'SDK vede cambiare Activity o ViewController e manda
+  /// `screen_view` da solo, mentre qui c'e' una Activity sola per tutta la vita
+  /// dell'app. Senza questo, il report "Schermate" di GA4 e' vuoto per
+  /// costruzione — e sembra che nessuno usi l'app, quando invece e' l'app a non
+  /// aver mai detto niente.
+  ///
+  /// Nomina le schermate leggendo `RouteSettings.name`: **una pagina aperta
+  /// senza nome non viene registrata affatto**. E' il motivo per cui i push in
+  /// giro per l'app portano `settings: const RouteSettings(name: ...)` — senza
+  /// quelli questo osservatore c'e' e non serve a niente.
+  ///
+  /// Passa dallo stesso interruttore del resto: senza consenso
+  /// `setAnalyticsCollectionEnabled(false)` spegne la raccolta a monte e questi
+  /// eventi non partono. Un secondo gate qui darebbe l'illusione che il primo
+  /// non basti.
+  NavigatorObserver? get navigatorObserver {
+    final ga = _ga;
+    if (ga == null) return null;
+    return _observer ??= FirebaseAnalyticsObserver(analytics: ga);
+  }
+
+  FirebaseAnalyticsObserver? _observer;
 
   String get _platform {
     if (kIsWeb) return 'web';

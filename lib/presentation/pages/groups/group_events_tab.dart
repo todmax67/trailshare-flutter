@@ -71,6 +71,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
           final created = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
+              settings: const RouteSettings(name: 'CreateEventPage'),
               builder: (_) => CreateEventPage(groupId: widget.groupId),
             ),
           );
@@ -159,6 +160,7 @@ class _GroupEventsTabState extends State<GroupEventsTab> {
         await Navigator.push(
           context,
           MaterialPageRoute(
+            settings: const RouteSettings(name: 'EventDetailPage'),
             builder: (_) => EventDetailPage(
               groupId: widget.groupId,
               eventId: event.id,

@@ -84,6 +84,7 @@ class _TrailShareAppState extends State<TrailShareApp> with WidgetsBindingObserv
         Future.delayed(const Duration(milliseconds: 500), () {
           navigatorKey.currentState?.push(
             MaterialPageRoute(
+              settings: const RouteSettings(name: 'ImportGpxPage'),
               builder: (_) => ImportGpxPage(initialFilePath: path),
             ),
           );
@@ -98,6 +99,14 @@ class _TrailShareAppState extends State<TrailShareApp> with WidgetsBindingObserv
     return WithForegroundTask(
       child: MaterialApp(
         navigatorKey: navigatorKey,
+        // Da qui esce `screen_view` per ogni pagina: in Flutter non e'
+        // automatico come su Android e iOS nativi, e senza questa riga il
+        // report "Schermate" di GA4 resta vuoto per costruzione. Il consenso
+        // lo gestisce a monte GrowthAnalyticsService.
+        navigatorObservers: [
+          if (GrowthAnalyticsService.instance.navigatorObserver != null)
+            GrowthAnalyticsService.instance.navigatorObserver!,
+        ],
         title: 'TrailShare',
         debugShowCheckedModeBanner: false,
         theme: AppThemes.lightTheme,

@@ -165,6 +165,7 @@ class _BusinessRecommendedTracksManagerPageState
     await Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'BusinessRecommendedTracksPickerPage'),
         builder: (_) => BusinessRecommendedTracksPickerPage(
           business: widget.business,
         ),

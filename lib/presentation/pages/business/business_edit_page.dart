@@ -426,6 +426,7 @@ class _BusinessEditPageState extends State<BusinessEditPage> {
     final result = await Navigator.push<LatLng>(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'BusinessLocationPickerPage'),
         builder: (_) => BusinessLocationPickerPage(initial: initial),
       ),
     );

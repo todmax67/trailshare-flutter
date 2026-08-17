@@ -240,6 +240,7 @@ class _TrailPoisSectionState extends State<TrailPoisSection> {
     final picked = await Navigator.push<LatLng?>(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'PoiLocationPickerPage'),
         builder: (_) => PoiLocationPickerPage(
           polyline: widget.polyline ?? const [],
           initialCenter: initialCenter,
@@ -619,6 +620,7 @@ class _HighlightBusinessPill extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
+            settings: const RouteSettings(name: 'BusinessProfilePage'),
             builder: (_) => BusinessProfilePage(businessId: businessId),
           ),
         ),

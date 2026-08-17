@@ -66,6 +66,7 @@ class _GroupTracksTabState extends State<GroupTracksTab> {
     // Firestore rules per i non-proprietari.
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'TrackDetailPage'),
         builder: (_) => TrackDetailPage(
           track: track,
           illustrative: true,

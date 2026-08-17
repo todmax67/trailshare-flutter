@@ -50,7 +50,8 @@ class DiscoveryPromptsRegistry {
         onCta: (ctx) {
           Navigator.push(
             ctx,
-            MaterialPageRoute(builder: (_) => const DashboardPage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'DashboardPage'),builder: (_) => const DashboardPage()),
           );
         },
       ),
@@ -73,6 +74,7 @@ class DiscoveryPromptsRegistry {
           Navigator.push(
             ctx,
             MaterialPageRoute(
+              settings: const RouteSettings(name: 'MonthlyReportPage'),
               builder: (_) => MonthlyReportPage(initialYearMonthId: prevId),
             ),
           );
@@ -92,7 +94,8 @@ class DiscoveryPromptsRegistry {
         onCta: (ctx) {
           Navigator.push(
             ctx,
-            MaterialPageRoute(builder: (_) => const MountainFinderPage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'MountainFinderPage'),builder: (_) => const MountainFinderPage()),
           );
         },
       ),
@@ -113,7 +116,8 @@ class DiscoveryPromptsRegistry {
         onCta: (ctx) {
           Navigator.push(
             ctx,
-            MaterialPageRoute(builder: (_) => const MountainFinderPage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'MountainFinderPage'),builder: (_) => const MountainFinderPage()),
           );
         },
       ),
@@ -135,6 +139,7 @@ class DiscoveryPromptsRegistry {
           Navigator.push(
             ctx,
             MaterialPageRoute(
+              settings: const RouteSettings(name: 'RegionalLeaderboardPage'),
               builder: (_) => const RegionalLeaderboardPage(),
             ),
           );
@@ -176,7 +181,8 @@ class DiscoveryPromptsRegistry {
         onCta: (ctx) {
           Navigator.push(
             ctx,
-            MaterialPageRoute(builder: (_) => const EmergencyContactsPage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'EmergencyContactsPage'),builder: (_) => const EmergencyContactsPage()),
           );
         },
       ),
@@ -194,7 +200,8 @@ class DiscoveryPromptsRegistry {
         onCta: (ctx) {
           Navigator.push(
             ctx,
-            MaterialPageRoute(builder: (_) => const TourEditPage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'TourEditPage'),builder: (_) => const TourEditPage()),
           );
         },
       ),

@@ -112,7 +112,8 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
                     : 'Importa i giri da $healthName (solo con percorso GPS)'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const WatchImportPage())),
+                    MaterialPageRoute(
+                      settings: const RouteSettings(name: 'WatchImportPage'),builder: (_) => const WatchImportPage())),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -123,6 +124,7 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
                 onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
+                      settings: const RouteSettings(name: 'HealthDashboardPage'),
                         builder: (_) => const HealthDashboardPage())),
               ),
             ],
@@ -361,6 +363,7 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
                       onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
+                            settings: const RouteSettings(name: 'GarminPairingPage'),
                               builder: (_) => const GarminPairingPage())),
                     ),
                     FilledButton.tonalIcon(
@@ -369,6 +372,7 @@ class _DevicesSyncPageState extends State<DevicesSyncPage> {
                       onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
+                            settings: const RouteSettings(name: 'ImportGpxPage'),
                               builder: (_) => const ImportGpxPage())),
                     ),
                   ],

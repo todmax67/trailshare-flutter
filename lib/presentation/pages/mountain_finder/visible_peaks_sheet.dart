@@ -220,6 +220,7 @@ class _Riga extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
+            settings: const RouteSettings(name: 'PanoramaPage'),
             builder: (_) => PanoramaPage.fromPeak(peak.peak),
           ),
         );

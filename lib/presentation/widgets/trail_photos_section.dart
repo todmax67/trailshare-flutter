@@ -171,6 +171,7 @@ class _TrailPhotosSectionState extends State<TrailPhotosSection> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'TrailPhotoViewer'),
         builder: (_) => TrailPhotoViewer(
           photos: _photos,
           initialIndex: index,

@@ -55,6 +55,7 @@ class _WebGroupsPickerPageState extends State<WebGroupsPickerPage> {
   Future<void> _openOnboarding() async {
     final newGroupId = await Navigator.of(context).push<String?>(
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'WebGroupOnboardingPage'),
         fullscreenDialog: true,
         builder: (_) => const WebGroupOnboardingPage(),
       ),
@@ -246,6 +247,7 @@ class _GroupTile extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
+              settings: const RouteSettings(name: 'WebGroupDashboardPage'),
               builder: (_) => WebGroupDashboardPage(group: group),
             ),
           );

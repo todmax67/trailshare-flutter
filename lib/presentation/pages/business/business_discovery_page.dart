@@ -270,6 +270,7 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
+                      settings: const RouteSettings(name: 'BusinessProfilePage'),
                       builder: (_) =>
                           BusinessProfilePage(businessId: b.id!),
                     ),
@@ -532,6 +533,7 @@ class _BusinessDiscoveryPageState extends State<BusinessDiscoveryPage> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
+              settings: const RouteSettings(name: 'BusinessProfilePage'),
               builder: (_) =>
                   BusinessProfilePage(businessId: items[i].id!),
             ),

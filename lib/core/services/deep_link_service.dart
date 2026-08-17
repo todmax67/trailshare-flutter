@@ -104,7 +104,8 @@ class DeepLinkService {
     final ctx = navigatorKey.currentContext;
     if (ctx == null) return;
     navigatorKey.currentState?.push(
-      MaterialPageRoute(builder: (_) => const ChallengesPage()),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'ChallengesPage'),builder: (_) => const ChallengesPage()),
     );
   }
 
@@ -163,6 +164,7 @@ class DeepLinkService {
     }
     navigatorKey.currentState?.push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'BusinessProfilePage'),
         builder: (_) => BusinessProfilePage(businessId: businessId!),
       ),
     );
@@ -219,6 +221,7 @@ class DeepLinkService {
       if (groupId != null) {
         navigatorKey.currentState?.push(
           MaterialPageRoute(
+            settings: const RouteSettings(name: 'GroupDetailPage'),
             builder: (_) =>
                 GroupDetailPage(groupId: groupId, groupName: groupName),
           ),

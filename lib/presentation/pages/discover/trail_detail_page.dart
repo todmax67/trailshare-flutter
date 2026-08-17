@@ -361,6 +361,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'Track3DPage'),
         builder: (_) => Track3DPage.single(
           trackName: widget.trail.displayName,
           points: _displayPoints,
@@ -698,6 +699,7 @@ class _TrailDetailPageState extends State<TrailDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'RecordPage'),
         builder: (_) => RecordPage(
           reference: RecordingReference.fromTrail(
             trailPoints: _displayPoints

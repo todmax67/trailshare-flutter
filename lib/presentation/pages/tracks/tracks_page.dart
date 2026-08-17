@@ -192,7 +192,8 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
   void _openImportPage() async {
     final result = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const ImportGpxPage()),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'ImportGpxPage'),builder: (_) => const ImportGpxPage()),
     );
     
     if (result == true) {
@@ -204,6 +205,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'TrackMapPage'),
         builder: (_) => TrackMapPage(track: track),
       ),
     );
@@ -213,6 +215,7 @@ class _TracksPageState extends State<TracksPage> with SingleTickerProviderStateM
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'TrackDetailPage'),
         builder: (_) => TrackDetailPage(track: track),
       ),
     );

@@ -238,27 +238,32 @@ class _HomeFeedPageState extends State<HomeFeedPage>
 
   void _openRecord() => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const RecordPage()),
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'RecordPage'),builder: (_) => const RecordPage()),
       );
 
   void _openCommunity() => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const CommunityPage()),
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'CommunityPage'),builder: (_) => const CommunityPage()),
       );
 
   void _openDiscover() => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const DiscoverPage()),
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'DiscoverPage'),builder: (_) => const DiscoverPage()),
       );
 
   void _openCommunityTrack(CommunityTrack t) => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => CommunityTrackDetailPage(track: t)),
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'CommunityTrackDetailPage'),builder: (_) => CommunityTrackDetailPage(track: t)),
       );
 
   void _openTour(Tour tour) => Navigator.push(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'CommunityTourDetailPage'),
           builder: (_) => CommunityTourDetailPage(tourId: tour.id),
         ),
       );
@@ -266,13 +271,15 @@ class _HomeFeedPageState extends State<HomeFeedPage>
   void _openBusiness(Business b) => Navigator.push(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'BusinessProfilePage'),
           builder: (_) => BusinessProfilePage(businessId: b.id ?? ''),
         ),
       );
 
   void _openTrail(PublicTrail t) => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TrailDetailPage(trail: t)),
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'TrailDetailPage'),builder: (_) => TrailDetailPage(trail: t)),
       );
 }
 

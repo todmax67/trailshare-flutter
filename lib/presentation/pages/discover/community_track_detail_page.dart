@@ -317,6 +317,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
           onTap: () {
             if (track.ownerId.isNotEmpty) {
               Navigator.push(context, MaterialPageRoute(
+                settings: const RouteSettings(name: 'PublicProfilePage'),
                 builder: (_) => PublicProfilePage(
                   userId: track.ownerId,
                   username: track.ownerUsername,
@@ -444,6 +445,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'Track3DPage'),
         builder: (_) => Track3DPage.single(
           trackName: track.name,
           points: track.points,
@@ -895,6 +897,7 @@ class _CommunityTrackDetailPageState extends State<CommunityTrackDetailPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'RecordPage'),
         builder: (_) => RecordPage(
           reference: RecordingReference.fromTrail(
             trailPoints: points

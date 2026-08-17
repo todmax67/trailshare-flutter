@@ -30,7 +30,8 @@ class MonthlyReportEntryCard extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const MonthlyReportPage()),
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'MonthlyReportPage'),builder: (_) => const MonthlyReportPage()),
           );
         },
         child: Container(

@@ -117,6 +117,7 @@ class _SavedPeaksPageState extends State<SavedPeaksPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
+                            settings: const RouteSettings(name: 'PeakMapPage'),
                             builder: (_) => PeakMapPage(peak: peak),
                           ),
                         );
@@ -180,6 +181,7 @@ class _SavedPeaksPageState extends State<SavedPeaksPage> {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: 'MountainFinderPage'),
                     builder: (_) => const MountainFinderPage(),
                   ),
                 );

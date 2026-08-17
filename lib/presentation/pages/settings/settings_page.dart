@@ -250,6 +250,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
+                  settings: const RouteSettings(name: 'TrainingHrPage'),
                   builder: (_) => const TrainingHrPage(),
                 ),
               );
@@ -337,7 +338,8 @@ class _SettingsPageState extends State<SettingsPage> {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const HealthDashboardPage()),
+                MaterialPageRoute(
+                  settings: const RouteSettings(name: 'HealthDashboardPage'),builder: (_) => const HealthDashboardPage()),
               ),
             ),
           ],
@@ -350,7 +352,8 @@ class _SettingsPageState extends State<SettingsPage> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const DevicesSyncPage()),
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'DevicesSyncPage'),builder: (_) => const DevicesSyncPage()),
             ),
           ),
           const Divider(height: 32),
@@ -375,6 +378,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
+                  settings: const RouteSettings(name: 'EmergencyContactsPage'),
                   builder: (_) => const EmergencyContactsPage(),
                 ),
               );
@@ -389,6 +393,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
+                  settings: const RouteSettings(name: 'PoiVoiceSettingsPage'),
                   builder: (_) => const PoiVoiceSettingsPage(),
                 ),
               );
@@ -434,7 +439,8 @@ class _SettingsPageState extends State<SettingsPage> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const FaqPage()),
+                MaterialPageRoute(
+                  settings: const RouteSettings(name: 'FaqPage'),builder: (_) => const FaqPage()),
               );
             },
           ),
@@ -457,7 +463,8 @@ class _SettingsPageState extends State<SettingsPage> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const OfflineMapsPage()),
+                MaterialPageRoute(
+                  settings: const RouteSettings(name: 'OfflineMapsPage'),builder: (_) => const OfflineMapsPage()),
               );
             },
           ),
@@ -488,7 +495,8 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const TrailImportPage()),
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: 'TrailImportPage'),builder: (_) => const TrailImportPage()),
                 );
               },
             ),
@@ -499,7 +507,8 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const GeohashMigrationPage()),
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: 'GeohashMigrationPage'),builder: (_) => const GeohashMigrationPage()),
                 );
               },
             ),
@@ -510,7 +519,8 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const DatabaseStatsPage()),
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: 'DatabaseStatsPage'),builder: (_) => const DatabaseStatsPage()),
                 );
               },
             ),
@@ -521,7 +531,8 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const BusinessCreatePage()),
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: 'BusinessCreatePage'),builder: (_) => const BusinessCreatePage()),
                 );
               },
             ),
@@ -540,7 +551,8 @@ class _SettingsPageState extends State<SettingsPage> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const RecalculateStatsPage()),
+                MaterialPageRoute(
+                  settings: const RouteSettings(name: 'RecalculateStatsPage'),builder: (_) => const RecalculateStatsPage()),
               );
             },
           ),
@@ -709,6 +721,7 @@ class _SettingsPageState extends State<SettingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'BusinessProfilePage'),
         builder: (_) => BusinessProfilePage(businessId: id),
       ),
     );
@@ -1176,7 +1189,8 @@ class _SettingsPageState extends State<SettingsPage> {
   void _openPrivacyPolicy(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PrivacyPolicyPage()),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'PrivacyPolicyPage'),builder: (_) => const PrivacyPolicyPage()),
     );
   }
 

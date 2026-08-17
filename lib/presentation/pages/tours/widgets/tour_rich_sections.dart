@@ -307,6 +307,7 @@ class StageAccommodationBadge extends StatelessWidget {
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
+            settings: const RouteSettings(name: 'BusinessProfilePage'),
             builder: (_) => BusinessProfilePage(businessId: businessId),
           ),
         );

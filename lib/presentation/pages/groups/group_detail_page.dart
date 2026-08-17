@@ -191,6 +191,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
               Navigator.push(
                 context,
                 MaterialPageRoute(
+                  settings: const RouteSettings(name: 'GroupMembersPage'),
                   builder: (_) => GroupMembersPage(
                     groupId: widget.groupId,
                     groupName: _group?.name ?? widget.groupName,
@@ -229,6 +230,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> with TickerProviderSt
                       Navigator.push(
                         context,
                         MaterialPageRoute(
+                          settings: const RouteSettings(name: 'GroupCustomizePage'),
                           builder: (_) =>
                               GroupCustomizePage(group: _group!),
                         ),
@@ -1146,6 +1148,7 @@ class _LinkedBusinessBadge extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
+              settings: const RouteSettings(name: 'BusinessProfilePage'),
               builder: (_) => BusinessProfilePage(businessId: businessId),
             ),
           );
