@@ -1,4 +1,14 @@
-# Note release 2.11.4+133 per gli store
+# Note release 2.11.4+134 per gli store
+
+> **Si pubblica la 134.** La 133 era stata caricata ma non pubblicata: la 134
+> aggiunge solo misura, niente che l'utente veda. Le schermate ora arrivano ad
+> Analytics (in Flutter `screen_view` non e' automatico e il report era vuoto
+> per costruzione), sei eventi sulle azioni, e Analytics che nasce spento
+> davvero — prima l'SDK partiva acceso e veniva spento un istante dopo dal
+> Dart, quindi `first_open` scappava anche a chi al consenso avrebbe risposto
+> no. Vedi `docs/analytics_lettura.md`.
+>
+> **Le note qui sotto restano valide: non c'e' niente di nuovo da comunicare.**
 
 > **Si compila la 133.** La 132 e' stata costruita e verificata, poi la
 > revisione post-commit ha trovato che un solo buco poteva coprire due archi:
