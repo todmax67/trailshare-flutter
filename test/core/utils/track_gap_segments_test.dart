@@ -417,4 +417,55 @@ void main() {
       expect(gapsRappresentativi(points, fuori), isEmpty);
     });
   });
+
+  group('un buco solo non puo\' coprire due archi', () {
+    // Il rovescio del caso "tanti buchi su un arco", e capita di routine: il
+    // watchdog apre la finestra sull'ULTIMO TICK, non sull'ultimo punto,
+    // quindi un fix arrivato nei secondi fra il tick e il congelamento cade
+    // dentro la finestra e spezza il buco su due archi. Le conseguenze non
+    // erano estetiche: i km ricostruiti si sommavano due volte nella scheda, e
+    // il disegnatore riceveva gli estremi dell'arco sbagliato — 23 secondi di
+    // traccia registrata davvero invece dei 37 minuti mancanti.
+    final t0 = DateTime.utc(2026, 8, 16, 10, 0, 0);
+    TrackPoint at(Duration d, double lat) => TrackPoint(
+          latitude: lat,
+          longitude: 9.0,
+          timestamp: t0.add(d),
+        );
+    final points = [
+      at(const Duration(seconds: -20), 45.000),
+      at(const Duration(seconds: 3), 45.001),
+      at(const Duration(minutes: 37, seconds: 30), 45.200),
+    ];
+    final buco = TrackGap(
+      startedAt: t0,
+      endedAt: t0.add(const Duration(minutes: 37)),
+      cause: TrackGap.causeAppFrozen,
+      reconstruction: const [LatLng(45.05, 9.01), LatLng(45.10, 9.02)],
+    );
+
+    test('produce un arco solo', () {
+      expect(splitTrackOnGaps(points, [buco]).where((s) => s.isGap),
+          hasLength(1));
+    });
+
+    test('gapsRappresentativi non lo conta due volte', () {
+      expect(gapsRappresentativi(points, [buco]), hasLength(1));
+    });
+
+    test('vince l\'arco dei 37 minuti, non quello dei 23 secondi', () {
+      final arco = splitTrackOnGaps(points, [buco]).firstWhere((s) => s.isGap);
+      final durata =
+          arco.points.last.timestamp.difference(arco.points.first.timestamp);
+      expect(durata.inMinutes, greaterThan(30),
+          reason: 'sull\'arco corto il disegno finirebbe sopra traccia vera');
+    });
+
+    test('il tratto registrato prima del congelamento resta pieno', () {
+      final registrati =
+          splitTrackOnGaps(points, [buco]).where((s) => !s.isGap);
+      expect(registrati, isNotEmpty,
+          reason: 'i 23 secondi il GPS li ha misurati davvero');
+    });
+  });
 }

@@ -88,6 +88,35 @@ List<TrackSegment> splitTrackOnGaps(
     ];
   }
 
+  // Ogni buco va assegnato a UN SOLO arco, prima di cominciare.
+  //
+  // La tentazione e' dare l'arco a ogni buco che lo tocca, ma la finestra del
+  // watchdog parte dall'ultimo TICK, non dall'ultimo punto: un fix arrivato
+  // nei secondi fra il tick e il congelamento cade dentro la finestra, e lo
+  // stesso buco finiva per coprire due archi. Le conseguenze non erano
+  // estetiche: i chilometri ricostruiti si sommavano due volte nella scheda,
+  // e il disegnatore riceveva gli estremi dell'arco sbagliato — 23 secondi di
+  // traccia registrata davvero al posto dei 37 minuti mancanti, con il
+  // percorso disegnato poi steso sopra entrambi.
+  //
+  // La regola e' la sovrapposizione piu' lunga: l'arco che contiene la fetta
+  // piu' grande della finestra e' quello che il buco spiega davvero. Un buco
+  // che non tocca nessun arco resta fuori: non lo si puo' ne' disegnare ne'
+  // offrire.
+  final assegnati = <int, List<TrackGap>>{};
+  for (final g in gaps) {
+    var vincente = -1;
+    var massima = Duration.zero;
+    for (var i = 1; i < points.length; i++) {
+      final ov = _overlap(g, points[i - 1].timestamp, points[i].timestamp);
+      if (ov > massima) {
+        massima = ov;
+        vincente = i;
+      }
+    }
+    if (vincente >= 0) (assegnati[vincente] ??= <TrackGap>[]).add(g);
+  }
+
   final segments = <TrackSegment>[];
   var run = <TrackPoint>[points.first];
 
@@ -95,9 +124,7 @@ List<TrackSegment> splitTrackOnGaps(
     final from = points[i - 1];
     final to = points[i];
 
-    // I buchi che toccano questo arco. Intervalli aperti: un buco che finisce
-    // esattamente sul punto precedente non riguarda questo arco.
-    final qui = _gapsOverlapping(gaps, from.timestamp, to.timestamp);
+    final qui = assegnati[i] ?? const <TrackGap>[];
 
     if (qui.isEmpty) {
       run.add(to);
@@ -126,12 +153,15 @@ List<TrackSegment> splitTrackOnGaps(
   return segments;
 }
 
-List<TrackGap> _gapsOverlapping(
-    List<TrackGap> gaps, DateTime from, DateTime to) {
-  return [
-    for (final g in gaps)
-      if (g.startedAt.isBefore(to) && g.endedAt.isAfter(from)) g,
-  ];
+/// Quanto della finestra di [g] cade dentro l'arco [from]–[to].
+///
+/// Zero se non si toccano, o se si sfiorano in un istante solo: un buco che
+/// finisce esattamente sul punto precedente non riguarda questo arco.
+Duration _overlap(TrackGap g, DateTime from, DateTime to) {
+  final inizio = g.startedAt.isAfter(from) ? g.startedAt : from;
+  final fine = g.endedAt.isBefore(to) ? g.endedAt : to;
+  final d = fine.difference(inizio);
+  return d.isNegative ? Duration.zero : d;
 }
 
 /// Il buco che la UI deve offrire di ricostruire per un dato arco, con la

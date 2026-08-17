@@ -1,4 +1,9 @@
-# Note release 2.11.4+132 per gli store
+# Note release 2.11.4+133 per gli store
+
+> **Si compila la 133.** La 132 e' stata costruita e verificata, poi la
+> revisione post-commit ha trovato che un solo buco poteva coprire due archi:
+> i chilometri ricostruiti si sommavano due volte e il disegnatore riceveva
+> gli estremi sbagliati. La 132 non va promossa.
 
 La 2.11.3 diceva «non sappiamo cosa c'è in mezzo». Questa aggiunge l'unica
 persona che lo sa: **chi è passato di lì**.

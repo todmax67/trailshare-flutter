@@ -460,6 +460,21 @@ class TrackGap {
   /// puo' ritirare, una misura del watchdog no.
   static const String causeOwnerDeclared = 'ownerDeclared';
 
+  /// La giunzione fra due tracce unite. **Non e' un'interruzione**: e' un
+  /// tratto che non e' stato percorso affatto — fra le due uscite c'e' un
+  /// viaggio in macchina, o tre ore, o cinquanta chilometri.
+  ///
+  /// Sta qui, e non fuori, perche' e' comunque un pezzo di linea che la mappa
+  /// non deve disegnare come sentiero e che il GPX deve spezzare. Ma va
+  /// escluso da ogni conteggio di "quante volte la registrazione si e'
+  /// fermata": non si e' fermata, e' l'utente che ha unito due gite. E, a
+  /// differenza degli altri, la sua corda **non** entra nella distanza.
+  static const String causeMergeJoint = 'mergeJoint';
+
+  /// Le cause che raccontano una registrazione interrotta — quelle di cui ha
+  /// senso dire all'utente "e' successo N volte, per M minuti".
+  bool get isRecordingInterruption => cause != causeMergeJoint;
+
   /// Ultimo istante con dati validi.
   final DateTime startedAt;
 
@@ -792,6 +807,14 @@ class Track {
     String? stravaSourceActivityId,
     List<String>? tags,
     String? computedDifficulty,
+    /// Azzera la difficolta' calcolata. Serve quando cambia lo sport: la
+    /// scala non e' la stessa per tutti (DifficultyCalculator pesa il
+    /// dislivello in modo diverso), quindi una 'T3' da trekking tenuta su una
+    /// traccia diventata ciclistica e' una misura di un'altra scala. Il
+    /// repository ricalcola e riscrive il valore giusto, ma finche' non torna
+    /// la scheda deve mostrare il ripiego calcolato sul NUOVO sport, non il
+    /// vecchio rimasto in memoria.
+    bool clearComputedDifficulty = false,
     String? manualDifficulty,
     bool clearManualDifficulty = false,
     bool? elevationCorrectedFromDem,
@@ -820,7 +843,9 @@ class Track {
       importedFromStrava: importedFromStrava ?? this.importedFromStrava,
       stravaSourceActivityId: stravaSourceActivityId ?? this.stravaSourceActivityId,
       tags: tags ?? this.tags,
-      computedDifficulty: computedDifficulty ?? this.computedDifficulty,
+      computedDifficulty: clearComputedDifficulty
+          ? null
+          : (computedDifficulty ?? this.computedDifficulty),
       manualDifficulty: clearManualDifficulty
           ? null
           : (manualDifficulty ?? this.manualDifficulty),

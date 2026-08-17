@@ -584,16 +584,26 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   /// interruzione" sulle tracce vecchie sarebbe inventare, e su quelle nuove
   /// il silenzio è già l'informazione giusta.
   Widget _buildGapNotice() {
-    final gaps = _track.gaps;
+    // La giunzione di due tracce unite sta in `gaps` perché la mappa non deve
+    // disegnarla come sentiero e il GPX deve spezzarsi lì, ma non è una
+    // registrazione interrotta: dire "la registrazione si è fermata 1 volta"
+    // a chi ha appena unito due gite sarebbe raccontargli un guasto che non
+    // c'è stato.
+    final gaps =
+        _track.gaps.where((g) => g.isRecordingInterruption).toList();
     // Solo il proprietario vede i candidati: la dichiarazione vale perché la
     // fa chi c'era, e giudicare "sospetta" la traccia di un altro non spetta
     // a noi. Durata e tempo in movimento servono al bilancio del tempo
     // mancante — vedi detectUndeclaredGaps — che distingue un congelamento
     // vero da un rettilineo compresso dalla semplificazione.
+    //
+    // Al rilevatore si passano _track.gaps INTERI, giunzione compresa: lì la
+    // lista serve a sapere cosa è già coperto, e una giunzione filtrata via
+    // tornerebbe indietro come candidato da dichiarare.
     final candidates = (_isOwner && _track.id != null)
         ? detectUndeclaredGaps(
             _track.points,
-            gaps,
+            _track.gaps,
             duration: _track.stats.duration,
             movingTime: _track.stats.movingTime,
             // Le tracce salvate prima della semplificazione per forma non
@@ -920,6 +930,46 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
   Future<void> _removeDeclaredGaps() async {
     final id = _track.id;
     if (id == null) return;
+
+    // Chiedere conferma solo quando c'e' davvero qualcosa di irrecuperabile
+    // da perdere. Togliere una dichiarazione e' reversibile — la scheda lo
+    // promette, e il rilevatore ripropone il tratto dritto subito dopo — ma
+    // il percorso disegnato a mano non lo ripropone nessuno: se ne va con la
+    // dichiarazione che lo reggeva, e rifarlo vuol dire ritoccare la mappa
+    // punto per punto. Chiedere sempre banalizzerebbe la domanda; chiedere
+    // qui la rende un'informazione.
+    final conDisegno = _track.gaps
+        .where((g) => g.isOwnerDeclared && g.hasReconstruction)
+        .length;
+    if (conDisegno > 0) {
+      final conferma = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Vai anche il tratto disegnato'),
+          content: Text(
+            conDisegno == 1
+                ? 'Su una di queste interruzioni hai disegnato il percorso che '
+                    'hai fatto. Togliendo la dichiarazione se ne va anche il '
+                    'disegno, e per riaverlo dovrai rifarlo.'
+                : 'Su $conDisegno di queste interruzioni hai disegnato il '
+                    'percorso che hai fatto. Togliendo le dichiarazioni se ne '
+                    'vanno anche i disegni, e per riaverli dovrai rifarli.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Lascia stare'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Rimuovi lo stesso'),
+            ),
+          ],
+        ),
+      );
+      if (conferma != true) return;
+    }
+
     try {
       final remaining = await _tracksRepository.removeDeclaredGaps(id);
       if (!mounted) return;
@@ -1730,8 +1780,22 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                             // essi il pulsante per toglierlo — cioe' il
                             // ripristino promesso non era piu' raggiungibile
                             // fino a riapertura della scheda.
+                            // clearComputedDifficulty: la scala della
+                            // difficolta' non e' la stessa per tutti gli
+                            // sport. Prima di passare a copyWith il valore
+                            // vecchio non veniva copiato e il badge ricadeva
+                            // da solo sul calcolo col nuovo sport; copiandolo
+                            // tutto si e' portata dietro anche la 'T3' della
+                            // scala trekking su una traccia diventata
+                            // ciclistica — e chi pubblicava subito la mandava
+                            // cosi' in published_tracks. Il repository
+                            // ricalcola e riscrive: qui basta non mostrare il
+                            // vecchio nel frattempo.
                             setState(() {
-                              _track = _track.copyWith(activityType: type);
+                              _track = _track.copyWith(
+                                activityType: type,
+                                clearComputedDifficulty: true,
+                              );
                             });
                             
                             if (context.mounted) {

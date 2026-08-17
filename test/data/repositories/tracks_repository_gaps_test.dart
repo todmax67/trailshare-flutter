@@ -265,9 +265,108 @@ void main() {
       expect(mergedId, isNotNull);
 
       final merged = await repo.getTrackById(mergedId!);
-      expect(merged!.gaps, hasLength(1),
+      final interruzioni =
+          merged!.gaps.where((g) => g.isRecordingInterruption).toList();
+      expect(interruzioni, hasLength(1),
           reason: 'il buco del pomeriggio non deve sparire nell\'unione');
-      expect(merged.gaps.single.cause, TrackGap.causeAppFrozen);
+      expect(interruzioni.single.cause, TrackGap.causeAppFrozen);
+    });
+
+    test('la giunzione fra le due tracce viene dichiarata', () async {
+      // Senza, la mappa tirava una linea piena fra le due gite: decine di
+      // chilometri disegnati identici al sentiero percorso.
+      final idA = await repo.saveTrack(makeTrack());
+      final laterBase = base.add(const Duration(hours: 3));
+      final idB = await repo.saveTrack(Track(
+        name: 'Giro lontano',
+        points: List.generate(
+          20,
+          (i) => TrackPoint(
+            latitude: 46.5 + i * 0.0005,
+            longitude: 9.6 + i * 0.0003,
+            elevation: 100.0 + i,
+            timestamp: laterBase.add(Duration(seconds: i * 10)),
+            speed: 1.5,
+            accuracy: 5,
+          ),
+        ),
+        createdAt: laterBase,
+        recordedAt: laterBase,
+        elevationCorrectedFromDem: true,
+      ));
+      final a = await repo.getTrackById(idA);
+      final b = await repo.getTrackById(idB);
+      final merged = await repo.getTrackById((await repo.mergeTracks(a!, b!))!);
+
+      final giunzioni = merged!.gaps
+          .where((g) => g.cause == TrackGap.causeMergeJoint)
+          .toList();
+      expect(giunzioni, hasLength(1));
+      expect(giunzioni.single.isRecordingInterruption, isFalse,
+          reason: 'unire due gite non e\' un guasto della registrazione');
+    });
+
+    test('il raccordo NON entra nella distanza', () async {
+      // Il difetto misurato: 60 km salvati per 6 km camminati, e quel numero
+      // diventava XP e posizione in classifica prima che le due tracce
+      // originali venissero cancellate.
+      final idA = await repo.saveTrack(makeTrack());
+      final laterBase = base.add(const Duration(hours: 3));
+      final idB = await repo.saveTrack(Track(
+        name: 'Giro lontano',
+        points: List.generate(
+          20,
+          (i) => TrackPoint(
+            latitude: 46.5 + i * 0.0005,
+            longitude: 9.6 + i * 0.0003,
+            elevation: 100.0 + i,
+            timestamp: laterBase.add(Duration(seconds: i * 10)),
+            speed: 1.5,
+            accuracy: 5,
+          ),
+        ),
+        createdAt: laterBase,
+        recordedAt: laterBase,
+        elevationCorrectedFromDem: true,
+      ));
+      final a = await repo.getTrackById(idA);
+      final b = await repo.getTrackById(idB);
+      final somma = a!.stats.distance + b!.stats.distance;
+      final merged = await repo.getTrackById((await repo.mergeTracks(a, b))!);
+
+      expect(merged!.stats.distance, closeTo(somma, somma * 0.02),
+          reason: 'la distanza unita deve valere la somma delle due, '
+              'non la somma piu\' il salto fra le due gite');
+    });
+
+    test('la durata unita non conta le ore passate a casa', () async {
+      final idA = await repo.saveTrack(makeTrack());
+      final laterBase = base.add(const Duration(hours: 3));
+      final idB = await repo.saveTrack(Track(
+        name: 'Giro lontano',
+        points: List.generate(
+          20,
+          (i) => TrackPoint(
+            latitude: 46.5 + i * 0.0005,
+            longitude: 9.6 + i * 0.0003,
+            elevation: 100.0 + i,
+            timestamp: laterBase.add(Duration(seconds: i * 10)),
+            speed: 1.5,
+            accuracy: 5,
+          ),
+        ),
+        createdAt: laterBase,
+        recordedAt: laterBase,
+        elevationCorrectedFromDem: true,
+      ));
+      final a = await repo.getTrackById(idA);
+      final b = await repo.getTrackById(idB);
+      final somma = a!.stats.duration + b!.stats.duration;
+      final merged = await repo.getTrackById((await repo.mergeTracks(a, b))!);
+
+      expect(merged!.stats.duration.inSeconds, somma.inSeconds);
+      expect(merged.stats.duration.inHours, lessThan(3),
+          reason: 'le 3 ore fra le due uscite non sono attivita\'');
     });
   });
 

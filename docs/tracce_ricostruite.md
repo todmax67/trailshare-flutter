@@ -281,3 +281,106 @@ ricostruzione. Ora è `copyWith`.
 - La Fase 3 (marcatura che viaggia su scheda condivisa e web) non è fatta: chi
   guarda una traccia ricostruita **dal web** vede il tratteggio ma non la
   spiegazione.
+
+---
+
+## La seconda revisione, dopo il commit — 2026-08-17
+
+Ottantotto agenti su undici fronti, ognuno seguito da due scettici: uno che
+prova a smontare il rilievo leggendo il codice, uno che prova a **riprodurlo**
+scrivendo ed eseguendo un test. Ventisette rilievi hanno superato la soglia
+(permissiva: basta che uno dei due non riesca a smontarli), dieci non sono
+stati smontati da nessuno dei due.
+
+### Il difetto grave che la prima revisione aveva mancato
+
+La prima revisione aveva trovato «tanti buchi su un arco» e l'aveva chiuso.
+Nessuno aveva guardato **l'inverso**: un solo buco che copre due archi.
+
+Succede di routine, e la causa è nel watchdog: la finestra parte dall'**ultimo
+tick**, non dall'ultimo punto. Un fix GPS arrivato nei secondi fra il tick e il
+congelamento cade *dentro* la finestra, e con un confronto per sovrapposizione
+lo stesso `TrackGap` finiva su due archi.
+
+Le conseguenze non erano estetiche:
+
+- i chilometri ricostruiti si sommavano **due volte** nella scheda — 15,5 km
+  dichiarati per un disegno che ne misura 7,8, cioè esattamente la
+  falsificazione di un numero che quella card esiste per evitare;
+- e `_estremiDi` prendeva il **primo** arco: il disegnatore riceveva gli
+  estremi di 23 secondi di traccia registrata davvero invece dei 37 minuti
+  mancanti, e il percorso disegnato veniva poi steso sopra entrambi.
+
+La regola ora è una sola e vale per l'assegnazione, non per il disegno: **un
+buco appartiene all'arco con cui si sovrappone di più**. Un buco che non tocca
+nessun arco resta fuori — non si può né disegnare né offrire.
+
+### Gli altri, tutti nella stessa famiglia
+
+**La corsa fra risposte di routing.** Ogni tocco faceva partire un calcolo
+senza annullare quello in volo, e le risposte non tornano in ordine: una
+richiesta più vecchia che arrivava dopo sovrascriveva il percorso giusto, e il
+salvataggio riguardava quello. Nessun segnale che qualcosa fosse andato storto.
+Ora c'è un contatore di generazione.
+
+**Cambiare sport teneva la difficoltà del vecchio.** Regressione introdotta
+dalla *correzione* della prima revisione: passando a `copyWith` per non perdere
+i `gaps` si è portata dietro anche la `computedDifficulty`, che prima restava
+nulla e faceva ricadere il badge sul calcolo col nuovo sport. Una T3 della
+scala trekking su una traccia diventata ciclistica, e chi pubblicava subito la
+mandava così in `published_tracks`. Ora c'è `clearComputedDifficulty`.
+
+**«Rimuovi le interruzioni dichiarate» portava via anche il disegno**, senza
+avviso, subito dopo che la card aveva promesso che si può tornare indietro:
+vero per la dichiarazione, falso per il disegno che se ne andava con lei. Ora
+chiede conferma — ma **solo** quando c'è davvero un disegno da perdere, o la
+domanda si svuoterebbe di significato.
+
+### Due difetti che non erano della Fase 2, corretti lo stesso
+
+Erano lì da prima, e producevano numeri falsi in classifica.
+
+**Il merge sommava il raccordo fra le due tracce.** Misurato: 60 km salvati per
+6 km camminati, e `onTrackCreate` convertiva quella distanza in ~540 XP mai
+guadagnati — con le due tracce originali cancellate subito dopo, quindi il
+numero gonfiato restava l'unico. Ora la giunzione è un `TrackGap` con causa
+propria (`causeMergeJoint`): la mappa la tratteggia, il GPX si spezza lì, e la
+sua corda **non** entra né nella distanza né nel dislivello. È l'unica causa la
+cui corda non conta — per un buco del watchdog quei metri sono stati percorsi,
+qui fra le due gite c'è un viaggio in macchina.
+
+Va tenuta fuori anche dai conteggi di «quante volte la registrazione si è
+fermata»: non si è fermata. Da qui `TrackGap.isRecordingInterruption`.
+
+**Lo split distruggeva il disegno** quando il taglio cadeva esattamente sugli
+estremi del buco — che è il caso *normale*, perché `detectUndeclaredGaps`
+produce buchi i cui estremi sono i timestamp di due punti, e spezzare «in due
+gite» proprio sulla retta è il taglio più naturale. Il buco non finiva in
+nessuna delle due metà, e l'originale veniva cancellato. Ora lo split si
+**rifiuta** invece di distruggere: perdere un buco del watchdog è accettabile,
+perdere un percorso disegnato a mano no — non lo ripropone nessun rilevatore.
+
+### Cosa resta aperto, dichiarato
+
+Non sono regressioni di questa release: erano lì prima, e meritano un lavoro
+loro invece di una toppa la sera prima di una pubblicazione.
+
+- **`movingTime = duration` dopo split e merge.** È il codice che
+  `detectUndeclaredGaps` legge come «tempo in movimento non attendibile», e da
+  quel lato è prudenza voluta. Ma la scheda lo mostra come **misura**: «In
+  movimento 15:50» include i minuti in cui l'app era congelata. Il numero va
+  reso incerto o va tolto, non lasciato lì a sembrare misurato.
+- **Il buco dell'uccisione dell'app non diventa mai un `TrackGap`.** È l'unico
+  di cui l'app ha certezza assoluta — conosce entrambi gli estremi — e l'unico
+  che non registra: `restoreFromBackup` ripristina i buchi già visti dal
+  watchdog ma non aggiunge quello fra l'ultimo punto salvato e la ripresa.
+  Resta la proposta a posteriori di `detectUndeclaredGaps`, che però ha soglie
+  e bilancio, e che il proprietario deve confermare.
+- **Il web e la scheda condivisa** disegnano il buco come percorso pieno: la
+  marcatura non sopravvive alla condivisione. È la Fase 3, mai fatta.
+- **`<name>` dentro `<trkseg>` non è GPX 1.1 valido.** Il giro
+  TrailShare → TrailShare è guardato e testato, ma un file che passa da un tool
+  conforme perde la marcatura — e in realtà perde anche il confine di
+  `<trkseg>` a cui sarebbe appesa, quindi spostarla in `<extensions>`
+  risolverebbe solo la validazione, non il giro. Vale una pulizia, non è la
+  rottura dell'invariante.

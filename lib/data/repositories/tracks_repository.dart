@@ -130,7 +130,7 @@ class TracksRepository {
       final savedPoints = simplifyTrack(track.points);
       final stats = track.isPlanned
           ? track.stats // Percorsi pianificati: usa stats dal router
-          : _recalculateStats(track.points, track.stats);
+          : _recalculateStats(track.points, track.stats, track.gaps);
 
       final metadata = _trackToFirestore(track, user.uid, savedPoints, stats);
 
@@ -1070,8 +1070,28 @@ class TracksRepository {
   /// Garantisce coerenza tra dati riassuntivi e grafici/stats per km.
   /// USA ElevationProcessor (filtro mediano + smoothing + isteresi)
   /// — stesso algoritmo usato da LapSplitsWidget.
-  TrackStats _recalculateStats(List<TrackPoint> points, TrackStats originalStats) {
+  /// [gaps] serve per una cosa sola: **la giunzione di due tracce unite**.
+  ///
+  /// La corda di un buco del watchdog resta dentro la distanza — quei minuti
+  /// sono stati camminati, e la retta e' una stima per difetto onesta, e la
+  /// scheda lo dice. La giunzione no: fra le due gite c'e' un viaggio in
+  /// macchina. Sommarla dava 60 km per 6 camminati, e quel numero diventava
+  /// XP e classifica prima che le due tracce originali venissero cancellate.
+  ///
+  /// Il salto va tolto anche dal DISLIVELLO: due cime diverse a quote diverse
+  /// producevano una salita che nessuno ha fatto. Percio' il profilo si
+  /// elabora a tratti, spezzato sulle giunzioni, e i guadagni si sommano.
+  TrackStats _recalculateStats(
+    List<TrackPoint> points,
+    TrackStats originalStats, [
+    List<TrackGap> gaps = const [],
+  ]) {
     if (points.isEmpty) return originalStats;
+
+    final giunzioni =
+        gaps.where((g) => g.cause == TrackGap.causeMergeJoint).toList();
+    bool eGiunzione(TrackPoint a, TrackPoint b) => giunzioni.any((g) =>
+        !g.startedAt.isAfter(a.timestamp) && !g.endedAt.isBefore(b.timestamp));
 
     // Distanza dai punti originali (precisa, non serve smoothing)
     double distance = 0;
@@ -1081,7 +1101,7 @@ class TracksRepository {
       final prev = points[i - 1];
       final curr = points[i];
 
-      distance += prev.distanceTo(curr);
+      if (!eGiunzione(prev, curr)) distance += prev.distanceTo(curr);
 
       // Velocità max (filtra valori assurdi > 180 km/h = 50 m/s)
       if (curr.speed != null && curr.speed! > maxSpeed && curr.speed! < 50.0) {
@@ -1092,8 +1112,34 @@ class TracksRepository {
     // Elevazione con ElevationProcessor (filtro mediano + smoothing + isteresi)
     // Stesso identico processore usato da LapSplitsWidget
     const elevationProcessor = ElevationProcessor();
-    final rawElevations = points.map((p) => p.elevation).toList();
-    final eleResult = elevationProcessor.process(rawElevations);
+
+    // Il profilo si spezza sulle giunzioni: elaborare la serie intera
+    // trasformerebbe il salto di quota fra due cime diverse in una salita che
+    // nessuno ha fatto. Senza giunzioni e' un tratto solo, cioe' il
+    // comportamento di sempre.
+    final tagli = <int>[0];
+    for (int i = 1; i < points.length; i++) {
+      if (eGiunzione(points[i - 1], points[i])) tagli.add(i);
+    }
+    tagli.add(points.length);
+
+    var gain = 0.0, loss = 0.0;
+    var maxEle = double.negativeInfinity, minEle = double.infinity;
+    for (int t = 0; t < tagli.length - 1; t++) {
+      final tratto = points.sublist(tagli[t], tagli[t + 1]);
+      if (tratto.isEmpty) continue;
+      final r = elevationProcessor.process(tratto.map((p) => p.elevation).toList());
+      gain += r.elevationGain;
+      loss += r.elevationLoss;
+      if (r.maxElevation > maxEle) maxEle = r.maxElevation;
+      if (r.minElevation < minEle) minEle = r.minElevation;
+    }
+    final eleResult = (
+      elevationGain: gain,
+      elevationLoss: loss,
+      maxElevation: maxEle == double.negativeInfinity ? 0.0 : maxEle,
+      minElevation: minEle == double.infinity ? 0.0 : minEle,
+    );
 
     // Log per debug
     debugPrint('[TracksRepository] ═══ RICALCOLO STATS DAI PUNTI ═══');
@@ -1590,6 +1636,28 @@ class TracksRepository {
             g.endedAt.isAfter(segment.first.timestamp))
         .toList();
 
+    // Un buco tagliato ESATTAMENTE sui suoi estremi non finisce in nessuna
+    // delle due meta': i confronti sono stretti, e `detectUndeclaredGaps`
+    // produce buchi i cui estremi sono proprio i timestamp di due punti — cioe'
+    // il caso e' la norma, non un caso limite. Spezzare "in due gite" proprio
+    // sulla retta e' anzi il taglio piu' naturale.
+    //
+    // Per un buco del watchdog perderlo e' accettabile: descriveva un confine
+    // che dentro le due meta' non esiste piu'. Per un tratto DISEGNATO a mano
+    // no: non lo ripropone nessun rilevatore, rifarlo vuol dire ritoccare la
+    // mappa punto per punto, e l'originale viene cancellato subito dopo. Si
+    // rifiuta di spezzare invece di distruggerlo in silenzio — la scheda ha
+    // appena promesso che si puo' tornare indietro.
+    final persi = src.gaps.where((g) =>
+        g.hasReconstruction &&
+        !gapsWithin(first).contains(g) &&
+        !gapsWithin(second).contains(g));
+    if (persi.isNotEmpty) {
+      debugPrint('[TracksRepository] split abort: il taglio distruggerebbe '
+          '${persi.length} tratto/i ricostruito/i a mano');
+      return null;
+    }
+
     final firstTrack = src.copyWith(
       id: null, // nuovo doc
       name: '${src.name} (parte 1)',
@@ -1652,7 +1720,18 @@ class TracksRepository {
     final bDate = hb.recordedAt ?? hb.createdAt;
     final ordered = aDate.isBefore(bDate) ? [ha, hb] : [hb, ha];
     final allPoints = [...ordered[0].points, ...ordered[1].points];
-    final newStats = _recomputeStats(allPoints);
+
+    // Il raccordo fra le due tracce: primo punto della seconda. Non va
+    // sommato — vedi [skipArcAt]. E durata e tempo in movimento sono la
+    // somma delle due, non l'intervallo fra il primo e l'ultimo istante, che
+    // conterrebbe anche le ore passate a casa fra un'uscita e l'altra.
+    final giunzione = ordered[0].points.length;
+    final newStats = _recomputeStats(
+      allPoints,
+      skipArcAt: giunzione,
+      duration: ordered[0].stats.duration + ordered[1].stats.duration,
+      movingTime: ordered[0].stats.movingTime + ordered[1].stats.movingTime,
+    );
 
     final merged = ordered[0].copyWith(
       id: null,
@@ -1667,8 +1746,19 @@ class TracksRepository {
       // quelli della seconda, e il ponte del watchdog tornerebbe linea piena
       // dopo un'operazione di routine. I TrackGap usano timestamp assoluti,
       // quindi restano validi dopo la concatenazione senza rimappature.
-      gaps: ([...ordered[0].gaps, ...ordered[1].gaps]
-        ..sort((x, y) => x.startedAt.compareTo(y.startedAt))),
+      gaps: ([
+        ...ordered[0].gaps,
+        ...ordered[1].gaps,
+        // La giunzione, dichiarata. Senza, la mappa tirava una linea piena
+        // fra le due gite — decine di chilometri disegnati identici al
+        // sentiero percorso, che e' esattamente il difetto per cui esiste
+        // questa struttura.
+        TrackGap(
+          startedAt: ordered[0].points.last.timestamp,
+          endedAt: ordered[1].points.first.timestamp,
+          cause: TrackGap.causeMergeJoint,
+        ),
+      ]..sort((x, y) => x.startedAt.compareTo(y.startedAt))),
     );
 
     try {
@@ -1687,7 +1777,21 @@ class TracksRepository {
   /// Helper: ricalcola distance / duration / elevation gain & loss /
   /// min & max elevation per una sequenza di punti. Usato da split e
   /// merge per produrre stats coerenti con i nuovi point[].
-  TrackStats _recomputeStats(List<TrackPoint> points) {
+  TrackStats _recomputeStats(
+    List<TrackPoint> points, {
+    /// Indice del punto il cui arco entrante **non e' stato percorso**.
+    ///
+    /// Serve al merge: unendo due tracce, il tratto fra l'ultimo punto della
+    /// prima e il primo della seconda non e' un buco di registrazione, e' una
+    /// cosa che non e' successa — in mezzo c'e' un viaggio in macchina, o tre
+    /// ore, o cinquanta chilometri. Sommarlo produceva una traccia di 60 km
+    /// per 6 km camminati, e quel numero diventava XP e posizione in
+    /// classifica prima che le due originali venissero cancellate: il numero
+    /// gonfiato restava l'unico.
+    int? skipArcAt,
+    Duration? duration,
+    Duration? movingTime,
+  }) {
     if (points.isEmpty) return const TrackStats();
     double distance = 0;
     double elevationGain = 0;
@@ -1700,7 +1804,7 @@ class TracksRepository {
         if (p.elevation! < minEle) minEle = p.elevation!;
         if (p.elevation! > maxEle) maxEle = p.elevation!;
       }
-      if (i > 0) {
+      if (i > 0 && i != skipArcAt) {
         final prev = points[i - 1];
         distance += _haversine(prev, p);
         if (prev.elevation != null && p.elevation != null) {
@@ -1713,14 +1817,20 @@ class TracksRepository {
         }
       }
     }
-    final duration =
-        points.last.timestamp.difference(points.first.timestamp);
+    final durata =
+        duration ?? points.last.timestamp.difference(points.first.timestamp);
     return TrackStats(
       distance: distance,
       elevationGain: elevationGain,
       elevationLoss: elevationLoss,
-      duration: duration,
-      movingTime: duration, // approssimazione: senza i flag di auto-pause
+      duration: durata,
+      // movingTime uguale a duration NON vuol dire "non si e' mai fermato":
+      // e' il codice che detectUndeclaredGaps legge come "tempo in movimento
+      // non attendibile" e che gli fa proporre zero candidati per prudenza
+      // (vedi track_gap_segments.dart). Qui non abbiamo i flag di auto-pausa,
+      // quindi non lo sappiamo davvero — e va detto cosi', non risolto in
+      // una misura. Il merge invece la somma vera ce l'ha e la passa.
+      movingTime: movingTime ?? durata,
       minElevation: minEle == double.infinity ? 0 : minEle,
       maxElevation: maxEle == -double.infinity ? 0 : maxEle,
     );

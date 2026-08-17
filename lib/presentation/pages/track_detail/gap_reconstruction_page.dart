@@ -56,6 +56,18 @@ class _GapReconstructionPageState extends State<GapReconstructionPage> {
   bool _loading = true;
   String? _error;
 
+  /// Contatore delle richieste di percorso partite.
+  ///
+  /// Ogni tocco ne fa partire una nuova senza poter annullare quella in volo,
+  /// e le risposte non tornano nell'ordine in cui sono state chieste: una
+  /// richiesta piu' vecchia che arriva dopo sovrascriveva il percorso giusto
+  /// con quello che ignorava l'ultima correzione — e il pannello, i
+  /// chilometri e il salvataggio riguardavano tutti quel percorso vecchio,
+  /// mentre sulla mappa restava il marker del punto appena aggiunto. Nessun
+  /// segnale che qualcosa fosse andato storto: si salvava un tratto diverso
+  /// da quello disegnato.
+  int _richiesta = 0;
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +94,7 @@ class _GapReconstructionPageState extends State<GapReconstructionPage> {
       };
 
   Future<void> _calcola() async {
+    final mia = ++_richiesta;
     setState(() {
       _loading = true;
       _error = null;
@@ -92,6 +105,11 @@ class _GapReconstructionPageState extends State<GapReconstructionPage> {
       profile: _profile,
     );
     if (!mounted) return;
+    // Scaduta: nel frattempo l'utente ha aggiunto o tolto un punto. Vale la
+    // risposta piu' recente, anche quando questa e' andata a buon fine — e
+    // soprattutto quando e' fallita, o un errore vecchio bloccherebbe il
+    // salvataggio di un percorso valido.
+    if (mia != _richiesta) return;
     final res = outcome.result;
     if (res == null || res.points.length < 2) {
       setState(() {
@@ -225,7 +243,25 @@ class _GapReconstructionPageState extends State<GapReconstructionPage> {
             if (_loading)
               const LinearProgressIndicator()
             else if (_error != null)
-              Text(_error!, style: TextStyle(color: AppColors.danger))
+              // Con "Riprova": se il primo calcolo falliva la pagina restava
+              // un vicolo cieco, perche' l'unico modo di far ripartire il
+              // routing era aggiungere un punto — e senza percorso disegnato
+              // non si capiva nemmeno dove metterlo. Un servizio di routing
+              // che non risponde una volta spesso risponde alla seconda.
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(_error!,
+                        style: TextStyle(color: AppColors.danger)),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: _calcola,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Riprova'),
+                  ),
+                ],
+              )
             else
               Text(
                 '≈ ${(_routeMeters / 1000).toStringAsFixed(1)} km lungo i sentieri. '
