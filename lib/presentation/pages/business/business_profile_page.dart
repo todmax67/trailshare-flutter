@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/services/growth_analytics_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -69,6 +71,16 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
         if (b == null) return;
         if (uid != null && b.isOwnerOrAdmin(uid)) return;
         _repo.recordProfileView(widget.businessId);
+        // `claimed` e' il numero su cui poggia tutta la proposta B2B — quante
+        // di queste schede sono di qualcuno e quante sono POI OSM orfani — e
+        // finora era una stima a naso. `has_opening_hours` misura la copertura
+        // del dato che manca di piu': l'8% delle schede, vedi
+        // docs/rifugi_aperture.md. Nessun identificativo della scheda finisce
+        // in Analytics: qui interessa la proporzione, non chi.
+        unawaited(GrowthAnalyticsService.instance.hutOpened(
+          claimed: b.tier != BusinessTier.unclaimed,
+          hasOpeningHours: b.openingHours.isNotEmpty,
+        ));
       }).catchError((_) {});
     });
   }

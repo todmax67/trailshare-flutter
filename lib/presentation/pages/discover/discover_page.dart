@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../core/services/growth_analytics_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
@@ -164,6 +165,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   @override
   void dispose() {
+    _searchTelemetryDebounce?.cancel();
     _searchController.dispose();
     _viewportDebounce?.cancel();
     super.dispose();
@@ -262,8 +264,30 @@ class _DiscoverPageState extends State<DiscoverPage> {
     await _loadTrailsForViewport();
   }
 
+  Timer? _searchTelemetryDebounce;
+
   void _onSearchChanged(String query) {
     setState(() => _searchQuery = query.toLowerCase());
+
+    // La ricerca filtra a ogni tasto premuto: un evento per carattere sarebbe
+    // rumore puro — "rifugio" manderebbe sette ricerche, sei delle quali senza
+    // risultati e nessuna cercata davvero — e sbatterebbe contro i limiti di
+    // GA4. Si aspetta che l'utente smetta di scrivere, e sotto i tre caratteri
+    // non si manda niente: e' ancora digitazione, non una domanda.
+    _searchTelemetryDebounce?.cancel();
+    final q = query.trim();
+    if (q.length < 3) return;
+    _searchTelemetryDebounce = Timer(const Duration(milliseconds: 1200), () {
+      if (!mounted || _searchQuery != q.toLowerCase()) return;
+      // Il testo cercato NON si manda: e' scritto dall'utente. Si manda se ha
+      // prodotto risultati, che e' l'unica cosa su cui si puo' agire — una
+      // ricerca a vuoto ripetuta e' un buco nel catalogo, e oggi non lo
+      // vediamo.
+      unawaited(GrowthAnalyticsService.instance.searchPerformed(
+        scope: 'trails',
+        resultCount: _filteredTrails.length,
+      ));
+    });
   }
 
   List<PublicTrail> get _filteredTrails {

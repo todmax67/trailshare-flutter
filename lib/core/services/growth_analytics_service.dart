@@ -927,6 +927,141 @@ class GrowthAnalyticsService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // AZIONI RIPETIBILI
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // Le milestone qui sopra scattano UNA VOLTA per persona: dicono se qualcuno
+  // ha mai attraversato una linea, non cosa fa il martedi'. Servivano a
+  // misurare acquisizione e attivazione, ed erano l'unica domanda strumentata.
+  //
+  // Questi eventi scattano ogni volta. Sono pochi di proposito: ognuno e' un
+  // dato che poi va tenuto onesto, e trenta eventi mediocri valgono meno di
+  // sei buoni. La regola per aggiungerne uno e' che ci sia una decisione che
+  // oggi si prende a naso e che quel numero renderebbe informata.
+  //
+  // Nessun parametro contiene testo scritto dall'utente. Non e' solo privacy:
+  // GA4 tronca a 100 caratteri e ogni valore distinto e' una riga di
+  // cardinalita', quindi il testo libero produce un report illeggibile e un
+  // dato inutile. Le grandezze continue si mandano a fasce, per lo stesso
+  // motivo — e perche' "circa un'ora" e' quello che si guarda davvero.
+
+  /// Scheda traccia aperta, propria o di altri.
+  ///
+  /// Il *quante volte* lo dice gia' `screen_view` da quando c'e'
+  /// l'osservatore: quello che aggiunge questo evento e' `is_own`, cioe' la
+  /// risposta a "l'app viene usata per rivedere le proprie uscite o per
+  /// guardare quelle degli altri". La seconda non e' un ripiego: e' il motore
+  /// che giustifica il contenuto pubblico.
+  ///
+  /// **Manca di proposito un campo "da dove sei arrivato"** (feed, Discover,
+  /// ricerca, profilo). Servirebbe passarlo da undici punti di apertura
+  /// diversi, e finche' non lo si fa davvero un campo che dice
+  /// "non attribuito" nove volte su dieci e' peggio che non averlo: invita a
+  /// leggere come "diretto" quello che e' solo "non misurato". Quando servira'
+  /// si aggiunge il parametro ai push, non un valore di comodo qui.
+  Future<void> trackOpened({required bool isOwn}) =>
+      _logEvent('track_opened', {'is_own': isOwn ? 1 : 0});
+
+  /// Ricerca eseguita. [scope]: `trails`, `huts`, `users`, `places`.
+  ///
+  /// Il testo cercato NON si manda. Si manda se ha prodotto risultati, che e'
+  /// l'unica cosa su cui si puo' agire: una ricerca a vuoto ripetuta e' un
+  /// buco nel catalogo, e oggi non lo vediamo.
+  Future<void> searchPerformed({
+    required String scope,
+    required int resultCount,
+  }) =>
+      _logEvent('search_performed', {
+        'scope': scope,
+        'has_results': resultCount > 0 ? 1 : 0,
+        'result_bucket': _fascia(resultCount, const [1, 5, 20, 50]),
+      });
+
+  /// Rifugio o scheda di un'attivita' aperta.
+  ///
+  /// [claimed] distingue una scheda rivendicata da un POI OSM: e' il numero su
+  /// cui poggia tutta la proposta B2B, e finora la stima era a naso.
+  /// [hasOpeningHours] misura la copertura del dato che manca di piu' — l'8%
+  /// delle schede, vedi docs/rifugi_aperture.md.
+  Future<void> hutOpened({
+    required bool claimed,
+    required bool hasOpeningHours,
+  }) =>
+      _logEvent('hut_opened', {
+        'claimed': claimed ? 1 : 0,
+        'has_opening_hours': hasOpeningHours ? 1 : 0,
+      });
+
+  /// Area di mappa scaricata per l'uso offline.
+  ///
+  /// E' la funzione che ci distingue dai concorrenti web-first e non sappiamo
+  /// se qualcuno la usi. [tiles] a fasce, non esatto.
+  Future<void> offlineMapDownloaded({
+    required int tiles,
+    required int maxZoom,
+  }) =>
+      _logEvent('offline_map_downloaded', {
+        'tile_bucket': _fascia(tiles, const [100, 1000, 5000, 20000]),
+        'max_zoom': maxZoom,
+      });
+
+  /// Registrazione avviata.
+  ///
+  /// Da sola dice poco; il suo valore sta nel rapporto con
+  /// [recordingFinished]. La differenza fra le due e' la registrazione che
+  /// qualcuno ha cominciato e non ha mai chiuso — cioe' il guasto piu' grave
+  /// che questa app possa avere, e quello di cui oggi sappiamo solo per
+  /// segnalazione.
+  Future<void> recordingStarted(String activityType) =>
+      _logEvent('recording_started', {'activity_type': activityType});
+
+  /// Registrazione conclusa e salvata.
+  ///
+  /// [hadGaps] dice se la registrazione si e' interrotta: e' la misura che la
+  /// 2.11.3 ha reso possibile, e serve a sapere quanto sia diffuso il
+  /// congelamento invece di dedurlo dalle segnalazioni.
+  Future<void> recordingFinished({
+    required String activityType,
+    required Duration duration,
+    required double distanceMeters,
+    required bool hadGaps,
+  }) =>
+      _logEvent('recording_finished', {
+        'activity_type': activityType,
+        'minutes_bucket': _fascia(duration.inMinutes, const [15, 45, 120, 300]),
+        'km_bucket': _fascia((distanceMeters / 1000).round(), const [2, 8, 20, 50]),
+        'had_gaps': hadGaps ? 1 : 0,
+      });
+
+  /// Tratto mancante ridisegnato dal proprietario (2.11.4).
+  ///
+  /// Funzione costruita contro il consiglio di aspettare e misurare, con
+  /// l'argomento che quando capita crea fiducia. Non e' un argomento
+  /// falsificabile, ma quanti la usino si puo' sapere — e vale la pena.
+  Future<void> gapReconstructed({required int drawnPoints}) =>
+      _logEvent('gap_reconstructed', {
+        'points_bucket': _fascia(drawnPoints, const [10, 50, 200]),
+      });
+
+  /// Riduce un numero a una fascia, restituita come stringa leggibile.
+  ///
+  /// GA4 tratta ogni valore distinto come una riga: mandare il numero esatto
+  /// produce un report con mille righe da un evento ciascuna, che non si
+  /// guarda. E la domanda vera non e' mai "1.732 tile" ma "tanti o pochi".
+  @visibleForTesting
+  static String fasciaPerTest(int v, List<int> soglie) => _fascia(v, soglie);
+
+  static String _fascia(int v, List<int> soglie) {
+    if (v <= 0) return '0';
+    for (var i = 0; i < soglie.length; i++) {
+      if (v < soglie[i]) {
+        return i == 0 ? '<${soglie[0]}' : '${soglie[i - 1]}-${soglie[i]}';
+      }
+    }
+    return '${soglie.last}+';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // SINK
   // ═══════════════════════════════════════════════════════════════════════════
 

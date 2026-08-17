@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../../../core/services/growth_analytics_service.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -1002,6 +1003,15 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
         attemptId: attemptId,
         pointsCount: trackToSave.points.length,
         activityType: trackToSave.activityType.name,
+      ));
+      // Anche il salvataggio automatico e' una registrazione conclusa: non
+      // contarlo gonfierebbe le "avviate e mai finite", che e' proprio il
+      // guasto che quel rapporto deve saper vedere.
+      unawaited(GrowthAnalyticsService.instance.recordingFinished(
+        activityType: trackToSave.activityType.name,
+        duration: trackToSave.stats.duration,
+        distanceMeters: trackToSave.stats.distance,
+        hadGaps: trackToSave.gaps.isNotEmpty,
       ));
       final result = await _repository.saveTrackDetailed(trackToSave,
           attemptId: attemptId);
@@ -2230,6 +2240,20 @@ class _RecordPageState extends State<RecordPage> with WidgetsBindingObserver {
       final saveResult = await _repository.saveTrackDetailed(trackToSave,
           attemptId: attemptId);
       final trackId = saveResult.trackId;
+
+      // Registrazione conclusa. Sta qui e non in TracksRepository.saveTrack
+      // perche' quel metodo serve anche agli import: agganciarlo li' avrebbe
+      // contato come "registrazione conclusa" ogni GPX di qualcun altro
+      // caricato dall'utente, ed e' il tipo di numero che sembra giusto per
+      // mesi. `hadGaps` dice se la registrazione si e' interrotta davvero:
+      // e' la misura che la 2.11.3 ha reso possibile, e sostituisce il
+      // dedurlo dalle segnalazioni.
+      unawaited(GrowthAnalyticsService.instance.recordingFinished(
+        activityType: trackToSave.activityType.name,
+        duration: trackToSave.stats.duration,
+        distanceMeters: trackToSave.stats.distance,
+        hadGaps: trackToSave.gaps.isNotEmpty,
+      ));
 
       // Commit ancora in coda (offline): avvisa che la traccia c'è ma non è
       // ancora sul server. Il backup su disco resta finché non lo è, vedi

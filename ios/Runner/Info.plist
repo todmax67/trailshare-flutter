@@ -169,5 +169,15 @@
 	<true/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<!-- Analytics nasce SPENTO, e lo riaccende il codice solo dopo il consenso
+	     (GrowthAnalyticsService._applyAnalyticsConsent). Senza questa chiave
+	     l'SDK parte acceso all'inizializzazione di Firebase e viene spento
+	     qualche istante dopo dal Dart: in quella finestra first_open e
+	     session_start erano gia' partiti, per chiunque, anche per chi al
+	     consenso avrebbe risposto no. Il gemello Android sta nel manifest come
+	     firebase_analytics_collection_enabled.
+	     Il valore impostato a runtime e' persistente e vince su questo. -->
+	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+	<false/>
 </dict>
 </plist>

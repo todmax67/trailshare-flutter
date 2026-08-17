@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'growth_analytics_service.dart';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:path_provider/path_provider.dart';
@@ -115,6 +117,16 @@ class OfflineMapsService {
 
     // Salva info regione
     await _saveRegionInfo(regionName, bounds, minZoom, maxZoom, downloadedTiles - skippedTiles);
+
+    // La mappa offline e' la funzione che ci distingue dai concorrenti
+    // web-first, e non sapevamo se qualcuno la usasse. Il nome della regione
+    // NON si manda: e' scritto dall'utente, quindi e' testo libero — dato
+    // personale in un sink di terza parte, e cardinalita' che rende il report
+    // illeggibile.
+    unawaited(GrowthAnalyticsService.instance.offlineMapDownloaded(
+      tiles: downloadedTiles,
+      maxZoom: maxZoom,
+    ));
 
     return DownloadResult(
       success: !cancelled && failedTiles == 0,

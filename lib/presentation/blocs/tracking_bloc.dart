@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../core/services/growth_analytics_service.dart';
 import 'package:flutter/foundation.dart';
 import '../../data/models/track.dart';
 import '../../core/services/location_service.dart';
@@ -147,6 +148,14 @@ class TrackingBloc extends ChangeNotifier {
       notifyListeners();
       return;
     }
+
+    // Il rapporto con recording_finished e' il dato vero: la differenza sono
+    // le registrazioni cominciate e mai chiuse, cioe' il guasto piu' grave che
+    // questa app possa avere e quello di cui oggi sappiamo solo per
+    // segnalazione. Sta dopo il successo di startTracking: un avvio negato dal
+    // GPS non e' una registrazione avviata.
+    unawaited(GrowthAnalyticsService.instance
+        .recordingStarted((activityType ?? ActivityType.trekking).name));
 
     _moving.reset();
     _state = TrackingState(

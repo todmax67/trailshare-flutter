@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../core/services/growth_analytics_service.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -88,6 +90,11 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     // — così mappa, 3D, export, condivisione e pubblicazione hanno i punti.
     _isHydrating = _track.points.isEmpty && _track.id != null;
     _hydratePointsIfNeeded();
+    // Quante volte si apre una scheda lo dice gia' screen_view. Qui interessa
+    // una cosa sola: propria o di altri. E' la differenza fra un'app in cui si
+    // rivedono le proprie uscite e una in cui si guardano quelle degli altri —
+    // due prodotti diversi, e finora non sapevamo quale fossimo.
+    unawaited(GrowthAnalyticsService.instance.trackOpened(isOwn: _isOwner));
   }
 
   /// Ricarica i punti dalla geometria se la traccia è arrivata "leggera".
@@ -869,6 +876,13 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
     try {
       final updated =
           await _tracksRepository.saveGapReconstruction(id, gap.startedAt, route);
+      // Dopo il salvataggio, non prima: contare le aperture della pagina di
+      // disegno direbbe quanti ci hanno provato, non quanti l'hanno usata. La
+      // funzione e' stata costruita contro il consiglio di aspettare e
+      // misurare, con l'argomento che quando capita crea fiducia — quello non
+      // e' falsificabile, ma quante volte capita si puo' sapere.
+      unawaited(GrowthAnalyticsService.instance
+          .gapReconstructed(drawnPoints: route.length));
       if (!mounted) return;
       setState(() => _track = _track.copyWith(gaps: updated));
       ScaffoldMessenger.of(context).showSnackBar(

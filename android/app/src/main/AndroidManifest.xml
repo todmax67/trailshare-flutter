@@ -121,6 +121,23 @@
             android:name="google_analytics_adid_collection_enabled"
             android:value="false" />
 
+        <!-- Analytics nasce SPENTO, e lo riaccende il codice solo dopo il
+             consenso (GrowthAnalyticsService._applyAnalyticsConsent).
+
+             Senza questo l'SDK parte acceso all'inizializzazione di Firebase e
+             viene spento qualche istante dopo dal Dart: in quella finestra
+             `first_open` e `session_start` erano gia' partiti, per chiunque,
+             anche per chi al consenso avrebbe risposto no. La privacy policy
+             promette il contrario, e il difetto non lasciava traccia — nei
+             report quegli eventi sono indistinguibili dagli altri.
+
+             Il valore impostato a runtime da setAnalyticsCollectionEnabled(true)
+             e' persistente e vince su questo, quindi dopo il si' la raccolta
+             resta accesa fra un avvio e l'altro senza doverlo ripetere. -->
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
