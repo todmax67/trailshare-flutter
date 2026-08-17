@@ -108,10 +108,21 @@ Only the person who recorded the track can reconstruct it, and they can delete i
 - Cambiare l'attività dalla scheda di una traccia ricostruita: tratteggio e
   ricostruzione devono restare.
 
-## Restano da fare, invariate dalla 2.11.3
+## Fatto con questa submission
 
-- **Apple, categoria secondaria** Sport → Navigazione: va fatta *insieme a
-  questa submission*, o aspetta la prossima. Vedi `docs/aso_keywords.md` § 1.
-- **Play, i tag** (non richiedono build) — § 1b dello stesso documento. La
-  categoria su Play **non si tocca**.
+- **Apple, categorie**: primaria **Salute e benessere** (invariata), secondaria
+  da *Sport* a **Navigazione**. Impostate il 2026-08-17. Su Apple il cambio
+  viaggia con la release, quindi era questa o la prossima. Vedi
+  `docs/aso_keywords.md` § 1.
+
+## Restano da fare
+
+- **Play, i tag** (non richiedono build) — § 1b di `docs/aso_keywords.md`. La
+  **categoria** su Play non si tocca: lì è unica, e uscirne vorrebbe dire
+  allontanarsi da komoot, AllTrails e Strava per raggiungere Wikiloc.
 - **Screenshot dello store**: ancora quelli del Peak Finder a linea piatta.
+  Restano il primo lavoro da fare — le parole fanno trovare l'app, gli
+  screenshot decidono se la installano.
+- **Rimisurare fra 7 e 14 giorni** con `scripts/aso_rank.py` e
+  `scripts/play_rank.py`, per sapere se il cambio di categoria ha spostato
+  qualcosa invece di supporlo.

@@ -237,6 +237,22 @@ sta cercando mappe.
 Proposta: **secondaria da Sport a Navigazione**. La primaria può restare Salute
 e benessere, che è quella di komoot e AllTrails.
 
+> **FATTO il 2026-08-17**, con la submission della 2.11.4+133: primaria
+> **Salute e benessere**, secondaria **Navigazione**.
+>
+> Vale la pena scrivere perché per un momento era stato impostato *Sport* in
+> primaria. È l'errore naturale quando si legge «cambiare la categoria in
+> Navigazione»: sembra che i due slot vadano riempiti col nuovo. Ma il senso
+> della proposta sta tutto nell'avere **due** posti — Navigazione si prende
+> *senza rinunciare* a Salute e benessere, che è la categoria dei due
+> concorrenti più vicini e, per un'app che scrive gli allenamenti in Apple
+> Health, anche quella tecnicamente giusta. Sport in primaria avrebbe speso
+> entrambi gli slot per lasciare per strada il solo che valeva tenere.
+>
+> Non misurato, e quindi non usato come argomento: **chi popola davvero la
+> categoria Sport italiana**. L'idea che sia il quartiere di calcio, risultati
+> e streaming è ragionamento, non un numero.
+
 #### Su Play la conclusione è OPPOSTA, e vale la pena non sbagliarsi
 
 Misurato il 2026-08-17 leggendo `applicationCategory` dal JSON-LD delle schede
