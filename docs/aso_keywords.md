@@ -210,6 +210,52 @@ costruito sui rifugi), *Info e viaggi locali* tornerebbe in gioco — è dove
 stanno Outdooractive e OsmAnd, cioè chi vende territorio più che allenamento.
 Da rivalutare allora, con i numeri di allora.
 
+**Su Apple il cambio richiede una nuova versione** — verificato in App Store
+Connect il 2026-08-17. Non è modificabile al volo come la privacy policy: la
+categoria viaggia con la release. Nessun costo aggiuntivo, visto che c'è
+comunque una submission da fare, ma va ricordato al momento di prepararla o si
+scopre che il campo è bloccato.
+
+### 1b. I tag di Play
+
+Play concede **cinque tag**, separati dalla categoria. Ogni tag porta con sé la
+categoria a cui appartiene, quindi la scelta rinforza (o contraddice) il
+posizionamento deciso sopra.
+
+Com'erano al 2026-08-17:
+
+```
+Allenamento · Allenamento sportivo · Mappe e navigatori ·
+Monitoraggio attività · Salute e fitness
+```
+
+**Tre slot su cinque descrivevano un'app di allenamento**, e uno era sprecato a
+ripetere il nome della categoria. Chi veniva accostato a noi su quei segnali si
+aspettava schede di allenamento e progressioni, non rifugi e mappe offline.
+`Allenamento sportivo` è il peggiore: in inglese è *Sports training*, cioè
+piani e coaching — roba che l'app non fa.
+
+Set proposto:
+
+| Tag | Perché |
+|---|---|
+| **Monitoraggio attività** | è letteralmente cosa fa: registra e misura |
+| **Mappe e navigatori** | mappe offline e navigazione, senza cambiare categoria |
+| **In corso** | è *Running* tradotto male da Google — copre il trail running |
+| **Sci** | c'è la mappa invernale per lo scialpinismo, ed è poco affollato |
+| **Guida turistica** | 21.000 POI e rifugi: l'unico che ci distingue invece di descrivere una categoria |
+
+Da non usare: `Meteo`, `Perdita di peso`, `Dieta`, `Yoga`, `Meditazione` — sono
+vicini nella lista perché condividono la categoria, ma descrivono un'app che
+non siamo. È lo stesso errore delle keyword `traccia` e `offline` su Apple, che
+ci accostavano al tracciamento pacchi. E `Corse` è ambiguo fra corsa e motori.
+
+**Non è verificato che i tag muovano il posizionamento**: Google non lo
+documenta, e potrebbero servire solo agli accostamenti "app simili" e ai
+consigli. Costano cinque minuti, ma non aspettarsi l'effetto di un cambio di
+keyword su Apple. Se dopo il cambio comparissero installazioni da "app simili"
+nella Play Console, quello sarebbe il segnale.
+
 ### 2. Nessuna scheda in inglese, mentre l'app è tradotta per intero
 
 `lib/l10n/` ha 2.076 chiavi in italiano e **2.076 in inglese**: l'interfaccia è

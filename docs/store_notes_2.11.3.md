@@ -109,6 +109,19 @@ Fixed a fault that left some people signed out every time they opened the app. A
 - iOS: e' la prima build che porta il banner dei permessi salute, che su
   Android c'e' dalla 2.11.2. La correzione del logout e' Android-only.
 
+## Da fare INSIEME a questa submission (Apple)
+
+La **categoria secondaria** va da *Sport* a **Navigazione**, e su Apple il
+cambio richiede una nuova versione: se non si fa ora, aspetta la prossima.
+Primaria invariata (Salute e benessere, la stessa di komoot e AllTrails).
+
+Sei concorrenti su sette hanno Navigazione o Viaggi in uno dei due slot; noi
+nessuno dei due. Vedi docs/aso_keywords.md § 1.
+
+Su **Play la categoria NON si tocca**: lì è unica, e komoot, AllTrails e Strava
+stanno tutti in Salute e fitness insieme a noi. Da cambiare invece i **tag**,
+che non c'entrano con le build — vedi § 1b dello stesso documento.
+
 ## Dopo la pubblicazione
 
 - Gli **screenshot dello store sono ancora quelli del Peak Finder vecchio**, a
