@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:trailshare_flutter/core/utils/track_gap_segments.dart';
 import 'package:trailshare_flutter/data/models/track.dart';
 
@@ -371,6 +372,49 @@ void main() {
       expect(metres, greaterThan(5400));
       expect(metres, lessThan(5700));
       expect(straightLineMeters(pts, const []), 0);
+    });
+  });
+
+  group('chi offre e chi disegna scelgono lo stesso buco', () {
+    // Non e' un dettaglio estetico: la scheda offre "ricostruisci" su UN buco
+    // e salva li' la ricostruzione; se il disegnatore ne guarda un altro, la
+    // ricostruzione esiste nel database e non compare mai sulla mappa. Il
+    // legame regge solo finche' le due parti usano la STESSA regola, ed e'
+    // quello che questo test blocca.
+    final points = [p(0), p(5), p(40), p(45)];
+    final multipli = [
+      gap(6, 20),
+      TrackGap(
+        startedAt: DateTime.utc(2026, 8, 16, 10, 20),
+        endedAt: DateTime.utc(2026, 8, 16, 10, 39),
+        cause: TrackGap.causeAppFrozen,
+        reconstruction: const [LatLng(45.01, 9.01), LatLng(45.02, 9.02)],
+      ),
+    ];
+
+    test('un arco, un buco rappresentativo', () {
+      expect(gapsRappresentativi(points, multipli), hasLength(1));
+    });
+
+    test('e\' esattamente quello che il disegnatore userebbe', () {
+      final disegnato = splitTrackOnGaps(points, multipli)
+          .firstWhere((s) => s.isGap)
+          .gap;
+      expect(gapsRappresentativi(points, multipli).single.startedAt,
+          disegnato!.startedAt);
+    });
+
+    test('senza ricostruzioni vince il piu\' lungo, non il primo', () {
+      final soloTempo = [gap(6, 12), gap(12, 39)];
+      expect(gapsRappresentativi(points, soloTempo).single.startedAt,
+          DateTime.utc(2026, 8, 16, 10, 12));
+    });
+
+    test('un buco fuori da ogni arco non diventa un\'offerta', () {
+      // Il watchdog puo\' aver scritto un buco che i punti non confermano:
+      // offrirne la ricostruzione manderebbe su una pagina senza estremi.
+      final fuori = [gap(100, 120)];
+      expect(gapsRappresentativi(points, fuori), isEmpty);
     });
   });
 }

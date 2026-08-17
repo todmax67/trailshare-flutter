@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -267,6 +268,101 @@ void main() {
       expect(merged!.gaps, hasLength(1),
           reason: 'il buco del pomeriggio non deve sparire nell\'unione');
       expect(merged.gaps.single.cause, TrackGap.causeAppFrozen);
+    });
+  });
+
+  group('ricostruzione del tratto mancante (Fase 2)', () {
+    final route = [
+      const LatLng(45.001, 9.001),
+      const LatLng(45.010, 9.004),
+      const LatLng(45.020, 9.008),
+    ];
+
+    test('si salva sul buco giusto e si rilegge', () async {
+      final g = watchdogGap();
+      final id = await repo.saveTrack(makeTrack(gaps: [g]));
+      final updated = await repo.saveGapReconstruction(id, g.startedAt, route);
+
+      expect(updated.single.hasReconstruction, isTrue);
+      expect(updated.single.reconstruction, hasLength(3));
+      expect(updated.single.reconstructedAt, isNotNull);
+
+      final loaded = await repo.getTrackById(id);
+      expect(loaded!.gaps.single.reconstruction.first.latitude,
+          closeTo(45.001, 1e-9));
+      expect(loaded.gaps.single.reconstruction.last.longitude,
+          closeTo(9.008, 1e-9));
+    });
+
+    test('NON tocca punti ne statistiche: e il vincolo del progetto', () async {
+      final g = watchdogGap();
+      final id = await repo.saveTrack(makeTrack(gaps: [g]));
+      final before = (await tracksCol().doc(id).get()).data()!;
+
+      await repo.saveGapReconstruction(id, g.startedAt, route);
+
+      final after = (await tracksCol().doc(id).get()).data()!;
+      expect(after['distance'], before['distance'],
+          reason: 'i km ricostruiti non entrano nel totale');
+      expect(after['elevationGain'], before['elevationGain']);
+      expect(after['movingTime'], before['movingTime']);
+      expect(after['pointsCount'], before['pointsCount']);
+      expect(after.containsKey('points'), isFalse);
+    });
+
+    test('i punti ricostruiti restano FUORI da Track.points', () async {
+      final g = watchdogGap();
+      final id = await repo.saveTrack(makeTrack(n: 30, gaps: [g]));
+      await repo.saveGapReconstruction(id, g.startedAt, route);
+
+      final loaded = await repo.getTrackById(id);
+      expect(loaded!.points, hasLength(30),
+          reason: 'segmenti, classifica e salute leggono questi: non devono crescere');
+      // Nessuna coordinata della ricostruzione compare fra i punti misurati.
+      for (final r in route) {
+        final trovato = loaded.points.any((p) =>
+            (p.latitude - r.latitude).abs() < 1e-9 &&
+            (p.longitude - r.longitude).abs() < 1e-9);
+        expect(trovato, isFalse,
+            reason: 'il punto ricostruito $r e finito fra i misurati');
+      }
+    });
+
+    test('si ritira tornando alla retta, e il buco resta', () async {
+      final g = watchdogGap();
+      final id = await repo.saveTrack(makeTrack(gaps: [g]));
+      await repo.saveGapReconstruction(id, g.startedAt, route);
+
+      final cleared = await repo.clearGapReconstruction(id, g.startedAt);
+      expect(cleared.single.hasReconstruction, isFalse);
+      expect(cleared.single.cause, TrackGap.causeAppFrozen,
+          reason: 'togliere il disegno non toglie il buco');
+    });
+
+    test('un buco inesistente a quell istante fa fallire invece di scrivere', () async {
+      final id = await repo.saveTrack(makeTrack(gaps: [watchdogGap()]));
+      expect(
+        () => repo.saveGapReconstruction(
+            id, base.add(const Duration(days: 5)), route),
+        throwsStateError,
+      );
+    });
+
+    test('con piu buchi tocca solo quello indicato', () async {
+      final g1 = watchdogGap();
+      final g2 = TrackGap(
+        startedAt: base.add(const Duration(seconds: 200)),
+        endedAt: base.add(const Duration(seconds: 220)),
+        cause: TrackGap.causeAppFrozen,
+      );
+      final id = await repo.saveTrack(makeTrack(gaps: [g1, g2]));
+      final updated = await repo.saveGapReconstruction(id, g2.startedAt, route);
+
+      expect(updated, hasLength(2));
+      expect(updated.firstWhere((x) => x.startedAt == g1.startedAt)
+          .hasReconstruction, isFalse);
+      expect(updated.firstWhere((x) => x.startedAt == g2.startedAt)
+          .hasReconstruction, isTrue);
     });
   });
 }

@@ -1277,6 +1277,16 @@ class _SettingsPageState extends State<SettingsPage> {
     // version e ROADMAP.md.
     const releases = <_ReleaseEntry>[
       _ReleaseEntry(
+        version: '2.11.4',
+        title: 'Il tratto mancante lo ridisegni tu 🖊️',
+        bullets: [
+          '**Dove la registrazione si era fermata, ora puoi disegnare la strada che hai fatto.** Ti proponiamo il percorso lungo i sentieri fra i due punti, e se ha preso la via sbagliata la correggi toccando la mappa',
+          '**Resta tratteggiato anche dopo.** Non è una misura, è la tua dichiarazione: distinguerla da ciò che il GPS ha registrato è tutto il punto',
+          '**Quei chilometri non si sommano a niente** — né alla distanza, né alle classifiche, né ai segmenti. La traccia continua a contare quel tratto solo in linea retta',
+          'Puoi cancellare la ricostruzione quando vuoi, e può farla solo chi la traccia l\'ha registrata',
+        ],
+      ),
+      _ReleaseEntry(
         version: '2.11.3',
         title: 'Quando la registrazione si ferma, te lo diciamo 📍',
         bullets: [

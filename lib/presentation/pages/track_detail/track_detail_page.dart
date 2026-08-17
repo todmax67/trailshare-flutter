@@ -37,6 +37,7 @@ import '../../../presentation/widgets/heart_rate_zones_widget.dart';
 import '../../../core/services/health_service.dart';
 import '../../../core/extensions/theme_colors_extension.dart';
 import '../../../core/utils/track_gap_segments.dart';
+import 'gap_reconstruction_page.dart';
 import '../../widgets/flat_section.dart';
 import '../../widgets/track_stats_bar.dart';
 
@@ -653,21 +654,10 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                   // due estremi: dirlo è il minimo, e sostenere il contrario
                   // (come faceva la prima stesura di questo avviso) era falso.
                   Text(
-                    'Il tratto tratteggiato sulla mappa non è strada percorsa: '
-                    'è la linea retta fra il punto dove la registrazione si è '
-                    'fermata e quello dove ha ripreso. Nel totale quel tratto '
-                    'conta solo in linea retta — quasi certamente meno della '
-                    'strada che hai fatto davvero.',
+                    _testoBuchi(gaps),
                     style: TextStyle(fontSize: 13, color: context.textSecondary),
                   ),
-                  if (_isOwner && hasDeclared)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: _removeDeclaredGaps,
-                        child: const Text('Rimuovi le interruzioni dichiarate da te'),
-                      ),
-                    ),
+                  if (_isOwner) _azioniSuiBuchi(gaps, hasDeclared),
                 ],
               ),
             ),
@@ -735,6 +725,171 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
         ),
       ),
     );
+  }
+
+  /// Cosa dire sotto il titolo dell'avviso, a seconda di quanto sappiamo.
+  ///
+  /// I chilometri ricostruiti si dichiarano **a parte**, mai sommati al totale:
+  /// il numero grande deve continuare a misurare solo ciò che il GPS ha
+  /// misurato. È il vincolo su cui poggia tutta la funzione — vedi
+  /// docs/tracce_ricostruite.md.
+  String _testoBuchi(List<TrackGap> gaps) {
+    // Una ricostruzione per ARCO, non per buco: su un'interruzione lunga i
+    // buchi sono molti e sommarli tutti gonfierebbe i km dichiarati.
+    final ricostruiti = gapsRappresentativi(_track.points, gaps)
+        .where((g) => g.hasReconstruction)
+        .toList();
+    if (ricostruiti.isEmpty) {
+      return 'Il tratto tratteggiato sulla mappa non è strada percorsa: è la '
+          'linea retta fra il punto dove la registrazione si è fermata e quello '
+          'dove ha ripreso. Nel totale quel tratto conta solo in linea retta — '
+          'quasi certamente meno della strada che hai fatto davvero.';
+    }
+
+    var metri = 0.0;
+    const d = Distance();
+    for (final g in ricostruiti) {
+      for (var i = 1; i < g.reconstruction.length; i++) {
+        metri += d.as(LengthUnit.Meter, g.reconstruction[i - 1], g.reconstruction[i]);
+      }
+    }
+    final km = (metri / 1000).toStringAsFixed(1);
+    final archi = gapsRappresentativi(_track.points, gaps).length;
+    final mancanti = archi - ricostruiti.length;
+
+    // ATTENZIONE alla frase: la prima stesura diceva che la distanza «misura
+    // solo ciò che il GPS ha registrato», e rimetteva in circolo la falsità
+    // corretta in Fase 1 — la corda in linea retta fra i due estremi ENTRA
+    // in stats.distance, perché la somma fra punti consecutivi non ha guard
+    // sul salto. Ricostruire non cambia quel numero: aggiunge un disegno, non
+    // toglie la corda.
+    return 'Hai ricostruito il tratto tratteggiato: circa $km km lungo i '
+        'sentieri. Non vengono sommati alla distanza qui sotto, che continua a '
+        'contare quel tratto solo in linea retta — quasi certamente meno della '
+        'strada che hai fatto davvero.'
+        '${mancanti > 0 ? ' Restano $mancanti interruzion${mancanti == 1 ? 'e' : 'i'} ancora in linea retta.' : ''}';
+  }
+
+  /// I gesti del proprietario sui buchi: ricostruire il tratto percorso, e
+  /// tornare indietro su entrambe le cose che può aver dichiarato.
+  Widget _azioniSuiBuchi(List<TrackGap> gaps, bool hasDeclared) {
+    // Si offre di ricostruire SOLO i buchi che il disegno legherà davvero a un
+    // arco — stessa regola di TrackSegment.gap.
+    //
+    // Prima si ordinava per durata e si proponeva il più lungo, mentre chi
+    // disegna prendeva il primo che si sovrapponeva: su un'interruzione lunga
+    // il watchdog ne emette uno ogni cinque minuti, quindi le due scelte
+    // divergevano di continuo. L'utente disegnava, il salvataggio riusciva, la
+    // scheda diceva «hai ricostruito X km» — e la mappa non cambiava.
+    final rappresentativi = gapsRappresentativi(_track.points, gaps);
+    final daRicostruire =
+        rappresentativi.where((g) => !g.hasReconstruction).toList()
+          ..sort((a, b) => b.duration.compareTo(a.duration));
+    final ricostruiti =
+        rappresentativi.where((g) => g.hasReconstruction).toList();
+
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 8,
+      children: [
+        if (hasDeclared)
+          TextButton(
+            onPressed: _removeDeclaredGaps,
+            child: const Text('Rimuovi le interruzioni dichiarate da te'),
+          ),
+        if (ricostruiti.isNotEmpty)
+          TextButton(
+            onPressed: () => _clearReconstruction(ricostruiti.first),
+            child: const Text('Togli il tratto ricostruito'),
+          ),
+        if (daRicostruire.isNotEmpty)
+          FilledButton.tonalIcon(
+            onPressed: () => _reconstructGap(daRicostruire.first),
+            icon: const Icon(Icons.draw_outlined, size: 18),
+            label: Text(daRicostruire.length == 1
+                ? 'Disegna il tratto che hai fatto'
+                : 'Disegna il tratto più lungo'),
+          ),
+      ],
+    );
+  }
+
+  /// Gli estremi del buco: l'ultimo punto registrato prima e il primo dopo.
+  /// `null` se la traccia non ha punti attorno a quell'intervallo — può
+  /// succedere su una traccia spezzata dopo che il buco era stato dichiarato.
+  (LatLng, LatLng)? _estremiDi(TrackGap gap) {
+    for (final s in splitTrackOnGaps(_track.points, [gap])) {
+      if (s.isGap && s.points.length == 2) {
+        return (
+          LatLng(s.points.first.latitude, s.points.first.longitude),
+          LatLng(s.points.last.latitude, s.points.last.longitude),
+        );
+      }
+    }
+    return null;
+  }
+
+  Future<void> _reconstructGap(TrackGap gap) async {
+    final id = _track.id;
+    if (id == null) return;
+    final estremi = _estremiDi(gap);
+    if (estremi == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Non trovo i punti attorno a questa interruzione su questa traccia.'),
+        ),
+      );
+      return;
+    }
+
+    final route = await Navigator.of(context).push<List<LatLng>>(
+      MaterialPageRoute(
+        builder: (_) => GapReconstructionPage(
+          gap: gap,
+          activityType: _track.activityType,
+          from: estremi.$1,
+          to: estremi.$2,
+        ),
+      ),
+    );
+    if (route == null || route.length < 2 || !mounted) return;
+
+    try {
+      final updated =
+          await _tracksRepository.saveGapReconstruction(id, gap.startedAt, route);
+      if (!mounted) return;
+      setState(() => _track = _track.copyWith(gaps: updated));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tratto salvato. Resta dichiarato come ricostruito.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[TrackDetail] salvataggio ricostruzione: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Non sono riuscito a salvare. Riprova.')),
+      );
+    }
+  }
+
+  Future<void> _clearReconstruction(TrackGap gap) async {
+    final id = _track.id;
+    if (id == null) return;
+    try {
+      final updated =
+          await _tracksRepository.clearGapReconstruction(id, gap.startedAt);
+      if (!mounted) return;
+      setState(() => _track = _track.copyWith(gaps: updated));
+    } catch (e) {
+      debugPrint('[TrackDetail] rimozione ricostruzione: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Non sono riuscito a salvare. Riprova.')),
+      );
+    }
   }
 
   Future<void> _declareGaps(List<TrackGap> candidates) async {
@@ -1567,18 +1722,16 @@ class _TrackDetailPageState extends State<TrackDetailPage> {
                               }
                             
                             // Aggiorna UI
+                            // copyWith, non un Track nuovo: il costruttore
+                            // grezzo ripartiva dai default e azzerava in
+                            // memoria gaps, userId, laps, tags e battito.
+                            // Conseguenza visibile: cambiando sport spariva il
+                            // tratteggio, spariva il tratto ricostruito e con
+                            // essi il pulsante per toglierlo — cioe' il
+                            // ripristino promesso non era piu' raggiungibile
+                            // fino a riapertura della scheda.
                             setState(() {
-                              _track = Track(
-                                id: _track.id,
-                                name: _track.name,
-                                description: _track.description,
-                                points: _track.points,
-                                activityType: type,
-                                createdAt: _track.createdAt,
-                                stats: _track.stats,
-                                isPublic: _track.isPublic,
-                                photos: _track.photos,
-                              );
+                              _track = _track.copyWith(activityType: type);
                             });
                             
                             if (context.mounted) {

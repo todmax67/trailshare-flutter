@@ -207,3 +207,77 @@ parecchio, e produce un dato che poi va escluso da metà dell'app.
 Se dopo qualche settimana di 2.11.3 i buchi registrati risultano pochi, la Fase
 2 non si fa: si tiene il tratteggio e si passa oltre. **Il campo `gaps` che
 abbiamo appena aggiunto è anche la misura che permette di decidere.**
+
+---
+
+## La Fase 2 si è fatta lo stesso — 2026-08-17
+
+La sezione qui sopra diceva di aspettare e misurare. Il founder ha deciso
+diversamente, con un argomento che la misura non poteva contenere:
+
+> «È vero che capita poche volte, e solo su alcuni terminali, però quando
+> capita è quella cosa che ti fa innamorare dell'app, crea fiducia.»
+
+La frequenza di un difetto e il valore di ripararlo bene non sono la stessa
+grandezza. Restano validi il costo e i rischi elencati sopra: sono diventati
+il lavoro da fare, non un motivo per non farlo.
+
+### La regola che tiene in piedi tutto
+
+**I punti ricostruiti non entrano mai in `Track.points`.**
+
+Ventiquattro file leggono i punti di una traccia, e tre non devono vederli
+mai: il riconoscimento dei segmenti cronometrati
+(`segment_matching_service.dart:83`), la classifica settimanale e l'XP
+(`functions/index.js:831`), l'esportazione verso Apple Health
+(`health_service.dart:218`). Un punto disegnato che entrasse lì produrrebbe un
+tempo su segmento mai corso, XP non guadagnato, un'attività sanitaria falsa.
+
+Il vincolo non è affidato alla disciplina di chi scrive: `reconstruction` è
+`List<LatLng>`, non `List<TrackPoint>`. Senza quota e senza orario non c'è modo
+di infilarla in una struttura che li pretende — **è il compilatore a impedirlo,
+non un commento**.
+
+### Cosa ha trovato la revisione avversariale
+
+Dieci difetti confermati prima del commit, due gravi. Vale la pena tenerli
+scritti, perché sono tutti la stessa famiglia di errore.
+
+**Il giro di andata e ritorno del GPX** (grave). L'esportazione era onesta —
+segmento separato, marcatura — ma il rientro no: il file riletto trasformava i
+punti disegnati in punti misurati, con orari inventati da `DateTime.now()`, e
+da lì li avrebbero visti segmenti, classifica, XP e Health. Tutta la disciplina
+di cui sopra, aggirata da *esporta e reimporta*. Peggio: la marcatura era un
+commento XML, che ogni parser scarta — compreso il nostro. Ora è un `<name>`
+leggibile e l'import salta quei segmenti.
+
+**La ricostruzione salvata su un buco che il disegnatore non guardava**
+(grave). Il watchdog emette un buco ogni cinque minuti: su un congelamento
+lungo sono molti, tutti fra gli stessi due punti. La scheda ne offriva uno e il
+disegnatore ne sceglieva un altro — ricostruzione salvata nel database, mappa
+identica a prima. Ora la regola di scelta è una sola, `TrackSegment.gap`, e
+`gapsRappresentativi()` la espone alla UI; un test blocca le due parti insieme.
+
+**Il ponte non ancorato agli estremi misurati.** Il motore di routing aggancia
+i waypoint alla via più vicina, anche a centinaia di metri: disegnando solo la
+ricostruzione restavano due raccordi senza alcun segno sulla mappa. Incertezza
+sparita proprio nella funzione che esiste per dichiararla.
+
+**Tre testi falsi**, tutti la stessa: dicevano che la distanza mostrata è solo
+ciò che il GPS ha misurato. Non è vero — la corda in linea retta fra i due
+estremi ci sta dentro, ed è la falsità già corretta in Fase 1, tornata in tre
+punti nuovi. Ricostruire aggiunge un disegno, non toglie la corda.
+
+**Cambiare l'attività dalla scheda** ricostruiva l'oggetto traccia campo per
+campo e perdeva `gaps`: spariva il tratteggio e spariva il modo di togliere la
+ricostruzione. Ora è `copyWith`.
+
+### Cosa resta scoperto, dichiarato
+
+- La ricostruzione **non ha orari**, quindi non c'è un passo né una velocità su
+  quel tratto, e non ce ne saranno: inventarli sarebbe esattamente il difetto
+  che questa funzione ripara.
+- I chilometri disegnati **non entrano in nessun totale**. La scheda lo dice.
+- La Fase 3 (marcatura che viaggia su scheda condivisa e web) non è fatta: chi
+  guarda una traccia ricostruita **dal web** vede il tratteggio ma non la
+  spiegazione.

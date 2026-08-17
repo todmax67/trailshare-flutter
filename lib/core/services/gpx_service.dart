@@ -8,6 +8,13 @@ import '../../data/models/track.dart';
 import '../utils/elevation_processor.dart';
 
 /// Servizio per gestione file GPX (import/export)
+/// Nome del `<trkseg>` che contiene un tratto ricostruito dal proprietario.
+///
+/// La stessa stringa serve a scriverlo e a riconoscerlo al reimport: se le due
+/// parti divergono, l'esportazione resta onesta e il rientro no — che e'
+/// esattamente il difetto trovato dalla revisione della Fase 2.
+const String kReconstructedSegmentName = 'ricostruito dal proprietario';
+
 class GpxService {
   
   /// Parsa un file GPX e restituisce una Track
@@ -40,6 +47,21 @@ class GpxService {
         
         final trksegs = trk.findAllElements('trkseg');
         for (final seg in trksegs) {
+          // Un segmento marcato come ricostruito NON entra fra i punti
+          // misurati. Senza questo controllo l'esportazione era onesta e il
+          // rientro no: reimportando un GPX nostro, i punti disegnati dal
+          // proprietario finivano in `points` e in `stats.distance` — e da li'
+          // in poi li vedevano segmenti cronometrati, classifica, XP e Apple
+          // Health. Tutto il progetto poggia sul fatto che non li vedano mai.
+          //
+          // Si scartano invece di ricostruire il TrackGap: qui manca il
+          // contesto per dedurne gli estremi in modo affidabile, e perdere il
+          // disegno e' molto meno grave che spacciarlo per misurato.
+          final segName = seg.findElements('name').firstOrNull?.innerText.trim();
+          if (segName == kReconstructedSegmentName) {
+            debugPrint('[GpxService] segmento ricostruito saltato in import');
+            continue;
+          }
           final trkpts = seg.findAllElements('trkpt');
           for (final pt in trkpts) {
             final point = _parseTrackPoint(pt);
@@ -248,10 +270,9 @@ class GpxService {
     // Con un segmento unico, invece, il buco diventava una linea dritta
     // indistinguibile dal percorso vero appena il file usciva dall'app: qualsiasi
     // avviso mostrato nella nostra scheda non viaggia con il file.
-    final breaks = track.gaps
-        .map((g) => g.startedAt)
-        .toList()
-      ..sort();
+    final ordered = [...track.gaps]
+      ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+    final breaks = ordered.map((g) => g.startedAt).toList();
     var nextBreak = 0;
     var segmentOpen = false;
 
@@ -262,6 +283,27 @@ class GpxService {
         if (segmentOpen) {
           buffer.writeln('    </trkseg>');
           segmentOpen = false;
+        }
+        // Il tratto ricostruito dal proprietario esce come segmento SUO, con
+        // un nome che lo dichiara: cosi' l'etichetta viaggia col file invece
+        // di restare nella nostra scheda. Senza <time> sui punti — quegli
+        // orari non esistono, e inventarli darebbe velocita' false a chi
+        // importa la traccia.
+        final g = ordered[nextBreak];
+        if (g.hasReconstruction) {
+          buffer.writeln('    <trkseg>');
+          // Un COMMENTO XML non e' una marcatura: ogni parser lo scarta, e il
+          // nostro reimportava questi punti come misurati, con orari
+          // inventati. Serve un elemento che sopravviva al giro — <name> lo e',
+          // ed e' quello che il progetto chiedeva.
+          buffer.writeln('      <name>$kReconstructedSegmentName</name>');
+          buffer.writeln(
+              '      <!-- Non registrato dal GPS: percorso dichiarato da chi ha camminato -->');
+          for (final p in g.reconstruction) {
+            buffer.writeln(
+                '      <trkpt lat="${p.latitude}" lon="${p.longitude}"></trkpt>');
+          }
+          buffer.writeln('    </trkseg>');
         }
         nextBreak++;
       }

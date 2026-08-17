@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:latlong2/latlong.dart';
+
 /// Rappresenta un singolo punto GPS della traccia
 class TrackPoint {
   final double latitude;
@@ -468,32 +470,100 @@ class TrackGap {
   /// futuri senza rompere la deserializzazione.
   final String cause;
 
+  /// Il percorso che il PROPRIETARIO dichiara di aver fatto in quei minuti.
+  ///
+  /// Vuoto = buco non ricostruito, che e' lo stato normale.
+  ///
+  /// Vive qui dentro e **non** in [Track.points], e non e' un dettaglio di
+  /// stile: ventiquattro file leggono i punti di una traccia, e tre non devono
+  /// vedere questi mai — il matching dei segmenti cronometrati, la classifica
+  /// settimanale con gli XP, e la scrittura del percorso dentro Apple Health.
+  /// Mescolandoli servirebbe ricordarsi di escluderli in ventiquattro posti,
+  /// cioe' dimenticarsene in qualcuno; separati, il comportamento predefinito
+  /// e' non averli. Vedi docs/tracce_ricostruite.md.
+  ///
+  /// Sono [LatLng] e non [TrackPoint] apposta: il tipo diverso impedisce al
+  /// compilatore di lasciarli passare dove si aspettano punti misurati. E non
+  /// hanno orario — nessuno sa a che ora si e' passati di li', e inventarlo
+  /// genererebbe velocita', che e' cio' che alimenta i segmenti.
+  final List<LatLng> reconstruction;
+
+  /// Quando e' stata disegnata. Serve a dichiararla, non a fidarsene.
+  final DateTime? reconstructedAt;
+
   const TrackGap({
     required this.startedAt,
     required this.endedAt,
     required this.cause,
+    this.reconstruction = const [],
+    this.reconstructedAt,
   });
 
   Duration get duration => endedAt.difference(startedAt);
 
   bool get isOwnerDeclared => cause == causeOwnerDeclared;
 
+  bool get hasReconstruction => reconstruction.length >= 2;
+
+  TrackGap copyWith({
+    List<LatLng>? reconstruction,
+    DateTime? reconstructedAt,
+    bool clearReconstruction = false,
+  }) =>
+      TrackGap(
+        startedAt: startedAt,
+        endedAt: endedAt,
+        cause: cause,
+        reconstruction:
+            clearReconstruction ? const [] : (reconstruction ?? this.reconstruction),
+        reconstructedAt:
+            clearReconstruction ? null : (reconstructedAt ?? this.reconstructedAt),
+      );
+
   Map<String, dynamic> toMap() => {
         'startedAt': startedAt.toUtc().toIso8601String(),
         'endedAt': endedAt.toUtc().toIso8601String(),
         'cause': cause,
+        // Coppie piatte [lat, lng, lat, lng, …]: meta' dei byte di una lista
+        // di mappe, su un campo che vive dentro il documento principale
+        // insieme a tutto il resto (budget 1 MiB).
+        if (reconstruction.length >= 2)
+          'reconstruction': [
+            for (final p in reconstruction) ...[p.latitude, p.longitude],
+          ],
+        if (reconstructedAt != null)
+          'reconstructedAt': reconstructedAt!.toUtc().toIso8601String(),
       };
 
   factory TrackGap.fromMap(Map<String, dynamic> map) {
     final start = DateTime.tryParse(map['startedAt']?.toString() ?? '');
     final end = DateTime.tryParse(map['endedAt']?.toString() ?? '');
     final safeStart = start ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+    final raw = map['reconstruction'];
+    final coords = <LatLng>[];
+    if (raw is List && raw.length >= 4) {
+      // Lunghezza dispari = dato troncato: si scarta tutto invece di
+      // disegnare un percorso che finisce in un punto inventato.
+      final n = raw.length - (raw.length % 2);
+      for (var i = 0; i + 1 < n; i += 2) {
+        final la = (raw[i] as num?)?.toDouble();
+        final lo = (raw[i + 1] as num?)?.toDouble();
+        if (la == null || lo == null) continue;
+        if (la < -90 || la > 90 || lo < -180 || lo > 180) continue;
+        coords.add(LatLng(la, lo));
+      }
+    }
+
     return TrackGap(
       startedAt: safeStart,
       // Un buco senza fine leggibile resta un buco: si tiene, con durata zero,
       // invece di sparire e far tornare la traccia "completa".
       endedAt: end ?? safeStart,
       cause: map['cause']?.toString() ?? 'unknown',
+      reconstruction: coords.length >= 2 ? coords : const [],
+      reconstructedAt:
+          DateTime.tryParse(map['reconstructedAt']?.toString() ?? ''),
     );
   }
 }

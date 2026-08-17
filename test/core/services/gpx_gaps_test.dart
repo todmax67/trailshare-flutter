@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:trailshare_flutter/core/services/gpx_service.dart';
 import 'package:trailshare_flutter/data/models/track.dart';
 
@@ -97,7 +98,105 @@ void main() {
           reason: 'resta un buco dichiarato, non una traccia che torna intera');
     });
   });
+
+  group('il tratto ricostruito esce come segmento dichiarato', () {
+    Track conRicostruzione() => trackWith(gaps: [
+          TrackGap(
+            startedAt: DateTime.utc(2026, 8, 16, 10, 5),
+            endedAt: DateTime.utc(2026, 8, 16, 10, 40),
+            cause: TrackGap.causeAppFrozen,
+            reconstruction: const [
+              LatLng(45.05, 9.0),
+              LatLng(45.10, 9.01),
+              LatLng(45.15, 9.02),
+            ],
+            reconstructedAt: DateTime.utc(2026, 8, 17),
+          ),
+        ]);
+
+    test('aggiunge un terzo segmento fra i due misurati', () {
+      final gpx = svc.generateGpx(conRicostruzione());
+      expect('<trkseg>'.allMatches(gpx).length, 3,
+          reason: 'percorso, ricostruito, percorso');
+      expect('</trkseg>'.allMatches(gpx).length, 3);
+    });
+
+    test('lo dichiara nel file, non solo nella nostra scheda', () {
+      final gpx = svc.generateGpx(conRicostruzione());
+      expect(gpx, contains('ricostruito dal proprietario'),
+          reason: 'l\'etichetta deve viaggiare col GPX');
+    });
+
+    test('i punti ricostruiti NON hanno orario', () {
+      final gpx = svc.generateGpx(conRicostruzione());
+      // I tre punti ricostruiti sono senza <time>: inventarlo darebbe
+      // velocita' false a chi importa la traccia.
+      final senzaTime = RegExp(r'<trkpt[^>]*></trkpt>').allMatches(gpx).length;
+      expect(senzaTime, 3);
+    });
+
+    test('i punti misurati restano quattro, con il loro orario', () {
+      final gpx = svc.generateGpx(conRicostruzione());
+      expect('<time>'.allMatches(gpx).length, 5,
+          reason: '4 punti misurati + 1 nei metadata');
+    });
+  });
+
+  group('il giro completo esporta-reimporta non falsifica la traccia', () {
+    // Il difetto critico della Fase 2: l'esportazione era onesta, il rientro
+    // no. I punti disegnati tornavano dentro points e dentro stats.distance,
+    // con orari inventati da DateTime.now() — e da li' li vedevano segmenti,
+    // classifica, XP e Apple Health.
+    Track conRicostruzione() => trackWith(gaps: [
+          TrackGap(
+            startedAt: DateTime.utc(2026, 8, 16, 10, 5),
+            endedAt: DateTime.utc(2026, 8, 16, 10, 40),
+            cause: TrackGap.causeAppFrozen,
+            reconstruction: const [
+              LatLng(45.05, 9.0),
+              LatLng(45.10, 9.01),
+              LatLng(45.15, 9.02),
+            ],
+          ),
+        ]);
+
+    test('il reimport restituisce SOLO i punti misurati', () {
+      final gpx = svc.generateGpx(conRicostruzione());
+      final back = svc.parseGpxString(gpx);
+      expect(back, isNotNull);
+      expect(back!.points, hasLength(4),
+          reason: 'i 3 punti disegnati non devono rientrare fra i misurati');
+    });
+
+    test('nessun punto reimportato ha le coordinate della ricostruzione', () {
+      final back = svc.parseGpxString(svc.generateGpx(conRicostruzione()))!;
+      for (final r in const [
+        LatLng(45.05, 9.0),
+        LatLng(45.10, 9.01),
+        LatLng(45.15, 9.02),
+      ]) {
+        final trovato = back.points.any((p) =>
+            (p.latitude - r.latitude).abs() < 1e-9 &&
+            (p.longitude - r.longitude).abs() < 1e-9);
+        expect(trovato, isFalse, reason: 'punto ricostruito rientrato: $r');
+      }
+    });
+
+    test('la distanza reimportata non gonfia per il tratto disegnato', () {
+      final senza = svc.parseGpxString(svc.generateGpx(trackWith(gaps: const [])))!;
+      final con = svc.parseGpxString(svc.generateGpx(conRicostruzione()))!;
+      expect(con.stats.distance, closeTo(senza.stats.distance, 1),
+          reason: 'la ricostruzione non deve entrare nei chilometri');
+    });
+
+    test('la marcatura e un elemento leggibile, non un commento', () {
+      final gpx = svc.generateGpx(conRicostruzione());
+      expect(gpx, contains('<name>$kReconstructedSegmentName</name>'),
+          reason: 'un commento XML lo scarta ogni parser, compreso il nostro');
+    });
+  });
 }
+
 
 final _s = DateTime.utc(2026, 8, 16, 10, 5);
 final _e = DateTime.utc(2026, 8, 16, 10, 40);

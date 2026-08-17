@@ -31,13 +31,34 @@ class TrackSegment {
   /// Quanto e' durata l'interruzione. Valorizzata solo sui tratti [gap].
   final Duration? gapDuration;
 
+  /// TUTTI i buchi che cadono su questo arco, non uno solo.
+  ///
+  /// Su un'interruzione lunga sono la norma: il watchdog ne emette uno ogni
+  /// cinque minuti finche' i punti mancano, quindi un congelamento da mezz'ora
+  /// produce sei buchi fra la stessa coppia di punti registrati. Tenerne uno
+  /// solo faceva divergere chi disegna da chi offre la ricostruzione: l'utente
+  /// disegnava, il salvataggio riusciva, e la mappa non cambiava.
+  final List<TrackGap> gaps;
+
   const TrackSegment({
     required this.points,
     required this.kind,
     this.gapDuration,
+    this.gaps = const [],
   });
 
   bool get isGap => kind == TrackSegmentKind.gap;
+
+  /// Il buco che rappresenta questo arco: quello ricostruito se c'e',
+  /// altrimenti il piu' lungo. **La stessa regola va usata dalla UI** quando
+  /// offre di ricostruire, o le due parti tornano a divergere.
+  TrackGap? get gap {
+    if (gaps.isEmpty) return null;
+    for (final g in gaps) {
+      if (g.hasReconstruction) return g;
+    }
+    return gaps.reduce((a, b) => b.duration > a.duration ? b : a);
+  }
 }
 
 /// Spezza [points] usando [gaps].
@@ -74,11 +95,11 @@ List<TrackSegment> splitTrackOnGaps(
     final from = points[i - 1];
     final to = points[i];
 
-    // Il buco tocca questo arco? Intervalli aperti: un buco che finisce
+    // I buchi che toccano questo arco. Intervalli aperti: un buco che finisce
     // esattamente sul punto precedente non riguarda questo arco.
-    final gap = _gapOverlapping(gaps, from.timestamp, to.timestamp);
+    final qui = _gapsOverlapping(gaps, from.timestamp, to.timestamp);
 
-    if (gap == null) {
+    if (qui.isEmpty) {
       run.add(to);
       continue;
     }
@@ -92,7 +113,9 @@ List<TrackSegment> splitTrackOnGaps(
     segments.add(TrackSegment(
       points: [from, to],
       kind: TrackSegmentKind.gap,
-      gapDuration: gap.duration,
+      // La durata dell'arco e' la somma dei buchi che ci cadono dentro.
+      gapDuration: qui.fold<Duration>(Duration.zero, (t, g) => t + g.duration),
+      gaps: qui,
     ));
     run = <TrackPoint>[to];
   }
@@ -103,12 +126,27 @@ List<TrackSegment> splitTrackOnGaps(
   return segments;
 }
 
-TrackGap? _gapOverlapping(List<TrackGap> gaps, DateTime from, DateTime to) {
-  for (final g in gaps) {
-    if (g.startedAt.isBefore(to) && g.endedAt.isAfter(from)) return g;
-  }
-  return null;
+List<TrackGap> _gapsOverlapping(
+    List<TrackGap> gaps, DateTime from, DateTime to) {
+  return [
+    for (final g in gaps)
+      if (g.startedAt.isBefore(to) && g.endedAt.isAfter(from)) g,
+  ];
 }
+
+/// Il buco che la UI deve offrire di ricostruire per un dato arco, con la
+/// STESSA regola usata da [TrackSegment.gap]. Esportata apposta: quando le due
+/// parti scelgono buchi diversi, il disegno si salva su uno e la mappa ne
+/// legge un altro — e all'utente sembra che il salvataggio non abbia fatto
+/// niente.
+List<TrackGap> gapsRappresentativi(
+  List<TrackPoint> points,
+  List<TrackGap> gaps,
+) =>
+    [
+      for (final s in splitTrackOnGaps(points, gaps))
+        if (s.isGap && s.gap != null) s.gap!,
+    ];
 
 /// Il totale del tempo perso, per la riga da mostrare nella scheda.
 Duration totalGapDuration(List<TrackGap> gaps) =>

@@ -129,19 +129,50 @@ class SlopeLegend extends StatelessWidget {
 
 /// Il ponte sopra un buco: tratteggiato, piu' sottile e piu' chiaro del
 /// percorso. Si legge come "qui siamo meno sicuri" senza bisogno di legenda.
+///
+/// Se il proprietario ha ricostruito il tratto, il tratteggio segue il
+/// percorso che ha dichiarato invece della linea retta — ma resta
+/// tratteggiato, perche' resta un dato non misurato. Tre livelli di
+/// certezza, tre disegni diversi: pieno = camminato, tratteggiato lungo un
+/// sentiero = dichiarato da chi c'era, tratteggiato dritto = non lo sappiamo.
 Polyline gapBridgePolyline(
   TrackSegment bridge, {
   required double strokeWidth,
   required Color color,
-}) =>
-    Polyline(
-      points: bridge.points
-          .map((p) => LatLng(p.latitude, p.longitude))
-          .toList(),
-      strokeWidth: strokeWidth * 0.75,
-      color: color.withValues(alpha: 0.45),
-      pattern: StrokePattern.dashed(segments: const [8, 8]),
-    );
+}) {
+  final a = LatLng(bridge.points.first.latitude, bridge.points.first.longitude);
+  final b = LatLng(bridge.points.last.latitude, bridge.points.last.longitude);
+  final gap = bridge.gap;
+
+  // Il ponte parte SEMPRE dall'ultimo punto misurato e finisce sul primo dopo,
+  // anche quando c'e' una ricostruzione in mezzo.
+  //
+  // Il motivo e' che il percorso disegnato non nasce sugli estremi: il motore
+  // di routing aggancia i waypoint alla via piu' vicina, anche a centinaia di
+  // metri. Disegnando solo la ricostruzione restavano due raccordi senza alcun
+  // segno sulla mappa — cioe' due pezzi di incertezza spariti dalla vista,
+  // proprio nella funzione che esiste per dichiararla. Restano tratteggiati
+  // come il resto: "qui non sappiamo nemmeno come sia arrivato al sentiero".
+  final pts = <LatLng>[a];
+  if (gap != null && gap.hasReconstruction) {
+    const d = Distance();
+    for (final p in gap.reconstruction) {
+      // Salta i punti che coincidono con l'estremo: evita micro-segmenti.
+      if (pts.isNotEmpty && d.as(LengthUnit.Meter, pts.last, p) < 5) continue;
+      pts.add(p);
+    }
+    if (d.as(LengthUnit.Meter, pts.last, b) >= 5) pts.add(b);
+  } else {
+    pts.add(b);
+  }
+
+  return Polyline(
+    points: pts.length >= 2 ? pts : [a, b],
+    strokeWidth: strokeWidth * 0.75,
+    color: color.withValues(alpha: 0.45),
+    pattern: StrokePattern.dashed(segments: const [8, 8]),
+  );
+}
 
 /// Come [slopeGradientPolylines], ma i ponti sopra i buchi di registrazione
 /// escono tratteggiati invece che colorati per pendenza.

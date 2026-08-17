@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/track.dart';
 import '../../core/utils/difficulty_calculator.dart';
 import '../../core/utils/elevation_dem_corrector.dart';
@@ -796,6 +797,57 @@ class TracksRepository {
     });
     return remaining;
   }
+
+  /// Il proprietario disegna il tratto che ha percorso mentre la registrazione
+  /// era ferma. Fase 2 di docs/tracce_ricostruite.md.
+  ///
+  /// [gapStartedAt] identifica il buco: e' l'istante d'inizio, univoco su una
+  /// traccia perche' i buchi non si sovrappongono (garantito da [declareGaps]).
+  /// Si usa quello e non un indice di lista perche' l'ordine puo' cambiare fra
+  /// una lettura e la scrittura.
+  ///
+  /// I punti NON entrano in `points` ne' nelle statistiche: restano dentro il
+  /// buco, e chi li vuole deve chiederli. Passare meno di due punti equivale
+  /// a ritirare la ricostruzione.
+  Future<List<TrackGap>> saveGapReconstruction(
+    String trackId,
+    DateTime gapStartedAt,
+    List<LatLng> route,
+  ) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw StateError('ricostruzione senza utente');
+
+    final docRef = _tracksCollection(userId).doc(trackId);
+    final snap = await docRef.get();
+    if (!snap.exists) throw StateError('traccia $trackId inesistente');
+
+    final gaps = _parseGaps(snap.data()?['gaps']);
+    final target = gapStartedAt.toUtc();
+    var found = false;
+    final updated = gaps.map((g) {
+      if (!g.startedAt.toUtc().isAtSameMomentAs(target)) return g;
+      found = true;
+      return route.length >= 2
+          ? g.copyWith(reconstruction: route, reconstructedAt: DateTime.now())
+          : g.copyWith(clearReconstruction: true);
+    }).toList();
+
+    // Nessun buco a quell'istante: il documento e' cambiato sotto (traccia
+    // risalvata, buco ritirato da un altro dispositivo). Meglio fallire che
+    // scrivere una ricostruzione orfana, che nessuna vista mostrerebbe mai.
+    if (!found) throw StateError('nessun buco a $gapStartedAt su $trackId');
+
+    await docRef.update({'gaps': updated.map((g) => g.toMap()).toList()});
+    return updated;
+  }
+
+  /// Ritira la ricostruzione lasciando il buco dichiarato: si torna al
+  /// tratteggio in linea retta, che e' l'ammissione onesta di non sapere.
+  Future<List<TrackGap>> clearGapReconstruction(
+    String trackId,
+    DateTime gapStartedAt,
+  ) =>
+      saveGapReconstruction(trackId, gapStartedAt, const []);
 
   List<TrackGap> _parseGaps(Object? raw) {
     if (raw is! List) return const [];
