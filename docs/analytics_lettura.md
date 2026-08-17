@@ -161,25 +161,35 @@ Attenzione: **non è retroattivo.** GA4 comincia a popolare la dimensione dal
 momento in cui la registri, e i dati arrivati prima restano senza. Registrarle
 tutte subito costa dieci minuti e vale mesi di storico.
 
-| parametro | evento | serve a rispondere a |
-|---|---|---|
-| `had_gaps` | `recording_finished` | **quanto è diffuso il congelamento** — oggi lo sappiamo solo per segnalazione |
-| `activity_type` | `recording_started`, `recording_finished` | per quale sport ci usano davvero |
-| `minutes_bucket` | `recording_finished` | uscite brevi o giornate intere |
-| `km_bucket` | `recording_finished` | idem, in distanza |
-| `is_own` | `track_opened` | rivedono le proprie uscite o guardano quelle degli altri |
-| `has_results` | `search_performed` | **quante ricerche escono a vuoto** = dove è bucato il catalogo |
-| `result_bucket` | `search_performed` | pochi risultati o troppi |
-| `scope` | `search_performed` | cosa cercano |
-| `claimed` | `hut_opened` | **quante schede sono di qualcuno e quante POI orfani** — la base della proposta B2B |
-| `has_opening_hours` | `hut_opened` | copertura del dato che manca di più (8%) |
-| `tile_bucket` | `offline_map_downloaded` | aree piccole o intere valli |
-| `max_zoom` | `offline_map_downloaded` | quanto dettaglio vogliono offline |
-| `points_bucket` | `gap_reconstructed` | quanto lavoro fanno per ridisegnare un tratto |
-| `trigger` | `paywall_viewed` | da dove si arriva al paywall |
-| `method` | `signup_started` | quale metodo di registrazione perde meno gente |
-| `provider` | `integration_connect_started` | Strava, Polar, Suunto: chi ci prova |
-| `link_kind` | `deep_link_open` | QR nei rifugi, bio social, stampa |
+**Una dimensione = un parametro, mai un evento.** Da `recording_finished` ne
+escono quattro distinte. Mettere il nome dell'evento nel campo «Nome
+dimensione» produce una colonna chiamata `recording_finished` con dentro 0 e 1,
+e quattro dimensioni che collidono fra loro.
+
+I parametri di eventi **non ancora scattati non compaiono nel menu a tendina**:
+GA4 offre solo quelli che ha gia' ricevuto. Si scrivono a mano — il campo
+accetta testo libero e propone «Usa "…"».
+
+| parametro | nome da dare | evento | descrizione |
+|---|---|---|---|
+| `had_gaps` | Registrazione interrotta | `recording_finished` | 1 = si e' interrotta almeno una volta. **Quanto e' diffuso il congelamento**, che oggi si sa solo per segnalazione |
+| `has_results` | Ricerca con risultati | `search_performed` | 1 = ha trovato qualcosa. **Le ricerche a vuoto dicono dove e' bucato il catalogo** |
+| `claimed` | Scheda rivendicata | `hut_opened` | 1 = ha un proprietario, 0 = POI OSM orfano. **La misura dell'occasione B2B**, finora stimata a naso |
+| `is_own` | Traccia propria | `track_opened` | 1 = rivede una sua uscita, 0 = guarda quella di un altro |
+| `activity_type` | Sport | `recording_started`, `recording_finished` | Per quale sport ci usano davvero |
+| `km_bucket` | Distanza (fascia) | `recording_finished` | Chilometri, a fasce |
+| `minutes_bucket` | Durata (fascia) | `recording_finished` | Minuti, a fasce |
+| `has_opening_hours` | Orari presenti | `hut_opened` | Copertura del dato che manca di piu' (8%) |
+| `scope` | Ambito ricerca | `search_performed` | Cosa stavano cercando |
+| `result_bucket` | Risultati (fascia) | `search_performed` | Pochi risultati o troppi |
+| `tile_bucket` | Tile scaricati (fascia) | `offline_map_downloaded` | Aree piccole o intere valli |
+| `max_zoom` | Zoom massimo offline | `offline_map_downloaded` | Quanto dettaglio vogliono senza rete |
+| `points_bucket` | Punti ridisegnati (fascia) | `gap_reconstructed` | Quanto lavoro fanno per ricostruire un tratto |
+| `trigger` | Origine paywall | `paywall_viewed` | Da dove si arriva alla schermata Pro |
+| `method` | Metodo registrazione | `signup_started` | Quale via di iscrizione perde meno gente |
+| `provider` | Servizio collegato | `integration_connect_started` | Strava, Polar, Suunto: chi ci prova |
+| `link_kind` | Tipo di link | `deep_link_open` | QR nei rifugi, bio social, stampa |
+
 
 Diciassette su un limite di cinquanta, quindi c'è spazio per crescere — ma il
 limite è un motivo in più per non aggiungere eventi a caso.
