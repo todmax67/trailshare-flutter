@@ -105,7 +105,22 @@ con opposizione): quando i due numeri divergono, non è un errore.
 ## Dove guardare, in pratica
 
 1. **DebugView** — eventi entro pochi secondi, per verificare che arrivino e
-   coi nomi giusti. È il primo posto dopo una build nuova.
+   coi nomi giusti. **Non mostra il traffico normale**: mostra solo i
+   dispositivi su cui la modalità è stata accesa a mano, e non si attiva
+   dall'app — si attiva dal dispositivo. Con il telefono in USB:
+
+   ```
+   scripts/analytics_debug.sh on     # e off quando hai finito
+   ```
+
+   Serve la build di **release**: in debug la raccolta è spenta di proposito
+   (`granted && !kDebugMode`), o gli hot restart dello sviluppo sporcherebbero
+   retention e coorti. Su iOS l'equivalente è l'argomento di lancio
+   `-FIRDebugEnabled` da Xcode, quindi su TestFlight non è praticabile: lì
+   resta Realtime.
+
+   Il 2026-08-17 la schermata vuota è stata letta come «la strumentazione non
+   funziona». Non era mai stata accesa.
 2. **Realtime** — ultimi 30 minuti.
 3. **Coinvolgimento → Pagine e schermate** — le schermate.
 4. **Coinvolgimento → Eventi** — le azioni.
