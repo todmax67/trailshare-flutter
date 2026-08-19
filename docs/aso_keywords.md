@@ -403,3 +403,57 @@ quindi non li ho visti.
 Alla prossima release, e comunque quando il brief del lunedì segnala uno
 spostamento. Le posizioni qui sopra sono la baseline: se `rifugi` scende sotto
 il ventesimo posto è successo qualcosa.
+
+---
+
+## Rimisurato il 2026-08-19, tre settimane dopo
+
+Stesso script, stessa API, stesso paese. **La colonna che conta è la terza**:
+senza il confronto col punto di partenza, i numeri di questa settimana si
+leggono al contrario.
+
+| Parola | 2026-08-01 | 2026-08-19 | |
+|---|---|---|---|
+| `bivacchi` | *(2 app in tutto)* | **2° su 3** | occupato, come previsto |
+| `wikiloc` | 10° su 25 | 9° su 26 | fermo |
+| `rifugi` | 12° su 133 | **11° su 136** | **fermo** |
+| `trekking` | 90° su 178 | 77° su 177 | +13 |
+| `sentieri` | 47° su 151 | **72° su 159** | **−25** |
+| `escursioni` | fuori | fuori | — |
+| `mappe offline` | — | fuori dai 179 | il campo è di MAPS.ME e Google |
+
+### Due letture da correggere, e valgono più dei numeri
+
+**«Rifugi: da 45 a 11, salita di 34 posizioni».** Il 1° agosto era **12°**.
+Non è una salita: è un ritorno al punto di partenza dopo un'escursione. La
+domanda interessante non è cosa ci abbia portati a 11 — ci eravamo già — ma
+**cosa ci avesse fatto scendere a 45**, e quella nessuno se l'è posta perché il
+movimento sembrava buono.
+
+**«Sentieri: entrata nei 100 per la prima volta, a 72».** Il 1° agosto era
+**47°**, cioè comodamente dentro i 100. Non è un ingresso: è un calo di 25
+posizioni presentato come buona notizia.
+
+Entrambe nascono dallo stesso difetto, che non è di chi scrive il brief: **la
+serie storica dell'agente non arriva al 1° agosto**, quindi il primo valore che
+conosce diventa il punto di partenza, e ogni movimento si misura da lì. Un
+archivio che comincia tardi non dice «non lo so»: dice un'altra cosa, con la
+stessa faccia.
+
+### Cosa invece regge, e conferma la tesi
+
+Tre settimane di dati dicono che **la nicchia funziona e il generico no**. Su
+`rifugi` siamo 11° fra 136, su `bivacchi` secondi fra tre app al mondo — e il
+sottotitolo che ci ha messi lì è dell'1 agosto. Su `sentieri`, `trekking`,
+`escursioni` stiamo dove stanno komoot, Wikiloc e AllTrails, cioè fuori.
+
+`mappe offline` merita una riga a parte: è nel sottotitolo e non produce nulla,
+perché quel campo è di MAPS.ME, CityMaps2Go e Google Maps — mappe stradali. È
+lo stesso errore di `tracking` con i corrieri, in versione più educata.
+
+### Verificato lo stesso giorno sulla scheda pubblica
+
+Nome `TrailShare: Sentieri e Rifugi`, versione **2.11.4** del 2026-08-17,
+generi **`['Salute e benessere', 'Navigazione']`**: le categorie nuove sono in
+produzione. Rimisurare fra due settimane per sapere se hanno spostato qualcosa
+— oggi è troppo presto, e il ritorno di `rifugi` a 11 è precedente.
